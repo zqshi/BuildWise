@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账号设置 - VisionCraft</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#8B5CF6',
+                        accent: '#EC4899',
+                        dark: '#1F2937',
+                        light: '#F9FAFB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-gradient {
+                @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+            }
+            .bg-gradient-primary {
+                @apply bg-gradient-to-r from-primary to-secondary;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+            }
+            .btn-primary {
+                @apply bg-gradient-primary text-white font-medium py-2 px-4 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg;
+            }
+            .btn-secondary {
+                @apply bg-white text-dark font-medium py-2 px-4 rounded-lg hover:bg-gray-50 transition-all duration-300 shadow-sm hover:shadow-md border border-gray-200;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-dark">
+    <div class="flex flex-col h-screen overflow-hidden">
+        <!-- 顶部导航 -->
+        <header class="bg-white shadow-sm">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-center">
+                    <a href="trial-dashboard.html" class="flex items-center text-gray-800 hover:text-primary">
+                        <i class="fa fa-arrow-left mr-2"></i>
+                        <span class="font-medium">返回仪表盘</span>
+                    </a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button class="text-gray-600 hover:text-primary relative">
+                        <i class="fa fa-bell text-xl"></i>
+                        <span class="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                    
+                    <div class="relative" id="user-menu">
+                        <button class="flex items-center space-x-2" id="user-menu-button">
+                            <img src="https://randomuser.me/api/portraits/women/32.jpg" alt="用户头像" class="w-8 h-8 rounded-full">
+                            <span class="hidden sm:block font-medium">李明</span>
+                            <i class="fa fa-chevron-down text-xs text-gray-500"></i>
+                        </button>
+                        
+                        <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden" id="user-dropdown">
+                            <a href="settings.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-100">账号设置</a>
+                            <div class="border-t border-gray-200 my-1"></div>
+                            <a href="#" class="block px-4 py-2 text-gray-600 hover:bg-gray-100" id="logout-button">退出登录</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- 内容区域 -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-6">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-2xl font-bold mb-6">账号设置</h2>
+                
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+                    <div class="border-b border-gray-200">
+                        <nav class="flex -mb-px">
+                            <button class="tab-button active py-4 px-6 border-b-2 border-primary text-primary font-medium" data-tab="account">账户信息</button>
+                            <button class="tab-button py-4 px-6 border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="password">更改密码</button>
+                            <button class="tab-button py-4 px-6 border-b-2 border-transparent text-gray-500 hover:text-gray-700" data-tab="notifications">通知设置</button>
+                        </nav>
+                    </div>
+                    
+                    <div class="p-6">
+                        <!-- 账户信息 -->
+                        <div id="account-tab" class="tab-content">
+                            <form>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+                                        <input type="text" id="name" name="name" value="李明" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    </div>
+                                    <div>
+                                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+                                        <input type="email" id="email" name="email" value="liming@example.com" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-6">
+                                    <label for="company" class="block text-sm font-medium text-gray-700 mb-1">公司（可选）</label>
+                                    <input type="text" id="company" name="company" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                </div>
+                                
+                                <div class="flex justify-end">
+                                    <button type="submit" class="btn-primary">保存更改</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- 更改密码 -->
+                        <div id="password-tab" class="tab-content hidden">
+                            <form>
+                                <div class="mb-6">
+                                    <label for="current-password" class="block text-sm font-medium text-gray-700 mb-1">当前密码</label>
+                                    <input type="password" id="current-password" name="current-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                </div>
+                                
+                                <div class="mb-6">
+                                    <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">新密码</label>
+                                    <input type="password" id="new-password" name="new-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                </div>
+                                
+                                <div class="mb-6">
+                                    <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
+                                    <input type="password" id="confirm-password" name="confirm-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                </div>
+                                
+                                <div class="flex justify-end">
+                                    <button type="submit" class="btn-primary">更新密码</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- 通知设置 -->
+                        <div id="notifications-tab" class="tab-content hidden">
+                            <form>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="font-medium">电子邮件通知</h4>
+                                            <p class="text-sm text-gray-500">接收关于你的项目和账户的电子邮件更新。</p>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" checked>
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="font-medium">项目更新通知</h4>
+                                            <p class="text-sm text-gray-500">当你的项目有新的活动时收到通知。</p>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" checked>
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="font-medium">产品更新通知</h4>
+                                            <p class="text-sm text-gray-500">接收关于 VisionCraft 新功能和更新的通知。</p>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox">
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-6 flex justify-end">
+                                    <button type="submit" class="btn-primary">保存设置</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold mb-4">删除账户</h3>
+                    <p class="text-gray-600 mb-4">删除你的账户将永久删除所有项目和数据。此操作无法撤销。</p>
+                    <button class="text-red-600 hover:text-red-800 font-medium flex items-center">
+                        <i class="fa fa-trash mr-2"></i>
+                        删除我的账户
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 用户菜单切换
+        const userMenuButton = document.getElementById('user-menu-button');
+        const userDropdown = document.getElementById('user-dropdown');
+        
+        userMenuButton.addEventListener('click', () => {
+            userDropdown.classList.toggle('hidden');
+        });
+        
+        document.addEventListener('click', (e) => {
+            const userMenu = document.getElementById('user-menu');
+            if (!userMenu.contains(e.target)) {
+                userDropdown.classList.add('hidden');
+            }
+        });
+
+        // 退出登录
+        document.getElementById('logout-button').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (confirm('确定要退出登录吗？')) {
+                window.location.href = 'login.html';
+            }
+        });
+
+        // 标签页切换
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tab = button.dataset.tab;
+                
+                // 移除所有活动状态
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('active', 'border-primary', 'text-primary');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                });
+                
+                tabContents.forEach(content => {
+                    content.classList.add('hidden');
+                });
+                
+                // 设置当前活动标签
+                button.classList.add('active', 'border-primary', 'text-primary');
+                button.classList.remove('border-transparent', 'text-gray-500');
+                
+                document.getElementById(`${tab}-tab`).classList.remove('hidden');
+            });
+        });
+    </script>
+</body>
+</html>

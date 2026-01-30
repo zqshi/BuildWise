@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>帮助中心 - VisionCraft</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#8B5CF6',
+                        accent: '#EC4899',
+                        dark: '#1F2937',
+                        light: '#F9FAFB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-gradient {
+                @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+            }
+            .bg-gradient-primary {
+                @apply bg-gradient-to-r from-primary to-secondary;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+            }
+            .btn-primary {
+                @apply bg-gradient-primary text-white font-medium py-2 px-4 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg;
+            }
+            .btn-secondary {
+                @apply bg-white text-dark font-medium py-2 px-4 rounded-lg hover:bg-gray-50 transition-all duration-300 shadow-sm hover:shadow-md border border-gray-200;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-dark">
+    <div class="flex flex-col h-screen overflow-hidden">
+        <!-- 顶部导航 -->
+        <header class="bg-white shadow-sm">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-center">
+                    <a href="trial-dashboard.html" class="flex items-center text-gray-800 hover:text-primary">
+                        <i class="fa fa-arrow-left mr-2"></i>
+                        <span class="font-medium">返回仪表盘</span>
+                    </a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button class="text-gray-600 hover:text-primary relative">
+                        <i class="fa fa-bell text-xl"></i>
+                        <span class="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                    
+                    <div class="relative" id="user-menu">
+                        <button class="flex items-center space-x-2" id="user-menu-button">
+                            <img src="https://randomuser.me/api/portraits/women/32.jpg" alt="用户头像" class="w-8 h-8 rounded-full">
+                            <span class="hidden sm:block font-medium">李明</span>
+                            <i class="fa fa-chevron-down text-xs text-gray-500"></i>
+                        </button>
+                        
+                        <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden" id="user-dropdown">
+                            <a href="settings.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-100">账号设置</a>
+                            <div class="border-t border-gray-200 my-1"></div>
+                            <a href="#" class="block px-4 py-2 text-gray-600 hover:bg-gray-100" id="logout-button">退出登录</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- 内容区域 -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-6">
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white rounded-xl shadow-sm p-8 mb-8">
+                    <h2 class="text-2xl font-bold mb-4">欢迎来到 VisionCraft 帮助中心</h2>
+                    <p class="text-gray-600 mb-6">这里是你获取帮助和支持的地方。如果你有任何问题，请随时联系我们。</p>
+                    <div class="relative">
+                        <input type="text" placeholder="搜索帮助文档..." class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                            <i class="fa fa-book text-primary text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">使用指南</h3>
+                        <p class="text-gray-600 mb-4">了解如何使用 VisionCraft 的各种功能。</p>
+                        <a href="#" class="text-primary font-medium hover:underline flex items-center">
+                            查看指南 <i class="fa fa-arrow-right ml-2"></i>
+                        </a>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+                        <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                            <i class="fa fa-video-camera text-secondary text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">视频教程</h3>
+                        <p class="text-gray-600 mb-4">观看视频教程，快速上手 VisionCraft。</p>
+                        <a href="#" class="text-primary font-medium hover:underline flex items-center">
+                            观看教程 <i class="fa fa-arrow-right ml-2"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold mb-4">常见问题</h3>
+                    <div class="space-y-4">
+                        <div class="border-b border-gray-200 pb-4">
+                            <button class="flex items-center justify-between w-full text-left font-medium">
+                                <span>如何导入我的设计文件？</span>
+                                <i class="fa fa-chevron-down text-gray-500"></i>
+                            </button>
+                            <div class="mt-2 text-gray-600 text-sm">
+                                你可以在项目详情页中点击“导入设计”按钮，然后选择或拖放你的设计文件。我们支持 Figma、Sketch、Adobe XD 和 Photoshop 文件。
+                            </div>
+                        </div>
+                        <div class="border-b border-gray-200 pb-4">
+                            <button class="flex items-center justify-between w-full text-left font-medium">
+                                <span>如何生成代码？</span>
+                                <i class="fa fa-chevron-down text-gray-500"></i>
+                            </button>
+                            <div class="mt-2 text-gray-600 text-sm hidden">
+                                导入设计文件后，点击设计文件旁边的“生成代码”按钮。你可以选择技术栈和其他选项，然后点击“生成”。
+                            </div>
+                        </div>
+                        <div class="border-b border-gray-200 pb-4">
+                            <button class="flex items-center justify-between w-full text-left font-medium">
+                                <span>如何取消我的订阅？</span>
+                                <i class="fa fa-chevron-down text-gray-500"></i>
+                            </button>
+                            <div class="mt-2 text-gray-600 text-sm hidden">
+                                你可以在“设置”页面中找到“订阅”选项，然后点击“取消订阅”。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 用户菜单切换
+        const userMenuButton = document.getElementById('user-menu-button');
+        const userDropdown = document.getElementById('user-dropdown');
+        
+        userMenuButton.addEventListener('click', () => {
+            userDropdown.classList.toggle('hidden');
+        });
+        
+        document.addEventListener('click', (e) => {
+            const userMenu = document.getElementById('user-menu');
+            if (!userMenu.contains(e.target)) {
+                userDropdown.classList.add('hidden');
+            }
+        });
+
+        // 退出登录
+        document.getElementById('logout-button').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (confirm('确定要退出登录吗？')) {
+                window.location.href = 'login.html';
+            }
+        });
+
+        // FAQ 切换
+        document.querySelectorAll('.border-b button').forEach(button => {
+            button.addEventListener('click', () => {
+                const content = button.nextElementSibling;
+                content.classList.toggle('hidden');
+                const icon = button.querySelector('i');
+                icon.classList.toggle('fa-chevron-down');
+                icon.classList.toggle('fa-chevron-up');
+            });
+        });
+    </script>
+</body>
+</html>

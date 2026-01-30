@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>免费试用 - VisionCraft</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 统一的 Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#8B5CF6',
+                        accent: '#EC4899',
+                        dark: '#1F2937',
+                        light: '#F9FAFB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-gradient {
+                @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+            }
+            .bg-gradient-primary {
+                @apply bg-gradient-to-r from-primary to-secondary;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+            }
+            .btn-primary {
+                @apply bg-gradient-primary text-white font-medium py-3 px-6 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg;
+            }
+            .btn-secondary {
+                @apply bg-white text-dark font-medium py-3 px-6 rounded-lg hover:bg-gray-50 transition-all duration-300 shadow-sm hover:shadow-md;
+            }
+            .input-field {
+                @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-dark">
+    <!-- 导航栏 -->
+    <header class="bg-white shadow-sm">
+        <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center">
+                <a href="index.html">
+                    <img src="https://p9-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/1a5ebec8fbe741ebbfb124a09735dda5~tplv-a9rns2rl98-image.image?lk3s=8e244e95&rcl=202601261338417EDCB751369F1113DEAA&rrcfp=f06b921b&x-expires=1771997950&x-signature=9%2B3grfpaYbFdeteO6C3%2B%2BwmHaPg%3D" alt="VisionCraft" class="h-10">
+                </a>
+                <span class="ml-3 text-xl font-bold hidden sm:block">VisionCraft</span>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <a href="index.html" class="text-gray-600 hover:text-primary transition-colors">返回首页</a>
+                <a href="login.html" class="text-primary font-medium">登录</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要内容 -->
+    <main class="container mx-auto px-4 py-12 md:py-20">
+        <div class="max-w-6xl mx-auto">
+            <!-- 步骤指示器 -->
+            <div class="mb-12">
+                <div class="flex items-center justify-between max-w-3xl mx-auto">
+                    <div class="flex flex-col items-center">
+                        <div class="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-lg">1</div>
+                        <span class="mt-2 text-sm font-medium">创建账户</span>
+                    </div>
+                    <div class="flex-1 h-1 bg-gray-200 mx-4">
+                        <div class="h-full bg-primary transition-all duration-500" style="width: 0%;" id="progress-step-1"></div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <div class="w-12 h-12 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-bold text-lg" id="step-2">2</div>
+                        <span class="mt-2 text-sm font-medium text-gray-600" id="step-2-text">项目设置</span>
+                    </div>
+                    <div class="flex-1 h-1 bg-gray-200 mx-4">
+                        <div class="h-full bg-primary transition-all duration-500" style="width: 0%;" id="progress-step-2"></div>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <div class="w-12 h-12 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center font-bold text-lg" id="step-3">3</div>
+                        <span class="mt-2 text-sm font-medium text-gray-600" id="step-3-text">开始试用</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 表单容器 -->
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div class="flex flex-col md:flex-row">
+                    <!-- 左侧信息 -->
+                    <div class="md:w-1/2 bg-gradient-to-br from-primary to-secondary p-8 md:p-12 text-white">
+                        <h2 class="text-3xl font-bold mb-6">开始使用 VisionCraft</h2>
+                        <p class="mb-8 text-white text-opacity-90">通过 14 天免费试用，体验 VisionCraft 如何帮助你快速将设计转化为高质量代码。</p>
+                        
+                        <div class="space-y-6">
+                            <div class="flex items-start">
+                                <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-4 mt-1">
+                                    <i class="fa fa-check"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold mb-1">无限项目</h3>
+                                    <p class="text-sm text-white text-opacity-80">在试用期内创建和管理无限个项目</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-4 mt-1">
+                                    <i class="fa fa-check"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold mb-1">全功能访问</h3>
+                                    <p class="text-sm text-white text-opacity-80">体验专业版的所有高级功能</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-4 mt-1">
+                                    <i class="fa fa-check"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold mb-1">优先支持</h3>
+                                    <p class="text-sm text-white text-opacity-80">获得我们的客户支持团队的帮助</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center mr-4 mt-1">
+                                    <i class="fa fa-check"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold mb-1">无需信用卡</h3>
+                                    <p class="text-sm text-white text-opacity-80">开始试用不需要信用卡，随时可以取消</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-12">
+                            <p class="text-sm text-white text-opacity-80">已有账户？<a href="login.html" class="text-white font-medium underline">登录</a></p>
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧表单 -->
+                    <div class="md:w-1/2 p-8 md:p-12">
+                        <!-- 步骤 1: 创建账户 -->
+                        <div id="form-step-1">
+                            <h3 class="text-2xl font-bold mb-6">创建你的账户</h3>
+                            
+                            <form id="signup-form" class="space-y-6">
+                                <div>
+                                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+                                    <input type="text" id="name" name="name" class="input-field" placeholder="请输入你的姓名" required>
+                                </div>
+                                
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">电子邮箱</label>
+                                    <input type="email" id="email" name="email" class="input-field" placeholder="请输入你的电子邮箱" required>
+                                </div>
+                                
+                                <div>
+                                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+                                    <input type="password" id="password" name="password" class="input-field" placeholder="请设置密码（至少 8 个字符）" required minlength="8">
+                                    <div class="mt-2 text-xs text-gray-500">
+                                        密码必须包含至少 8 个字符，包括字母和数字
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-start">
+                                    <input type="checkbox" id="terms" name="terms" class="mt-1 mr-2" required>
+                                    <label for="terms" class="text-sm text-gray-600">
+                                        我同意 VisionCraft 的 <a href="#" class="text-primary hover:underline">服务条款</a> 和 <a href="#" class="text-primary hover:underline">隐私政策</a>
+                                    </label>
+                                </div>
+                                
+                                <button type="button" id="next-step-1" class="btn-primary w-full">
+                                    创建账户并继续
+                                </button>
+                                
+                                <div class="relative flex items-center justify-center my-6">
+                                    <div class="absolute inset-0 flex items-center">
+                                        <div class="w-full border-t border-gray-300"></div>
+                                    </div>
+                                    <div class="relative px-4 bg-white text-sm text-gray-500">
+                                        或者使用
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <button type="button" class="flex items-center justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" class="h-5 w-5 mr-2">
+                                        Google
+                                    </button>
+                                    <button type="button" class="flex items-center justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/1667px-Apple_logo_black.svg.png" alt="Apple" class="h-5 w-5 mr-2">
+                                        Apple
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- 步骤 2: 项目设置 -->
+                        <div id="form-step-2" class="hidden">
+                            <h3 class="text-2xl font-bold mb-6">设置你的第一个项目</h3>
+                            
+                            <form id="project-form" class="space-y-6">
+                                <div>
+                                    <label for="project-name" class="block text-sm font-medium text-gray-700 mb-1">项目名称</label>
+                                    <input type="text" id="project-name" name="project-name" class="input-field" placeholder="请输入项目名称" required>
+                                </div>
+                                
+                                <div>
+                                    <label for="project-description" class="block text-sm font-medium text-gray-700 mb-1">项目描述（可选）</label>
+                                    <textarea id="project-description" name="project-description" rows="3" class="input-field" placeholder="请描述你的项目"></textarea>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">选择技术栈</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="radio" name="tech-stack" value="react" class="mr-2" checked>
+                                            <span>React</span>
+                                        </label>
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="radio" name="tech-stack" value="vue" class="mr-2">
+                                            <span>Vue</span>
+                                        </label>
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="radio" name="tech-stack" value="angular" class="mr-2">
+                                            <span>Angular</span>
+                                        </label>
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="radio" name="tech-stack" value="html" class="mr-2">
+                                            <span>HTML/CSS</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">设计工具</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="checkbox" name="design-tool" value="figma" class="mr-2" checked>
+                                            <span>Figma</span>
+                                        </label>
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="checkbox" name="design-tool" value="sketch" class="mr-2">
+                                            <span>Sketch</span>
+                                        </label>
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="checkbox" name="design-tool" value="xd" class="mr-2">
+                                            <span>Adobe XD</span>
+                                        </label>
+                                        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <input type="checkbox" name="design-tool" value="zeplin" class="mr-2">
+                                            <span>Zeplin</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-4">
+                                    <button type="button" id="back-step-2" class="btn-secondary flex-1">
+                                        返回
+                                    </button>
+                                    <button type="button" id="next-step-2" class="btn-primary flex-1">
+                                        继续
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- 步骤 3: 开始试用 -->
+                        <div id="form-step-3" class="hidden text-center py-8">
+                            <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <i class="fa fa-check text-green-500 text-4xl"></i>
+                            </div>
+                            
+                            <h3 class="text-2xl font-bold mb-4">恭喜你！</h3>
+                            <p class="text-gray-600 mb-8 max-w-md mx-auto">
+                                你的 VisionCraft 账户已创建成功，14 天免费试用已激活。现在你可以开始使用 VisionCraft 的所有高级功能了！
+                            </p>
+                            
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8 text-left">
+                                <h4 class="font-semibold mb-2 flex items-center">
+                                    <i class="fa fa-lightbulb-o text-yellow-500 mr-2"></i>
+                                    快速开始指南
+                                </h4>
+                                <ul class="space-y-2 text-sm text-gray-600">
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-primary mt-1 mr-2"></i>
+                                        <span>导入你的设计文件或连接设计工具账户</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-primary mt-1 mr-2"></i>
+                                        <span>配置项目设置和转换规则</span>
+                                    </li>
+                                    <li class="flex items-start">
+                                        <i class="fa fa-arrow-right text-primary mt-1 mr-2"></i>
+                                        <span>生成代码并下载或直接部署</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            
+                            <a href="trial-dashboard.html" class="btn-primary inline-block">
+                                进入试用仪表盘
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-8 mt-12">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <img src="https://p9-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/1a5ebec8fbe741ebbfb124a09735dda5~tplv-a9rns2rl98-image.image?lk3s=8e244e95&rcl=202601261338417EDCB751369F1113DEAA&rrcfp=f06b921b&x-expires=1771997950&x-signature=9%2B3grfpaYbFdeteO6C3%2B%2BwmHaPg%3D" alt="VisionCraft" class="h-8">
+                    <span class="ml-3 text-lg font-bold">VisionCraft</span>
+                </div>
+                
+                <div class="flex space-x-6 text-sm">
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">关于我们</a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">服务条款</a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">隐私政策</a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">联系我们</a>
+                </div>
+            </div>
+            
+            <div class="mt-6 text-center text-sm text-gray-500">
+                © 2023 VisionCraft. 保留所有权利。
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 步骤导航逻辑
+        document.addEventListener('DOMContentLoaded', function() {
+            const formStep1 = document.getElementById('form-step-1');
+            const formStep2 = document.getElementById('form-step-2');
+            const formStep3 = document.getElementById('form-step-3');
+            
+            const step2 = document.getElementById('step-2');
+            const step2Text = document.getElementById('step-2-text');
+            const step3 = document.getElementById('step-3');
+            const step3Text = document.getElementById('step-3-text');
+            
+            const progressStep1 = document.getElementById('progress-step-1');
+            const progressStep2 = document.getElementById('progress-step-2');
+            
+            const nextStep1 = document.getElementById('next-step-1');
+            const backStep2 = document.getElementById('back-step-2');
+            const nextStep2 = document.getElementById('next-step-2');
+            
+            // 下一步：从步骤 1 到步骤 2
+            nextStep1.addEventListener('click', function() {
+                // 简单的表单验证
+                const name = document.getElementById('name').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const terms = document.getElementById('terms').checked;
+                
+                if (!name || !email || !password || password.length < 8 || !terms) {
+                    alert('请填写所有必填字段，并确保密码至少包含 8 个字符。');
+                    return;
+                }
+                
+                // 更新步骤指示器
+                progressStep1.style.width = '100%';
+                step2.classList.remove('bg-gray-200', 'text-gray-600');
+                step2.classList.add('bg-primary', 'text-white');
+                step2Text.classList.remove('text-gray-600');
+                step2Text.classList.add('text-dark');
+                
+                // 显示步骤 2
+                formStep1.classList.add('hidden');
+                formStep2.classList.remove('hidden');
+                
+                // 滚动到顶部
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+            
+            // 返回：从步骤 2 到步骤 1
+            backStep2.addEventListener('click', function() {
+                // 更新步骤指示器
+                progressStep1.style.width = '0%';
+                step2.classList.remove('bg-primary', 'text-white');
+                step2.classList.add('bg-gray-200', 'text-gray-600');
+                step2Text.classList.remove('text-dark');
+                step2Text.classList.add('text-gray-600');
+                
+                // 显示步骤 1
+                formStep2.classList.add('hidden');
+                formStep1.classList.remove('hidden');
+                
+                // 滚动到顶部
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+            
+            // 下一步：从步骤 2 到步骤 3
+            nextStep2.addEventListener('click', function() {
+                // 简单的表单验证
+                const projectName = document.getElementById('project-name').value;
+                
+                if (!projectName) {
+                    alert('请输入项目名称。');
+                    return;
+                }
+                
+                // 更新步骤指示器
+                progressStep2.style.width = '100%';
+                step3.classList.remove('bg-gray-200', 'text-gray-600');
+                step3.classList.add('bg-primary', 'text-white');
+                step3Text.classList.remove('text-gray-600');
+                step3Text.classList.add('text-dark');
+                
+                // 显示步骤 3
+                formStep2.classList.add('hidden');
+                formStep3.classList.remove('hidden');
+                
+                // 滚动到顶部
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+
+            });
+        });
+    </script>
+</body>
+</html>
