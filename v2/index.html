@@ -130,14 +130,14 @@
                     <img class="h-6 w-6 rounded-full border-2 border-transparent hover:border-primary" src="https://randomuser.me/api/portraits/men/32.jpg" alt="用户头像">
                 </div>
                 <!-- 用户下拉菜单 -->
-                <div id="userMenu" class="hidden origin-top-left absolute left-full top-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 z-50">
+                <div id="userMenu" class="hidden origin-bottom-left absolute left-0 bottom-full mb-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 z-50">
                     <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onclick="showNotification('个人资料功能开发中')">
                         <i class="fa fa-user mr-2"></i>个人资料
                     </a>
                     <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onclick="showNotification('设置功能开发中')">
                         <i class="fa fa-cog mr-2"></i>设置
                     </a>
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onclick="showNotification('已退出登录')">
+                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onclick="handleLogout()">
                         <i class="fa fa-sign-out mr-2"></i>退出登录
                     </a>
                 </div>
@@ -2199,6 +2199,13 @@
                     }
                 }, 300);
             }, 5000);
+        }        
+        // 处理退出登录
+        function handleLogout() {
+            showNotification('已退出登录');
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 1500);
         }
         
         // 切换用户菜单
@@ -2224,25 +2231,31 @@
             
             // 第一个拖拽手柄（项目列表和对话区域之间）
             let isResizing1 = false;
-            resizer1.addEventListener('mousedown', function(e) {
-                isResizing1 = true;
-                document.body.style.cursor = 'col-resize';
-                document.body.style.userSelect = 'none';
-            });
+            if (resizer1) {
+                resizer1.addEventListener('mousedown', function(e) {
+                    isResizing1 = true;
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                });
+            }
             
             // 第二个拖拽手柄（对话区域和预览区域之间）
             let isResizing2 = false;
-            resizer2.addEventListener('mousedown', function(e) {
-                isResizing2 = true;
-                document.body.style.cursor = 'col-resize';
-                document.body.style.userSelect = 'none';
-            });
+            if (resizer2) {
+                resizer2.addEventListener('mousedown', function(e) {
+                    isResizing2 = true;
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                });
+            }
             
             // 鼠标移动时调整大小
             document.addEventListener('mousemove', function(e) {
                 if (!isResizing1 && !isResizing2) return;
                 
-                const container = document.querySelector('main');
+                const container = document.querySelector('.h-screen.flex');
+                if (!container) return;
+                
                 const containerRect = container.getBoundingClientRect();
                 const containerWidth = containerRect.width;
                 
@@ -2250,7 +2263,7 @@
                 const relativeX = e.clientX - containerRect.left;
                 const relativeXPercent = (relativeX / containerWidth) * 100;
                 
-                if (isResizing1) {
+                if (isResizing1 && projectListContainer && chatContainer) {
                     // 限制最小和最大宽度
                     if (relativeXPercent > 10 && relativeXPercent < 40) {
                         projectListContainer.style.width = `${relativeXPercent}%`;
@@ -2258,7 +2271,7 @@
                     }
                 }
                 
-                if (isResizing2) {
+                if (isResizing2 && projectListContainer && chatContainer) {
                     // 限制最小和最大宽度
                     const projectListWidth = parseFloat(projectListContainer.style.width) || 15;
                     if (relativeXPercent > projectListWidth + 15 && relativeXPercent < 80) {
@@ -2879,324 +2892,6 @@
                 });
             }
         }
-    </script>
-
-        // 工具函数
-        function showElement(elementId) {
-            document.getElementById(elementId).classList.remove('hidden');
-        }
-
-        function hideElement(elementId) {
-            document.getElementById(elementId).classList.add('hidden');
-        }
-
-        // 仪表盘相关函数
-        function showDashboard() {
-            hideElement('modelWorkbench');
-            hideElement('changeReviewPage');
-            hideElement('aiAgentPage');
-        }
-
-        // 新建项目模态框相关函数
-        function showCreateProjectModal(type) {
-            document.getElementById('modalTitle').textContent = '新建项目';
-            
-            // 隐藏所有输入区域
-            hideElement('designInput');
-            hideElement('codeInput');
-            hideElement('aiInput');
-            
-            // 显示对应的输入区域
-            if (type === 'design') {
-                showElement('designInput');
-            } else if (type === 'code') {
-                showElement('codeInput');
-            } else if (type === 'ai') {
-                showElement('aiInput');
-            }
-            
-            showElement('createProjectModal');
-        }
-
-        function hideCreateProjectModal() {
-            hideElement('createProjectModal');
-        }
-
-        function createProject() {
-            const projectName = document.getElementById('projectName').value;
-            if (!projectName) {
-                alert('请输入项目名称');
-                return;
-            }
-            
-            hideCreateProjectModal();
-            showElement('parseProgressModal');
-            
-            // 模拟解析进度
-            simulateParseProgress();
-        }
-
-        // 解析进度模拟
-        function simulateParseProgress() {
-            const steps = [
-                { text: "准备解析...", progress: 0 },
-                { text: "分析设计稿结构...", progress: 20 },
-                { text: "识别UI组件...", progress: 40 },
-                { text: "推断数据实体...", progress: 60 },
-                { text: "生成分析报告...", progress: 80 },
-                { text: "完成解析", progress: 100 }
-            ];
-            
-            let currentStep = 0;
-            const parseStepText = document.getElementById('parseStepText');
-            const parseProgressText = document.getElementById('parseProgressText');
-            const parseProgressBar = document.getElementById('parseProgressBar');
-            const parseLog = document.getElementById('parseLog');
-            
-            const interval = setInterval(() => {
-                if (currentStep < steps.length) {
-                    const step = steps[currentStep];
-                    parseStepText.textContent = step.text;
-                    parseProgressText.textContent = `${step.progress}%`;
-                    parseProgressBar.style.width = `${step.progress}%`;
-                    
-                    // 添加日志
-                    if (currentStep > 0) {
-                        parseLog.innerHTML += `完成: ${steps[currentStep - 1].text}<br>`;
-                    }
-                    parseLog.innerHTML += `进行中: ${step.text}...<br>`;
-                    
-                    currentStep++;
-                } else {
-                    clearInterval(interval);
-                    parseLog.innerHTML += "解析完成！<br>";
-                    
-                    // 显示分析报告模态框
-                    setTimeout(() => {
-                        hideElement('parseProgressModal');
-                        showElement('analysisReportModal');
-                    }, 1000);
-                }
-            }, 1000);
-        }
-
-        function cancelParse() {
-            hideElement('parseProgressModal');
-        }
-
-        // 项目分析报告相关函数
-        function hideAnalysisReportModal() {
-            hideElement('analysisReportModal');
-        }
-
-        function confirmAnalysisReport() {
-            hideElement('analysisReportModal');
-            showElement('modelWorkbench');
-        }
-
-        // 模型工作台相关函数
-        function showAddFieldModal() {
-            showElement('addFieldModal');
-        }
-
-        function hideAddFieldModal() {
-            hideElement('addFieldModal');
-        }
-
-        function addField() {
-            const fieldName = document.getElementById('newFieldName').value;
-            if (!fieldName) {
-                alert('请输入字段名');
-                return;
-            }
-            
-            // 这里应该有添加字段的逻辑
-            
-            hideAddFieldModal();
-            // 显示成功提示
-            alert('字段添加成功');
-        }
-
-        function generateCode() {
-            showElement('generateCodeModal');
-        }
-
-        function hideGenerateCodeModal() {
-            hideElement('generateCodeModal');
-        }
-
-        function confirmGenerateCode() {
-            hideElement('generateCodeModal');
-            showElement('generateCodeProgressModal');
-            
-            // 模拟代码生成进度
-            simulateGenerateCodeProgress();
-        }
-
-        // 代码生成进度模拟
-        function simulateGenerateCodeProgress() {
-            const steps = [
-                { text: "准备生成...", progress: 0 },
-                { text: "生成前端页面...", progress: 30 },
-                { text: "生成后端API...", progress: 60 },
-                { text: "生成数据库模型...", progress: 80 },
-                { text: "完成代码生成", progress: 100 }
-            ];
-            
-            let currentStep = 0;
-            const generateStepText = document.getElementById('generateStepText');
-            const generateProgressText = document.getElementById('generateProgressText');
-            const generateProgressBar = document.getElementById('generateProgressBar');
-            const generateLog = document.getElementById('generateLog');
-            
-            const interval = setInterval(() => {
-                if (currentStep < steps.length) {
-                    const step = steps[currentStep];
-                    generateStepText.textContent = step.text;
-                    generateProgressText.textContent = `${step.progress}%`;
-                    generateProgressBar.style.width = `${step.progress}%`;
-                    
-                    // 添加日志
-                    if (currentStep > 0) {
-                        generateLog.innerHTML += `完成: ${steps[currentStep - 1].text}<br>`;
-                    }
-                    generateLog.innerHTML += `进行中: ${step.text}...<br>`;
-                    
-                    currentStep++;
-                } else {
-                    clearInterval(interval);
-                    generateLog.innerHTML += "代码生成完成！<br>";
-                    
-                    // 显示生成完成模态框
-                    setTimeout(() => {
-                        hideElement('generateCodeProgressModal');
-                        showElement('generateCompleteModal');
-                    }, 1000);
-                }
-            }, 1000);
-        }
-
-        function cancelGenerate() {
-            hideElement('generateCodeProgressModal');
-        }
-
-        function hideGenerateCompleteModal() {
-            hideElement('generateCompleteModal');
-        }
-
-        // 变更评审相关函数
-        function showChangeReviewPage() {
-            showElement('changeReviewPage');
-        }
-
-        function discardChanges() {
-            hideElement('changeReviewPage');
-            showDashboard();
-        }
-
-        function applyChanges() {
-            // 模拟应用变更
-            alert('变更已应用，代码已同步更新！');
-            hideElement('changeReviewPage');
-            showDashboard();
-        }
-
-        // AI智能体协作相关函数
-        function showAiAgentPage() {
-            showElement('aiAgentPage');
-            hideElement('aiPlanSection');
-            hideElement('aiExecutionSection');
-        }
-
-        function submitAiGoal() {
-            const goalInput = document.getElementById('aiGoalInput').value;
-            if (!goalInput) {
-                alert('请输入功能目标描述');
-                return;
-            }
-            
-            // 显示AI规划方案
-            hideElement('aiExecutionSection');
-            showElement('aiPlanSection');
-        }
-
-        function discardAiPlan() {
-            hideElement('aiPlanSection');
-            document.getElementById('aiGoalInput').value = '';
-        }
-
-        function executeAiPlan() {
-            hideElement('aiPlanSection');
-            showElement('aiExecutionSection');
-            
-            // 模拟AI执行进度
-            simulateAiExecutionProgress();
-        }
-
-        function simulateAiExecutionProgress() {
-            const steps = [
-                { text: "准备执行...", progress: 0 },
-                { text: "创建数据实体...", progress: 20 },
-                { text: "创建页面和组件...", progress: 50 },
-                { text: "生成API和服务...", progress: 80 },
-                { text: "完成实施", progress: 100 }
-            ];
-            
-            let currentStep = 0;
-            const aiExecutionProgressText = document.getElementById('aiExecutionProgressText');
-            const aiExecutionProgressBar = document.getElementById('aiExecutionProgressBar');
-            const aiExecutionLog = document.getElementById('aiExecutionLog');
-            
-            const interval = setInterval(() => {
-                if (currentStep < steps.length) {
-                    const step = steps[currentStep];
-                    aiExecutionProgressText.textContent = `${step.progress}%`;
-                    aiExecutionProgressBar.style.width = `${step.progress}%`;
-                    
-                    // 添加日志
-                    if (currentStep > 0) {
-                        aiExecutionLog.innerHTML += `完成: ${steps[currentStep - 1].text}<br>`;
-                    }
-                    aiExecutionLog.innerHTML += `进行中: ${step.text}...<br>`;
-                    
-                    currentStep++;
-                } else {
-                    clearInterval(interval);
-                    aiExecutionLog.innerHTML += "实施完成！<br>";
-                    
-                    // 显示成功提示
-                    setTimeout(() => {
-                        alert('AI智能体已成功完成实施！');
-                        hideElement('aiAgentPage');
-                        showDashboard();
-                    }, 1500);
-                }
-            }, 1500);
-        }
-
-        function cancelAiExecution() {
-            hideElement('aiExecutionSection');
-            showElement('aiPlanSection');
-        }
-
-        // 页面加载完成后初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            // 初始化事件监听
-            document.querySelectorAll('button').forEach(button => {
-                button.addEventListener('click', function() {
-                    // 按钮点击效果
-                    this.classList.add('scale-95');
-                    setTimeout(() => {
-                        this.classList.remove('scale-95');
-                    }, 150);
-                });
-            });
-
-            // 模拟数据加载
-            setTimeout(() => {
-                console.log('应用已加载完成');
-            }, 500);
-        });
     </script>
 </body>
 </html>
