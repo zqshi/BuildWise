@@ -1,101 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspaceService = void 0;
-function fallbackScope(goals) {
-    return {
-        inScope: goals,
-        outOfScope: [],
-        acceptanceCriteria: goals.map((goal) => `${goal} 可演示并通过验收`)
-    };
-}
-function fallbackContinuity() {
-    return {
-        inheritedFromIterationId: null,
-        inheritedSummary: "首个迭代，无需继承。",
-        carriedGoals: [],
-        carriedRisks: [],
-        carriedDecisions: []
-    };
-}
-function fallbackAssessment(scope, summary) {
-    return {
-        baselineIterationId: null,
-        baselineIterationName: "无基线",
-        currentSummary: summary,
-        deltaInScope: scope.inScope,
-        resolvedItems: [],
-        pendingItems: scope.inScope,
-        risks: []
-    };
-}
-function normalizeIteration(iteration) {
-    const goals = Array.isArray(iteration.goals) ? iteration.goals : [];
-    const scope = iteration.scope ?? fallbackScope(goals);
-    const continuity = iteration.continuity ?? fallbackContinuity();
-    const summary = iteration.aiSummary || `${iteration.name} 进入执行阶段`;
-    const assessment = iteration.assessment ?? fallbackAssessment(scope, summary);
-    return {
-        ...iteration,
-        goals,
-        modules: Array.isArray(iteration.modules) ? iteration.modules : [],
-        scope: {
-            inScope: Array.isArray(scope.inScope) ? scope.inScope : [],
-            outOfScope: Array.isArray(scope.outOfScope) ? scope.outOfScope : [],
-            acceptanceCriteria: Array.isArray(scope.acceptanceCriteria) ? scope.acceptanceCriteria : []
-        },
-        continuity: {
-            inheritedFromIterationId: continuity.inheritedFromIterationId ?? null,
-            inheritedSummary: continuity.inheritedSummary || "",
-            carriedGoals: Array.isArray(continuity.carriedGoals) ? continuity.carriedGoals : [],
-            carriedRisks: Array.isArray(continuity.carriedRisks) ? continuity.carriedRisks : [],
-            carriedDecisions: Array.isArray(continuity.carriedDecisions) ? continuity.carriedDecisions : []
-        },
-        assessment: {
-            baselineIterationId: assessment.baselineIterationId ?? null,
-            baselineIterationName: assessment.baselineIterationName || "无基线",
-            currentSummary: assessment.currentSummary || "",
-            deltaInScope: Array.isArray(assessment.deltaInScope) ? assessment.deltaInScope : [],
-            resolvedItems: Array.isArray(assessment.resolvedItems) ? assessment.resolvedItems : [],
-            pendingItems: Array.isArray(assessment.pendingItems) ? assessment.pendingItems : [],
-            risks: Array.isArray(assessment.risks) ? assessment.risks : []
-        }
-    };
-}
-function recomputeAssessment(current, previous) {
-    const prevScope = previous?.scope.inScope ?? [];
-    const currScope = current.scope.inScope;
-    const deltaInScope = [
-        ...currScope.filter((item) => !prevScope.includes(item)).map((item) => `+ ${item}`),
-        ...prevScope.filter((item) => !currScope.includes(item)).map((item) => `- ${item}`)
-    ];
-    return {
-        baselineIterationId: previous?.id ?? null,
-        baselineIterationName: previous?.name ?? "无基线",
-        currentSummary: current.assessment.currentSummary || current.aiSummary || "当前迭代已定义范围，待执行交付。",
-        deltaInScope,
-        resolvedItems: previous ? prevScope.filter((item) => !currScope.includes(item)) : [],
-        pendingItems: currScope,
-        risks: current.continuity.carriedRisks
-    };
-}
-function summarizeFromExcerpt(excerpt, fallback) {
-    const clean = excerpt.replace(/\s+/g, " ").trim();
-    if (!clean) {
-        return fallback;
-    }
-    return `已解析附件片段，关键内容：${clean.slice(0, 120)}${clean.length > 120 ? "..." : ""}`;
-}
-function inferRisksFromExcerpt(excerpt) {
-    const lowered = excerpt.toLowerCase();
-    const risks = [];
-    if (lowered.includes("延期") || lowered.includes("delay")) {
-        risks.push("附件提及进度风险，建议补充里程碑缓冲。");
-    }
-    if (lowered.includes("待确认") || lowered.includes("todo")) {
-        risks.push("附件存在待确认项，建议在版本评审前补齐决策。");
-    }
-    return risks;
-}
+const workspaceSupport_1 = require("./workspaceSupport");
 class WorkspaceService {
     constructor(repo) {
         this.repo = repo;
@@ -113,14 +19,14 @@ class WorkspaceService {
         if (!this.hasProject(projectId)) {
             return null;
         }
-        return this.repo.listIterations(projectId).map(normalizeIteration);
+        return this.repo.listIterations(projectId).map(workspaceSupport_1.normalizeIteration);
     }
     createIteration(projectId, payload) {
         if (!this.hasProject(projectId)) {
             return null;
         }
         const created = this.repo.createIteration(projectId, payload);
-        const normalized = normalizeIteration(created);
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(created);
         const snapshot = {
             id: this.repo.nextId(this.repo.read().snapshots),
             iterationId: normalized.id,
@@ -162,11 +68,11 @@ class WorkspaceService {
         if (!iteration) {
             return null;
         }
-        const normalized = normalizeIteration(iteration);
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
         const previous = this.repo.findPreviousIteration(normalized);
         return {
             iteration: normalized,
-            previous: previous ? normalizeIteration(previous) : null,
+            previous: previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null,
             continuity: normalized.continuity,
             scope: normalized.scope
         };
@@ -176,7 +82,7 @@ class WorkspaceService {
         if (!iteration) {
             return null;
         }
-        const normalized = normalizeIteration(iteration);
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
         return {
             iterationId: normalized.id,
             iterationName: normalized.name,
@@ -186,14 +92,69 @@ class WorkspaceService {
     listAssessmentSnapshots(iterationId) {
         return this.repo.listSnapshots(iterationId);
     }
+    getStateMachine(iterationId) {
+        const iteration = this.repo.findIteration(iterationId);
+        if (!iteration) {
+            return null;
+        }
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
+        const currentStatus = normalized.status;
+        return {
+            iterationId: normalized.id,
+            currentStatus,
+            allowedTransitions: workspaceSupport_1.statusTransitions[currentStatus] || [],
+            transitionHistory: this.repo.listTransitions(iterationId)
+        };
+    }
+    transitionIteration(iterationId, toStatus, note = "") {
+        const iteration = this.repo.findIteration(iterationId);
+        if (!iteration) {
+            return { ok: false, reason: "iteration_not_found" };
+        }
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
+        const fromStatus = normalized.status;
+        const allowed = workspaceSupport_1.statusTransitions[fromStatus] || [];
+        if (!allowed.includes(toStatus)) {
+            return { ok: false, reason: "invalid_transition" };
+        }
+        normalized.status = toStatus;
+        if (toStatus === "completed") {
+            normalized.progress = 100;
+        }
+        else if (toStatus === "in-progress" && normalized.progress === 0) {
+            normalized.progress = 10;
+        }
+        this.repo.updateIteration(normalized);
+        const createdAt = new Date().toISOString();
+        this.repo.appendTransition({
+            id: this.repo.nextId(this.repo.read().transitions),
+            iterationId,
+            fromStatus,
+            toStatus,
+            note: note || `${fromStatus} -> ${toStatus}`,
+            createdAt
+        });
+        this.repo.appendSnapshot({
+            id: this.repo.nextId(this.repo.read().snapshots),
+            iterationId,
+            source: "state-transition",
+            note: `状态迁移 ${fromStatus} -> ${toStatus}`,
+            assessment: normalized.assessment,
+            scope: normalized.scope,
+            status: normalized.status,
+            progress: normalized.progress,
+            createdAt
+        });
+        return { ok: true, data: { iterationId, fromStatus, toStatus } };
+    }
     recomputeAssessment(iterationId) {
         const iteration = this.repo.findIteration(iterationId);
         if (!iteration) {
             return null;
         }
         const previous = this.repo.findPreviousIteration(iteration);
-        const normalized = normalizeIteration(iteration);
-        normalized.assessment = recomputeAssessment(normalized, previous ? normalizeIteration(previous) : null);
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
+        normalized.assessment = (0, workspaceSupport_1.recomputeAssessment)(normalized, previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null);
         this.repo.updateIteration(normalized);
         this.repo.appendSnapshot({
             id: this.repo.nextId(this.repo.read().snapshots),
@@ -221,7 +182,7 @@ class WorkspaceService {
         if (!snapshot) {
             return null;
         }
-        const normalized = normalizeIteration(iteration);
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
         normalized.assessment = snapshot.assessment;
         normalized.scope = snapshot.scope;
         normalized.status = snapshot.status;
@@ -249,20 +210,20 @@ class WorkspaceService {
         if (!iteration) {
             return null;
         }
-        const normalized = normalizeIteration(iteration);
+        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
         const previous = this.repo.findPreviousIteration(normalized);
         const previousScope = previous?.scope.inScope ?? [];
         const currentScope = normalized.scope.inScope;
         const added = currentScope.filter((item) => !previousScope.includes(item));
         const removed = previousScope.filter((item) => !currentScope.includes(item));
         const changed = normalized.assessment.deltaInScope.filter((item) => item.startsWith("+") || item.startsWith("-"));
-        const inferredRisks = inferRisksFromExcerpt(input.excerpt);
+        const inferredRisks = (0, workspaceSupport_1.inferRisksFromExcerpt)(input.excerpt);
         return {
             iterationId: normalized.id,
             iterationName: normalized.name,
             fileName: input.fileName,
             analyzedAt: new Date().toISOString(),
-            understanding: `${summarizeFromExcerpt(input.excerpt, `已基于附件 ${input.fileName} 与当前迭代上下文完成语义理解。`)} 识别到 ${added.length} 项新增范围、${removed.length} 项移出范围。`,
+            understanding: `${(0, workspaceSupport_1.summarizeFromExcerpt)(input.excerpt, `已基于附件 ${input.fileName} 与当前迭代上下文完成语义理解。`)} 识别到 ${added.length} 项新增范围、${removed.length} 项移出范围。`,
             versionDiff: {
                 baselineIterationName: previous?.name ?? "无基线",
                 added,

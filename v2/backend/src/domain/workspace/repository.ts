@@ -2,6 +2,7 @@ import type {
   AssessmentSnapshot,
   Iteration,
   IterationMessage,
+  IterationTransition,
   Project,
   WorkspaceStore
 } from "./types";
@@ -23,6 +24,8 @@ export interface WorkspaceRepository {
   listMessages(iterationId: number): IterationMessage[];
   createMessage(iterationId: number, role: IterationMessage["role"], content: string): IterationMessage;
   listSnapshots(iterationId: number): AssessmentSnapshot[];
+  listTransitions(iterationId: number): IterationTransition[];
   appendSnapshot(snapshot: AssessmentSnapshot): void;
+  appendTransition(transition: IterationTransition): void;
   updateIteration(iteration: Iteration): void;
 }
