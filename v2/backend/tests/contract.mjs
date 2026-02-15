@@ -196,6 +196,33 @@ try {
   const invalidIterationId = await request("/api/iterations/abc/context");
   assert(invalidIterationId.res.status === 400, "Invalid iteration id should return 400");
 
+  const stateMachine = await getJson("/api/iterations/1/state-machine");
+  assert(typeof stateMachine.currentStatus === "string", "state machine currentStatus must exist");
+  assert(Array.isArray(stateMachine.allowedTransitions), "state machine allowedTransitions must be array");
+  assert(Array.isArray(stateMachine.transitionHistory), "state machine transitionHistory must be array");
+
+  const invalidTransitionPayload = await request("/api/iterations/1/state/transition", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  assert(invalidTransitionPayload.res.status === 400, "missing toStatus should return 400");
+
+  const invalidTransition = await request("/api/iterations/1/state/transition", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ toStatus: "planned" })
+  });
+  assert(invalidTransition.res.status === 409, "invalid transition should return 409");
+
+  const validTransition = await request("/api/iterations/1/state/transition", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ toStatus: "review", note: "contract test transition" })
+  });
+  assert(validTransition.res.status === 200, "valid transition should return 200");
+  assert(validTransition.payload?.toStatus === "review", "transition target status mismatch");
+
   console.log("Contract test passed.");
 } catch (error) {
   console.error("Contract test failed:", error);

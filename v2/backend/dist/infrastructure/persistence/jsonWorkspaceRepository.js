@@ -16,7 +16,8 @@ const seedStore = {
     ],
     iterations: [],
     messages: [],
-    snapshots: []
+    snapshots: [],
+    transitions: []
 };
 function toArray(value) {
     return Array.isArray(value) ? value : [];
@@ -36,7 +37,8 @@ class JsonWorkspaceRepository {
             projects: toArray(parsed.projects),
             iterations: toArray(parsed.iterations),
             messages: toArray(parsed.messages),
-            snapshots: toArray(parsed.snapshots)
+            snapshots: toArray(parsed.snapshots),
+            transitions: toArray(parsed.transitions)
         };
     }
     write(data) {
@@ -145,9 +147,17 @@ class JsonWorkspaceRepository {
     listSnapshots(iterationId) {
         return this.read().snapshots.filter((item) => item.iterationId === iterationId);
     }
+    listTransitions(iterationId) {
+        return this.read().transitions.filter((item) => item.iterationId === iterationId);
+    }
     appendSnapshot(snapshot) {
         const data = this.read();
         data.snapshots.push(snapshot);
+        this.write(data);
+    }
+    appendTransition(transition) {
+        const data = this.read();
+        data.transitions.push(transition);
         this.write(data);
     }
     updateIteration(iteration) {

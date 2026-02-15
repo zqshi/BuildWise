@@ -153,6 +153,54 @@ export async function registerWorkspaceRoutes(app: FastifyInstance, service: Wor
     return context;
   });
 
+  app.get("/api/iterations/:id/state-machine", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const stateMachine = service.getStateMachine(iterationId);
+    if (!stateMachine) {
+      reply.code(404);
+      return { message: "iteration not found" };
+    }
+    return stateMachine;
+  });
+
+  app.post("/api/iterations/:id/state/transition", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as { toStatus?: string; note?: string } | null;
+    const toStatus = body?.toStatus?.trim();
+    if (!toStatus) {
+      reply.code(400);
+      return { message: "toStatus is required" };
+    }
+    const transition = service.transitionIteration(
+      iterationId,
+      toStatus as "planned" | "in-progress" | "review" | "blocked" | "completed",
+      body?.note?.trim() || ""
+    );
+    if (!transition.ok) {
+      if (transition.reason === "iteration_not_found") {
+        reply.code(404);
+        return { message: "iteration not found" };
+      }
+      if (transition.reason === "invalid_transition") {
+        reply.code(409);
+        return { message: "invalid transition" };
+      }
+      reply.code(400);
+      return { message: "transition failed" };
+    }
+    return transition.data;
+  });
+
   app.get("/api/iterations/:id/assessment", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);

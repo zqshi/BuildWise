@@ -4,6 +4,7 @@ import type {
   AssessmentSnapshot,
   Iteration,
   IterationMessage,
+  IterationTransition,
   Project,
   WorkspaceStore
 } from "../../domain/workspace/types";
@@ -22,7 +23,8 @@ const seedStore: WorkspaceStore = {
   ],
   iterations: [],
   messages: [],
-  snapshots: []
+  snapshots: [],
+  transitions: []
 };
 
 function toArray<T>(value: unknown): T[] {
@@ -43,7 +45,8 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       projects: toArray<Project>(parsed.projects),
       iterations: toArray<Iteration>(parsed.iterations),
       messages: toArray<IterationMessage>(parsed.messages),
-      snapshots: toArray<AssessmentSnapshot>(parsed.snapshots)
+      snapshots: toArray<AssessmentSnapshot>(parsed.snapshots),
+      transitions: toArray<IterationTransition>(parsed.transitions)
     };
   }
 
@@ -167,9 +170,19 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     return this.read().snapshots.filter((item) => item.iterationId === iterationId);
   }
 
+  listTransitions(iterationId: number) {
+    return this.read().transitions.filter((item) => item.iterationId === iterationId);
+  }
+
   appendSnapshot(snapshot: AssessmentSnapshot) {
     const data = this.read();
     data.snapshots.push(snapshot);
+    this.write(data);
+  }
+
+  appendTransition(transition: IterationTransition) {
+    const data = this.read();
+    data.transitions.push(transition);
     this.write(data);
   }
 
