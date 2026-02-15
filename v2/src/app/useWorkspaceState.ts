@@ -5,6 +5,7 @@ import type {
   AssessmentSnapshot,
   Iteration,
   IterationContextPayload,
+  IterationStateMachinePayload,
   IterationMessage,
   ModelRelationPayload,
   ModelSummaryPayload,
@@ -46,6 +47,7 @@ export function useWorkspaceState() {
   const [contextData, setContextData] = useState<IterationContextPayload | null>(null);
   const [assessmentData, setAssessmentData] = useState<AssessmentPayload | null>(null);
   const [assessmentHistory, setAssessmentHistory] = useState<AssessmentSnapshot[]>([]);
+  const [stateMachine, setStateMachine] = useState<IterationStateMachinePayload | null>(null);
   const [analysisReport, setAnalysisReport] = useState<AttachmentAnalysisReport | null>(null);
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
   const [isAnalyzingAttachment, setIsAnalyzingAttachment] = useState(false);
@@ -114,6 +116,8 @@ export function useWorkspaceState() {
     setAssessmentData,
     assessmentHistory,
     setAssessmentHistory,
+    stateMachine,
+    setStateMachine,
     analysisReport,
     setAnalysisReport,
     showAnalysisPanel,

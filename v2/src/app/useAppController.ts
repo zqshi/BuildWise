@@ -38,6 +38,7 @@ export function useAppController() {
     setContextData: state.setContextData,
     setAssessmentData: state.setAssessmentData,
     setAssessmentHistory: state.setAssessmentHistory,
+    setStateMachine: state.setStateMachine,
     setModelSummary: state.setModelSummary,
     setModelRelations: state.setModelRelations,
     setRuleCompile: state.setRuleCompile,
@@ -66,6 +67,7 @@ export function useAppController() {
       state.setContextData(null);
       state.setAssessmentData(null);
       state.setAssessmentHistory([]);
+      state.setStateMachine(null);
       state.setAnalysisReport(null);
       state.setShowAnalysisPanel(false);
       state.setIsAnalyzingAttachment(false);
@@ -117,6 +119,7 @@ export function useAppController() {
     setError: state.setError,
     setUploadedFile: state.setUploadedFile,
     setChatMessages: state.setChatMessages,
+    setStateMachine: state.setStateMachine,
     setAnalysisReport: state.setAnalysisReport,
     setShowAnalysisPanel: state.setShowAnalysisPanel,
     setIsAnalyzingAttachment: state.setIsAnalyzingAttachment,

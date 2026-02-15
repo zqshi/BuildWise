@@ -3,12 +3,15 @@ import type {
   AttachmentAnalysisReport,
   Iteration,
   IterationContextPayload,
+  IterationStateMachinePayload,
+  IterationStatus,
   IterationMessage,
 } from "../../domain/workspace/types";
 
 type IterationWorkspacePanelProps = {
   currentIteration: Iteration | null;
   contextData: IterationContextPayload | null;
+  stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
@@ -22,12 +25,14 @@ type IterationWorkspacePanelProps = {
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onChatInputChange: (value: string) => void;
   onChatSend: () => void;
+  onTransitionState: (toStatus: IterationStatus) => void;
   onSwitchToProjectPanel: () => void;
 };
 
 export function IterationWorkspacePanel({
   currentIteration,
   contextData,
+  stateMachine,
   chatMessages,
   chatInput,
   fileInputRef,
@@ -41,6 +46,7 @@ export function IterationWorkspacePanel({
   onUpload,
   onChatInputChange,
   onChatSend,
+  onTransitionState,
   onSwitchToProjectPanel
 }: IterationWorkspacePanelProps) {
   const scopeInCount = contextData?.scope.inScope.length ?? 0;
@@ -58,6 +64,14 @@ export function IterationWorkspacePanel({
   };
   const formatTime = (value: string) =>
     new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const statusLabelMap: Record<IterationStatus, string> = {
+    planned: "规划中",
+    "in-progress": "进行中",
+    review: "评审中",
+    blocked: "阻塞中",
+    completed: "已完成"
+  };
+  const renderStatusLabel = (status: IterationStatus) => statusLabelMap[status] ?? status;
 
   return (
     <>
@@ -96,6 +110,37 @@ export function IterationWorkspacePanel({
             <p className="hint">验收标准</p>
             <p>{acceptanceCount} 项</p>
           </div>
+        </div>
+        <div className="info-box state-machine-box">
+          <div className="state-machine-head">
+            <p className="hint">迭代状态</p>
+            <span className={`status-pill ${stateMachine?.currentStatus || currentIteration?.status || "planned"}`}>
+              {renderStatusLabel(stateMachine?.currentStatus || currentIteration?.status || "planned")}
+            </span>
+          </div>
+          <div className="state-machine-actions">
+            {(stateMachine?.allowedTransitions ?? []).length === 0 ? (
+              <p className="hint">当前状态暂无可执行流转。</p>
+            ) : (
+              (stateMachine?.allowedTransitions ?? []).map((status) => (
+                <button key={status} type="button" className="btn ghost mini" onClick={() => onTransitionState(status)}>
+                  流转到 {renderStatusLabel(status)}
+                </button>
+              ))
+            )}
+          </div>
+          {(stateMachine?.transitionHistory ?? []).length > 0 ? (
+            <ul className="state-transition-list">
+              {(stateMachine?.transitionHistory ?? []).slice(0, 5).map((item) => (
+                <li key={`${item.id}-${item.createdAt}`}>
+                  <strong>
+                    {renderStatusLabel(item.fromStatus)} → {renderStatusLabel(item.toStatus)}
+                  </strong>
+                  <span>{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="chat-body">
           {chatMessages.length === 0 ? (
