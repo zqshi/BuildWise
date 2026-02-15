@@ -172,6 +172,12 @@
           "name": "status",
           "type": "string",
           "required": true
+        },
+        {
+          "id": "field_status",
+          "name": "status",
+          "type": "string",
+          "required": true
         }
       ]
     },
@@ -182,6 +188,12 @@
       "fields": [
         {
           "id": "field_iteration02_status",
+          "name": "status",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "field_status",
           "name": "status",
           "type": "string",
           "required": true
@@ -198,6 +210,12 @@
           "name": "status",
           "type": "string",
           "required": true
+        },
+        {
+          "id": "field_status",
+          "name": "status",
+          "type": "string",
+          "required": true
         }
       ]
     },
@@ -208,6 +226,12 @@
       "fields": [
         {
           "id": "field_iteration04_status",
+          "name": "status",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "field_status",
           "name": "status",
           "type": "string",
           "required": true
@@ -224,6 +248,12 @@
           "name": "status",
           "type": "string",
           "required": true
+        },
+        {
+          "id": "field_status",
+          "name": "status",
+          "type": "string",
+          "required": true
         }
       ]
     },
@@ -234,6 +264,12 @@
       "fields": [
         {
           "id": "field_iteration06_status",
+          "name": "status",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "field_status",
           "name": "status",
           "type": "string",
           "required": true
@@ -250,6 +286,12 @@
           "name": "status",
           "type": "string",
           "required": true
+        },
+        {
+          "id": "field_status",
+          "name": "status",
+          "type": "string",
+          "required": true
         }
       ]
     },
@@ -260,6 +302,12 @@
       "fields": [
         {
           "id": "field_iteration08_status",
+          "name": "status",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "field_status",
           "name": "status",
           "type": "string",
           "required": true
@@ -276,6 +324,12 @@
           "name": "status",
           "type": "string",
           "required": true
+        },
+        {
+          "id": "field_status",
+          "name": "status",
+          "type": "string",
+          "required": true
         }
       ]
     },
@@ -286,6 +340,12 @@
       "fields": [
         {
           "id": "field_iteration10_status",
+          "name": "status",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "field_status",
           "name": "status",
           "type": "string",
           "required": true
@@ -302,6 +362,12 @@
           "name": "status",
           "type": "string",
           "required": true
+        },
+        {
+          "id": "field_status",
+          "name": "status",
+          "type": "string",
+          "required": true
         }
       ]
     },
@@ -312,6 +378,12 @@
       "fields": [
         {
           "id": "field_iteration12_status",
+          "name": "status",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "field_status",
           "name": "status",
           "type": "string",
           "required": true
@@ -512,6 +584,66 @@
     },
     {
       "id": "api_get_roadmap_v12",
+      "method": "GET",
+      "path": "/api/roadmap-v1-2"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-1",
+      "method": "GET",
+      "path": "/api/roadmap-v0-1"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-2",
+      "method": "GET",
+      "path": "/api/roadmap-v0-2"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-3",
+      "method": "GET",
+      "path": "/api/roadmap-v0-3"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-4",
+      "method": "GET",
+      "path": "/api/roadmap-v0-4"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-5",
+      "method": "GET",
+      "path": "/api/roadmap-v0-5"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-6",
+      "method": "GET",
+      "path": "/api/roadmap-v0-6"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-7",
+      "method": "GET",
+      "path": "/api/roadmap-v0-7"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-8",
+      "method": "GET",
+      "path": "/api/roadmap-v0-8"
+    },
+    {
+      "id": "api_get-api-roadmap-v0-9",
+      "method": "GET",
+      "path": "/api/roadmap-v0-9"
+    },
+    {
+      "id": "api_get-api-roadmap-v1-0",
+      "method": "GET",
+      "path": "/api/roadmap-v1-0"
+    },
+    {
+      "id": "api_get-api-roadmap-v1-1",
+      "method": "GET",
+      "path": "/api/roadmap-v1-1"
+    },
+    {
+      "id": "api_get-api-roadmap-v1-2",
       "method": "GET",
       "path": "/api/roadmap-v1-2"
     }

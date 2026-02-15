@@ -1,0 +1,1418 @@
+{
+  "ok": true,
+  "started_at": "2026-02-15T09:53:13.334836Z",
+  "finished_at": "2026-02-15T09:53:13.406746Z",
+  "duration_seconds": 0.072,
+  "stop_reason": "goal_reached",
+  "goal_reached": true,
+  "goal_req": 211,
+  "goal_request": null,
+  "executed": 12,
+  "failed": 0,
+  "results": [
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-200-v0-1-auto.md",
+      "run_id": "run-20260215-095313-346927",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-346582.json",
+      "context_id": "context-20260215-095313-346564",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.351911Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-201-v0-2-auto.md",
+      "run_id": "run-20260215-095313-352672",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-352452.json",
+      "context_id": "context-20260215-095313-352442",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.357414Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-202-v0-3-auto.md",
+      "run_id": "run-20260215-095313-358570",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-358176.json",
+      "context_id": "context-20260215-095313-358162",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.363336Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-203-v0-4-auto.md",
+      "run_id": "run-20260215-095313-364230",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-363967.json",
+      "context_id": "context-20260215-095313-363960",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.368495Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-204-v0-5-auto.md",
+      "run_id": "run-20260215-095313-369266",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-369049.json",
+      "context_id": "context-20260215-095313-369042",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.373144Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-205-v0-6-auto.md",
+      "run_id": "run-20260215-095313-374035",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-373783.json",
+      "context_id": "context-20260215-095313-373772",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.378013Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-206-v0-7-auto.md",
+      "run_id": "run-20260215-095313-378730",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-378536.json",
+      "context_id": "context-20260215-095313-378531",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.382875Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-207-v0-8-auto.md",
+      "run_id": "run-20260215-095313-383700",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-383489.json",
+      "context_id": "context-20260215-095313-383481",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.387769Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-208-v0-9-auto.md",
+      "run_id": "run-20260215-095313-388467",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-388269.json",
+      "context_id": "context-20260215-095313-388263",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.392978Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-209-v1-0-auto.md",
+      "run_id": "run-20260215-095313-393872",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-393631.json",
+      "context_id": "context-20260215-095313-393617",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.397609Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-210-v1-1-auto.md",
+      "run_id": "run-20260215-095313-398523",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-398273.json",
+      "context_id": "context-20260215-095313-398266",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.402491Z"
+      }
+    },
+    {
+      "request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-211-v1-2-auto.md",
+      "run_id": "run-20260215-095313-403161",
+      "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-402971.json",
+      "context_id": "context-20260215-095313-402964",
+      "ok": true,
+      "checks": [
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "autoboot-notice",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+          "check": "status+health routes",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md",
+          "check": "doc section",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/model.json",
+          "check": "model apis",
+          "ok": true
+        },
+        {
+          "file": "/Users/zqs/Downloads/project/BuildWise/v2/index.html",
+          "check": "fields block",
+          "ok": true
+        }
+      ],
+      "layout_gate": {
+        "enabled": true,
+        "gate": "layout-gate-v1",
+        "threshold": 0.82,
+        "score": 1.0,
+        "passed": true,
+        "critical_failures": [],
+        "rules": [
+          {
+            "id": "dock_navigation",
+            "title": "左侧导航编排",
+            "critical": true,
+            "weight": 10.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 10.0
+          },
+          {
+            "id": "dashboard_view",
+            "title": "仪表盘与模型中台",
+            "critical": true,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          },
+          {
+            "id": "projects_workspace",
+            "title": "项目工作台编排",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_management",
+            "title": "迭代管理与切换",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "iteration_chat_workflow",
+            "title": "迭代内沟通与附件分析",
+            "critical": true,
+            "weight": 20.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 20.0
+          },
+          {
+            "id": "evaluation_governance",
+            "title": "创建与治理弹窗能力",
+            "critical": false,
+            "weight": 15.0,
+            "baseline_ok": true,
+            "baseline_missing": [],
+            "target_ok": true,
+            "target_missing": [],
+            "target_ratio": 1.0,
+            "score": 15.0
+          }
+        ],
+        "evaluated_at": "2026-02-15T09:53:13.406524Z"
+      }
+    }
+  ]
+}
