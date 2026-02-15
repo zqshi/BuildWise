@@ -46,7 +46,9 @@ export function useAppController() {
     setSyncReport: state.setSyncReport,
     setTraceReport: state.setTraceReport,
     setRoadmapReports: state.setRoadmapReports,
-    setModelOpsLoading: state.setModelOpsLoading
+    setModelOpsLoading: state.setModelOpsLoading,
+    setGovernanceRoles: state.setGovernanceRoles,
+    setAuditLogs: state.setAuditLogs
   });
 
   useEffect(() => {
@@ -124,7 +126,8 @@ export function useAppController() {
     setShowAnalysisPanel: state.setShowAnalysisPanel,
     setIsAnalyzingAttachment: state.setIsAnalyzingAttachment,
     loadIterationDetail: loaders.loadIterationDetail,
-    loadIterations: loaders.loadIterations
+    loadIterations: loaders.loadIterations,
+    loadGovernance: loaders.loadGovernance
   });
 
   const handleLogout = () => {
@@ -141,7 +144,7 @@ export function useAppController() {
     try {
       state.setModelOpsLoading(true);
       await createModelRelation(payload);
-      await loaders.loadModelOps();
+      await Promise.all([loaders.loadModelOps(), loaders.loadGovernance()]);
     } finally {
       state.setModelOpsLoading(false);
     }
@@ -151,10 +154,14 @@ export function useAppController() {
     try {
       state.setModelOpsLoading(true);
       await deleteModelRelation(relationId);
-      await loaders.loadModelOps();
+      await Promise.all([loaders.loadModelOps(), loaders.loadGovernance()]);
     } finally {
       state.setModelOpsLoading(false);
     }
+  };
+
+  const handleRefreshModelOps = async () => {
+    await Promise.all([loaders.loadModelOps(), loaders.loadGovernance()]);
   };
 
   return {
@@ -164,7 +171,7 @@ export function useAppController() {
     dockUserLabel,
     dockUserAvatar,
     handleLogout,
-    loadModelOps: loaders.loadModelOps,
+    loadModelOps: handleRefreshModelOps,
     handleCreateModelRelation,
     handleDeleteModelRelation,
     ...projectActions,

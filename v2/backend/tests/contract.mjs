@@ -98,6 +98,10 @@ try {
   const traceMap = await getJson("/api/trace/map");
   assert(Array.isArray(traceMap.items), "trace/map items must be array");
 
+  const roles = await getJson("/api/governance/roles");
+  assert(Array.isArray(roles) && roles.length >= 1, "governance roles must exist");
+  assert(typeof roles[0].id === "string", "governance role id must exist");
+
   const roadmap = await getJson("/api/roadmap-v0-1");
   assert(roadmap.version === "V0.1", "roadmap.version must be V0.1");
   assert(typeof roadmap.goal === "string" && roadmap.goal.length > 0, "roadmap.goal must exist");
@@ -180,6 +184,17 @@ try {
   });
   assert(deleteRelation.res.status === 200, "delete relation should return 200");
 
+  const auditAfterRelation = await getJson("/api/governance/audit-logs?limit=10");
+  assert(Array.isArray(auditAfterRelation), "audit logs must be array");
+  assert(
+    auditAfterRelation.some((item) => item.action === "model_relation_created"),
+    "audit logs should include relation create event"
+  );
+  assert(
+    auditAfterRelation.some((item) => item.action === "model_relation_deleted"),
+    "audit logs should include relation delete event"
+  );
+
   const invalidCreate = await request("/api/projects", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -222,6 +237,12 @@ try {
   });
   assert(validTransition.res.status === 200, "valid transition should return 200");
   assert(validTransition.payload?.toStatus === "review", "transition target status mismatch");
+
+  const auditAfterTransition = await getJson("/api/governance/audit-logs?limit=20");
+  assert(
+    auditAfterTransition.some((item) => item.action === "iteration_state_transitioned"),
+    "audit logs should include transition event"
+  );
 
   console.log("Contract test passed.");
 } catch (error) {

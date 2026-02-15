@@ -17,8 +17,16 @@ import type {
   SyncReportPayload,
   TracePayload
 } from "../domain/workspace/types";
+import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
-import { fetchIterationDetail, fetchIterationStateMachine, fetchModelOps, fetchProjectIterations, fetchProjects } from "./workspaceApi";
+import {
+  fetchGovernance,
+  fetchIterationDetail,
+  fetchIterationStateMachine,
+  fetchModelOps,
+  fetchProjectIterations,
+  fetchProjects
+} from "./workspaceApi";
 import { nowIsoString } from "./workspaceHelpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
@@ -44,6 +52,8 @@ type UseWorkspaceLoadersParams = {
   setTraceReport: Dispatch<SetStateAction<TracePayload | null>>;
   setRoadmapReports: Dispatch<SetStateAction<RoadmapPayload[]>>;
   setModelOpsLoading: Dispatch<SetStateAction<boolean>>;
+  setGovernanceRoles: Dispatch<SetStateAction<GovernanceRole[]>>;
+  setAuditLogs: Dispatch<SetStateAction<AuditLog[]>>;
 };
 
 export function useWorkspaceLoaders({
@@ -66,7 +76,9 @@ export function useWorkspaceLoaders({
   setSyncReport,
   setTraceReport,
   setRoadmapReports,
-  setModelOpsLoading
+  setModelOpsLoading,
+  setGovernanceRoles,
+  setAuditLogs
 }: UseWorkspaceLoadersParams) {
   const loadProjects = async () => {
     const projectData = await fetchProjects();
@@ -129,12 +141,22 @@ export function useWorkspaceLoaders({
     }
   };
 
+  const loadGovernance = async () => {
+    try {
+      const data = await fetchGovernance();
+      setGovernanceRoles(data.roles);
+      setAuditLogs(data.auditLogs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  };
+
   useEffect(() => {
     const bootstrap = async () => {
       try {
         const statusData = await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
         setStatus(statusData);
-        await Promise.all([loadProjects(), loadModelOps()]);
+        await Promise.all([loadProjects(), loadModelOps(), loadGovernance()]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       }
@@ -143,5 +165,5 @@ export function useWorkspaceLoaders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { loadProjects, loadIterations, loadIterationDetail, loadModelOps };
+  return { loadProjects, loadIterations, loadIterationDetail, loadModelOps, loadGovernance };
 }

@@ -6,6 +6,18 @@ function parsePositiveInt(value) {
     return Number.isInteger(num) && num > 0 ? num : null;
 }
 async function registerWorkspaceRoutes(app, service) {
+    app.get("/api/governance/roles", async () => {
+        return service.listGovernanceRoles();
+    });
+    app.get("/api/governance/audit-logs", async (request, reply) => {
+        const query = request.query;
+        const limit = query?.limit ? Number(query.limit) : 50;
+        if (!Number.isFinite(limit) || limit <= 0) {
+            reply.code(400);
+            return { message: "invalid limit" };
+        }
+        return service.listAuditLogs(Math.min(200, Math.floor(limit)));
+    });
     app.get("/api/projects", async () => {
         return service.listProjects();
     });

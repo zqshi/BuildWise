@@ -1,5 +1,6 @@
 import type {
   AssessmentSnapshot,
+  AuditLog,
   Iteration,
   IterationMessage,
   IterationTransition,
@@ -27,5 +28,7 @@ export interface WorkspaceRepository {
   listTransitions(iterationId: number): IterationTransition[];
   appendSnapshot(snapshot: AssessmentSnapshot): void;
   appendTransition(transition: IterationTransition): void;
+  listAuditLogs(limit?: number): AuditLog[];
+  appendAuditLog(log: AuditLog): void;
   updateIteration(iteration: Iteration): void;
 }

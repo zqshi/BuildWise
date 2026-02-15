@@ -17,6 +17,7 @@ import type {
   SyncReportPayload,
   TracePayload
 } from "../domain/workspace/types";
+import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 
 export function useWorkspaceState() {
   const [activeView, setActiveView] = useState<"dashboard" | "projects">("dashboard");
@@ -59,6 +60,8 @@ export function useWorkspaceState() {
   const [traceReport, setTraceReport] = useState<TracePayload | null>(null);
   const [roadmapReports, setRoadmapReports] = useState<RoadmapPayload[]>([]);
   const [modelOpsLoading, setModelOpsLoading] = useState(false);
+  const [governanceRoles, setGovernanceRoles] = useState<GovernanceRole[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -140,6 +143,10 @@ export function useWorkspaceState() {
     setRoadmapReports,
     modelOpsLoading,
     setModelOpsLoading,
+    governanceRoles,
+    setGovernanceRoles,
+    auditLogs,
+    setAuditLogs,
     fileInputRef,
     userMenuRef
   };
