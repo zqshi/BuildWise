@@ -73,9 +73,12 @@ export default function App() {
                 versionSnapshots={controller.versionSnapshots}
                 projectShares={controller.projectShares}
                 templates={controller.templates}
+                templateRuns={controller.templateRuns}
                 latestTemplateRun={controller.latestTemplateRun}
                 opsMetrics={controller.opsMetrics}
                 deployments={controller.deployments}
+                shareAccess={controller.shareAccess}
+                currentRole={controller.currentRole}
                 onCreateRelation={controller.handleCreateModelRelation}
                 onDeleteRelation={controller.handleDeleteModelRelation}
                 onRefresh={controller.loadModelOps}
@@ -84,6 +87,10 @@ export default function App() {
                 onCreateShare={controller.handleCreateProjectShare}
                 onRunTemplate={controller.handleRunTemplate}
                 onCreateDeployment={controller.handleCreateDeployment}
+                onTransitionDeployment={controller.handleTransitionDeployment}
+                onAccessShare={controller.handleAccessShare}
+                onCommentShare={controller.handleCommentShare}
+                onRoleChange={controller.setCurrentRole}
               />
             }
             onViewProjects={() => controller.setActiveView("projects")}

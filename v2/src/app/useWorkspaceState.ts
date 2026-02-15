@@ -22,7 +22,9 @@ import type {
   DeploymentRecord,
   OpsMetricsPayload,
   ProjectShare,
+  ShareAccessPayload,
   TemplateItem,
+  TemplateRunHistory,
   TemplateRunResult,
   VersionSnapshot
 } from "../domain/workspace/platformTypes";
@@ -31,6 +33,7 @@ export function useWorkspaceState() {
   const [activeView, setActiveView] = useState<"dashboard" | "projects">("dashboard");
   const [projectPanelMode, setProjectPanelMode] = useState<"project" | "iteration">("project");
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [currentRole, setCurrentRole] = useState<"owner" | "pm" | "developer" | "qa" | "viewer">("owner");
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -73,9 +76,11 @@ export function useWorkspaceState() {
   const [versionSnapshots, setVersionSnapshots] = useState<VersionSnapshot[]>([]);
   const [projectShares, setProjectShares] = useState<ProjectShare[]>([]);
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
+  const [templateRuns, setTemplateRuns] = useState<TemplateRunHistory[]>([]);
   const [latestTemplateRun, setLatestTemplateRun] = useState<TemplateRunResult | null>(null);
   const [opsMetrics, setOpsMetrics] = useState<OpsMetricsPayload | null>(null);
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
+  const [shareAccess, setShareAccess] = useState<ShareAccessPayload | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -87,6 +92,8 @@ export function useWorkspaceState() {
     setProjectPanelMode,
     showUserMenu,
     setShowUserMenu,
+    currentRole,
+    setCurrentRole,
     status,
     setStatus,
     error,
@@ -167,12 +174,16 @@ export function useWorkspaceState() {
     setProjectShares,
     templates,
     setTemplates,
+    templateRuns,
+    setTemplateRuns,
     latestTemplateRun,
     setLatestTemplateRun,
     opsMetrics,
     setOpsMetrics,
     deployments,
     setDeployments,
+    shareAccess,
+    setShareAccess,
     fileInputRef,
     userMenuRef
   };

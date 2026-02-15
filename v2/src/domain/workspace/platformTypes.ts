@@ -35,6 +35,11 @@ export type TemplateRunResult = {
   summary: string;
 };
 
+export type TemplateRunHistory = TemplateRunResult & {
+  id: number;
+  parameters: Record<string, string>;
+};
+
 export type DeploymentRecord = {
   id: number;
   projectId: number;
@@ -48,4 +53,16 @@ export type OpsMetricsPayload = {
   generatedAt: string;
   metrics: Array<{ name: string; value: number; unit: string }>;
   latestAuditAt: string;
+};
+
+export type ShareAccessPayload = {
+  token: string;
+  permission: "read" | "comment";
+  expiresAt: string;
+  project: {
+    id: number;
+    name: string;
+    description: string;
+  };
+  iterationCount: number;
 };
