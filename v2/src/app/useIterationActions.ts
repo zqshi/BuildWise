@@ -34,6 +34,7 @@ type UseIterationActionsParams = {
   setIsAnalyzingAttachment: Dispatch<SetStateAction<boolean>>;
   loadIterationDetail: (iterationId: number) => Promise<void>;
   loadIterations: (projectId: number) => Promise<void>;
+  loadGovernance: () => Promise<void>;
 };
 
 export function useIterationActions({
@@ -52,7 +53,8 @@ export function useIterationActions({
   setShowAnalysisPanel,
   setIsAnalyzingAttachment,
   loadIterationDetail,
-  loadIterations
+  loadIterations,
+  loadGovernance
 }: UseIterationActionsParams) {
   const handleUploadClick = () => {
     if (!currentIteration) {
@@ -91,6 +93,7 @@ export function useIterationActions({
         "assistant",
         "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。"
       );
+      await loadGovernance();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -123,6 +126,7 @@ export function useIterationActions({
       setBusy(true);
       await recomputeAssessment(currentIteration.id);
       await loadIterationDetail(currentIteration.id);
+      await loadGovernance();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -141,6 +145,7 @@ export function useIterationActions({
         await loadIterations(currentProjectId);
       }
       await loadIterationDetail(currentIteration.id);
+      await loadGovernance();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -159,6 +164,7 @@ export function useIterationActions({
         await loadIterations(currentProjectId);
       }
       await loadIterationDetail(currentIteration.id);
+      await loadGovernance();
       setStateMachine((prev) =>
         prev
           ? {

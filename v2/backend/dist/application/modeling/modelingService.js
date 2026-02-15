@@ -1,61 +1,22 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModelingService = void 0;
-function nowIso() {
-    return new Date().toISOString();
-}
-function normalizeMethod(method) {
-    return (method || "GET").toUpperCase();
-}
-function clamp(value, min = 0, max = 1) {
-    return Math.min(max, Math.max(min, value));
-}
-const roadmapGoals = new Map([
-    [1, "实体/字段/规则/页面最小结构可创建与展示"],
-    [2, "Figma/草图/文本输入占位与确认流程"],
-    [3, "自然语言规则转结构化规则"],
-    [4, "变更检测与同步报告可视化"],
-    [5, "模型节点 ↔ 代码片段双向追溯"],
-    [6, "一对多/多对多关系建模"],
-    [7, "状态流转与工作流编排"],
-    [8, "角色、权限、审计日志"],
-    [9, "项目共享、版本快照、回滚"],
-    [10, "模板市场、智能体执行框架"],
-    [11, "开放 API 与集成中心"],
-    [12, "部署管理与可观测性"]
-]);
-function parseRoadmapPath(path) {
-    const match = /^\/api\/roadmap-v(\d)-(\d)$/.exec(path);
-    if (!match) {
-        return null;
-    }
-    const major = Number(match[1]);
-    const minor = Number(match[2]);
-    if (!Number.isInteger(major) || !Number.isInteger(minor)) {
-        return null;
-    }
-    const index = major === 0 ? minor : major === 1 ? 10 + minor : null;
-    if (index === null || index < 1 || index > 12) {
-        return null;
-    }
-    return { major, minor, index };
-}
-function stageOfVersion(index) {
-    if (index <= 4) {
-        return "S1";
-    }
-    if (index <= 6) {
-        return "S2";
-    }
-    if (index <= 9) {
-        return "S3";
-    }
-    return "S4";
-}
+const modelingSupport_1 = require("./modelingSupport");
 class ModelingService {
     constructor(modelRepo, workspaceRepo) {
         this.modelRepo = modelRepo;
         this.workspaceRepo = workspaceRepo;
+    }
+    writeAudit(action, resource, detail) {
+        const workspace = this.workspaceRepo.read();
+        this.workspaceRepo.appendAuditLog({
+            id: this.workspaceRepo.nextId(workspace.auditLogs),
+            actor: "system",
+            action,
+            resource,
+            detail,
+            createdAt: (0, modelingSupport_1.nowIso)()
+        });
     }
     getModel() {
         const model = this.modelRepo.read();
@@ -68,7 +29,7 @@ class ModelingService {
                 pages: model.pages.length,
                 apis: model.apis.length
             },
-            updatedAt: nowIso()
+            updatedAt: (0, modelingSupport_1.nowIso)()
         };
     }
     listEntities() {
@@ -98,10 +59,15 @@ class ModelingService {
             return { ok: false, reason: "relation_duplicated" };
         }
         const created = this.modelRepo.createRelation(input);
+        this.writeAudit("model_relation_created", `relation:${created.id}`, `${input.fromEntityId} -> ${input.toEntityId} (${input.type})`);
         return { ok: true, value: created };
     }
     deleteRelation(relationId) {
-        return this.modelRepo.deleteRelation(relationId);
+        const deleted = this.modelRepo.deleteRelation(relationId);
+        if (deleted) {
+            this.writeAudit("model_relation_deleted", `relation:${relationId}`, `删除关系 ${relationId}`);
+        }
+        return deleted;
     }
     compileRules() {
         const model = this.modelRepo.read();
@@ -125,7 +91,7 @@ class ModelingService {
             }
         }
         return {
-            compiledAt: nowIso(),
+            compiledAt: (0, modelingSupport_1.nowIso)(),
             ruleCount: model.rules.length,
             validRules,
             invalidRules: Math.max(0, model.rules.length - validRules),
@@ -141,15 +107,15 @@ class ModelingService {
         const pages = model.pages.length;
         const apis = model.apis.filter((api) => typeof api.path === "string" && api.path).length;
         const compile = this.compileRules();
-        const ruleQuality = compile.ruleCount === 0 ? 0.6 : clamp(compile.validRules / Math.max(1, compile.ruleCount));
-        const entityIterationFit = clamp(iterations / Math.max(1, entities));
-        const apiPageFit = clamp(apis / Math.max(1, pages * 2));
-        const workspaceActivity = clamp((projects * 0.4 + iterations * 0.6) / Math.max(1, projects * 2));
-        const coverageScore = Number(((entityIterationFit * 0.3 +
-            ruleQuality * 0.25 +
-            apiPageFit * 0.25 +
-            workspaceActivity * 0.2) *
-            100).toFixed(1));
+        const { ruleQuality, coverageScore } = (0, modelingSupport_1.calculateCoverageScores)({
+            compileRuleCount: compile.ruleCount,
+            compileValidRules: compile.validRules,
+            iterationCount: iterations,
+            entityCount: entities,
+            apiCount: apis,
+            pageCount: pages,
+            projectCount: projects
+        });
         const impacts = [];
         const risks = [];
         impacts.push(`模型实体 ${entities} 个，页面 ${pages} 个，接口 ${apis} 个。`);
@@ -168,7 +134,7 @@ class ModelingService {
             risks.push("当前未发现高优先级同步风险。");
         }
         return {
-            generatedAt: nowIso(),
+            generatedAt: (0, modelingSupport_1.nowIso)(),
             projectCount: projects,
             iterationCount: iterations,
             modelEntityCount: entities,
@@ -202,7 +168,7 @@ class ModelingService {
             };
         });
         return {
-            generatedAt: nowIso(),
+            generatedAt: (0, modelingSupport_1.nowIso)(),
             bindings
         };
     }
@@ -220,7 +186,7 @@ class ModelingService {
             intent: `页面 ${page.name} 使用接口 ${api.path}`
         })));
         return {
-            generatedAt: nowIso(),
+            generatedAt: (0, modelingSupport_1.nowIso)(),
             items
         };
     }
@@ -229,12 +195,12 @@ class ModelingService {
         return model.apis
             .filter((api) => typeof api.path === "string" && api.path)
             .map((api) => ({
-            method: normalizeMethod(api.method),
+            method: (0, modelingSupport_1.normalizeMethod)(api.method),
             path: api.path
         }));
     }
     describeRoadmap(path) {
-        const parsed = parseRoadmapPath(path);
+        const parsed = (0, modelingSupport_1.parseRoadmapPath)(path);
         if (!parsed) {
             return null;
         }
@@ -245,13 +211,13 @@ class ModelingService {
         const entityName = `Iteration${indexToken}`;
         const entity = model.entities.find((item) => item.id === entityId || item.name === entityName) ?? null;
         const hasStatusField = Boolean(entity?.fields?.some((field) => field.name === "status"));
-        const apiDeclared = model.apis.some((item) => normalizeMethod(item.method) === "GET" && (item.path || "") === path);
+        const apiDeclared = model.apis.some((item) => (0, modelingSupport_1.normalizeMethod)(item.method) === "GET" && (item.path || "") === path);
         return {
             version: `V${parsed.major}.${parsed.minor}`,
             route: path,
-            stage: stageOfVersion(parsed.index),
-            goal: roadmapGoals.get(parsed.index) || "待补充目标定义",
-            generatedAt: nowIso(),
+            stage: (0, modelingSupport_1.stageOfVersion)(parsed.index),
+            goal: (0, modelingSupport_1.resolveRoadmapGoal)(parsed.index),
+            generatedAt: (0, modelingSupport_1.nowIso)(),
             modelContract: {
                 apiDeclared,
                 entityDeclared: Boolean(entity),

@@ -6,6 +6,29 @@ class WorkspaceService {
     constructor(repo) {
         this.repo = repo;
     }
+    listGovernanceRoles() {
+        return [
+            { id: "owner", name: "系统负责人", permissions: ["workspace:*", "model:*", "governance:*"] },
+            { id: "pm", name: "产品经理", permissions: ["workspace:read", "workspace:write", "iteration:transition"] },
+            { id: "developer", name: "研发工程师", permissions: ["workspace:read", "model:read", "model:write"] },
+            { id: "qa", name: "测试工程师", permissions: ["workspace:read", "trace:read", "assessment:recompute"] },
+            { id: "viewer", name: "只读成员", permissions: ["workspace:read", "model:read"] }
+        ];
+    }
+    listAuditLogs(limit = 50) {
+        return this.repo.listAuditLogs(limit);
+    }
+    writeAuditLog(action, resource, detail) {
+        const data = this.repo.read();
+        this.repo.appendAuditLog({
+            id: this.repo.nextId(data.auditLogs),
+            actor: "system",
+            action,
+            resource,
+            detail,
+            createdAt: new Date().toISOString()
+        });
+    }
     hasProject(projectId) {
         return this.repo.findProject(projectId) !== null;
     }
@@ -134,6 +157,7 @@ class WorkspaceService {
             note: note || `${fromStatus} -> ${toStatus}`,
             createdAt
         });
+        this.writeAuditLog("iteration_state_transitioned", `iteration:${iterationId}`, `${fromStatus} -> ${toStatus}${note ? ` (${note})` : ""}`);
         this.repo.appendSnapshot({
             id: this.repo.nextId(this.repo.read().snapshots),
             iterationId,
@@ -167,6 +191,7 @@ class WorkspaceService {
             progress: normalized.progress,
             createdAt: new Date().toISOString()
         });
+        this.writeAuditLog("assessment_recomputed", `iteration:${iterationId}`, "手动刷新评估");
         return {
             iterationId,
             iterationName: normalized.name,
@@ -199,6 +224,7 @@ class WorkspaceService {
             progress: normalized.progress,
             createdAt: new Date().toISOString()
         });
+        this.writeAuditLog("assessment_restored", `iteration:${iterationId}`, `恢复快照 #${snapshotId}`);
         return {
             iterationId,
             iterationName: normalized.name,
@@ -218,6 +244,7 @@ class WorkspaceService {
         const removed = previousScope.filter((item) => !currentScope.includes(item));
         const changed = normalized.assessment.deltaInScope.filter((item) => item.startsWith("+") || item.startsWith("-"));
         const inferredRisks = (0, workspaceSupport_1.inferRisksFromExcerpt)(input.excerpt);
+        this.writeAuditLog("attachment_analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
         return {
             iterationId: normalized.id,
             iterationName: normalized.name,

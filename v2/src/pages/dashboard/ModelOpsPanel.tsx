@@ -8,6 +8,7 @@ import type {
   SyncReportPayload,
   TracePayload
 } from "../../domain/workspace/types";
+import type { AuditLog, GovernanceRole } from "../../domain/workspace/governanceTypes";
 
 type Props = {
   loading: boolean;
@@ -18,6 +19,8 @@ type Props = {
   syncReport: SyncReportPayload | null;
   traceReport: TracePayload | null;
   roadmapReports: RoadmapPayload[];
+  governanceRoles: GovernanceRole[];
+  auditLogs: AuditLog[];
   onCreateRelation: (payload: {
     fromEntityId: string;
     toEntityId: string;
@@ -37,6 +40,8 @@ export function ModelOpsPanel({
   syncReport,
   traceReport,
   roadmapReports,
+  governanceRoles,
+  auditLogs,
   onCreateRelation,
   onDeleteRelation,
   onRefresh
@@ -124,6 +129,21 @@ export function ModelOpsPanel({
         <p>风险项：{syncReport?.risks?.length ?? 0}</p>
         {syncReport?.risks?.slice(0, 2).map((risk) => (
           <p key={risk}>- {risk}</p>
+        ))}
+      </div>
+      <div className="info-box">
+        <h3>权限与治理（V0.8）</h3>
+        <p>角色数：{governanceRoles.length}</p>
+        <p>审计日志：{auditLogs.length}</p>
+        {governanceRoles.slice(0, 3).map((role) => (
+          <p key={role.id}>
+            {role.name}：{role.permissions.length} 项权限
+          </p>
+        ))}
+        {auditLogs.slice(0, 3).map((log) => (
+          <p key={log.id}>
+            [{new Date(log.createdAt).toLocaleTimeString("zh-CN", { hour12: false })}] {log.action}
+          </p>
         ))}
       </div>
       <div className="info-box">

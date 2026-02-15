@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   AssessmentSnapshot,
+  AuditLog,
   Iteration,
   IterationMessage,
   IterationTransition,
@@ -24,7 +25,8 @@ const seedStore: WorkspaceStore = {
   iterations: [],
   messages: [],
   snapshots: [],
-  transitions: []
+  transitions: [],
+  auditLogs: []
 };
 
 function toArray<T>(value: unknown): T[] {
@@ -46,7 +48,8 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       iterations: toArray<Iteration>(parsed.iterations),
       messages: toArray<IterationMessage>(parsed.messages),
       snapshots: toArray<AssessmentSnapshot>(parsed.snapshots),
-      transitions: toArray<IterationTransition>(parsed.transitions)
+      transitions: toArray<IterationTransition>(parsed.transitions),
+      auditLogs: toArray<AuditLog>(parsed.auditLogs)
     };
   }
 
@@ -183,6 +186,18 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   appendTransition(transition: IterationTransition) {
     const data = this.read();
     data.transitions.push(transition);
+    this.write(data);
+  }
+
+  listAuditLogs(limit = 50) {
+    const logs = this.read().auditLogs;
+    const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : 50;
+    return logs.slice(-normalizedLimit).reverse();
+  }
+
+  appendAuditLog(log: AuditLog) {
+    const data = this.read();
+    data.auditLogs.push(log);
     this.write(data);
   }
 

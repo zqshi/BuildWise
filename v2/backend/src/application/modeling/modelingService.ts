@@ -6,67 +6,32 @@ import type {
   TraceReport
 } from "../../domain/modeling/types";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-function nowIso() {
-  return new Date().toISOString();
-}
-function normalizeMethod(method?: string) {
-  return (method || "GET").toUpperCase();
-}
-
-function clamp(value: number, min = 0, max = 1) {
-  return Math.min(max, Math.max(min, value));
-}
-
-const roadmapGoals = new Map<number, string>([
-  [1, "实体/字段/规则/页面最小结构可创建与展示"],
-  [2, "Figma/草图/文本输入占位与确认流程"],
-  [3, "自然语言规则转结构化规则"],
-  [4, "变更检测与同步报告可视化"],
-  [5, "模型节点 ↔ 代码片段双向追溯"],
-  [6, "一对多/多对多关系建模"],
-  [7, "状态流转与工作流编排"],
-  [8, "角色、权限、审计日志"],
-  [9, "项目共享、版本快照、回滚"],
-  [10, "模板市场、智能体执行框架"],
-  [11, "开放 API 与集成中心"],
-  [12, "部署管理与可观测性"]
-]);
-
-function parseRoadmapPath(path: string) {
-  const match = /^\/api\/roadmap-v(\d)-(\d)$/.exec(path);
-  if (!match) {
-    return null;
-  }
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  if (!Number.isInteger(major) || !Number.isInteger(minor)) {
-    return null;
-  }
-  const index = major === 0 ? minor : major === 1 ? 10 + minor : null;
-  if (index === null || index < 1 || index > 12) {
-    return null;
-  }
-  return { major, minor, index };
-}
-
-function stageOfVersion(index: number) {
-  if (index <= 4) {
-    return "S1";
-  }
-  if (index <= 6) {
-    return "S2";
-  }
-  if (index <= 9) {
-    return "S3";
-  }
-  return "S4";
-}
+import {
+  calculateCoverageScores,
+  normalizeMethod,
+  nowIso,
+  parseRoadmapPath,
+  resolveRoadmapGoal,
+  stageOfVersion
+} from "./modelingSupport";
 
 export class ModelingService {
   constructor(
     private readonly modelRepo: ModelingRepository,
     private readonly workspaceRepo: WorkspaceRepository
   ) {}
+
+  private writeAudit(action: string, resource: string, detail: string) {
+    const workspace = this.workspaceRepo.read();
+    this.workspaceRepo.appendAuditLog({
+      id: this.workspaceRepo.nextId(workspace.auditLogs),
+      actor: "system",
+      action,
+      resource,
+      detail,
+      createdAt: nowIso()
+    });
+  }
 
   getModel() {
     const model = this.modelRepo.read();
@@ -121,11 +86,20 @@ export class ModelingService {
       return { ok: false as const, reason: "relation_duplicated" };
     }
     const created = this.modelRepo.createRelation(input);
+    this.writeAudit(
+      "model_relation_created",
+      `relation:${created.id}`,
+      `${input.fromEntityId} -> ${input.toEntityId} (${input.type})`
+    );
     return { ok: true as const, value: created };
   }
 
   deleteRelation(relationId: string) {
-    return this.modelRepo.deleteRelation(relationId);
+    const deleted = this.modelRepo.deleteRelation(relationId);
+    if (deleted) {
+      this.writeAudit("model_relation_deleted", `relation:${relationId}`, `删除关系 ${relationId}`);
+    }
+    return deleted;
   }
 
   compileRules(): RuleCompileResult {
@@ -170,21 +144,15 @@ export class ModelingService {
     const apis = model.apis.filter((api) => typeof api.path === "string" && api.path).length;
 
     const compile = this.compileRules();
-    const ruleQuality =
-      compile.ruleCount === 0 ? 0.6 : clamp(compile.validRules / Math.max(1, compile.ruleCount));
-    const entityIterationFit = clamp(iterations / Math.max(1, entities));
-    const apiPageFit = clamp(apis / Math.max(1, pages * 2));
-    const workspaceActivity = clamp((projects * 0.4 + iterations * 0.6) / Math.max(1, projects * 2));
-
-    const coverageScore = Number(
-      (
-        (entityIterationFit * 0.3 +
-          ruleQuality * 0.25 +
-          apiPageFit * 0.25 +
-          workspaceActivity * 0.2) *
-        100
-      ).toFixed(1)
-    );
+    const { ruleQuality, coverageScore } = calculateCoverageScores({
+      compileRuleCount: compile.ruleCount,
+      compileValidRules: compile.validRules,
+      iterationCount: iterations,
+      entityCount: entities,
+      apiCount: apis,
+      pageCount: pages,
+      projectCount: projects
+    });
     const impacts: string[] = [];
     const risks: string[] = [];
     impacts.push(`模型实体 ${entities} 个，页面 ${pages} 个，接口 ${apis} 个。`);
@@ -296,7 +264,7 @@ export class ModelingService {
       version: `V${parsed.major}.${parsed.minor}`,
       route: path,
       stage: stageOfVersion(parsed.index),
-      goal: roadmapGoals.get(parsed.index) || "待补充目标定义",
+      goal: resolveRoadmapGoal(parsed.index),
       generatedAt: nowIso(),
       modelContract: {
         apiDeclared,

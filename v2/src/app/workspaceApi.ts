@@ -17,6 +17,7 @@ import type {
   SyncReportPayload,
   TracePayload
 } from "../domain/workspace/types";
+import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
 
@@ -155,6 +156,17 @@ export async function fetchModelOps() {
     syncReport,
     traceReport,
     roadmapReports
+  };
+}
+
+export async function fetchGovernance() {
+  const [rolesRaw, auditLogsRaw] = await Promise.all([
+    fetchJSON<unknown>(`${API_BASE}/api/governance/roles`),
+    fetchJSON<unknown>(`${API_BASE}/api/governance/audit-logs?limit=30`)
+  ]);
+  return {
+    roles: ensureArray<GovernanceRole>(rolesRaw),
+    auditLogs: ensureArray<AuditLog>(auditLogsRaw)
   };
 }
 

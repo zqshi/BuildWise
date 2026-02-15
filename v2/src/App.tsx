@@ -68,6 +68,8 @@ export default function App() {
                 syncReport={controller.syncReport}
                 traceReport={controller.traceReport}
                 roadmapReports={controller.roadmapReports}
+                governanceRoles={controller.governanceRoles}
+                auditLogs={controller.auditLogs}
                 onCreateRelation={controller.handleCreateModelRelation}
                 onDeleteRelation={controller.handleDeleteModelRelation}
                 onRefresh={controller.loadModelOps}
