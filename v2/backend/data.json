@@ -1,0 +1,660 @@
+{
+  "projects": [
+    {
+      "id": 1,
+      "name": "构想智造平台",
+      "description": "统一项目模型驱动的迭代管理平台",
+      "status": "in-progress",
+      "icon": "cubes",
+      "iconColor": "blue",
+      "lastUpdated": "2026-02-13"
+    },
+    {
+      "id": 2,
+      "name": "测试项目",
+      "description": "用于验证创建接口",
+      "status": "in-progress",
+      "lastUpdated": "2026-02-15"
+    }
+  ],
+  "iterations": [
+    {
+      "id": 1,
+      "projectId": 1,
+      "name": "1",
+      "description": "1",
+      "goals": [
+        "1"
+      ],
+      "modules": [
+        {
+          "id": "module-1770789411593-0",
+          "title": "1",
+          "status": "planned"
+        }
+      ],
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-11",
+      "createdBy": "系统",
+      "current": false,
+      "aiSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "continuity": {
+        "inheritedFromIterationId": null,
+        "inheritedSummary": "首个迭代，无需继承。",
+        "carriedGoals": [],
+        "carriedRisks": [],
+        "carriedDecisions": []
+      },
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      }
+    },
+    {
+      "id": 2,
+      "projectId": 1,
+      "name": "1",
+      "description": "1",
+      "goals": [
+        "1"
+      ],
+      "modules": [
+        {
+          "id": "module-1770949414391-0",
+          "title": "1",
+          "status": "planned"
+        }
+      ],
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-13",
+      "createdBy": "系统",
+      "current": true,
+      "aiSummary": "基于构想智造平台，1聚焦1。",
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "continuity": {
+        "inheritedFromIterationId": null,
+        "inheritedSummary": "首个迭代，无需继承。",
+        "carriedGoals": [],
+        "carriedRisks": [],
+        "carriedDecisions": []
+      },
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": 1,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260214-100244.png",
+      "createdAt": "2026-02-15T07:22:20.870Z"
+    },
+    {
+      "id": 2,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T07:22:20.873Z"
+    },
+    {
+      "id": 3,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260214-100244.png",
+      "createdAt": "2026-02-15T07:26:20.802Z"
+    },
+    {
+      "id": 4,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T07:26:20.808Z"
+    },
+    {
+      "id": 5,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260215-150233.png",
+      "createdAt": "2026-02-15T07:50:34.664Z"
+    },
+    {
+      "id": 6,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T07:50:34.668Z"
+    },
+    {
+      "id": 7,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260215-150201.png",
+      "createdAt": "2026-02-15T09:32:43.507Z"
+    },
+    {
+      "id": 8,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T09:32:43.510Z"
+    },
+    {
+      "id": 9,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260215-150233.png",
+      "createdAt": "2026-02-15T09:36:59.730Z"
+    },
+    {
+      "id": 10,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T09:36:59.734Z"
+    },
+    {
+      "id": 11,
+      "iterationId": 1,
+      "role": "user",
+      "content": "a",
+      "createdAt": "2026-02-15T09:37:09.750Z"
+    },
+    {
+      "id": 12,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "已记录到当前迭代。可用指令：完成: xxx；延期: xxx；新增范围: xxx；移出范围: xxx；验收通过: xxx；风险: xxx；清除风险: xxx；当前总结: xxx。",
+      "createdAt": "2026-02-15T09:37:09.754Z"
+    },
+    {
+      "id": 13,
+      "iterationId": 1,
+      "role": "user",
+      "content": "a",
+      "createdAt": "2026-02-15T09:37:10.143Z"
+    },
+    {
+      "id": 14,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "已记录到当前迭代。可用指令：完成: xxx；延期: xxx；新增范围: xxx；移出范围: xxx；验收通过: xxx；风险: xxx；清除风险: xxx；当前总结: xxx。",
+      "createdAt": "2026-02-15T09:37:10.149Z"
+    }
+  ],
+  "snapshots": [
+    {
+      "id": 1,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T07:22:20.870Z"
+    },
+    {
+      "id": 2,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T07:22:20.873Z"
+    },
+    {
+      "id": 3,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T07:26:20.804Z"
+    },
+    {
+      "id": 4,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T07:26:20.809Z"
+    },
+    {
+      "id": 5,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T07:50:34.666Z"
+    },
+    {
+      "id": 6,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T07:50:34.669Z"
+    },
+    {
+      "id": 7,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:32:43.508Z"
+    },
+    {
+      "id": 8,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:32:43.511Z"
+    },
+    {
+      "id": 9,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:36:59.731Z"
+    },
+    {
+      "id": 10,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:36:59.734Z"
+    },
+    {
+      "id": 11,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:37:09.751Z"
+    },
+    {
+      "id": 12,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:37:09.754Z"
+    },
+    {
+      "id": 13,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:37:10.144Z"
+    },
+    {
+      "id": 14,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T09:37:10.150Z"
+    }
+  ]
+}

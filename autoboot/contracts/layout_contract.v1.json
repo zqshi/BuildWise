@@ -1,0 +1,109 @@
+{
+  "name": "buildwise-single-entry-layout-contract",
+  "version": "1.0.0",
+  "description": "约束 v2 单入口实现保持核心布局能力不回退。",
+  "baseline_file": "v2/index.html",
+  "target_file": "v2/src/App.tsx",
+  "rules": [
+    {
+      "id": "dock_navigation",
+      "title": "左侧 Dock 导航",
+      "weight": 10,
+      "critical": true,
+      "baseline_patterns": [
+        "dock-item",
+        "switchView('dashboard')",
+        "switchView('projects')"
+      ],
+      "target_patterns": [
+        "className=\"dock\"",
+        "title=\"仪表盘\"",
+        "title=\"项目库\""
+      ]
+    },
+    {
+      "id": "dashboard_view",
+      "title": "仪表盘总览",
+      "weight": 15,
+      "critical": true,
+      "baseline_patterns": [
+        "id=\"dashboardView\"",
+        "项目进度分布",
+        "月度代码生成趋势"
+      ],
+      "target_patterns": [
+        "stats-grid",
+        "项目数",
+        "服务状态"
+      ]
+    },
+    {
+      "id": "projects_workspace_three_panel",
+      "title": "项目管理三栏工作台",
+      "weight": 20,
+      "critical": true,
+      "baseline_patterns": [
+        "id=\"projectsView\"",
+        "id=\"projectListContainer\"",
+        "id=\"chatContainer\"",
+        "id=\"previewContainer\""
+      ],
+      "target_patterns": [
+        "content-grid",
+        "project-panel",
+        "chat-panel",
+        "context-panel"
+      ]
+    },
+    {
+      "id": "iteration_management",
+      "title": "项目-迭代管理",
+      "weight": 20,
+      "critical": true,
+      "baseline_patterns": [
+        "新增迭代",
+        "iterationList",
+        "迭代版本"
+      ],
+      "target_patterns": [
+        "版本列表",
+        "新增迭代",
+        "setCurrentIterationId"
+      ]
+    },
+    {
+      "id": "iteration_chat_workflow",
+      "title": "迭代内沟通与附件",
+      "weight": 20,
+      "critical": true,
+      "baseline_patterns": [
+        "chatMessages",
+        "prototypeUpload",
+        "analysisReport"
+      ],
+      "target_patterns": [
+        "迭代内需求沟通",
+        "上传附件",
+        "createMessage(",
+        "api/iterations/${iterationId}/messages"
+      ]
+    },
+    {
+      "id": "evaluation_governance",
+      "title": "评估治理与快照",
+      "weight": 15,
+      "critical": false,
+      "baseline_patterns": [
+        "迭代详情",
+        "进度",
+        "版本目标"
+      ],
+      "target_patterns": [
+        "新旧版本评估",
+        "评估快照历史",
+        "刷新评估",
+        "handleRestoreSnapshot"
+      ]
+    }
+  ]
+}
