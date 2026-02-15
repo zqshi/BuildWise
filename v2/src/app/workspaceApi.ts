@@ -22,7 +22,9 @@ import type {
   DeploymentRecord,
   OpsMetricsPayload,
   ProjectShare,
+  ShareAccessPayload,
   TemplateItem,
+  TemplateRunHistory,
   TemplateRunResult,
   VersionSnapshot
 } from "../domain/workspace/platformTypes";
@@ -156,6 +158,7 @@ export async function fetchModelOps() {
     traceReport,
     roadmapReports,
     templatesRaw,
+    templateRunsRaw,
     opsMetrics,
     deploymentsRaw
   ] = await Promise.all([
@@ -167,6 +170,7 @@ export async function fetchModelOps() {
     fetchJSON<TracePayload>(`${API_BASE}/api/trace`),
     Promise.all(roadmapPaths.map((path) => fetchJSON<RoadmapPayload>(`${API_BASE}${path}`))),
     fetchJSON<unknown>(`${API_BASE}/api/templates`),
+    fetchJSON<unknown>(`${API_BASE}/api/templates/runs`),
     fetchJSON<OpsMetricsPayload>(`${API_BASE}/api/ops/metrics`),
     fetchJSON<unknown>(`${API_BASE}/api/ops/deployments`)
   ]);
@@ -179,6 +183,7 @@ export async function fetchModelOps() {
     traceReport,
     roadmapReports,
     templates: ensureArray<TemplateItem>(templatesRaw),
+    templateRuns: ensureArray<TemplateRunHistory>(templateRunsRaw),
     opsMetrics,
     deployments: ensureArray<DeploymentRecord>(deploymentsRaw)
   };
@@ -242,34 +247,34 @@ export async function createVersionSnapshot(payload: {
   iterationId: number;
   name: string;
   note?: string;
-}) {
+}, role = "owner") {
   return fetchJSON<VersionSnapshot>(`${API_BASE}/api/collab/snapshots`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
   });
 }
 
-export async function restoreVersionSnapshot(snapshotId: number) {
+export async function restoreVersionSnapshot(snapshotId: number, role = "owner") {
   return fetchJSON<{ ok: boolean; snapshotId: number; iterationId: number }>(
     `${API_BASE}/api/collab/snapshots/${snapshotId}/restore`,
-    { method: "POST" }
+    { method: "POST", headers: { "x-role": role } }
   );
 }
 
-export async function createProjectShare(payload: { projectId: number; permission: "read" | "comment"; ttlHours?: number }) {
+export async function createProjectShare(payload: { projectId: number; permission: "read" | "comment"; ttlHours?: number }, role = "owner") {
   return fetchJSON<ProjectShare>(`${API_BASE}/api/collab/shares`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
   });
 }
 
-export async function runTemplate(templateId: string, projectId: number) {
+export async function runTemplate(templateId: string, projectId: number, parameters: Record<string, string>, role = "owner") {
   return fetchJSON<TemplateRunResult>(`${API_BASE}/api/templates/${templateId}/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ projectId })
+    headers: { "Content-Type": "application/json", "x-role": role },
+    body: JSON.stringify({ projectId, parameters })
   });
 }
 
@@ -277,10 +282,33 @@ export async function createDeployment(payload: {
   projectId: number;
   environment: "staging" | "production";
   version: string;
-}) {
+}, role = "owner") {
   return fetchJSON<DeploymentRecord>(`${API_BASE}/api/ops/deployments`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
   });
+}
+
+export async function transitionDeployment(deploymentId: number, toStatus: "running" | "success" | "failed", role = "owner") {
+  return fetchJSON<DeploymentRecord>(`${API_BASE}/api/ops/deployments/${deploymentId}/transition`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role },
+    body: JSON.stringify({ toStatus })
+  });
+}
+
+export async function accessShare(token: string) {
+  return fetchJSON<ShareAccessPayload>(`${API_BASE}/api/collab/share/${token}`);
+}
+
+export async function commentByShare(token: string, content: string) {
+  return fetchJSON<{ ok: boolean; token: string; comment: string; createdAt: string }>(
+    `${API_BASE}/api/collab/share/${token}/comments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content })
+    }
+  );
 }

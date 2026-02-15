@@ -23,6 +23,7 @@ import type {
   OpsMetricsPayload,
   ProjectShare,
   TemplateItem,
+  TemplateRunHistory,
   VersionSnapshot
 } from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
@@ -65,6 +66,7 @@ type UseWorkspaceLoadersParams = {
   setVersionSnapshots: Dispatch<SetStateAction<VersionSnapshot[]>>;
   setProjectShares: Dispatch<SetStateAction<ProjectShare[]>>;
   setTemplates: Dispatch<SetStateAction<TemplateItem[]>>;
+  setTemplateRuns: Dispatch<SetStateAction<TemplateRunHistory[]>>;
   setOpsMetrics: Dispatch<SetStateAction<OpsMetricsPayload | null>>;
   setDeployments: Dispatch<SetStateAction<DeploymentRecord[]>>;
 };
@@ -95,6 +97,7 @@ export function useWorkspaceLoaders({
   setVersionSnapshots,
   setProjectShares,
   setTemplates,
+  setTemplateRuns,
   setOpsMetrics,
   setDeployments
 }: UseWorkspaceLoadersParams) {
@@ -153,6 +156,7 @@ export function useWorkspaceLoaders({
       setTraceReport(reports.traceReport);
       setRoadmapReports(reports.roadmapReports);
       setTemplates(reports.templates);
+      setTemplateRuns(reports.templateRuns);
       setOpsMetrics(reports.opsMetrics);
       setDeployments(reports.deployments);
     } catch (err) {

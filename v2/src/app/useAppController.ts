@@ -1,12 +1,15 @@
 import { useCallback, useEffect } from "react";
 import {
+  accessShare,
+  commentByShare,
   createDeployment,
   createModelRelation,
   createProjectShare,
   createVersionSnapshot,
   deleteModelRelation,
   restoreVersionSnapshot,
-  runTemplate
+  runTemplate,
+  transitionDeployment
 } from "./workspaceApi";
 import { useAuthController } from "./useAuthController";
 import { useDismissibleMenu } from "./useDismissibleMenu";
@@ -60,6 +63,7 @@ export function useAppController() {
     setVersionSnapshots: state.setVersionSnapshots,
     setProjectShares: state.setProjectShares,
     setTemplates: state.setTemplates,
+    setTemplateRuns: state.setTemplateRuns,
     setOpsMetrics: state.setOpsMetrics,
     setDeployments: state.setDeployments
   });
@@ -71,6 +75,7 @@ export function useAppController() {
       state.setProjectPanelMode("project");
       state.setVersionSnapshots([]);
       state.setProjectShares([]);
+      state.setShareAccess(null);
       return;
     }
     Promise.all([loaders.loadIterations(state.currentProjectId), loaders.loadCollaboration(state.currentProjectId)]).catch((err) => {
@@ -192,12 +197,12 @@ export function useAppController() {
       iterationId: derived.currentIteration.id,
       name: `snapshot-${new Date().toISOString().slice(11, 19)}`,
       note: "dashboard quick snapshot"
-    });
+    }, state.currentRole);
     await Promise.all([loaders.loadCollaboration(state.currentProjectId), loaders.loadGovernance()]);
   };
 
   const handleRestoreVersionSnapshot = async (snapshotId: number) => {
-    await restoreVersionSnapshot(snapshotId);
+    await restoreVersionSnapshot(snapshotId, state.currentRole);
     await Promise.all([
       state.currentProjectId ? loaders.loadCollaboration(state.currentProjectId) : Promise.resolve(),
       derived.currentIteration ? loaders.loadIterationDetail(derived.currentIteration.id) : Promise.resolve(),
@@ -210,17 +215,17 @@ export function useAppController() {
     if (!state.currentProjectId) {
       return;
     }
-    await createProjectShare({ projectId: state.currentProjectId, permission: "comment", ttlHours: 72 });
+    await createProjectShare({ projectId: state.currentProjectId, permission: "comment", ttlHours: 72 }, state.currentRole);
     await Promise.all([loaders.loadCollaboration(state.currentProjectId), loaders.loadGovernance()]);
   };
 
-  const handleRunTemplate = async (templateId: string) => {
+  const handleRunTemplate = async (templateId: string, parameters: Record<string, string>) => {
     if (!state.currentProjectId) {
       return;
     }
-    const result = await runTemplate(templateId, state.currentProjectId);
+    const result = await runTemplate(templateId, state.currentProjectId, parameters, state.currentRole);
     state.setLatestTemplateRun(result);
-    await loaders.loadGovernance();
+    await Promise.all([loaders.loadGovernance(), loaders.loadModelOps()]);
   };
 
   const handleCreateDeployment = async (environment: "staging" | "production") => {
@@ -228,8 +233,23 @@ export function useAppController() {
       return;
     }
     const version = `v${Date.now().toString().slice(-6)}`;
-    await createDeployment({ projectId: state.currentProjectId, environment, version });
+    await createDeployment({ projectId: state.currentProjectId, environment, version }, state.currentRole);
     await Promise.all([loaders.loadModelOps(), loaders.loadGovernance()]);
+  };
+
+  const handleTransitionDeployment = async (deploymentId: number, toStatus: "running" | "success" | "failed") => {
+    await transitionDeployment(deploymentId, toStatus, state.currentRole);
+    await Promise.all([loaders.loadModelOps(), loaders.loadGovernance()]);
+  };
+
+  const handleAccessShare = async (token: string) => {
+    const data = await accessShare(token);
+    state.setShareAccess(data);
+  };
+
+  const handleCommentShare = async (token: string, content: string) => {
+    await commentByShare(token, content);
+    await loaders.loadGovernance();
   };
 
   return {
@@ -247,6 +267,9 @@ export function useAppController() {
     handleCreateProjectShare,
     handleRunTemplate,
     handleCreateDeployment,
+    handleTransitionDeployment,
+    handleAccessShare,
+    handleCommentShare,
     ...projectActions,
     ...iterationActions
   };
