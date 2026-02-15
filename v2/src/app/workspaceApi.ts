@@ -6,6 +6,7 @@ import type {
   ChatRole,
   Iteration,
   IterationContextPayload,
+  IterationStateMachinePayload,
   IterationMessage,
   ModelSummaryPayload,
   ModelRelationPayload,
@@ -69,6 +70,21 @@ export async function fetchIterationDetail(iterationId: number) {
     assessment,
     history: ensureArray<AssessmentSnapshot>(historyRaw)
   };
+}
+
+export async function fetchIterationStateMachine(iterationId: number) {
+  return fetchJSON<IterationStateMachinePayload>(`${API_BASE}/api/iterations/${iterationId}/state-machine`);
+}
+
+export async function transitionIterationState(iterationId: number, payload: { toStatus: string; note?: string }) {
+  return fetchJSON<{ iterationId: number; fromStatus: string; toStatus: string }>(
+    `${API_BASE}/api/iterations/${iterationId}/state/transition`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }
+  );
 }
 
 export async function createIterationMessage(iterationId: number, role: ChatRole, content: string) {

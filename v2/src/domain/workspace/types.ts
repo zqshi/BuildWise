@@ -41,6 +41,8 @@ export type IterationModule = {
   status: string;
 };
 
+export type IterationStatus = "planned" | "in-progress" | "review" | "blocked" | "completed";
+
 export type Iteration = {
   id: number;
   projectId: number;
@@ -48,7 +50,7 @@ export type Iteration = {
   description: string;
   goals: string[];
   modules: IterationModule[];
-  status: string;
+  status: IterationStatus;
   progress: number;
   createdAt: string;
   createdBy: string;
@@ -75,10 +77,29 @@ export type AssessmentPayload = {
 export type AssessmentSnapshot = {
   id: number;
   iterationId: number;
-  source: "create" | "message" | "manual-recompute" | "restore";
+  source: "create" | "message" | "manual-recompute" | "restore" | "state-transition";
   note: string;
   assessment: VersionAssessment;
+  scope?: IterationScope;
+  status?: IterationStatus;
+  progress?: number;
   createdAt: string;
+};
+
+export type IterationTransition = {
+  id: number;
+  iterationId: number;
+  fromStatus: IterationStatus;
+  toStatus: IterationStatus;
+  note: string;
+  createdAt: string;
+};
+
+export type IterationStateMachinePayload = {
+  iterationId: number;
+  currentStatus: IterationStatus;
+  allowedTransitions: IterationStatus[];
+  transitionHistory: IterationTransition[];
 };
 
 export type ChatRole = "system" | "assistant" | "user";

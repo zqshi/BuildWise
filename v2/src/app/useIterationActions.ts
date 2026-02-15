@@ -1,6 +1,20 @@
 import type { ChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
-import type { AttachmentAnalysisReport, ChatRole, Iteration, IterationContextPayload, IterationMessage } from "../domain/workspace/types";
-import { analyzeIterationAttachment, createIterationMessage, recomputeAssessment, restoreAssessment } from "./workspaceApi";
+import type {
+  AttachmentAnalysisReport,
+  ChatRole,
+  Iteration,
+  IterationContextPayload,
+  IterationMessage,
+  IterationStateMachinePayload,
+  IterationStatus
+} from "../domain/workspace/types";
+import {
+  analyzeIterationAttachment,
+  createIterationMessage,
+  recomputeAssessment,
+  restoreAssessment,
+  transitionIterationState
+} from "./workspaceApi";
 import { buildAssistantReply } from "./workspaceHelpers";
 
 type UseIterationActionsParams = {
@@ -14,6 +28,7 @@ type UseIterationActionsParams = {
   setError: Dispatch<SetStateAction<string | null>>;
   setUploadedFile: Dispatch<SetStateAction<{ name: string; iterationId: number } | null>>;
   setChatMessages: Dispatch<SetStateAction<IterationMessage[]>>;
+  setStateMachine: Dispatch<SetStateAction<IterationStateMachinePayload | null>>;
   setAnalysisReport: Dispatch<SetStateAction<AttachmentAnalysisReport | null>>;
   setShowAnalysisPanel: Dispatch<SetStateAction<boolean>>;
   setIsAnalyzingAttachment: Dispatch<SetStateAction<boolean>>;
@@ -32,6 +47,7 @@ export function useIterationActions({
   setError,
   setUploadedFile,
   setChatMessages,
+  setStateMachine,
   setAnalysisReport,
   setShowAnalysisPanel,
   setIsAnalyzingAttachment,
@@ -132,11 +148,38 @@ export function useIterationActions({
     }
   };
 
+  const handleTransitionState = async (toStatus: IterationStatus) => {
+    if (!currentIteration) {
+      return;
+    }
+    try {
+      setBusy(true);
+      await transitionIterationState(currentIteration.id, { toStatus });
+      if (currentProjectId) {
+        await loadIterations(currentProjectId);
+      }
+      await loadIterationDetail(currentIteration.id);
+      setStateMachine((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentStatus: toStatus
+            }
+          : prev
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return {
     handleUploadClick,
     handleUpload,
     handleSend,
     handleRecomputeAssessment,
-    handleRestoreSnapshot
+    handleRestoreSnapshot,
+    handleTransitionState
   };
 }

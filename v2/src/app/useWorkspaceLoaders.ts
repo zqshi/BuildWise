@@ -5,6 +5,7 @@ import type {
   AssessmentSnapshot,
   Iteration,
   IterationContextPayload,
+  IterationStateMachinePayload,
   IterationMessage,
   ModelRelationPayload,
   ModelSummaryPayload,
@@ -17,7 +18,7 @@ import type {
   TracePayload
 } from "../domain/workspace/types";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
-import { fetchIterationDetail, fetchModelOps, fetchProjectIterations, fetchProjects } from "./workspaceApi";
+import { fetchIterationDetail, fetchIterationStateMachine, fetchModelOps, fetchProjectIterations, fetchProjects } from "./workspaceApi";
 import { nowIsoString } from "./workspaceHelpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
@@ -34,6 +35,7 @@ type UseWorkspaceLoadersParams = {
   setContextData: Dispatch<SetStateAction<IterationContextPayload | null>>;
   setAssessmentData: Dispatch<SetStateAction<AssessmentPayload | null>>;
   setAssessmentHistory: Dispatch<SetStateAction<AssessmentSnapshot[]>>;
+  setStateMachine: Dispatch<SetStateAction<IterationStateMachinePayload | null>>;
   setModelSummary: Dispatch<SetStateAction<ModelSummaryPayload | null>>;
   setModelRelations: Dispatch<SetStateAction<ModelRelationPayload[]>>;
   setRuleCompile: Dispatch<SetStateAction<RuleCompilePayload | null>>;
@@ -56,6 +58,7 @@ export function useWorkspaceLoaders({
   setContextData,
   setAssessmentData,
   setAssessmentHistory,
+  setStateMachine,
   setModelSummary,
   setModelRelations,
   setRuleCompile,
@@ -86,7 +89,10 @@ export function useWorkspaceLoaders({
   };
 
   const loadIterationDetail = async (iterationId: number) => {
-    const { messages, context, assessment, history } = await fetchIterationDetail(iterationId);
+    const [{ messages, context, assessment, history }, machine] = await Promise.all([
+      fetchIterationDetail(iterationId),
+      fetchIterationStateMachine(iterationId)
+    ]);
     if (messages.length === 0) {
       const firstMessage: IterationMessage = {
         id: -1,
@@ -102,6 +108,7 @@ export function useWorkspaceLoaders({
     setContextData(context);
     setAssessmentData(assessment);
     setAssessmentHistory(history);
+    setStateMachine(machine);
   };
 
   const loadModelOps = async () => {

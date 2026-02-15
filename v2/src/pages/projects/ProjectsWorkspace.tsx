@@ -4,6 +4,8 @@ import type {
   Iteration,
   IterationContextPayload,
   IterationMessage,
+  IterationStateMachinePayload,
+  IterationStatus,
   Project,
   StatusPayload
 } from "../../domain/workspace/types";
@@ -28,6 +30,7 @@ type ProjectsWorkspaceProps = {
   showAnalysisPanel: boolean;
   isAnalyzingAttachment: boolean;
   contextData: IterationContextPayload | null;
+  stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
@@ -42,6 +45,7 @@ type ProjectsWorkspaceProps = {
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onChatInputChange: (value: string) => void;
   onChatSend: () => void;
+  onTransitionState: (toStatus: IterationStatus) => void;
 };
 
 export function ProjectsWorkspace({
@@ -62,6 +66,7 @@ export function ProjectsWorkspace({
   showAnalysisPanel,
   isAnalyzingAttachment,
   contextData,
+  stateMachine,
   chatMessages,
   chatInput,
   fileInputRef,
@@ -75,7 +80,8 @@ export function ProjectsWorkspace({
   onSwitchToProjectPanel,
   onUpload,
   onChatInputChange,
-  onChatSend
+  onChatSend,
+  onTransitionState
 }: ProjectsWorkspaceProps) {
   const hasProjects = projects.length > 0;
   const showWorkspaceHero = projectPanelMode !== "iteration";
@@ -155,6 +161,7 @@ export function ProjectsWorkspace({
             <IterationWorkspacePanel
               currentIteration={currentIteration}
               contextData={contextData}
+              stateMachine={stateMachine}
               chatMessages={chatMessages}
               chatInput={chatInput}
               fileInputRef={fileInputRef}
@@ -168,6 +175,7 @@ export function ProjectsWorkspace({
               onUpload={onUpload}
               onChatInputChange={onChatInputChange}
               onChatSend={onChatSend}
+              onTransitionState={onTransitionState}
               onSwitchToProjectPanel={onSwitchToProjectPanel}
             />
           </section>

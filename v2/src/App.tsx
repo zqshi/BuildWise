@@ -91,6 +91,7 @@ export default function App() {
             error={controller.error}
             uploadedFile={controller.uploadedFile}
             contextData={controller.contextData}
+            stateMachine={controller.stateMachine}
             chatMessages={controller.chatMessages}
             chatInput={controller.chatInput}
             fileInputRef={controller.fileInputRef}
@@ -108,6 +109,7 @@ export default function App() {
             onUpload={controller.handleUpload}
             onChatInputChange={controller.setChatInput}
             onChatSend={controller.handleSend}
+            onTransitionState={controller.handleTransitionState}
           />
         )}
       </main>
