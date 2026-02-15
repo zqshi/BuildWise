@@ -1,0 +1,151 @@
+import { spawn } from "node:child_process";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+
+const TEST_PORT = Number(process.env.CONTRACT_TEST_PORT || 5066);
+const BASE = `http://127.0.0.1:${TEST_PORT}`;
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+async function getJson(path) {
+  const res = await fetch(`${BASE}${path}`);
+  assert(res.ok, `Request failed: ${path} -> ${res.status}`);
+  return res.json();
+}
+
+async function request(path, options) {
+  const res = await fetch(`${BASE}${path}`, options);
+  const contentType = res.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? await res.json() : await res.text();
+  return { res, payload };
+}
+
+async function waitForHealth(timeoutMs = 8000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${BASE}/health`);
+      if (res.ok) return;
+    } catch {}
+    await delay(200);
+  }
+  throw new Error("Backend did not become healthy in time");
+}
+
+const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-contract-"));
+const workspaceRoot = path.resolve(process.cwd(), "..", "..");
+const modelFixture = path.join(fixtureDir, "model.json");
+const dataFixture = path.join(fixtureDir, "data.json");
+cpSync(path.join(workspaceRoot, "v2", "model.json"), modelFixture);
+cpSync(path.join(workspaceRoot, "v2", "backend", "data.json"), dataFixture);
+
+const server = spawn("node", ["dist/index.js"], {
+  cwd: process.cwd(),
+  env: {
+    ...process.env,
+    PORT: String(TEST_PORT),
+    HOST: "127.0.0.1",
+    MODEL_FILE: modelFixture,
+    WORKSPACE_DATA_FILE: dataFixture
+  },
+  stdio: ["ignore", "pipe", "pipe"]
+});
+
+let stderr = "";
+server.stderr.on("data", (chunk) => {
+  stderr += chunk.toString();
+});
+
+try {
+  await waitForHealth();
+
+  const model = await getJson("/api/model");
+  assert(Array.isArray(model.entities), "model.entities must be array");
+  assert(typeof model.stats?.entities === "number", "model.stats.entities must exist");
+
+  const compile = await getJson("/api/rules/compile");
+  assert(typeof compile.ruleCount === "number", "compile.ruleCount must be number");
+  assert(Array.isArray(compile.warnings), "compile.warnings must be array");
+
+  const bind = await getJson("/api/rules/bind");
+  assert(Array.isArray(bind.bindings), "bind.bindings must be array");
+  if (bind.bindings.length > 0) {
+    const firstBinding = bind.bindings[0];
+    assert(typeof firstBinding.status === "string", "binding.status must exist");
+    assert(typeof firstBinding.reason === "string", "binding.reason must exist");
+  }
+
+  const sync = await getJson("/api/sync/report");
+  assert(typeof sync.coverageScore === "number", "sync.coverageScore must be number");
+  assert(sync.coverageScore >= 0 && sync.coverageScore <= 100, "sync.coverageScore must be 0-100");
+  assert(Array.isArray(sync.impacts), "sync.impacts must be array");
+  assert(Array.isArray(sync.risks), "sync.risks must be array");
+
+  const trace = await getJson("/api/trace");
+  assert(Array.isArray(trace.items), "trace.items must be array");
+  if (trace.items.length > 0) {
+    const firstTrace = trace.items[0];
+    assert(typeof firstTrace.modelRef === "string", "trace.modelRef must exist");
+    assert(typeof firstTrace.codeRef === "string", "trace.codeRef must exist");
+  }
+
+  const traceMap = await getJson("/api/trace/map");
+  assert(Array.isArray(traceMap.items), "trace/map items must be array");
+
+  const roadmap = await getJson("/api/roadmap-v0-1");
+  assert(roadmap.version === "V0.1", "roadmap.version must be V0.1");
+  assert(typeof roadmap.goal === "string" && roadmap.goal.length > 0, "roadmap.goal must exist");
+  assert(roadmap.modelContract?.apiDeclared === true, "roadmap.modelContract.apiDeclared must be true");
+  assert(roadmap.modelContract?.statusFieldDeclared === true, "roadmap.statusFieldDeclared must be true");
+
+  const roadmapOps = await getJson("/api/roadmap-v1-2");
+  assert(roadmapOps.version === "V1.2", "roadmap.version must be V1.2");
+  assert(typeof roadmapOps.stage === "string" && roadmapOps.stage.length > 0, "roadmap.stage must exist");
+
+  const missingRoadmap = await request("/api/roadmap-v9-9");
+  assert(missingRoadmap.res.status === 404, "unknown roadmap should return 404");
+
+  const createdEntity = await request("/api/model/entities", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "ContractEntity",
+      businessLabel: "契约实体"
+    })
+  });
+  assert(createdEntity.res.status === 200, "POST /api/model/entities should return 200");
+  assert(createdEntity.payload?.name === "ContractEntity", "created entity name mismatch");
+
+  const invalidCreate = await request("/api/projects", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  assert(invalidCreate.res.status === 400, "POST /api/projects without name should return 400");
+
+  const invalidProjectId = await request("/api/projects/abc/iterations");
+  assert(invalidProjectId.res.status === 400, "Invalid project id should return 400");
+
+  const missingProject = await request("/api/projects/999999/iterations");
+  assert(missingProject.res.status === 404, "Unknown project id should return 404");
+
+  const invalidIterationId = await request("/api/iterations/abc/context");
+  assert(invalidIterationId.res.status === 400, "Invalid iteration id should return 400");
+
+  console.log("Contract test passed.");
+} catch (error) {
+  console.error("Contract test failed:", error);
+  if (stderr.trim()) {
+    console.error(stderr);
+  }
+  process.exitCode = 1;
+} finally {
+  server.kill("SIGTERM");
+  rmSync(fixtureDir, { recursive: true, force: true });
+}
