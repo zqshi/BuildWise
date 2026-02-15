@@ -102,6 +102,13 @@ try {
   assert(Array.isArray(roles) && roles.length >= 1, "governance roles must exist");
   assert(typeof roles[0].id === "string", "governance role id must exist");
 
+  const templates = await getJson("/api/templates");
+  assert(Array.isArray(templates) && templates.length >= 1, "templates must exist");
+
+  const openapi = await getJson("/api/openapi/export");
+  assert(typeof openapi.openapi === "string", "openapi field must exist");
+  assert(typeof openapi.paths === "object", "openapi paths must exist");
+
   const roadmap = await getJson("/api/roadmap-v0-1");
   assert(roadmap.version === "V0.1", "roadmap.version must be V0.1");
   assert(typeof roadmap.goal === "string" && roadmap.goal.length > 0, "roadmap.goal must exist");
@@ -194,6 +201,54 @@ try {
     auditAfterRelation.some((item) => item.action === "model_relation_deleted"),
     "audit logs should include relation delete event"
   );
+
+  const snapshotCreate = await request("/api/collab/snapshots", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: 1, iterationId: 1, name: "contract-snapshot", note: "for contract test" })
+  });
+  assert(snapshotCreate.res.status === 200, "create snapshot should return 200");
+  assert(typeof snapshotCreate.payload?.id === "number", "snapshot id must exist");
+
+  const snapshotList = await getJson("/api/collab/snapshots?projectId=1");
+  assert(Array.isArray(snapshotList) && snapshotList.length >= 1, "snapshot list must include created snapshot");
+
+  const snapshotRestore = await request(`/api/collab/snapshots/${snapshotCreate.payload.id}/restore`, {
+    method: "POST"
+  });
+  assert(snapshotRestore.res.status === 200, "restore snapshot should return 200");
+
+  const shareCreate = await request("/api/collab/shares", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: 1, permission: "comment", ttlHours: 24 })
+  });
+  assert(shareCreate.res.status === 200, "create share should return 200");
+  assert(typeof shareCreate.payload?.token === "string", "share token must exist");
+
+  const shareList = await getJson("/api/collab/shares?projectId=1");
+  assert(Array.isArray(shareList) && shareList.length >= 1, "share list must include created share");
+
+  const runTemplate = await request(`/api/templates/${templates[0].id}/run`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: 1 })
+  });
+  assert(runTemplate.res.status === 200, "run template should return 200");
+  assert(runTemplate.payload?.status === "completed", "template run status must be completed");
+
+  const createDeploy = await request("/api/ops/deployments", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: 1, environment: "staging", version: "v-test" })
+  });
+  assert(createDeploy.res.status === 200, "create deployment should return 200");
+
+  const deployList = await getJson("/api/ops/deployments?projectId=1");
+  assert(Array.isArray(deployList) && deployList.length >= 1, "deployment list must include created deployment");
+
+  const opsMetrics = await getJson("/api/ops/metrics");
+  assert(Array.isArray(opsMetrics.metrics), "ops metrics should be array");
 
   const invalidCreate = await request("/api/projects", {
     method: "POST",

@@ -1,5 +1,13 @@
 import { useCallback, useEffect } from "react";
-import { createModelRelation, deleteModelRelation } from "./workspaceApi";
+import {
+  createDeployment,
+  createModelRelation,
+  createProjectShare,
+  createVersionSnapshot,
+  deleteModelRelation,
+  restoreVersionSnapshot,
+  runTemplate
+} from "./workspaceApi";
 import { useAuthController } from "./useAuthController";
 import { useDismissibleMenu } from "./useDismissibleMenu";
 import { useIterationActions } from "./useIterationActions";
@@ -48,7 +56,12 @@ export function useAppController() {
     setRoadmapReports: state.setRoadmapReports,
     setModelOpsLoading: state.setModelOpsLoading,
     setGovernanceRoles: state.setGovernanceRoles,
-    setAuditLogs: state.setAuditLogs
+    setAuditLogs: state.setAuditLogs,
+    setVersionSnapshots: state.setVersionSnapshots,
+    setProjectShares: state.setProjectShares,
+    setTemplates: state.setTemplates,
+    setOpsMetrics: state.setOpsMetrics,
+    setDeployments: state.setDeployments
   });
 
   useEffect(() => {
@@ -56,9 +69,11 @@ export function useAppController() {
       state.setIterations([]);
       state.setCurrentIterationId(null);
       state.setProjectPanelMode("project");
+      state.setVersionSnapshots([]);
+      state.setProjectShares([]);
       return;
     }
-    loaders.loadIterations(state.currentProjectId).catch((err) => {
+    Promise.all([loaders.loadIterations(state.currentProjectId), loaders.loadCollaboration(state.currentProjectId)]).catch((err) => {
       state.setError(err instanceof Error ? err.message : "Unknown error");
     });
   }, [state.currentProjectId]);
@@ -161,6 +176,59 @@ export function useAppController() {
   };
 
   const handleRefreshModelOps = async () => {
+    await Promise.all([
+      loaders.loadModelOps(),
+      loaders.loadGovernance(),
+      state.currentProjectId ? loaders.loadCollaboration(state.currentProjectId) : Promise.resolve()
+    ]);
+  };
+
+  const handleCreateVersionSnapshot = async () => {
+    if (!state.currentProjectId || !derived.currentIteration) {
+      return;
+    }
+    await createVersionSnapshot({
+      projectId: state.currentProjectId,
+      iterationId: derived.currentIteration.id,
+      name: `snapshot-${new Date().toISOString().slice(11, 19)}`,
+      note: "dashboard quick snapshot"
+    });
+    await Promise.all([loaders.loadCollaboration(state.currentProjectId), loaders.loadGovernance()]);
+  };
+
+  const handleRestoreVersionSnapshot = async (snapshotId: number) => {
+    await restoreVersionSnapshot(snapshotId);
+    await Promise.all([
+      state.currentProjectId ? loaders.loadCollaboration(state.currentProjectId) : Promise.resolve(),
+      derived.currentIteration ? loaders.loadIterationDetail(derived.currentIteration.id) : Promise.resolve(),
+      state.currentProjectId ? loaders.loadIterations(state.currentProjectId) : Promise.resolve(),
+      loaders.loadGovernance()
+    ]);
+  };
+
+  const handleCreateProjectShare = async () => {
+    if (!state.currentProjectId) {
+      return;
+    }
+    await createProjectShare({ projectId: state.currentProjectId, permission: "comment", ttlHours: 72 });
+    await Promise.all([loaders.loadCollaboration(state.currentProjectId), loaders.loadGovernance()]);
+  };
+
+  const handleRunTemplate = async (templateId: string) => {
+    if (!state.currentProjectId) {
+      return;
+    }
+    const result = await runTemplate(templateId, state.currentProjectId);
+    state.setLatestTemplateRun(result);
+    await loaders.loadGovernance();
+  };
+
+  const handleCreateDeployment = async (environment: "staging" | "production") => {
+    if (!state.currentProjectId) {
+      return;
+    }
+    const version = `v${Date.now().toString().slice(-6)}`;
+    await createDeployment({ projectId: state.currentProjectId, environment, version });
     await Promise.all([loaders.loadModelOps(), loaders.loadGovernance()]);
   };
 
@@ -174,6 +242,11 @@ export function useAppController() {
     loadModelOps: handleRefreshModelOps,
     handleCreateModelRelation,
     handleDeleteModelRelation,
+    handleCreateVersionSnapshot,
+    handleRestoreVersionSnapshot,
+    handleCreateProjectShare,
+    handleRunTemplate,
+    handleCreateDeployment,
     ...projectActions,
     ...iterationActions
   };

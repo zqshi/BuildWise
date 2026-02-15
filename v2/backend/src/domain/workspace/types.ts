@@ -127,6 +127,37 @@ export type AuditLog = {
   createdAt: string;
 };
 
+export type VersionSnapshot = {
+  id: number;
+  projectId: number;
+  iterationId: number;
+  name: string;
+  note: string;
+  status: IterationStatus;
+  progress: number;
+  scope: IterationScope;
+  assessment: VersionAssessment;
+  createdAt: string;
+};
+
+export type ProjectShare = {
+  id: number;
+  projectId: number;
+  token: string;
+  permission: "read" | "comment";
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type DeploymentRecord = {
+  id: number;
+  projectId: number;
+  environment: "staging" | "production";
+  version: string;
+  status: "queued" | "success" | "failed";
+  createdAt: string;
+};
+
 export type WorkspaceStore = {
   projects: Project[];
   iterations: Iteration[];
@@ -134,6 +165,9 @@ export type WorkspaceStore = {
   snapshots: AssessmentSnapshot[];
   transitions: IterationTransition[];
   auditLogs: AuditLog[];
+  versionSnapshots: VersionSnapshot[];
+  projectShares: ProjectShare[];
+  deployments: DeploymentRecord[];
 };
 
 export type IterationContextPayload = {
