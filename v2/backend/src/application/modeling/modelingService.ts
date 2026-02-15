@@ -6,11 +6,9 @@ import type {
   TraceReport
 } from "../../domain/modeling/types";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-
 function nowIso() {
   return new Date().toISOString();
 }
-
 function normalizeMethod(method?: string) {
   return (method || "GET").toUpperCase();
 }
@@ -76,6 +74,7 @@ export class ModelingService {
       ...model,
       stats: {
         entities: model.entities.length,
+        relations: model.relations.length,
         rules: model.rules.length,
         pages: model.pages.length,
         apis: model.apis.length
@@ -88,12 +87,45 @@ export class ModelingService {
     return this.modelRepo.listEntities();
   }
 
+  listRelations() {
+    return this.modelRepo.listRelations();
+  }
+
   createEntity(input: { name: string; businessLabel?: string; fields?: unknown[] }) {
     return this.modelRepo.createEntity({
       name: input.name,
       businessLabel: input.businessLabel,
       fields: Array.isArray(input.fields) ? (input.fields as never[]) : []
     });
+  }
+
+  createRelation(input: {
+    fromEntityId: string;
+    toEntityId: string;
+    type: "one_to_one" | "one_to_many" | "many_to_many";
+    name?: string;
+  }) {
+    const model = this.modelRepo.read();
+    const fromExists = model.entities.some((item) => item.id === input.fromEntityId);
+    const toExists = model.entities.some((item) => item.id === input.toEntityId);
+    if (!fromExists || !toExists) {
+      return { ok: false as const, reason: "entity_not_found" };
+    }
+    const duplicate = model.relations.some(
+      (item) =>
+        item.fromEntityId === input.fromEntityId &&
+        item.toEntityId === input.toEntityId &&
+        item.type === input.type
+    );
+    if (duplicate) {
+      return { ok: false as const, reason: "relation_duplicated" };
+    }
+    const created = this.modelRepo.createRelation(input);
+    return { ok: true as const, value: created };
+  }
+
+  deleteRelation(relationId: string) {
+    return this.modelRepo.deleteRelation(relationId);
   }
 
   compileRules(): RuleCompileResult {

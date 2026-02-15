@@ -37,6 +37,64 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     });
   });
 
+  app.get("/api/model/relations", async () => {
+    return service.listRelations();
+  });
+
+  app.post("/api/model/relations", async (request, reply) => {
+    const body = request.body as {
+      fromEntityId?: string;
+      toEntityId?: string;
+      type?: "one_to_one" | "one_to_many" | "many_to_many";
+      name?: string;
+    } | null;
+    const fromEntityId = body?.fromEntityId?.trim();
+    const toEntityId = body?.toEntityId?.trim();
+    const type = body?.type;
+    if (!fromEntityId || !toEntityId || !type) {
+      reply.code(400);
+      return { message: "fromEntityId, toEntityId and type are required" };
+    }
+    if (!["one_to_one", "one_to_many", "many_to_many"].includes(type)) {
+      reply.code(400);
+      return { message: "invalid relation type" };
+    }
+    const created = service.createRelation({
+      fromEntityId,
+      toEntityId,
+      type,
+      name: body?.name?.trim()
+    });
+    if (!created.ok) {
+      if (created.reason === "entity_not_found") {
+        reply.code(404);
+        return { message: "entity not found" };
+      }
+      if (created.reason === "relation_duplicated") {
+        reply.code(409);
+        return { message: "relation already exists" };
+      }
+      reply.code(400);
+      return { message: "relation create failed" };
+    }
+    return created.value;
+  });
+
+  app.delete("/api/model/relations/:id", async (request, reply) => {
+    const params = request.params as { id?: string };
+    const relationId = params.id?.trim();
+    if (!relationId) {
+      reply.code(400);
+      return { message: "invalid relation id" };
+    }
+    const ok = service.deleteRelation(relationId);
+    if (!ok) {
+      reply.code(404);
+      return { message: "relation not found" };
+    }
+    return { ok: true, id: relationId };
+  });
+
   app.get("/api/rules/compile", async () => {
     return service.compileRules();
   });
@@ -87,6 +145,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
   const reserved = new Set([
     "/api/model",
     "/api/model/entities",
+    "/api/model/relations",
     "/api/rules/compile",
     "/api/rules/bind",
     "/api/sync/report",

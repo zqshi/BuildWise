@@ -35,8 +35,17 @@ export type ModelApi = {
   path?: string;
 };
 
+export type ModelRelation = {
+  id: string;
+  fromEntityId: string;
+  toEntityId: string;
+  type: "one_to_one" | "one_to_many" | "many_to_many";
+  name?: string;
+};
+
 export type ModelStore = {
   entities: ModelEntity[];
+  relations: ModelRelation[];
   rules: ModelRule[];
   pages: ModelPage[];
   apis: ModelApi[];

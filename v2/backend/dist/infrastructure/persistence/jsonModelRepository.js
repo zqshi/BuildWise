@@ -13,6 +13,9 @@ function makeEntityId(name) {
         .replace(/^-+|-+$/g, "");
     return `entity_${token || Date.now()}`;
 }
+function makeRelationId(input) {
+    return `relation_${input.fromEntityId}_${input.type}_${input.toEntityId}`;
+}
 class JsonModelRepository {
     constructor(modelFile) {
         this.modelFile = modelFile;
@@ -22,6 +25,7 @@ class JsonModelRepository {
         const parsed = JSON.parse(raw);
         return {
             entities: asArray(parsed.entities),
+            relations: asArray(parsed.relations),
             rules: asArray(parsed.rules),
             pages: asArray(parsed.pages),
             apis: asArray(parsed.apis)
@@ -32,6 +36,9 @@ class JsonModelRepository {
     }
     listEntities() {
         return this.read().entities;
+    }
+    listRelations() {
+        return this.read().relations;
     }
     createEntity(input) {
         const data = this.read();
@@ -44,6 +51,29 @@ class JsonModelRepository {
         data.entities.push(created);
         this.write(data);
         return created;
+    }
+    createRelation(input) {
+        const data = this.read();
+        const created = {
+            id: input.id || makeRelationId(input),
+            fromEntityId: input.fromEntityId,
+            toEntityId: input.toEntityId,
+            type: input.type,
+            name: input.name
+        };
+        data.relations.push(created);
+        this.write(data);
+        return created;
+    }
+    deleteRelation(relationId) {
+        const data = this.read();
+        const before = data.relations.length;
+        data.relations = data.relations.filter((item) => item.id !== relationId);
+        const changed = before !== data.relations.length;
+        if (changed) {
+            this.write(data);
+        }
+        return changed;
     }
 }
 exports.JsonModelRepository = JsonModelRepository;

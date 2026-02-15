@@ -8,6 +8,7 @@ import type {
   IterationContextPayload,
   IterationMessage,
   ModelSummaryPayload,
+  ModelRelationPayload,
   RoadmapPayload,
   Project,
   RuleBindPayload,
@@ -121,15 +122,43 @@ export async function fetchModelOps() {
     "/api/roadmap-v1-2"
   ] as const;
 
-  const [modelSummary, ruleCompile, ruleBind, syncReport, traceReport, roadmapReports] = await Promise.all([
+  const [modelSummary, modelRelationsRaw, ruleCompile, ruleBind, syncReport, traceReport, roadmapReports] = await Promise.all([
     fetchJSON<ModelSummaryPayload>(`${API_BASE}/api/model`),
+    fetchJSON<unknown>(`${API_BASE}/api/model/relations`),
     fetchJSON<RuleCompilePayload>(`${API_BASE}/api/rules/compile`),
     fetchJSON<RuleBindPayload>(`${API_BASE}/api/rules/bind`),
     fetchJSON<SyncReportPayload>(`${API_BASE}/api/sync/report`),
     fetchJSON<TracePayload>(`${API_BASE}/api/trace`),
     Promise.all(roadmapPaths.map((path) => fetchJSON<RoadmapPayload>(`${API_BASE}${path}`)))
   ]);
-  return { modelSummary, ruleCompile, ruleBind, syncReport, traceReport, roadmapReports };
+  return {
+    modelSummary,
+    modelRelations: ensureArray<ModelRelationPayload>(modelRelationsRaw),
+    ruleCompile,
+    ruleBind,
+    syncReport,
+    traceReport,
+    roadmapReports
+  };
+}
+
+export async function createModelRelation(payload: {
+  fromEntityId: string;
+  toEntityId: string;
+  type: "one_to_one" | "one_to_many" | "many_to_many";
+  name?: string;
+}) {
+  return fetchJSON<ModelRelationPayload>(`${API_BASE}/api/model/relations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteModelRelation(relationId: string) {
+  return fetchJSON<{ ok: boolean; id: string }>(`${API_BASE}/api/model/relations/${relationId}`, {
+    method: "DELETE"
+  });
 }
 
 export async function recomputeAssessment(iterationId: number) {
