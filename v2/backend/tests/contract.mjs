@@ -122,6 +122,64 @@ try {
   assert(createdEntity.res.status === 200, "POST /api/model/entities should return 200");
   assert(createdEntity.payload?.name === "ContractEntity", "created entity name mismatch");
 
+  const relationsBefore = await getJson("/api/model/relations");
+  assert(Array.isArray(relationsBefore), "relations list must be array");
+
+  const invalidRelationPayload = await request("/api/model/relations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  assert(invalidRelationPayload.res.status === 400, "missing relation payload should return 400");
+
+  const missingEntityRelation = await request("/api/model/relations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      fromEntityId: "entity_not_exists",
+      toEntityId: "entity_project",
+      type: "one_to_many"
+    })
+  });
+  assert(missingEntityRelation.res.status === 404, "relation with missing entity should return 404");
+
+  const createdRelation = await request("/api/model/relations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      fromEntityId: "entity_project",
+      toEntityId: "entity_iteration",
+      type: "one_to_many",
+      name: "project_has_iterations"
+    })
+  });
+  assert(createdRelation.res.status === 200, "create relation should return 200");
+  assert(typeof createdRelation.payload?.id === "string", "created relation id must exist");
+
+  const duplicateRelation = await request("/api/model/relations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      fromEntityId: "entity_project",
+      toEntityId: "entity_iteration",
+      type: "one_to_many"
+    })
+  });
+  assert(duplicateRelation.res.status === 409, "duplicate relation should return 409");
+
+  const relationsAfter = await getJson("/api/model/relations");
+  assert(Array.isArray(relationsAfter) && relationsAfter.length >= 1, "relations should include created relation");
+
+  const deleteMissingRelation = await request("/api/model/relations/relation_missing_id", {
+    method: "DELETE"
+  });
+  assert(deleteMissingRelation.res.status === 404, "delete missing relation should return 404");
+
+  const deleteRelation = await request(`/api/model/relations/${createdRelation.payload.id}`, {
+    method: "DELETE"
+  });
+  assert(deleteRelation.res.status === 200, "delete relation should return 200");
+
   const invalidCreate = await request("/api/projects", {
     method: "POST",
     headers: { "content-type": "application/json" },

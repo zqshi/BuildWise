@@ -63,6 +63,7 @@ class ModelingService {
             ...model,
             stats: {
                 entities: model.entities.length,
+                relations: model.relations.length,
                 rules: model.rules.length,
                 pages: model.pages.length,
                 apis: model.apis.length
@@ -73,12 +74,34 @@ class ModelingService {
     listEntities() {
         return this.modelRepo.listEntities();
     }
+    listRelations() {
+        return this.modelRepo.listRelations();
+    }
     createEntity(input) {
         return this.modelRepo.createEntity({
             name: input.name,
             businessLabel: input.businessLabel,
             fields: Array.isArray(input.fields) ? input.fields : []
         });
+    }
+    createRelation(input) {
+        const model = this.modelRepo.read();
+        const fromExists = model.entities.some((item) => item.id === input.fromEntityId);
+        const toExists = model.entities.some((item) => item.id === input.toEntityId);
+        if (!fromExists || !toExists) {
+            return { ok: false, reason: "entity_not_found" };
+        }
+        const duplicate = model.relations.some((item) => item.fromEntityId === input.fromEntityId &&
+            item.toEntityId === input.toEntityId &&
+            item.type === input.type);
+        if (duplicate) {
+            return { ok: false, reason: "relation_duplicated" };
+        }
+        const created = this.modelRepo.createRelation(input);
+        return { ok: true, value: created };
+    }
+    deleteRelation(relationId) {
+        return this.modelRepo.deleteRelation(relationId);
     }
     compileRules() {
         const model = this.modelRepo.read();

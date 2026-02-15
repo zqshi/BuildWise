@@ -188,3 +188,11 @@ export type RoadmapPayload = {
   };
   recommendation: string;
 };
+
+export type ModelRelationPayload = {
+  id: string;
+  fromEntityId: string;
+  toEntityId: string;
+  type: "one_to_one" | "one_to_many" | "many_to_many";
+  name?: string;
+};

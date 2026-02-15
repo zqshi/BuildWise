@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type {
+  ModelRelationPayload,
   ModelSummaryPayload,
   RoadmapPayload,
   RuleBindPayload,
@@ -10,29 +12,63 @@ import type {
 type Props = {
   loading: boolean;
   modelSummary: ModelSummaryPayload | null;
+  modelRelations: ModelRelationPayload[];
   ruleCompile: RuleCompilePayload | null;
   ruleBind: RuleBindPayload | null;
   syncReport: SyncReportPayload | null;
   traceReport: TracePayload | null;
   roadmapReports: RoadmapPayload[];
+  onCreateRelation: (payload: {
+    fromEntityId: string;
+    toEntityId: string;
+    type: "one_to_one" | "one_to_many" | "many_to_many";
+    name?: string;
+  }) => Promise<void>;
+  onDeleteRelation: (relationId: string) => Promise<void>;
   onRefresh: () => void;
 };
 
 export function ModelOpsPanel({
   loading,
   modelSummary,
+  modelRelations,
   ruleCompile,
   ruleBind,
   syncReport,
   traceReport,
   roadmapReports,
+  onCreateRelation,
+  onDeleteRelation,
   onRefresh
 }: Props) {
+  const [fromEntityId, setFromEntityId] = useState("entity_project");
+  const [toEntityId, setToEntityId] = useState("entity_iteration");
+  const [relationType, setRelationType] = useState<"one_to_one" | "one_to_many" | "many_to_many">("one_to_many");
+  const [relationName, setRelationName] = useState("");
+  const [relationError, setRelationError] = useState<string | null>(null);
   const stageOrder = ["S1", "S2", "S3", "S4"] as const;
   const stageBuckets = stageOrder.map((stage) => ({
     stage,
     items: roadmapReports.filter((item) => item.stage === stage)
   }));
+  const submitRelation = async () => {
+    setRelationError(null);
+    if (!fromEntityId || !toEntityId) {
+      setRelationError("请选择来源和目标实体。");
+      return;
+    }
+    try {
+      await onCreateRelation({
+        fromEntityId,
+        toEntityId,
+        type: relationType,
+        name: relationName.trim() || undefined
+      });
+      setRelationName("");
+    } catch (err) {
+      setRelationError(err instanceof Error ? err.message : "关系创建失败");
+    }
+  };
 
   return (
     <section className="panel model-ops-panel">
@@ -118,6 +154,46 @@ export function ModelOpsPanel({
               </div>
             );
           })
+        )}
+      </div>
+      <div className="info-box">
+        <h3>关系建模（MVP）</h3>
+        <p>当前关系数：{modelRelations.length}</p>
+        <div className="chat-tools">
+          <input value={fromEntityId} onChange={(event) => setFromEntityId(event.target.value)} placeholder="fromEntityId" />
+          <input value={toEntityId} onChange={(event) => setToEntityId(event.target.value)} placeholder="toEntityId" />
+          <select
+            value={relationType}
+            onChange={(event) => setRelationType(event.target.value as "one_to_one" | "one_to_many" | "many_to_many")}
+          >
+            <option value="one_to_one">one_to_one</option>
+            <option value="one_to_many">one_to_many</option>
+            <option value="many_to_many">many_to_many</option>
+          </select>
+          <input value={relationName} onChange={(event) => setRelationName(event.target.value)} placeholder="关系名称(可选)" />
+          <button type="button" className="btn ghost mini" onClick={submitRelation} disabled={loading}>
+            新增关系
+          </button>
+        </div>
+        {relationError ? <p className="error-inline">{relationError}</p> : null}
+        {modelRelations.length ? (
+          <ul>
+            {modelRelations.slice(0, 8).map((item) => (
+              <li key={item.id}>
+                {item.fromEntityId} {"->"} {item.toEntityId} ({item.type})
+                <button
+                  type="button"
+                  className="btn ghost mini"
+                  onClick={() => onDeleteRelation(item.id)}
+                  disabled={loading}
+                >
+                  删除
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="hint">暂无关系定义</p>
         )}
       </div>
     </section>

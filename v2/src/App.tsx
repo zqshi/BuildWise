@@ -62,11 +62,14 @@ export default function App() {
               <ModelOpsPanel
                 loading={controller.modelOpsLoading}
                 modelSummary={controller.modelSummary}
+                modelRelations={controller.modelRelations}
                 ruleCompile={controller.ruleCompile}
                 ruleBind={controller.ruleBind}
                 syncReport={controller.syncReport}
                 traceReport={controller.traceReport}
                 roadmapReports={controller.roadmapReports}
+                onCreateRelation={controller.handleCreateModelRelation}
+                onDeleteRelation={controller.handleDeleteModelRelation}
                 onRefresh={controller.loadModelOps}
               />
             }

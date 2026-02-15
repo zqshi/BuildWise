@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { createModelRelation, deleteModelRelation } from "./workspaceApi";
 import { useAuthController } from "./useAuthController";
 import { useDismissibleMenu } from "./useDismissibleMenu";
 import { useIterationActions } from "./useIterationActions";
@@ -38,6 +39,7 @@ export function useAppController() {
     setAssessmentData: state.setAssessmentData,
     setAssessmentHistory: state.setAssessmentHistory,
     setModelSummary: state.setModelSummary,
+    setModelRelations: state.setModelRelations,
     setRuleCompile: state.setRuleCompile,
     setRuleBind: state.setRuleBind,
     setSyncReport: state.setSyncReport,
@@ -127,6 +129,31 @@ export function useAppController() {
     auth.logout();
   };
 
+  const handleCreateModelRelation = async (payload: {
+    fromEntityId: string;
+    toEntityId: string;
+    type: "one_to_one" | "one_to_many" | "many_to_many";
+    name?: string;
+  }) => {
+    try {
+      state.setModelOpsLoading(true);
+      await createModelRelation(payload);
+      await loaders.loadModelOps();
+    } finally {
+      state.setModelOpsLoading(false);
+    }
+  };
+
+  const handleDeleteModelRelation = async (relationId: string) => {
+    try {
+      state.setModelOpsLoading(true);
+      await deleteModelRelation(relationId);
+      await loaders.loadModelOps();
+    } finally {
+      state.setModelOpsLoading(false);
+    }
+  };
+
   return {
     ...auth,
     ...state,
@@ -135,6 +162,8 @@ export function useAppController() {
     dockUserAvatar,
     handleLogout,
     loadModelOps: loaders.loadModelOps,
+    handleCreateModelRelation,
+    handleDeleteModelRelation,
     ...projectActions,
     ...iterationActions
   };

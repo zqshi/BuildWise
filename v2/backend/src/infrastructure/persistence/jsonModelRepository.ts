@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import type { ModelingRepository } from "../../domain/modeling/repository";
-import type { ModelEntity, ModelStore } from "../../domain/modeling/types";
+import type { ModelEntity, ModelRelation, ModelStore } from "../../domain/modeling/types";
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -15,6 +15,10 @@ function makeEntityId(name: string) {
   return `entity_${token || Date.now()}`;
 }
 
+function makeRelationId(input: { fromEntityId: string; toEntityId: string; type: string }) {
+  return `relation_${input.fromEntityId}_${input.type}_${input.toEntityId}`;
+}
+
 export class JsonModelRepository implements ModelingRepository {
   constructor(private readonly modelFile: string) {}
 
@@ -23,6 +27,7 @@ export class JsonModelRepository implements ModelingRepository {
     const parsed = JSON.parse(raw) as Partial<ModelStore>;
     return {
       entities: asArray<ModelEntity>(parsed.entities),
+      relations: asArray<ModelRelation>(parsed.relations),
       rules: asArray(parsed.rules),
       pages: asArray(parsed.pages),
       apis: asArray(parsed.apis)
@@ -37,6 +42,10 @@ export class JsonModelRepository implements ModelingRepository {
     return this.read().entities;
   }
 
+  listRelations() {
+    return this.read().relations;
+  }
+
   createEntity(input: Pick<ModelEntity, "name"> & Partial<ModelEntity>) {
     const data = this.read();
     const created: ModelEntity = {
@@ -48,5 +57,30 @@ export class JsonModelRepository implements ModelingRepository {
     data.entities.push(created);
     this.write(data);
     return created;
+  }
+
+  createRelation(input: Omit<ModelRelation, "id"> & { id?: string }) {
+    const data = this.read();
+    const created: ModelRelation = {
+      id: input.id || makeRelationId(input),
+      fromEntityId: input.fromEntityId,
+      toEntityId: input.toEntityId,
+      type: input.type,
+      name: input.name
+    };
+    data.relations.push(created);
+    this.write(data);
+    return created;
+  }
+
+  deleteRelation(relationId: string) {
+    const data = this.read();
+    const before = data.relations.length;
+    data.relations = data.relations.filter((item) => item.id !== relationId);
+    const changed = before !== data.relations.length;
+    if (changed) {
+      this.write(data);
+    }
+    return changed;
   }
 }

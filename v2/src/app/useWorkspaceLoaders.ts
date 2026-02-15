@@ -6,6 +6,7 @@ import type {
   Iteration,
   IterationContextPayload,
   IterationMessage,
+  ModelRelationPayload,
   ModelSummaryPayload,
   RoadmapPayload,
   Project,
@@ -34,6 +35,7 @@ type UseWorkspaceLoadersParams = {
   setAssessmentData: Dispatch<SetStateAction<AssessmentPayload | null>>;
   setAssessmentHistory: Dispatch<SetStateAction<AssessmentSnapshot[]>>;
   setModelSummary: Dispatch<SetStateAction<ModelSummaryPayload | null>>;
+  setModelRelations: Dispatch<SetStateAction<ModelRelationPayload[]>>;
   setRuleCompile: Dispatch<SetStateAction<RuleCompilePayload | null>>;
   setRuleBind: Dispatch<SetStateAction<RuleBindPayload | null>>;
   setSyncReport: Dispatch<SetStateAction<SyncReportPayload | null>>;
@@ -55,6 +57,7 @@ export function useWorkspaceLoaders({
   setAssessmentData,
   setAssessmentHistory,
   setModelSummary,
+  setModelRelations,
   setRuleCompile,
   setRuleBind,
   setSyncReport,
@@ -106,6 +109,7 @@ export function useWorkspaceLoaders({
       setModelOpsLoading(true);
       const reports = await fetchModelOps();
       setModelSummary(reports.modelSummary);
+      setModelRelations(reports.modelRelations);
       setRuleCompile(reports.ruleCompile);
       setRuleBind(reports.ruleBind);
       setSyncReport(reports.syncReport);

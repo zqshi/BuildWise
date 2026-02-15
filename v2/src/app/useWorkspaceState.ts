@@ -6,6 +6,7 @@ import type {
   Iteration,
   IterationContextPayload,
   IterationMessage,
+  ModelRelationPayload,
   ModelSummaryPayload,
   RoadmapPayload,
   Project,
@@ -49,6 +50,7 @@ export function useWorkspaceState() {
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
   const [isAnalyzingAttachment, setIsAnalyzingAttachment] = useState(false);
   const [modelSummary, setModelSummary] = useState<ModelSummaryPayload | null>(null);
+  const [modelRelations, setModelRelations] = useState<ModelRelationPayload[]>([]);
   const [ruleCompile, setRuleCompile] = useState<RuleCompilePayload | null>(null);
   const [ruleBind, setRuleBind] = useState<RuleBindPayload | null>(null);
   const [syncReport, setSyncReport] = useState<SyncReportPayload | null>(null);
@@ -120,6 +122,8 @@ export function useWorkspaceState() {
     setIsAnalyzingAttachment,
     modelSummary,
     setModelSummary,
+    modelRelations,
+    setModelRelations,
     ruleCompile,
     setRuleCompile,
     ruleBind,
