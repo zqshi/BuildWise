@@ -18,7 +18,10 @@ const seedStore = {
     messages: [],
     snapshots: [],
     transitions: [],
-    auditLogs: []
+    auditLogs: [],
+    versionSnapshots: [],
+    projectShares: [],
+    deployments: []
 };
 function toArray(value) {
     return Array.isArray(value) ? value : [];
@@ -40,7 +43,10 @@ class JsonWorkspaceRepository {
             messages: toArray(parsed.messages),
             snapshots: toArray(parsed.snapshots),
             transitions: toArray(parsed.transitions),
-            auditLogs: toArray(parsed.auditLogs)
+            auditLogs: toArray(parsed.auditLogs),
+            versionSnapshots: toArray(parsed.versionSnapshots),
+            projectShares: toArray(parsed.projectShares),
+            deployments: toArray(parsed.deployments)
         };
     }
     write(data) {
@@ -170,6 +176,37 @@ class JsonWorkspaceRepository {
     appendAuditLog(log) {
         const data = this.read();
         data.auditLogs.push(log);
+        this.write(data);
+    }
+    listVersionSnapshots(projectId) {
+        return this.read().versionSnapshots.filter((item) => item.projectId === projectId);
+    }
+    appendVersionSnapshot(snapshot) {
+        const data = this.read();
+        data.versionSnapshots.push(snapshot);
+        this.write(data);
+    }
+    findVersionSnapshot(snapshotId) {
+        return this.read().versionSnapshots.find((item) => item.id === snapshotId) ?? null;
+    }
+    listProjectShares(projectId) {
+        return this.read().projectShares.filter((item) => item.projectId === projectId);
+    }
+    appendProjectShare(share) {
+        const data = this.read();
+        data.projectShares.push(share);
+        this.write(data);
+    }
+    listDeployments(projectId) {
+        const items = this.read().deployments;
+        if (!projectId) {
+            return items;
+        }
+        return items.filter((item) => item.projectId === projectId);
+    }
+    appendDeployment(record) {
+        const data = this.read();
+        data.deployments.push(record);
         this.write(data);
     }
     updateIteration(iteration) {

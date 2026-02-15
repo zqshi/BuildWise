@@ -9,6 +9,14 @@ import type {
   TracePayload
 } from "../../domain/workspace/types";
 import type { AuditLog, GovernanceRole } from "../../domain/workspace/governanceTypes";
+import type {
+  DeploymentRecord,
+  OpsMetricsPayload,
+  ProjectShare,
+  TemplateItem,
+  TemplateRunResult,
+  VersionSnapshot
+} from "../../domain/workspace/platformTypes";
 
 type Props = {
   loading: boolean;
@@ -21,6 +29,12 @@ type Props = {
   roadmapReports: RoadmapPayload[];
   governanceRoles: GovernanceRole[];
   auditLogs: AuditLog[];
+  versionSnapshots: VersionSnapshot[];
+  projectShares: ProjectShare[];
+  templates: TemplateItem[];
+  latestTemplateRun: TemplateRunResult | null;
+  opsMetrics: OpsMetricsPayload | null;
+  deployments: DeploymentRecord[];
   onCreateRelation: (payload: {
     fromEntityId: string;
     toEntityId: string;
@@ -29,6 +43,11 @@ type Props = {
   }) => Promise<void>;
   onDeleteRelation: (relationId: string) => Promise<void>;
   onRefresh: () => void;
+  onCreateSnapshot: () => Promise<void>;
+  onRestoreSnapshot: (snapshotId: number) => Promise<void>;
+  onCreateShare: () => Promise<void>;
+  onRunTemplate: (templateId: string) => Promise<void>;
+  onCreateDeployment: (environment: "staging" | "production") => Promise<void>;
 };
 
 export function ModelOpsPanel({
@@ -42,9 +61,20 @@ export function ModelOpsPanel({
   roadmapReports,
   governanceRoles,
   auditLogs,
+  versionSnapshots,
+  projectShares,
+  templates,
+  latestTemplateRun,
+  opsMetrics,
+  deployments,
   onCreateRelation,
   onDeleteRelation,
-  onRefresh
+  onRefresh,
+  onCreateSnapshot,
+  onRestoreSnapshot,
+  onCreateShare,
+  onRunTemplate,
+  onCreateDeployment
 }: Props) {
   const [fromEntityId, setFromEntityId] = useState("entity_project");
   const [toEntityId, setToEntityId] = useState("entity_iteration");
@@ -175,6 +205,63 @@ export function ModelOpsPanel({
             );
           })
         )}
+      </div>
+      <div className="info-box">
+        <h3>协作与版本（V0.9）</h3>
+        <p>快照：{versionSnapshots.length}</p>
+        <p>分享链接：{projectShares.length}</p>
+        <div className="chat-tools">
+          <button type="button" className="btn ghost mini" onClick={onCreateSnapshot} disabled={loading}>
+            创建快照
+          </button>
+          <button type="button" className="btn ghost mini" onClick={onCreateShare} disabled={loading}>
+            生成分享
+          </button>
+        </div>
+        {versionSnapshots.slice(0, 3).map((item) => (
+          <p key={item.id}>
+            {item.name} ({item.status})
+            <button type="button" className="btn ghost mini" onClick={() => onRestoreSnapshot(item.id)} disabled={loading}>
+              恢复
+            </button>
+          </p>
+        ))}
+        {projectShares.slice(0, 2).map((item) => (
+          <p key={item.id}>share:{item.token} · {item.permission}</p>
+        ))}
+      </div>
+      <div className="info-box">
+        <h3>模板与智能体（V1.0）</h3>
+        <p>模板数：{templates.length}</p>
+        <div className="chat-tools">
+          {templates.slice(0, 3).map((item) => (
+            <button key={item.id} type="button" className="btn ghost mini" onClick={() => onRunTemplate(item.id)} disabled={loading}>
+              运行 {item.name}
+            </button>
+          ))}
+        </div>
+        {latestTemplateRun ? <p>{latestTemplateRun.summary}</p> : <p className="hint">暂无执行记录</p>}
+      </div>
+      <div className="info-box">
+        <h3>交付与运维（V1.2）</h3>
+        <p>部署记录：{deployments.length}</p>
+        <p>
+          发布成功率：
+          {opsMetrics?.metrics.find((item) => item.name === "deployment_success_rate")?.value ?? 0}%
+        </p>
+        <div className="chat-tools">
+          <button type="button" className="btn ghost mini" onClick={() => onCreateDeployment("staging")} disabled={loading}>
+            发布到 Staging
+          </button>
+          <button type="button" className="btn ghost mini" onClick={() => onCreateDeployment("production")} disabled={loading}>
+            发布到 Production
+          </button>
+        </div>
+        {deployments.slice(0, 2).map((item) => (
+          <p key={item.id}>
+            {item.environment} / {item.version} / {item.status}
+          </p>
+        ))}
       </div>
       <div className="info-box">
         <h3>关系建模（MVP）</h3>

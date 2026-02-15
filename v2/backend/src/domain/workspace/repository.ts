@@ -1,10 +1,13 @@
 import type {
   AssessmentSnapshot,
   AuditLog,
+  DeploymentRecord,
   Iteration,
   IterationMessage,
   IterationTransition,
+  ProjectShare,
   Project,
+  VersionSnapshot,
   WorkspaceStore
 } from "./types";
 
@@ -30,5 +33,12 @@ export interface WorkspaceRepository {
   appendTransition(transition: IterationTransition): void;
   listAuditLogs(limit?: number): AuditLog[];
   appendAuditLog(log: AuditLog): void;
+  listVersionSnapshots(projectId: number): VersionSnapshot[];
+  appendVersionSnapshot(snapshot: VersionSnapshot): void;
+  findVersionSnapshot(snapshotId: number): VersionSnapshot | null;
+  listProjectShares(projectId: number): ProjectShare[];
+  appendProjectShare(share: ProjectShare): void;
+  listDeployments(projectId?: number): DeploymentRecord[];
+  appendDeployment(record: DeploymentRecord): void;
   updateIteration(iteration: Iteration): void;
 }

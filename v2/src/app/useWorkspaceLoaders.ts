@@ -18,8 +18,16 @@ import type {
   TracePayload
 } from "../domain/workspace/types";
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
+import type {
+  DeploymentRecord,
+  OpsMetricsPayload,
+  ProjectShare,
+  TemplateItem,
+  VersionSnapshot
+} from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import {
+  fetchCollaboration,
   fetchGovernance,
   fetchIterationDetail,
   fetchIterationStateMachine,
@@ -54,6 +62,11 @@ type UseWorkspaceLoadersParams = {
   setModelOpsLoading: Dispatch<SetStateAction<boolean>>;
   setGovernanceRoles: Dispatch<SetStateAction<GovernanceRole[]>>;
   setAuditLogs: Dispatch<SetStateAction<AuditLog[]>>;
+  setVersionSnapshots: Dispatch<SetStateAction<VersionSnapshot[]>>;
+  setProjectShares: Dispatch<SetStateAction<ProjectShare[]>>;
+  setTemplates: Dispatch<SetStateAction<TemplateItem[]>>;
+  setOpsMetrics: Dispatch<SetStateAction<OpsMetricsPayload | null>>;
+  setDeployments: Dispatch<SetStateAction<DeploymentRecord[]>>;
 };
 
 export function useWorkspaceLoaders({
@@ -78,7 +91,12 @@ export function useWorkspaceLoaders({
   setRoadmapReports,
   setModelOpsLoading,
   setGovernanceRoles,
-  setAuditLogs
+  setAuditLogs,
+  setVersionSnapshots,
+  setProjectShares,
+  setTemplates,
+  setOpsMetrics,
+  setDeployments
 }: UseWorkspaceLoadersParams) {
   const loadProjects = async () => {
     const projectData = await fetchProjects();
@@ -134,6 +152,9 @@ export function useWorkspaceLoaders({
       setSyncReport(reports.syncReport);
       setTraceReport(reports.traceReport);
       setRoadmapReports(reports.roadmapReports);
+      setTemplates(reports.templates);
+      setOpsMetrics(reports.opsMetrics);
+      setDeployments(reports.deployments);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -146,6 +167,16 @@ export function useWorkspaceLoaders({
       const data = await fetchGovernance();
       setGovernanceRoles(data.roles);
       setAuditLogs(data.auditLogs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  };
+
+  const loadCollaboration = async (projectId: number) => {
+    try {
+      const data = await fetchCollaboration(projectId);
+      setVersionSnapshots(data.snapshots);
+      setProjectShares(data.shares);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     }
@@ -165,5 +196,5 @@ export function useWorkspaceLoaders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { loadProjects, loadIterations, loadIterationDetail, loadModelOps, loadGovernance };
+  return { loadProjects, loadIterations, loadIterationDetail, loadModelOps, loadGovernance, loadCollaboration };
 }

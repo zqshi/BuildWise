@@ -18,6 +18,14 @@ import type {
   TracePayload
 } from "../domain/workspace/types";
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
+import type {
+  DeploymentRecord,
+  OpsMetricsPayload,
+  ProjectShare,
+  TemplateItem,
+  TemplateRunResult,
+  VersionSnapshot
+} from "../domain/workspace/platformTypes";
 
 export function useWorkspaceState() {
   const [activeView, setActiveView] = useState<"dashboard" | "projects">("dashboard");
@@ -62,6 +70,12 @@ export function useWorkspaceState() {
   const [modelOpsLoading, setModelOpsLoading] = useState(false);
   const [governanceRoles, setGovernanceRoles] = useState<GovernanceRole[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [versionSnapshots, setVersionSnapshots] = useState<VersionSnapshot[]>([]);
+  const [projectShares, setProjectShares] = useState<ProjectShare[]>([]);
+  const [templates, setTemplates] = useState<TemplateItem[]>([]);
+  const [latestTemplateRun, setLatestTemplateRun] = useState<TemplateRunResult | null>(null);
+  const [opsMetrics, setOpsMetrics] = useState<OpsMetricsPayload | null>(null);
+  const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +161,18 @@ export function useWorkspaceState() {
     setGovernanceRoles,
     auditLogs,
     setAuditLogs,
+    versionSnapshots,
+    setVersionSnapshots,
+    projectShares,
+    setProjectShares,
+    templates,
+    setTemplates,
+    latestTemplateRun,
+    setLatestTemplateRun,
+    opsMetrics,
+    setOpsMetrics,
+    deployments,
+    setDeployments,
     fileInputRef,
     userMenuRef
   };

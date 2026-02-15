@@ -3,10 +3,13 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   AssessmentSnapshot,
   AuditLog,
+  DeploymentRecord,
   Iteration,
   IterationMessage,
   IterationTransition,
+  ProjectShare,
   Project,
+  VersionSnapshot,
   WorkspaceStore
 } from "../../domain/workspace/types";
 
@@ -26,7 +29,10 @@ const seedStore: WorkspaceStore = {
   messages: [],
   snapshots: [],
   transitions: [],
-  auditLogs: []
+  auditLogs: [],
+  versionSnapshots: [],
+  projectShares: [],
+  deployments: []
 };
 
 function toArray<T>(value: unknown): T[] {
@@ -49,7 +55,10 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       messages: toArray<IterationMessage>(parsed.messages),
       snapshots: toArray<AssessmentSnapshot>(parsed.snapshots),
       transitions: toArray<IterationTransition>(parsed.transitions),
-      auditLogs: toArray<AuditLog>(parsed.auditLogs)
+      auditLogs: toArray<AuditLog>(parsed.auditLogs),
+      versionSnapshots: toArray<VersionSnapshot>(parsed.versionSnapshots),
+      projectShares: toArray<ProjectShare>(parsed.projectShares),
+      deployments: toArray<DeploymentRecord>(parsed.deployments)
     };
   }
 
@@ -198,6 +207,44 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   appendAuditLog(log: AuditLog) {
     const data = this.read();
     data.auditLogs.push(log);
+    this.write(data);
+  }
+
+  listVersionSnapshots(projectId: number) {
+    return this.read().versionSnapshots.filter((item) => item.projectId === projectId);
+  }
+
+  appendVersionSnapshot(snapshot: VersionSnapshot) {
+    const data = this.read();
+    data.versionSnapshots.push(snapshot);
+    this.write(data);
+  }
+
+  findVersionSnapshot(snapshotId: number) {
+    return this.read().versionSnapshots.find((item) => item.id === snapshotId) ?? null;
+  }
+
+  listProjectShares(projectId: number) {
+    return this.read().projectShares.filter((item) => item.projectId === projectId);
+  }
+
+  appendProjectShare(share: ProjectShare) {
+    const data = this.read();
+    data.projectShares.push(share);
+    this.write(data);
+  }
+
+  listDeployments(projectId?: number) {
+    const items = this.read().deployments;
+    if (!projectId) {
+      return items;
+    }
+    return items.filter((item) => item.projectId === projectId);
+  }
+
+  appendDeployment(record: DeploymentRecord) {
+    const data = this.read();
+    data.deployments.push(record);
     this.write(data);
   }
 

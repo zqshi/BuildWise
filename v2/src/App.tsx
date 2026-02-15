@@ -70,9 +70,20 @@ export default function App() {
                 roadmapReports={controller.roadmapReports}
                 governanceRoles={controller.governanceRoles}
                 auditLogs={controller.auditLogs}
+                versionSnapshots={controller.versionSnapshots}
+                projectShares={controller.projectShares}
+                templates={controller.templates}
+                latestTemplateRun={controller.latestTemplateRun}
+                opsMetrics={controller.opsMetrics}
+                deployments={controller.deployments}
                 onCreateRelation={controller.handleCreateModelRelation}
                 onDeleteRelation={controller.handleDeleteModelRelation}
                 onRefresh={controller.loadModelOps}
+                onCreateSnapshot={controller.handleCreateVersionSnapshot}
+                onRestoreSnapshot={controller.handleRestoreVersionSnapshot}
+                onCreateShare={controller.handleCreateProjectShare}
+                onRunTemplate={controller.handleRunTemplate}
+                onCreateDeployment={controller.handleCreateDeployment}
               />
             }
             onViewProjects={() => controller.setActiveView("projects")}

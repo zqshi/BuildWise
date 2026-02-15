@@ -18,6 +18,14 @@ import type {
   TracePayload
 } from "../domain/workspace/types";
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
+import type {
+  DeploymentRecord,
+  OpsMetricsPayload,
+  ProjectShare,
+  TemplateItem,
+  TemplateRunResult,
+  VersionSnapshot
+} from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
 
@@ -139,14 +147,28 @@ export async function fetchModelOps() {
     "/api/roadmap-v1-2"
   ] as const;
 
-  const [modelSummary, modelRelationsRaw, ruleCompile, ruleBind, syncReport, traceReport, roadmapReports] = await Promise.all([
+  const [
+    modelSummary,
+    modelRelationsRaw,
+    ruleCompile,
+    ruleBind,
+    syncReport,
+    traceReport,
+    roadmapReports,
+    templatesRaw,
+    opsMetrics,
+    deploymentsRaw
+  ] = await Promise.all([
     fetchJSON<ModelSummaryPayload>(`${API_BASE}/api/model`),
     fetchJSON<unknown>(`${API_BASE}/api/model/relations`),
     fetchJSON<RuleCompilePayload>(`${API_BASE}/api/rules/compile`),
     fetchJSON<RuleBindPayload>(`${API_BASE}/api/rules/bind`),
     fetchJSON<SyncReportPayload>(`${API_BASE}/api/sync/report`),
     fetchJSON<TracePayload>(`${API_BASE}/api/trace`),
-    Promise.all(roadmapPaths.map((path) => fetchJSON<RoadmapPayload>(`${API_BASE}${path}`)))
+    Promise.all(roadmapPaths.map((path) => fetchJSON<RoadmapPayload>(`${API_BASE}${path}`))),
+    fetchJSON<unknown>(`${API_BASE}/api/templates`),
+    fetchJSON<OpsMetricsPayload>(`${API_BASE}/api/ops/metrics`),
+    fetchJSON<unknown>(`${API_BASE}/api/ops/deployments`)
   ]);
   return {
     modelSummary,
@@ -155,7 +177,10 @@ export async function fetchModelOps() {
     ruleBind,
     syncReport,
     traceReport,
-    roadmapReports
+    roadmapReports,
+    templates: ensureArray<TemplateItem>(templatesRaw),
+    opsMetrics,
+    deployments: ensureArray<DeploymentRecord>(deploymentsRaw)
   };
 }
 
@@ -167,6 +192,17 @@ export async function fetchGovernance() {
   return {
     roles: ensureArray<GovernanceRole>(rolesRaw),
     auditLogs: ensureArray<AuditLog>(auditLogsRaw)
+  };
+}
+
+export async function fetchCollaboration(projectId: number) {
+  const [snapshotsRaw, sharesRaw] = await Promise.all([
+    fetchJSON<unknown>(`${API_BASE}/api/collab/snapshots?projectId=${projectId}`),
+    fetchJSON<unknown>(`${API_BASE}/api/collab/shares?projectId=${projectId}`)
+  ]);
+  return {
+    snapshots: ensureArray<VersionSnapshot>(snapshotsRaw),
+    shares: ensureArray<ProjectShare>(sharesRaw)
   };
 }
 
@@ -198,5 +234,53 @@ export async function recomputeAssessment(iterationId: number) {
 export async function restoreAssessment(iterationId: number, snapshotId: number) {
   return fetchJSON<AssessmentPayload>(`${API_BASE}/api/iterations/${iterationId}/assessment/restore/${snapshotId}`, {
     method: "POST"
+  });
+}
+
+export async function createVersionSnapshot(payload: {
+  projectId: number;
+  iterationId: number;
+  name: string;
+  note?: string;
+}) {
+  return fetchJSON<VersionSnapshot>(`${API_BASE}/api/collab/snapshots`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function restoreVersionSnapshot(snapshotId: number) {
+  return fetchJSON<{ ok: boolean; snapshotId: number; iterationId: number }>(
+    `${API_BASE}/api/collab/snapshots/${snapshotId}/restore`,
+    { method: "POST" }
+  );
+}
+
+export async function createProjectShare(payload: { projectId: number; permission: "read" | "comment"; ttlHours?: number }) {
+  return fetchJSON<ProjectShare>(`${API_BASE}/api/collab/shares`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function runTemplate(templateId: string, projectId: number) {
+  return fetchJSON<TemplateRunResult>(`${API_BASE}/api/templates/${templateId}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId })
+  });
+}
+
+export async function createDeployment(payload: {
+  projectId: number;
+  environment: "staging" | "production";
+  version: string;
+}) {
+  return fetchJSON<DeploymentRecord>(`${API_BASE}/api/ops/deployments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
 }
