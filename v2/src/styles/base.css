@@ -1,0 +1,209 @@
+:root {
+  color-scheme:light;
+  --font-sans: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --line-height-base: 1.5;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-on-brand: #ffffff;
+  --text-danger: #b91c1c;
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-muted: #f1f5f9;
+  --bg-surface-soft: #eff6ff;
+  --bg-control: #e2e8f0;
+  --brand-500: #2563eb;
+  --brand-600: #1d4ed8;
+  --brand-100: #dbeafe;
+  --brand-50: #eff6ff;
+  --danger-500: #dc2626;
+  --danger-50: #fee2e2;
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-brand: #93c5fd;
+  --accent-cyan-500: #06b6d4;
+  --info-400: #38bdf8;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --shadow-card: 0 8px 24px rgba(15, 23, 42, .08);
+  --shadow-float: 0 14px 30px rgba(15, 23, 42, .16);
+  --shadow-pop: 0 8px 20px rgba(15, 23, 42, .12);
+  --shadow-brand: 0 8px 18px rgba(37, 99, 235, .24);
+  --overlay-mask: rgba(15, 23, 42, .48);
+  --ring-brand: 0 0 0 3px rgba(37, 99, 235, .18);
+  --ring-brand-soft: 0 0 0 3px rgba(37, 99, 235, .15);
+  --ring-danger: 0 0 0 3px rgba(220, 38, 38, .12);
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-pill: 999px;
+  --radius-bar-top: 8px 8px 4px 4px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-5: 14px;
+  --space-6: 16px;
+  --text-xs: 12px;
+  --text-2xs: 11px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+  --duration-fast: .16s;
+  --duration-normal: .24s;
+  --ease-standard: cubic-bezier(.2,.8,.2,1);
+  font-family:var(--font-sans);
+  line-height:var(--line-height-base);
+  font-weight:var(--font-weight-regular);
+  color:var(--text-primary);
+  background:var(--bg-canvas)
+}
+
+html {
+  scroll-behavior:smooth
+}
+
+* {
+  box-sizing:border-box
+}
+
+body {
+  margin:0;
+  min-height:100vh;
+  background:radial-gradient(circle at top right,var(--brand-50) 0%,var(--bg-canvas) 32%);
+  color:var(--text-primary)
+}
+
+#root {
+  min-height:100vh
+}
+
+h1,h2,h3,p {
+  margin:0
+}
+
+h1,h2,h3 {
+  letter-spacing:-.01em
+}
+
+button,input,textarea {
+  font:inherit
+}
+
+button {
+  outline:none
+}
+
+button:focus-visible,input:focus-visible,textarea:focus-visible {
+  box-shadow:var(--ring-brand)
+}
+
+::selection {
+  background:var(--brand-100);
+  color:var(--text-primary)
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition:none !important;
+    animation:none !important;
+    scroll-behavior:auto !important
+  }
+}
+
+.workspace {
+  min-height:100vh
+}
+
+.auth-page {
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:24px
+}
+
+.auth-card {
+  width:min(420px,100%);
+  background:var(--bg-surface);
+  border:1px solid var(--border-default);
+  border-radius:var(--radius-xl);
+  padding:24px;
+  display:grid;
+  gap:10px;
+  box-shadow:var(--shadow-card)
+}
+
+.auth-card h1 {
+  font-size:var(--text-2xl);
+  color:var(--text-primary)
+}
+
+.auth-card p {
+  color:var(--text-muted);
+  font-size:var(--text-md)
+}
+
+.auth-form {
+  display:grid;
+  gap:8px;
+  margin-top:8px
+}
+
+.auth-form label {
+  font-size:var(--text-sm);
+  color:var(--text-secondary);
+  font-weight:var(--font-weight-medium)
+}
+
+.auth-form input {
+  width:100%;
+  border:1px solid var(--border-strong);
+  border-radius:var(--radius-md);
+  padding:10px 12px;
+  outline:none;
+  background:var(--bg-surface);
+  transition:border-color .2s ease,box-shadow .2s ease
+}
+
+.auth-form input:focus {
+  border-color:var(--brand-500);
+  box-shadow:var(--ring-brand-soft)
+}
+
+.auth-form input.error {
+  border-color:var(--danger-500);
+  box-shadow:var(--ring-danger)
+}
+
+.auth-error {
+  color:var(--danger-500);
+  font-size:var(--text-xs);
+  margin-top:-4px
+}
+
+.auth-hint {
+  color:var(--text-muted);
+  font-size:var(--text-xs);
+  margin-top:-4px
+}
+
+.auth-form .btn {
+  margin-top:8px
+}
+
+.empty-state {
+  border:1px dashed var(--border-strong);
+  border-radius:var(--radius-md);
+  padding:var(--space-4);
+  color:var(--text-muted);
+  background:var(--bg-surface-muted);
+  font-size:var(--text-sm)
+}
