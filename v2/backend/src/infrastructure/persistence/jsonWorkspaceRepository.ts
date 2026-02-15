@@ -9,6 +9,7 @@ import type {
   IterationTransition,
   ProjectShare,
   Project,
+  TemplateRunRecord,
   VersionSnapshot,
   WorkspaceStore
 } from "../../domain/workspace/types";
@@ -32,7 +33,8 @@ const seedStore: WorkspaceStore = {
   auditLogs: [],
   versionSnapshots: [],
   projectShares: [],
-  deployments: []
+  deployments: [],
+  templateRuns: []
 };
 
 function toArray<T>(value: unknown): T[] {
@@ -58,7 +60,8 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       auditLogs: toArray<AuditLog>(parsed.auditLogs),
       versionSnapshots: toArray<VersionSnapshot>(parsed.versionSnapshots),
       projectShares: toArray<ProjectShare>(parsed.projectShares),
-      deployments: toArray<DeploymentRecord>(parsed.deployments)
+      deployments: toArray<DeploymentRecord>(parsed.deployments),
+      templateRuns: toArray<TemplateRunRecord>(parsed.templateRuns)
     };
   }
 
@@ -228,6 +231,10 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     return this.read().projectShares.filter((item) => item.projectId === projectId);
   }
 
+  findProjectShareByToken(token: string) {
+    return this.read().projectShares.find((item) => item.token === token) ?? null;
+  }
+
   appendProjectShare(share: ProjectShare) {
     const data = this.read();
     data.projectShares.push(share);
@@ -242,9 +249,36 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     return items.filter((item) => item.projectId === projectId);
   }
 
+  findDeployment(deploymentId: number) {
+    return this.read().deployments.find((item) => item.id === deploymentId) ?? null;
+  }
+
   appendDeployment(record: DeploymentRecord) {
     const data = this.read();
     data.deployments.push(record);
+    this.write(data);
+  }
+
+  updateDeployment(record: DeploymentRecord) {
+    const data = this.read();
+    const index = data.deployments.findIndex((item) => item.id === record.id);
+    if (index >= 0) {
+      data.deployments[index] = record;
+      this.write(data);
+    }
+  }
+
+  listTemplateRuns(projectId?: number) {
+    const runs = this.read().templateRuns;
+    if (!projectId) {
+      return runs;
+    }
+    return runs.filter((item) => item.projectId === projectId);
+  }
+
+  appendTemplateRun(record: TemplateRunRecord) {
+    const data = this.read();
+    data.templateRuns.push(record);
     this.write(data);
   }
 

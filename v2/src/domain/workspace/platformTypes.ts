@@ -40,7 +40,7 @@ export type DeploymentRecord = {
   projectId: number;
   environment: "staging" | "production";
   version: string;
-  status: "queued" | "success" | "failed";
+  status: "queued" | "running" | "success" | "failed";
   createdAt: string;
 };
 

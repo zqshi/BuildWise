@@ -7,6 +7,7 @@ import type {
   IterationTransition,
   ProjectShare,
   Project,
+  TemplateRunRecord,
   VersionSnapshot,
   WorkspaceStore
 } from "./types";
@@ -37,8 +38,13 @@ export interface WorkspaceRepository {
   appendVersionSnapshot(snapshot: VersionSnapshot): void;
   findVersionSnapshot(snapshotId: number): VersionSnapshot | null;
   listProjectShares(projectId: number): ProjectShare[];
+  findProjectShareByToken(token: string): ProjectShare | null;
   appendProjectShare(share: ProjectShare): void;
   listDeployments(projectId?: number): DeploymentRecord[];
+  findDeployment(deploymentId: number): DeploymentRecord | null;
   appendDeployment(record: DeploymentRecord): void;
+  updateDeployment(record: DeploymentRecord): void;
+  listTemplateRuns(projectId?: number): TemplateRunRecord[];
+  appendTemplateRun(record: TemplateRunRecord): void;
   updateIteration(iteration: Iteration): void;
 }

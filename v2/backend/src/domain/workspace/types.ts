@@ -154,8 +154,20 @@ export type DeploymentRecord = {
   projectId: number;
   environment: "staging" | "production";
   version: string;
-  status: "queued" | "success" | "failed";
+  status: "queued" | "running" | "success" | "failed";
   createdAt: string;
+};
+
+export type TemplateRunRecord = {
+  id: number;
+  runId: string;
+  templateId: string;
+  projectId: number;
+  parameters: Record<string, string>;
+  status: "completed" | "failed";
+  startedAt: string;
+  finishedAt: string;
+  summary: string;
 };
 
 export type WorkspaceStore = {
@@ -168,6 +180,7 @@ export type WorkspaceStore = {
   versionSnapshots: VersionSnapshot[];
   projectShares: ProjectShare[];
   deployments: DeploymentRecord[];
+  templateRuns: TemplateRunRecord[];
 };
 
 export type IterationContextPayload = {
