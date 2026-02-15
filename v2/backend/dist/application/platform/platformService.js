@@ -1,12 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PlatformService = void 0;
-function nowIso() {
-    return new Date().toISOString();
-}
-function randomToken() {
-    return Math.random().toString(36).slice(2, 10);
-}
+const platformSupport_1 = require("./platformSupport");
 class PlatformService {
     constructor(workspaceRepo, modelRepo) {
         this.workspaceRepo = workspaceRepo;
@@ -20,7 +15,7 @@ class PlatformService {
             action,
             resource,
             detail,
-            createdAt: nowIso()
+            createdAt: (0, platformSupport_1.nowIso)()
         });
     }
     listVersionSnapshots(projectId) {
@@ -43,7 +38,7 @@ class PlatformService {
             progress: iteration.progress,
             scope: iteration.scope,
             assessment: iteration.assessment,
-            createdAt: nowIso()
+            createdAt: (0, platformSupport_1.nowIso)()
         };
         this.workspaceRepo.appendVersionSnapshot(created);
         this.writeAudit("version_snapshot_created", `snapshot:${created.id}`, `${name} @ iteration:${iterationId}`);
@@ -80,7 +75,7 @@ class PlatformService {
         const created = {
             id: this.workspaceRepo.nextId(data.projectShares),
             projectId,
-            token: `shr_${randomToken()}`,
+            token: (0, platformSupport_1.randomToken)("shr_"),
             permission,
             expiresAt,
             createdAt: now.toISOString()
@@ -117,9 +112,10 @@ class PlatformService {
         if (!template || !project) {
             return null;
         }
-        const createdAt = nowIso();
+        const createdAt = (0, platformSupport_1.nowIso)();
+        const runId = (0, platformSupport_1.randomToken)("run_");
         const result = {
-            runId: `run_${randomToken()}`,
+            runId,
             templateId,
             projectId,
             status: "completed",
@@ -127,8 +123,56 @@ class PlatformService {
             finishedAt: createdAt,
             summary: `已为项目 ${project.name} 执行模板 ${template.name}`
         };
+        const data = this.workspaceRepo.read();
+        this.workspaceRepo.appendTemplateRun({
+            id: this.workspaceRepo.nextId(data.templateRuns),
+            runId,
+            templateId,
+            projectId,
+            parameters: {},
+            status: "completed",
+            startedAt: createdAt,
+            finishedAt: createdAt,
+            summary: result.summary
+        });
         this.writeAudit("template_run_completed", `template:${templateId}`, `project:${projectId}`);
         return result;
+    }
+    runTemplateWithParams(templateId, projectId, parameters) {
+        const template = this.listTemplates().find((item) => item.id === templateId);
+        const project = this.workspaceRepo.findProject(projectId);
+        if (!template || !project) {
+            return null;
+        }
+        const startedAt = (0, platformSupport_1.nowIso)();
+        const focused = parameters.focus || "默认目标";
+        const summary = `已执行 ${template.name}，聚焦：${focused}`;
+        const record = {
+            runId: (0, platformSupport_1.randomToken)("run_"),
+            templateId,
+            projectId,
+            status: "completed",
+            startedAt,
+            finishedAt: (0, platformSupport_1.nowIso)(),
+            summary
+        };
+        const data = this.workspaceRepo.read();
+        this.workspaceRepo.appendTemplateRun({
+            id: this.workspaceRepo.nextId(data.templateRuns),
+            runId: record.runId,
+            templateId,
+            projectId,
+            parameters,
+            status: "completed",
+            startedAt: record.startedAt,
+            finishedAt: record.finishedAt,
+            summary: record.summary
+        });
+        this.writeAudit("template_run_completed", `template:${templateId}`, `params:${JSON.stringify(parameters)}`);
+        return record;
+    }
+    listTemplateRuns(projectId) {
+        return this.workspaceRepo.listTemplateRuns(projectId);
     }
     exportOpenApi() {
         const model = this.modelRepo.read();
@@ -163,12 +207,67 @@ class PlatformService {
             projectId,
             environment,
             version,
-            status: "success",
-            createdAt: nowIso()
+            status: "queued",
+            createdAt: (0, platformSupport_1.nowIso)()
         };
         this.workspaceRepo.appendDeployment(created);
-        this.writeAudit("deployment_created", `deployment:${created.id}`, `${environment}@${version}`);
+        this.writeAudit("deployment_created", `deployment:${created.id}`, `${environment}@${version} status=queued`);
         return created;
+    }
+    transitionDeployment(deploymentId, toStatus) {
+        const deployment = this.workspaceRepo.findDeployment(deploymentId);
+        if (!deployment) {
+            return { ok: false, reason: "deployment_not_found" };
+        }
+        const fromStatus = deployment.status;
+        const allowed = platformSupport_1.deploymentTransitions[deployment.status] || [];
+        if (!allowed.includes(toStatus)) {
+            return { ok: false, reason: "invalid_transition" };
+        }
+        deployment.status = toStatus;
+        this.workspaceRepo.updateDeployment(deployment);
+        this.writeAudit("deployment_transitioned", `deployment:${deploymentId}`, `${fromStatus} -> ${toStatus}`);
+        return { ok: true, data: deployment };
+    }
+    accessShare(token) {
+        const share = this.workspaceRepo.findProjectShareByToken(token);
+        if (!share) {
+            return { ok: false, reason: "share_not_found" };
+        }
+        const expired = new Date(share.expiresAt).getTime() <= Date.now();
+        if (expired) {
+            return { ok: false, reason: "share_expired" };
+        }
+        const project = this.workspaceRepo.findProject(share.projectId);
+        if (!project) {
+            return { ok: false, reason: "project_not_found" };
+        }
+        const iterationCount = this.workspaceRepo.listIterations(share.projectId).length;
+        return {
+            ok: true,
+            data: {
+                token: share.token,
+                permission: share.permission,
+                expiresAt: share.expiresAt,
+                project: {
+                    id: project.id,
+                    name: project.name,
+                    description: project.description
+                },
+                iterationCount
+            }
+        };
+    }
+    commentByShare(token, content) {
+        const access = this.accessShare(token);
+        if (!access.ok) {
+            return access;
+        }
+        if (access.data.permission !== "comment") {
+            return { ok: false, reason: "permission_denied" };
+        }
+        this.writeAudit("share_comment_added", `share:${token}`, content.slice(0, 120));
+        return { ok: true, data: { ok: true, token, comment: content, createdAt: (0, platformSupport_1.nowIso)() } };
     }
     getOpsMetrics() {
         const workspace = this.workspaceRepo.read();
@@ -177,7 +276,7 @@ class PlatformService {
         const activeShares = workspace.projectShares.filter((item) => new Date(item.expiresAt).getTime() > Date.now()).length;
         const latestAuditAt = workspace.auditLogs.length ? workspace.auditLogs[workspace.auditLogs.length - 1].createdAt : "";
         return {
-            generatedAt: nowIso(),
+            generatedAt: (0, platformSupport_1.nowIso)(),
             metrics: [
                 { name: "deployment_success_rate", value: deployTotal === 0 ? 100 : Math.round((deploySuccess / deployTotal) * 100), unit: "%" },
                 { name: "active_share_links", value: activeShares, unit: "count" },

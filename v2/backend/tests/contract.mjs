@@ -210,6 +210,13 @@ try {
   assert(snapshotCreate.res.status === 200, "create snapshot should return 200");
   assert(typeof snapshotCreate.payload?.id === "number", "snapshot id must exist");
 
+  const snapshotCreateDenied = await request("/api/collab/snapshots", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "viewer" },
+    body: JSON.stringify({ projectId: 1, iterationId: 1, name: "denied-snapshot" })
+  });
+  assert(snapshotCreateDenied.res.status === 403, "viewer should not create snapshot");
+
   const snapshotList = await getJson("/api/collab/snapshots?projectId=1");
   assert(Array.isArray(snapshotList) && snapshotList.length >= 1, "snapshot list must include created snapshot");
 
@@ -229,13 +236,47 @@ try {
   const shareList = await getJson("/api/collab/shares?projectId=1");
   assert(Array.isArray(shareList) && shareList.length >= 1, "share list must include created share");
 
+  const shareAccess = await getJson(`/api/collab/share/${shareCreate.payload.token}`);
+  assert(shareAccess.project?.id === 1, "share access should include project");
+
+  const shareComment = await request(`/api/collab/share/${shareCreate.payload.token}/comments`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: "external reviewer comment" })
+  });
+  assert(shareComment.res.status === 200, "share comment should return 200");
+
+  const readOnlyShare = await request("/api/collab/shares", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId: 1, permission: "read", ttlHours: 24 })
+  });
+  assert(readOnlyShare.res.status === 200, "create read-only share should return 200");
+  const readOnlyComment = await request(`/api/collab/share/${readOnlyShare.payload.token}/comments`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: "should be denied" })
+  });
+  assert(readOnlyComment.res.status === 403, "read-only share should deny comment");
+
   const runTemplate = await request(`/api/templates/${templates[0].id}/run`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ projectId: 1 })
+    body: JSON.stringify({ projectId: 1, parameters: { focus: "契约测试", owner: "qa" } })
   });
   assert(runTemplate.res.status === 200, "run template should return 200");
   assert(runTemplate.payload?.status === "completed", "template run status must be completed");
+
+  const runTemplateDenied = await request(`/api/templates/${templates[0].id}/run`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "viewer" },
+    body: JSON.stringify({ projectId: 1 })
+  });
+  assert(runTemplateDenied.res.status === 403, "viewer should not run template");
+
+  const templateRuns = await getJson("/api/templates/runs?projectId=1");
+  assert(Array.isArray(templateRuns) && templateRuns.length >= 1, "template runs should be listed");
+  assert(typeof templateRuns[0].parameters === "object", "template run parameters should exist");
 
   const createDeploy = await request("/api/ops/deployments", {
     method: "POST",
@@ -243,9 +284,32 @@ try {
     body: JSON.stringify({ projectId: 1, environment: "staging", version: "v-test" })
   });
   assert(createDeploy.res.status === 200, "create deployment should return 200");
+  assert(createDeploy.payload?.status === "queued", "deployment should start in queued");
+
+  const createDeployDenied = await request("/api/ops/deployments", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "viewer" },
+    body: JSON.stringify({ projectId: 1, environment: "staging", version: "v-denied" })
+  });
+  assert(createDeployDenied.res.status === 403, "viewer should not create deployment");
+
+  const deployToRunning = await request(`/api/ops/deployments/${createDeploy.payload.id}/transition`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "qa" },
+    body: JSON.stringify({ toStatus: "running" })
+  });
+  assert(deployToRunning.res.status === 200, "deployment should transition to running");
+
+  const deployToSuccess = await request(`/api/ops/deployments/${createDeploy.payload.id}/transition`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "qa" },
+    body: JSON.stringify({ toStatus: "success" })
+  });
+  assert(deployToSuccess.res.status === 200, "deployment should transition to success");
 
   const deployList = await getJson("/api/ops/deployments?projectId=1");
   assert(Array.isArray(deployList) && deployList.length >= 1, "deployment list must include created deployment");
+  assert(deployList.some((item) => item.status === "success"), "deployment list should include success status");
 
   const opsMetrics = await getJson("/api/ops/metrics");
   assert(Array.isArray(opsMetrics.metrics), "ops metrics should be array");

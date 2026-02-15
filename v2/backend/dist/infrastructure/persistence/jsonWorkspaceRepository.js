@@ -21,7 +21,8 @@ const seedStore = {
     auditLogs: [],
     versionSnapshots: [],
     projectShares: [],
-    deployments: []
+    deployments: [],
+    templateRuns: []
 };
 function toArray(value) {
     return Array.isArray(value) ? value : [];
@@ -46,7 +47,8 @@ class JsonWorkspaceRepository {
             auditLogs: toArray(parsed.auditLogs),
             versionSnapshots: toArray(parsed.versionSnapshots),
             projectShares: toArray(parsed.projectShares),
-            deployments: toArray(parsed.deployments)
+            deployments: toArray(parsed.deployments),
+            templateRuns: toArray(parsed.templateRuns)
         };
     }
     write(data) {
@@ -192,6 +194,9 @@ class JsonWorkspaceRepository {
     listProjectShares(projectId) {
         return this.read().projectShares.filter((item) => item.projectId === projectId);
     }
+    findProjectShareByToken(token) {
+        return this.read().projectShares.find((item) => item.token === token) ?? null;
+    }
     appendProjectShare(share) {
         const data = this.read();
         data.projectShares.push(share);
@@ -204,9 +209,32 @@ class JsonWorkspaceRepository {
         }
         return items.filter((item) => item.projectId === projectId);
     }
+    findDeployment(deploymentId) {
+        return this.read().deployments.find((item) => item.id === deploymentId) ?? null;
+    }
     appendDeployment(record) {
         const data = this.read();
         data.deployments.push(record);
+        this.write(data);
+    }
+    updateDeployment(record) {
+        const data = this.read();
+        const index = data.deployments.findIndex((item) => item.id === record.id);
+        if (index >= 0) {
+            data.deployments[index] = record;
+            this.write(data);
+        }
+    }
+    listTemplateRuns(projectId) {
+        const runs = this.read().templateRuns;
+        if (!projectId) {
+            return runs;
+        }
+        return runs.filter((item) => item.projectId === projectId);
+    }
+    appendTemplateRun(record) {
+        const data = this.read();
+        data.templateRuns.push(record);
         this.write(data);
     }
     updateIteration(iteration) {
