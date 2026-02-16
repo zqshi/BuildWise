@@ -32,6 +32,20 @@ npm run verify:all
 
 ## 4. 开发模式
 
+一键启动前后端（推荐）：
+
+```bash
+cd /Users/zqs/Downloads/project/BuildWise/v2
+npm run dev:stack:start
+```
+
+一键停止：
+
+```bash
+cd /Users/zqs/Downloads/project/BuildWise/v2
+npm run dev:stack:stop
+```
+
 前端：
 
 ```bash
@@ -71,6 +85,9 @@ npm run start
 - `HOST`：监听地址（默认 `127.0.0.1`）
 - `MODEL_FILE`：模型文件路径（默认 `v2/model.json`）
 - `WORKSPACE_DATA_FILE`：工作区数据文件路径（默认 `v2/backend/data.json`）
+- `LLM_API_BASE`：OpenAI 兼容接口地址（例如 `https://api.openai.com/v1`）
+- `LLM_API_KEY`：大模型 API Key
+- `LLM_MODEL`：模型名（默认 `gpt-4o-mini`）
 
 ## 6. 交付产物
 

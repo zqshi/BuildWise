@@ -12,7 +12,7 @@ export async function fetchJSON<T>(url: string, options?: RequestInit): Promise<
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("API error: request timeout");
     }
-    throw error;
+    throw new Error("API error: network unavailable");
   } finally {
     clearTimeout(timeout);
   }

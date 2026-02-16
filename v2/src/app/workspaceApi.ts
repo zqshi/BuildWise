@@ -32,6 +32,26 @@ import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
+const missingOptionalEndpoints = new Set<string>();
+
+function isApiNotFound(error: unknown) {
+  return error instanceof Error && /^API error: 404\b/.test(error.message);
+}
+
+async function fetchOptionalJSON<T>(path: string, fallback: T, cacheKey = path): Promise<T> {
+  if (missingOptionalEndpoints.has(cacheKey)) {
+    return fallback;
+  }
+  try {
+    return await fetchJSON<T>(`${API_BASE}${path}`);
+  } catch (error) {
+    if (isApiNotFound(error)) {
+      missingOptionalEndpoints.add(cacheKey);
+      return fallback;
+    }
+    throw error;
+  }
+}
 
 export async function fetchProjects() {
   const projectDataRaw = await fetchJSON<unknown>(`${API_BASE}/api/projects`);
@@ -84,7 +104,11 @@ export async function fetchIterationDetail(iterationId: number) {
 }
 
 export async function fetchIterationStateMachine(iterationId: number) {
-  return fetchJSON<IterationStateMachinePayload>(`${API_BASE}/api/iterations/${iterationId}/state-machine`);
+  return fetchOptionalJSON<IterationStateMachinePayload | null>(
+    `/api/iterations/${iterationId}/state-machine`,
+    null,
+    "/api/iterations/:id/state-machine"
+  );
 }
 
 export async function transitionIterationState(iterationId: number, payload: { toStatus: string; note?: string }) {
@@ -119,12 +143,19 @@ async function readFileExcerpt(file: File) {
   }
 }
 
-export async function analyzeIterationAttachment(iterationId: number, file: File) {
+export async function analyzeIterationAttachment(
+  iterationId: number,
+  file: File,
+  options?: { agentScope?: AttachmentUploadInput["agentScope"]; forceMultiAgent?: boolean; autoTransition?: boolean }
+) {
   const payload: AttachmentUploadInput = {
     fileName: file.name,
     mimeType: file.type || "application/octet-stream",
     size: file.size,
-    excerpt: await readFileExcerpt(file)
+    excerpt: await readFileExcerpt(file),
+    agentScope: options?.agentScope ?? "full-cycle",
+    forceMultiAgent: options?.forceMultiAgent ?? false,
+    autoTransition: options?.autoTransition ?? false
   };
   return fetchJSON<AttachmentAnalysisReport>(`${API_BASE}/api/iterations/${iterationId}/analysis`, {
     method: "POST",
@@ -134,21 +165,6 @@ export async function analyzeIterationAttachment(iterationId: number, file: File
 }
 
 export async function fetchModelOps() {
-  const roadmapPaths = [
-    "/api/roadmap-v0-1",
-    "/api/roadmap-v0-2",
-    "/api/roadmap-v0-3",
-    "/api/roadmap-v0-4",
-    "/api/roadmap-v0-5",
-    "/api/roadmap-v0-6",
-    "/api/roadmap-v0-7",
-    "/api/roadmap-v0-8",
-    "/api/roadmap-v0-9",
-    "/api/roadmap-v1-0",
-    "/api/roadmap-v1-1",
-    "/api/roadmap-v1-2"
-  ] as const;
-
   const [
     modelSummary,
     modelRelationsRaw,
@@ -156,23 +172,23 @@ export async function fetchModelOps() {
     ruleBind,
     syncReport,
     traceReport,
-    roadmapReports,
+    roadmapReportsRaw,
     templatesRaw,
     templateRunsRaw,
     opsMetrics,
     deploymentsRaw
   ] = await Promise.all([
-    fetchJSON<ModelSummaryPayload>(`${API_BASE}/api/model`),
-    fetchJSON<unknown>(`${API_BASE}/api/model/relations`),
-    fetchJSON<RuleCompilePayload>(`${API_BASE}/api/rules/compile`),
-    fetchJSON<RuleBindPayload>(`${API_BASE}/api/rules/bind`),
-    fetchJSON<SyncReportPayload>(`${API_BASE}/api/sync/report`),
-    fetchJSON<TracePayload>(`${API_BASE}/api/trace`),
-    Promise.all(roadmapPaths.map((path) => fetchJSON<RoadmapPayload>(`${API_BASE}${path}`))),
-    fetchJSON<unknown>(`${API_BASE}/api/templates`),
-    fetchJSON<unknown>(`${API_BASE}/api/templates/runs`),
-    fetchJSON<OpsMetricsPayload>(`${API_BASE}/api/ops/metrics`),
-    fetchJSON<unknown>(`${API_BASE}/api/ops/deployments`)
+    fetchOptionalJSON<ModelSummaryPayload | null>("/api/model", null),
+    fetchOptionalJSON<unknown>("/api/model/relations", []),
+    fetchOptionalJSON<RuleCompilePayload | null>("/api/rules/compile", null),
+    fetchOptionalJSON<RuleBindPayload | null>("/api/rules/bind", null),
+    fetchOptionalJSON<SyncReportPayload | null>("/api/sync/report", null),
+    fetchOptionalJSON<TracePayload | null>("/api/trace", null),
+    fetchOptionalJSON<unknown>("/api/roadmaps", []),
+    fetchOptionalJSON<unknown>("/api/templates", []),
+    fetchOptionalJSON<unknown>("/api/templates/runs", []),
+    fetchOptionalJSON<OpsMetricsPayload | null>("/api/ops/metrics", null),
+    fetchOptionalJSON<unknown>("/api/ops/deployments", [])
   ]);
   return {
     modelSummary,
@@ -181,7 +197,7 @@ export async function fetchModelOps() {
     ruleBind,
     syncReport,
     traceReport,
-    roadmapReports,
+    roadmapReports: ensureArray<RoadmapPayload>(roadmapReportsRaw),
     templates: ensureArray<TemplateItem>(templatesRaw),
     templateRuns: ensureArray<TemplateRunHistory>(templateRunsRaw),
     opsMetrics,
@@ -191,8 +207,8 @@ export async function fetchModelOps() {
 
 export async function fetchGovernance() {
   const [rolesRaw, auditLogsRaw] = await Promise.all([
-    fetchJSON<unknown>(`${API_BASE}/api/governance/roles`),
-    fetchJSON<unknown>(`${API_BASE}/api/governance/audit-logs?limit=30`)
+    fetchOptionalJSON<unknown>("/api/governance/roles", []),
+    fetchOptionalJSON<unknown>("/api/governance/audit-logs?limit=30", [])
   ]);
   return {
     roles: ensureArray<GovernanceRole>(rolesRaw),
@@ -202,8 +218,8 @@ export async function fetchGovernance() {
 
 export async function fetchCollaboration(projectId: number) {
   const [snapshotsRaw, sharesRaw] = await Promise.all([
-    fetchJSON<unknown>(`${API_BASE}/api/collab/snapshots?projectId=${projectId}`),
-    fetchJSON<unknown>(`${API_BASE}/api/collab/shares?projectId=${projectId}`)
+    fetchOptionalJSON<unknown>(`/api/collab/snapshots?projectId=${projectId}`, []),
+    fetchOptionalJSON<unknown>(`/api/collab/shares?projectId=${projectId}`, [])
   ]);
   return {
     snapshots: ensureArray<VersionSnapshot>(snapshotsRaw),

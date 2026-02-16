@@ -1,13 +1,13 @@
 {
-  "last_run": "run-20260215-095313-403161",
-  "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260215-095313-402971.json",
+  "last_run": "run-20260216-020651-582400",
+  "plan": "/Users/zqs/Downloads/project/BuildWise/autoboot/plans/plan-20260216-020651-582184.json",
   "ok": true,
-  "autoloop_last_request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-211-v1-2-auto.md",
+  "autoloop_last_request": "/Users/zqs/Downloads/project/BuildWise/autoboot/requests/REQ-311-v2-11-auto.md",
   "autoloop_next_request": null,
-  "autoloop_goal_reached": true,
-  "autoloop_stop_reason": "goal_reached",
-  "autoloop_report_json": "/Users/zqs/Downloads/project/BuildWise/autoboot/reports/stage-report-20260215-095313-406765.json",
-  "autoloop_report_md": "/Users/zqs/Downloads/project/BuildWise/autoboot/reports/stage-report-20260215-095313-406765.md",
-  "autoloop_milestone_prd_draft": "/Users/zqs/Downloads/project/BuildWise/docs/milestones/milestone-20260215-095313-407851-PRD.md",
-  "autoloop_milestone_tech_draft": "/Users/zqs/Downloads/project/BuildWise/docs/milestones/milestone-20260215-095313-407851-TECH.md"
+  "autoloop_goal_reached": false,
+  "autoloop_stop_reason": "request_queue_exhausted",
+  "autoloop_report_json": "/Users/zqs/Downloads/project/BuildWise/autoboot/reports/stage-report-20260216-020651-588149.json",
+  "autoloop_report_md": "/Users/zqs/Downloads/project/BuildWise/autoboot/reports/stage-report-20260216-020651-588149.md",
+  "autoloop_milestone_prd_draft": "/Users/zqs/Downloads/project/BuildWise/docs/milestones/milestone-20260216-020651-593087-PRD.md",
+  "autoloop_milestone_tech_draft": "/Users/zqs/Downloads/project/BuildWise/docs/milestones/milestone-20260216-020651-593087-TECH.md"
 }

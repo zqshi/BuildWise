@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspaceService = void 0;
 const workspaceSupport_1 = require("./workspaceSupport");
 class WorkspaceService {
-    constructor(repo) {
+    constructor(repo, agentRunner = null) {
         this.repo = repo;
+        this.agentRunner = agentRunner;
     }
     listGovernanceRoles() {
         return [
@@ -48,7 +49,13 @@ class WorkspaceService {
         if (!this.hasProject(projectId)) {
             return null;
         }
-        const created = this.repo.createIteration(projectId, payload);
+        const project = this.repo.findProject(projectId);
+        const previous = this.repo
+            .listIterations(projectId)
+            .sort((a, b) => b.id - a.id)
+            .map(workspaceSupport_1.normalizeIteration)[0] ?? null;
+        const mergedPayload = (0, workspaceSupport_1.buildMergedIterationPayload)(payload, project, previous);
+        const created = this.repo.createIteration(projectId, mergedPayload);
         const normalized = (0, workspaceSupport_1.normalizeIteration)(created);
         const snapshot = {
             id: this.repo.nextId(this.repo.read().snapshots),
@@ -231,7 +238,7 @@ class WorkspaceService {
             assessment: normalized.assessment
         };
     }
-    analyzeAttachment(iterationId, input) {
+    async analyzeAttachment(iterationId, input) {
         const iteration = this.repo.findIteration(iterationId);
         if (!iteration) {
             return null;
@@ -242,8 +249,34 @@ class WorkspaceService {
         const currentScope = normalized.scope.inScope;
         const added = currentScope.filter((item) => !previousScope.includes(item));
         const removed = previousScope.filter((item) => !currentScope.includes(item));
-        const changed = normalized.assessment.deltaInScope.filter((item) => item.startsWith("+") || item.startsWith("-"));
+        const diffLocations = (0, workspaceSupport_1.buildDiffLocations)(previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null, normalized);
+        const changed = diffLocations
+            .filter((item) => item.changeType === "changed")
+            .map((item) => `${item.dimension}: ${item.currentItem}`);
         const inferredRisks = (0, workspaceSupport_1.inferRisksFromExcerpt)(input.excerpt);
+        const normalizedRisks = normalized.assessment.risks.length > 0
+            ? normalized.assessment.risks
+            : inferredRisks.length > 0
+                ? inferredRisks
+                : ["暂无显式风险，请结合业务验收继续确认。"];
+        const agentPlan = (0, workspaceSupport_1.buildIterationAgentPlan)({
+            iteration: normalized,
+            previous: previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null,
+            scope: input.agentScope ?? "full-cycle",
+            diffLocations,
+            risks: normalizedRisks,
+            fileName: input.fileName,
+            forceMultiAgent: input.forceMultiAgent
+        });
+        const agentOutputs = await this.executeAgentPlan(agentPlan.prompts);
+        const lifecycleAction = {
+            attempted: false,
+            applied: false,
+            fromStatus: normalized.status,
+            toStatus: agentPlan.recommendedTransition,
+            note: "未执行自动流转"
+        };
+        const finalLifecycleAction = this.applyLifecycleTransition(iterationId, normalized.status, agentPlan.recommendedTransition, input.autoTransition === true) ?? lifecycleAction;
         this.writeAuditLog("attachment_analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
         return {
             iterationId: normalized.id,
@@ -257,16 +290,88 @@ class WorkspaceService {
                 changed,
                 removed
             },
-            risks: normalized.assessment.risks.length > 0
-                ? normalized.assessment.risks
-                : inferredRisks.length > 0
-                    ? inferredRisks
-                    : ["暂无显式风险，请结合业务验收继续确认。"],
+            diffLocations,
+            cyclePhase: (0, workspaceSupport_1.inferCyclePhase)(normalized.status),
+            agentPlan,
+            agentOutputs,
+            lifecycleAction: finalLifecycleAction,
+            risks: normalizedRisks,
             suggestions: [
                 "优先处理新增范围中的高业务价值项。",
                 "将差异项同步到验收标准，避免交付偏差。",
-                "评估被移出范围是否影响当前里程碑承诺。"
+                "评估被移出范围是否影响当前里程碑承诺。",
+                `建议下一状态：${agentPlan.recommendedTransition ?? "保持当前状态"}`,
+                finalLifecycleAction.note
             ]
+        };
+    }
+    async executeAgentPlan(prompts) {
+        const runner = this.agentRunner;
+        if (!runner) {
+            return prompts.map((prompt) => ({
+                agentId: prompt.agentId,
+                role: prompt.role,
+                status: "fallback",
+                content: `[fallback] 未配置 LLM，返回可执行 Prompt。\n${prompt.userPrompt}`
+            }));
+        }
+        return Promise.all(prompts.map(async (prompt) => {
+            try {
+                const result = await runner.run(prompt);
+                return {
+                    agentId: prompt.agentId,
+                    role: prompt.role,
+                    status: "success",
+                    content: result.content,
+                    model: result.model
+                };
+            }
+            catch (error) {
+                return {
+                    agentId: prompt.agentId,
+                    role: prompt.role,
+                    status: "error",
+                    content: prompt.userPrompt,
+                    error: error instanceof Error ? error.message : "llm_unknown_error"
+                };
+            }
+        }));
+    }
+    applyLifecycleTransition(iterationId, fromStatus, toStatus, autoTransition) {
+        if (!toStatus || toStatus === fromStatus) {
+            return {
+                attempted: false,
+                applied: false,
+                fromStatus,
+                toStatus,
+                note: "推荐状态与当前一致，未触发自动流转。"
+            };
+        }
+        if (!autoTransition) {
+            return {
+                attempted: false,
+                applied: false,
+                fromStatus,
+                toStatus,
+                note: `已生成状态流转建议 ${fromStatus} -> ${toStatus}，等待手动确认。`
+            };
+        }
+        const result = this.transitionIteration(iterationId, toStatus, "Agent 自动驱动流转");
+        if (result.ok) {
+            return {
+                attempted: true,
+                applied: true,
+                fromStatus,
+                toStatus,
+                note: `已自动流转：${fromStatus} -> ${toStatus}`
+            };
+        }
+        return {
+            attempted: true,
+            applied: false,
+            fromStatus,
+            toStatus,
+            note: `自动流转失败：${result.reason}`
         };
     }
 }

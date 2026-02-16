@@ -53,6 +53,7 @@ export function IterationWorkspacePanel({
   const scopeOutCount = contextData?.scope.outOfScope.length ?? 0;
   const acceptanceCount = contextData?.scope.acceptanceCriteria.length ?? 0;
   const getRoleLabel = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "BuildWise AI" : "系统");
+  const getRoleAvatar = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "AI" : "系");
   const getMsgKind = (msg: IterationMessage) => {
     if (msg.role === "system" && msg.content.startsWith("已上传附件")) {
       return "event-upload";
@@ -61,6 +62,19 @@ export function IterationWorkspacePanel({
       return "event-analysis";
     }
     return "";
+  };
+  const getMsgTheme = (msg: IterationMessage) => {
+    const content = msg.content.toLowerCase();
+    if (content.includes("风险") || content.includes("阻塞")) {
+      return "theme-risk";
+    }
+    if (content.includes("完成") || content.includes("通过") || content.includes("success")) {
+      return "theme-success";
+    }
+    if (content.includes("分析") || content.includes("差异") || content.includes("附件")) {
+      return "theme-analysis";
+    }
+    return "theme-default";
   };
   const formatTime = (value: string) =>
     new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -72,6 +86,29 @@ export function IterationWorkspacePanel({
     completed: "已完成"
   };
   const renderStatusLabel = (status: IterationStatus) => statusLabelMap[status] ?? status;
+  const diffLocations = analysisReport?.diffLocations ?? [];
+  const diffAdded = analysisReport?.versionDiff?.added ?? [];
+  const diffChanged = analysisReport?.versionDiff?.changed ?? [];
+  const diffRemoved = analysisReport?.versionDiff?.removed ?? [];
+  const agentPlan = analysisReport?.agentPlan;
+  const agentPrompts = agentPlan?.prompts ?? [];
+  const agentOutputs = analysisReport?.agentOutputs ?? [];
+  const lifecycleAction = analysisReport?.lifecycleAction;
+  const allowedTransitions = stateMachine?.allowedTransitions ?? [];
+  const transitionHistory = stateMachine?.transitionHistory ?? [];
+  const hasStateMachineActions = allowedTransitions.length > 0;
+  const hasStateMachineHistory = transitionHistory.length > 0;
+  const cyclePhaseLabelMap: Record<NonNullable<AttachmentAnalysisReport["cyclePhase"]>, string> = {
+    "scope-clarified": "范围澄清",
+    "task-planning": "任务规划",
+    "build-in-progress": "开发执行",
+    "qa-review": "测试评审",
+    "ready-for-release": "发布就绪"
+  };
+  const cyclePhaseLabel =
+    analysisReport?.cyclePhase && cyclePhaseLabelMap[analysisReport.cyclePhase]
+      ? cyclePhaseLabelMap[analysisReport.cyclePhase]
+      : analysisReport?.cyclePhase || "未定义";
 
   return (
     <>
@@ -90,13 +127,6 @@ export function IterationWorkspacePanel({
           </div>
         </div>
 
-        {uploadedFile && currentIteration && uploadedFile.iterationId === currentIteration.id ? (
-          <div className="info-box attachment-card">
-            <p>当前附件：{uploadedFile.name}</p>
-            {isAnalyzingAttachment ? <p className="hint">系统正在分析附件内容，请稍候。</p> : null}
-          </div>
-        ) : null}
-
         <div className="iteration-meta-grid">
           <div className="info-box">
             <p className="hint">继承来源</p>
@@ -111,27 +141,27 @@ export function IterationWorkspacePanel({
             <p>{acceptanceCount} 项</p>
           </div>
         </div>
-        <div className="info-box state-machine-box">
+        <div className={`info-box state-machine-box ${!hasStateMachineActions && !hasStateMachineHistory ? "compact" : ""}`}>
           <div className="state-machine-head">
             <p className="hint">迭代状态</p>
             <span className={`status-pill ${stateMachine?.currentStatus || currentIteration?.status || "planned"}`}>
               {renderStatusLabel(stateMachine?.currentStatus || currentIteration?.status || "planned")}
             </span>
           </div>
-          <div className="state-machine-actions">
-            {(stateMachine?.allowedTransitions ?? []).length === 0 ? (
-              <p className="hint">当前状态暂无可执行流转。</p>
-            ) : (
-              (stateMachine?.allowedTransitions ?? []).map((status) => (
+          {hasStateMachineActions ? (
+            <div className="state-machine-actions">
+              {allowedTransitions.map((status) => (
                 <button key={status} type="button" className="btn ghost mini" onClick={() => onTransitionState(status)}>
                   流转到 {renderStatusLabel(status)}
                 </button>
-              ))
-            )}
-          </div>
-          {(stateMachine?.transitionHistory ?? []).length > 0 ? (
+              ))}
+            </div>
+          ) : (
+            <p className="hint state-machine-inline-hint">当前状态暂无可执行流转。</p>
+          )}
+          {hasStateMachineHistory ? (
             <ul className="state-transition-list">
-              {(stateMachine?.transitionHistory ?? []).slice(0, 5).map((item) => (
+              {transitionHistory.slice(0, 5).map((item) => (
                 <li key={`${item.id}-${item.createdAt}`}>
                   <strong>
                     {renderStatusLabel(item.fromStatus)} → {renderStatusLabel(item.toStatus)}
@@ -147,17 +177,29 @@ export function IterationWorkspacePanel({
             <div className="empty-state">暂无消息，输入需求后开始沟通。</div>
           ) : (
             chatMessages.map((msg) => (
-              <div key={`${msg.id}-${msg.createdAt}`} className={`msg msg-${msg.role} ${getMsgKind(msg)}`}>
-                <div className="msg-meta">
-                  <span>{getRoleLabel(msg.role)}</span>
-                  <time dateTime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
+              <div key={`${msg.id}-${msg.createdAt}`} className={`msg-row msg-row-${msg.role}`}>
+                {msg.role !== "user" ? (
+                  <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
+                    {getRoleAvatar(msg.role)}
+                  </div>
+                ) : null}
+                <div className={`msg msg-${msg.role} ${getMsgKind(msg)} ${getMsgTheme(msg)}`}>
+                  <div className="msg-meta">
+                    <span>{getRoleLabel(msg.role)}</span>
+                    <time dateTime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
+                  </div>
+                  <p>{msg.content}</p>
+                  {getMsgKind(msg) === "event-analysis" && analysisReport && !isAnalyzingAttachment ? (
+                    <div className="msg-inline-actions">
+                      <button type="button" className="btn ghost mini attachment-report-entry" onClick={onOpenAnalysisPanel}>
+                        查看分析报告
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-                <p>{msg.content}</p>
-                {getMsgKind(msg) === "event-analysis" && analysisReport && !isAnalyzingAttachment ? (
-                  <div className="msg-inline-actions">
-                    <button type="button" className="btn ghost mini attachment-report-entry" onClick={onOpenAnalysisPanel}>
-                      查看分析报告
-                    </button>
+                {msg.role === "user" ? (
+                  <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
+                    {getRoleAvatar(msg.role)}
                   </div>
                 ) : null}
               </div>
@@ -216,9 +258,6 @@ export function IterationWorkspacePanel({
               <button type="button" className="btn ghost mini" onClick={onCloseAnalysisPanel}>
                 收起报告
               </button>
-              <button type="button" className="btn ghost mini" onClick={onSwitchToProjectPanel}>
-                返回项目
-              </button>
             </div>
           </div>
           <div className="preview-scroll">
@@ -237,13 +276,103 @@ export function IterationWorkspacePanel({
                 <div className="info-box">
                   <h3>版本差异</h3>
                   <p>基线版本：{analysisReport.versionDiff.baselineIterationName}</p>
-                  <p>新增：{analysisReport.versionDiff.added.join("、") || "无"}</p>
-                  <p>变化：{analysisReport.versionDiff.changed.join("、") || "无"}</p>
-                  <p>移除：{analysisReport.versionDiff.removed.join("、") || "无"}</p>
+                  <p>新增：{diffAdded.join("、") || "无"}</p>
+                  <p>变化：{diffChanged.join("、") || "无"}</p>
+                  <p>移除：{diffRemoved.join("、") || "无"}</p>
+                </div>
+                <div className="info-box">
+                  <h3>差异定位（与上个版本）</h3>
+                  {diffLocations.length === 0 ? (
+                    <p>未检测到结构化差异。</p>
+                  ) : (
+                    <ul className="history-list">
+                      {diffLocations.map((item, index) => (
+                        <li key={`${item.dimension}-${item.changeType}-${item.currentItem}-${index}`} className="history-item">
+                          <strong>{item.dimension}</strong>
+                          <p>
+                            {item.changeType === "added" ? "新增" : item.changeType === "removed" ? "移除" : "变更"}：
+                            {item.baselineItem ? `${item.baselineItem} -> ` : ""}
+                            {item.currentItem}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="info-box">
                   <h3>风险提示</h3>
                   <p>{analysisReport.risks.join("；")}</p>
+                </div>
+                <div className="info-box">
+                  <h3>Agent 执行方案</h3>
+                  <p>阶段：{cyclePhaseLabel}</p>
+                  <p>策略：{agentPlan?.strategy === "multi-agent" ? "多 Agent 协作" : "单 Agent 执行"}</p>
+                  <p>Scope：{agentPlan?.scope ?? "full-cycle"}</p>
+                  <p>推荐状态流转：{agentPlan?.recommendedTransition ?? "保持当前状态"}</p>
+                  <p>目标：{agentPlan?.objective ?? "未生成"}</p>
+                  {(agentPlan?.executionLoop ?? []).length > 0 ? (
+                    <ul className="history-list">
+                      {agentPlan?.executionLoop.map((item, index) => (
+                        <li key={`loop-${index}`} className="history-item">
+                          <strong>步骤 {index + 1}</strong>
+                          <p>{item}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+                <div className="info-box">
+                  <h3>Agent Prompt</h3>
+                  {agentPrompts.length === 0 ? (
+                    <p>暂无 Prompt。</p>
+                  ) : (
+                    <ul className="history-list">
+                      {agentPrompts.map((prompt) => (
+                        <li key={prompt.agentId} className="history-item history-item-stack">
+                          <strong>
+                            {prompt.agentId} · {prompt.role}
+                          </strong>
+                          <p>goal: {prompt.goal}</p>
+                          <p>scope: {prompt.scope}</p>
+                          <pre className="agent-prompt-block">{`[system]\n${prompt.systemPrompt}\n\n[user]\n${prompt.userPrompt}\n\n[expected]\n${prompt.expectedOutput}`}</pre>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="info-box">
+                  <h3>Agent 运行输出</h3>
+                  {agentOutputs.length === 0 ? (
+                    <p>暂无运行输出。</p>
+                  ) : (
+                    <ul className="history-list">
+                      {agentOutputs.map((output) => (
+                        <li key={`${output.agentId}-output`} className="history-item history-item-stack">
+                          <strong>
+                            {output.agentId} · {output.role} · {output.status}
+                            {output.model ? ` · ${output.model}` : ""}
+                          </strong>
+                          {output.error ? <p>error: {output.error}</p> : null}
+                          <pre className="agent-prompt-block">{output.content}</pre>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="info-box">
+                  <h3>生命周期驱动结果</h3>
+                  {!lifecycleAction ? (
+                    <p>暂无状态驱动结果。</p>
+                  ) : (
+                    <>
+                      <p>attempted: {lifecycleAction.attempted ? "yes" : "no"}</p>
+                      <p>applied: {lifecycleAction.applied ? "yes" : "no"}</p>
+                      <p>
+                        transition: {lifecycleAction.fromStatus} -&gt; {lifecycleAction.toStatus ?? "保持"}
+                      </p>
+                      <p>{lifecycleAction.note}</p>
+                    </>
+                  )}
                 </div>
                 <div className="info-box">
                   <h3>建议动作</h3>

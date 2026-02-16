@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "report:readiness": "node scripts/report-readiness.mjs",
+    "dev:stack:start": "bash scripts/start-dev-stack.sh",
+    "dev:stack:stop": "bash scripts/stop-dev-stack.sh",
     "install:all": "npm install && npm --prefix backend install",
     "build:all": "npm run build && npm --prefix backend run build",
     "verify:all": "npm run check:boundaries && npm run typecheck && npm run build && npm run report:readiness && npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract"

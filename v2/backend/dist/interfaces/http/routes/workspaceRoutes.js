@@ -115,11 +115,14 @@ async function registerWorkspaceRoutes(app, service) {
             reply.code(400);
             return { message: "fileName is required" };
         }
-        const result = service.analyzeAttachment(iterationId, {
+        const result = await service.analyzeAttachment(iterationId, {
             fileName,
             mimeType: body?.mimeType?.trim() || "application/octet-stream",
             size: typeof body?.size === "number" && Number.isFinite(body.size) ? body.size : 0,
-            excerpt: body?.excerpt?.slice(0, 4000) || ""
+            excerpt: body?.excerpt?.slice(0, 4000) || "",
+            agentScope: body?.agentScope,
+            forceMultiAgent: Boolean(body?.forceMultiAgent),
+            autoTransition: Boolean(body?.autoTransition)
         });
         if (!result) {
             reply.code(404);

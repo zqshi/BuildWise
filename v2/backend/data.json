@@ -33,7 +33,7 @@
           "status": "planned"
         }
       ],
-      "status": "in-progress",
+      "status": "review",
       "progress": 0,
       "createdAt": "2026-02-11",
       "createdBy": "系统",
@@ -84,8 +84,8 @@
           "status": "planned"
         }
       ],
-      "status": "in-progress",
-      "progress": 0,
+      "status": "blocked",
+      "progress": 100,
       "createdAt": "2026-02-13",
       "createdBy": "系统",
       "current": true,
@@ -219,6 +219,76 @@
       "role": "assistant",
       "content": "已记录到当前迭代。可用指令：完成: xxx；延期: xxx；新增范围: xxx；移出范围: xxx；验收通过: xxx；风险: xxx；清除风险: xxx；当前总结: xxx。",
       "createdAt": "2026-02-15T09:37:10.149Z"
+    },
+    {
+      "id": 15,
+      "iterationId": 1,
+      "role": "user",
+      "content": "1",
+      "createdAt": "2026-02-15T13:40:40.417Z"
+    },
+    {
+      "id": 16,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "请先选择迭代版本，再进行需求沟通。",
+      "createdAt": "2026-02-15T13:40:40.425Z"
+    },
+    {
+      "id": 17,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260215-210218.png",
+      "createdAt": "2026-02-15T13:46:10.601Z"
+    },
+    {
+      "id": 18,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T13:46:10.605Z"
+    },
+    {
+      "id": 19,
+      "iterationId": 1,
+      "role": "user",
+      "content": "1",
+      "createdAt": "2026-02-15T13:49:28.107Z"
+    },
+    {
+      "id": 20,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "请先选择迭代版本，再进行需求沟通。",
+      "createdAt": "2026-02-15T13:49:28.114Z"
+    },
+    {
+      "id": 21,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260215-190218.png",
+      "createdAt": "2026-02-15T13:49:33.105Z"
+    },
+    {
+      "id": 22,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T13:49:33.110Z"
+    },
+    {
+      "id": 23,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260215-210250.png",
+      "createdAt": "2026-02-15T13:53:03.781Z"
+    },
+    {
+      "id": 24,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-15T13:53:03.784Z"
     }
   ],
   "snapshots": [
@@ -655,6 +725,1460 @@
       "status": "in-progress",
       "progress": 0,
       "createdAt": "2026-02-15T09:37:10.150Z"
+    },
+    {
+      "id": 15,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:40:40.420Z"
+    },
+    {
+      "id": 16,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:40:40.426Z"
+    },
+    {
+      "id": 17,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:46:10.602Z"
+    },
+    {
+      "id": 18,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:46:10.606Z"
+    },
+    {
+      "id": 19,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:49:28.109Z"
+    },
+    {
+      "id": 20,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:49:28.115Z"
+    },
+    {
+      "id": 21,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:49:33.107Z"
+    },
+    {
+      "id": 22,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:49:33.111Z"
+    },
+    {
+      "id": 23,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:53:03.781Z"
+    },
+    {
+      "id": 24,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:53:03.785Z"
+    },
+    {
+      "id": 25,
+      "iterationId": 1,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:57:12.412Z"
+    },
+    {
+      "id": 26,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> blocked",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "blocked",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:57:17.639Z"
+    },
+    {
+      "id": 27,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 blocked -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:57:19.799Z"
+    },
+    {
+      "id": 28,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> blocked",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "blocked",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:57:21.333Z"
+    },
+    {
+      "id": 29,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 blocked -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-15T13:57:22.049Z"
+    },
+    {
+      "id": 30,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:22.651Z"
+    },
+    {
+      "id": 31,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> blocked",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "blocked",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:23.065Z"
+    },
+    {
+      "id": 32,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 blocked -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:23.832Z"
+    },
+    {
+      "id": 33,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:24.208Z"
+    },
+    {
+      "id": 34,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> blocked",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "blocked",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:24.824Z"
+    },
+    {
+      "id": 35,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 blocked -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:25.465Z"
+    },
+    {
+      "id": 36,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:25.963Z"
+    },
+    {
+      "id": 37,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:27.042Z"
+    },
+    {
+      "id": 38,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:27.692Z"
+    },
+    {
+      "id": 39,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:28.330Z"
+    },
+    {
+      "id": 40,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:28.960Z"
+    },
+    {
+      "id": 41,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> review",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 10,
+      "createdAt": "2026-02-15T13:57:29.528Z"
+    },
+    {
+      "id": 42,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 review -> completed",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "completed",
+      "progress": 100,
+      "createdAt": "2026-02-15T13:57:57.294Z"
+    },
+    {
+      "id": 43,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 completed -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 100,
+      "createdAt": "2026-02-15T13:57:58.866Z"
+    },
+    {
+      "id": 44,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> completed",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "completed",
+      "progress": 100,
+      "createdAt": "2026-02-15T13:58:00.545Z"
+    },
+    {
+      "id": 45,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 completed -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 100,
+      "createdAt": "2026-02-15T13:58:06.371Z"
+    },
+    {
+      "id": 46,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> blocked",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "blocked",
+      "progress": 100,
+      "createdAt": "2026-02-15T13:58:08.838Z"
+    },
+    {
+      "id": 47,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 blocked -> in-progress",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 100,
+      "createdAt": "2026-02-16T01:43:18.094Z"
+    },
+    {
+      "id": 48,
+      "iterationId": 2,
+      "source": "state-transition",
+      "note": "状态迁移 in-progress -> blocked",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "blocked",
+      "progress": 100,
+      "createdAt": "2026-02-16T01:43:18.564Z"
     }
-  ]
+  ],
+  "transitions": [
+    {
+      "id": 1,
+      "iterationId": 1,
+      "fromStatus": "in-progress",
+      "toStatus": "review",
+      "note": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:12.412Z"
+    },
+    {
+      "id": 2,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "blocked",
+      "note": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:57:17.639Z"
+    },
+    {
+      "id": 3,
+      "iterationId": 2,
+      "fromStatus": "blocked",
+      "toStatus": "review",
+      "note": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:19.799Z"
+    },
+    {
+      "id": 4,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "blocked",
+      "note": "review -> blocked",
+      "createdAt": "2026-02-15T13:57:21.333Z"
+    },
+    {
+      "id": 5,
+      "iterationId": 2,
+      "fromStatus": "blocked",
+      "toStatus": "review",
+      "note": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:22.049Z"
+    },
+    {
+      "id": 6,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "in-progress",
+      "note": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:22.651Z"
+    },
+    {
+      "id": 7,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "blocked",
+      "note": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:57:23.065Z"
+    },
+    {
+      "id": 8,
+      "iterationId": 2,
+      "fromStatus": "blocked",
+      "toStatus": "review",
+      "note": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:23.832Z"
+    },
+    {
+      "id": 9,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "in-progress",
+      "note": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:24.208Z"
+    },
+    {
+      "id": 10,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "blocked",
+      "note": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:57:24.824Z"
+    },
+    {
+      "id": 11,
+      "iterationId": 2,
+      "fromStatus": "blocked",
+      "toStatus": "review",
+      "note": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:25.465Z"
+    },
+    {
+      "id": 12,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "in-progress",
+      "note": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:25.963Z"
+    },
+    {
+      "id": 13,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "review",
+      "note": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:27.042Z"
+    },
+    {
+      "id": 14,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "in-progress",
+      "note": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:27.692Z"
+    },
+    {
+      "id": 15,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "review",
+      "note": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:28.330Z"
+    },
+    {
+      "id": 16,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "in-progress",
+      "note": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:28.960Z"
+    },
+    {
+      "id": 17,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "review",
+      "note": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:29.528Z"
+    },
+    {
+      "id": 18,
+      "iterationId": 2,
+      "fromStatus": "review",
+      "toStatus": "completed",
+      "note": "review -> completed",
+      "createdAt": "2026-02-15T13:57:57.294Z"
+    },
+    {
+      "id": 19,
+      "iterationId": 2,
+      "fromStatus": "completed",
+      "toStatus": "in-progress",
+      "note": "completed -> in-progress",
+      "createdAt": "2026-02-15T13:57:58.866Z"
+    },
+    {
+      "id": 20,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "completed",
+      "note": "in-progress -> completed",
+      "createdAt": "2026-02-15T13:58:00.545Z"
+    },
+    {
+      "id": 21,
+      "iterationId": 2,
+      "fromStatus": "completed",
+      "toStatus": "in-progress",
+      "note": "completed -> in-progress",
+      "createdAt": "2026-02-15T13:58:06.371Z"
+    },
+    {
+      "id": 22,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "blocked",
+      "note": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:58:08.838Z"
+    },
+    {
+      "id": 23,
+      "iterationId": 2,
+      "fromStatus": "blocked",
+      "toStatus": "in-progress",
+      "note": "blocked -> in-progress",
+      "createdAt": "2026-02-16T01:43:18.094Z"
+    },
+    {
+      "id": 24,
+      "iterationId": 2,
+      "fromStatus": "in-progress",
+      "toStatus": "blocked",
+      "note": "in-progress -> blocked",
+      "createdAt": "2026-02-16T01:43:18.564Z"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": 1,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260215-210250.png",
+      "createdAt": "2026-02-15T13:53:03.776Z"
+    },
+    {
+      "id": 2,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:1",
+      "detail": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:12.414Z"
+    },
+    {
+      "id": 3,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:57:17.642Z"
+    },
+    {
+      "id": 4,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:19.802Z"
+    },
+    {
+      "id": 5,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> blocked",
+      "createdAt": "2026-02-15T13:57:21.335Z"
+    },
+    {
+      "id": 6,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:22.051Z"
+    },
+    {
+      "id": 7,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:22.654Z"
+    },
+    {
+      "id": 8,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:57:23.068Z"
+    },
+    {
+      "id": 9,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:23.835Z"
+    },
+    {
+      "id": 10,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:24.210Z"
+    },
+    {
+      "id": 11,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:57:24.826Z"
+    },
+    {
+      "id": 12,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "blocked -> review",
+      "createdAt": "2026-02-15T13:57:25.467Z"
+    },
+    {
+      "id": 13,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:25.965Z"
+    },
+    {
+      "id": 14,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:27.045Z"
+    },
+    {
+      "id": 15,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:27.695Z"
+    },
+    {
+      "id": 16,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:28.332Z"
+    },
+    {
+      "id": 17,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> in-progress",
+      "createdAt": "2026-02-15T13:57:28.962Z"
+    },
+    {
+      "id": 18,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> review",
+      "createdAt": "2026-02-15T13:57:29.530Z"
+    },
+    {
+      "id": 19,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "review -> completed",
+      "createdAt": "2026-02-15T13:57:57.297Z"
+    },
+    {
+      "id": 20,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "completed -> in-progress",
+      "createdAt": "2026-02-15T13:57:58.869Z"
+    },
+    {
+      "id": 21,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> completed",
+      "createdAt": "2026-02-15T13:58:00.548Z"
+    },
+    {
+      "id": 22,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "completed -> in-progress",
+      "createdAt": "2026-02-15T13:58:06.373Z"
+    },
+    {
+      "id": 23,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> blocked",
+      "createdAt": "2026-02-15T13:58:08.841Z"
+    },
+    {
+      "id": 24,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "blocked -> in-progress",
+      "createdAt": "2026-02-16T01:43:18.097Z"
+    },
+    {
+      "id": 25,
+      "actor": "system",
+      "action": "iteration_state_transitioned",
+      "resource": "iteration:2",
+      "detail": "in-progress -> blocked",
+      "createdAt": "2026-02-16T01:43:18.567Z"
+    }
+  ],
+  "versionSnapshots": [],
+  "projectShares": [],
+  "deployments": [],
+  "templateRuns": []
 }

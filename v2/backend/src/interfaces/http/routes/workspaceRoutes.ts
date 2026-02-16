@@ -133,17 +133,23 @@ export async function registerWorkspaceRoutes(app: FastifyInstance, service: Wor
       mimeType?: string;
       size?: number;
       excerpt?: string;
+      agentScope?: "attachment" | "iteration" | "full-cycle" | "release";
+      forceMultiAgent?: boolean;
+      autoTransition?: boolean;
     } | null;
     const fileName = body?.fileName?.trim();
     if (!fileName) {
       reply.code(400);
       return { message: "fileName is required" };
     }
-    const result = service.analyzeAttachment(iterationId, {
+    const result = await service.analyzeAttachment(iterationId, {
       fileName,
       mimeType: body?.mimeType?.trim() || "application/octet-stream",
       size: typeof body?.size === "number" && Number.isFinite(body.size) ? body.size : 0,
-      excerpt: body?.excerpt?.slice(0, 4000) || ""
+      excerpt: body?.excerpt?.slice(0, 4000) || "",
+      agentScope: body?.agentScope,
+      forceMultiAgent: Boolean(body?.forceMultiAgent),
+      autoTransition: Boolean(body?.autoTransition)
     });
     if (!result) {
       reply.code(404);

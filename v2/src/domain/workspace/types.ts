@@ -2,7 +2,6 @@ export type StatusPayload = {
   status: string;
   service: string;
 };
-
 export type Project = {
   id: number;
   name: string;
@@ -16,7 +15,6 @@ export type IterationScope = {
   outOfScope: string[];
   acceptanceCriteria: string[];
 };
-
 export type ContinuityMeta = {
   inheritedFromIterationId: number | null;
   inheritedSummary: string;
@@ -34,7 +32,6 @@ export type VersionAssessment = {
   pendingItems: string[];
   risks: string[];
 };
-
 export type IterationModule = {
   id: string;
   title: string;
@@ -60,20 +57,17 @@ export type Iteration = {
   continuity: ContinuityMeta;
   assessment: VersionAssessment;
 };
-
 export type IterationContextPayload = {
   iteration: Iteration | null;
   previous: Iteration | null;
   continuity: ContinuityMeta;
   scope: IterationScope;
 };
-
 export type AssessmentPayload = {
   iterationId: number;
   iterationName: string;
   assessment: VersionAssessment;
 };
-
 export type AssessmentSnapshot = {
   id: number;
   iterationId: number;
@@ -85,7 +79,6 @@ export type AssessmentSnapshot = {
   progress?: number;
   createdAt: string;
 };
-
 export type IterationTransition = {
   id: number;
   iterationId: number;
@@ -94,16 +87,13 @@ export type IterationTransition = {
   note: string;
   createdAt: string;
 };
-
 export type IterationStateMachinePayload = {
   iterationId: number;
   currentStatus: IterationStatus;
   allowedTransitions: IterationStatus[];
   transitionHistory: IterationTransition[];
 };
-
 export type ChatRole = "system" | "assistant" | "user";
-
 export type IterationMessage = {
   id: number;
   iterationId: number;
@@ -111,7 +101,6 @@ export type IterationMessage = {
   content: string;
   createdAt: string;
 };
-
 export type AttachmentAnalysisReport = {
   iterationId: number;
   iterationName: string;
@@ -124,17 +113,61 @@ export type AttachmentAnalysisReport = {
     changed: string[];
     removed: string[];
   };
+  diffLocations: Array<{
+    dimension: "goals" | "inScope" | "outOfScope" | "acceptanceCriteria";
+    changeType: "added" | "removed" | "changed";
+    currentItem: string;
+    baselineItem?: string;
+  }>;
+  cyclePhase: "scope-clarified" | "task-planning" | "build-in-progress" | "qa-review" | "ready-for-release";
+  agentPlan: IterationAgentPlan;
+  agentOutputs: IterationAgentOutput[];
+  lifecycleAction: IterationLifecycleAction;
   risks: string[];
   suggestions: string[];
 };
-
+export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
+export type IterationAgentPrompt = {
+  agentId: string;
+  role: "orchestrator" | "requirements-analyst" | "task-planner" | "delivery-engineer" | "qa-reviewer";
+  scope: AgentScope;
+  goal: string;
+  systemPrompt: string;
+  userPrompt: string;
+  expectedOutput: string;
+};
+export type IterationAgentPlan = {
+  strategy: "single-agent" | "multi-agent";
+  scope: AgentScope;
+  objective: string;
+  recommendedTransition: IterationStatus | null;
+  executionLoop: string[];
+  prompts: IterationAgentPrompt[];
+};
+export type IterationAgentOutput = {
+  agentId: string;
+  role: IterationAgentPrompt["role"];
+  status: "success" | "fallback" | "error";
+  content: string;
+  model?: string;
+  error?: string;
+};
+export type IterationLifecycleAction = {
+  attempted: boolean;
+  applied: boolean;
+  fromStatus: IterationStatus;
+  toStatus: IterationStatus | null;
+  note: string;
+};
 export type AttachmentUploadInput = {
   fileName: string;
   mimeType: string;
   size: number;
   excerpt: string;
+  agentScope?: AgentScope;
+  forceMultiAgent?: boolean;
+  autoTransition?: boolean;
 };
-
 export type ModelSummaryPayload = {
   stats?: {
     entities?: number;
@@ -144,7 +177,6 @@ export type ModelSummaryPayload = {
   };
   updatedAt?: string;
 };
-
 export type RuleCompilePayload = {
   compiledAt: string;
   ruleCount: number;
@@ -152,7 +184,6 @@ export type RuleCompilePayload = {
   invalidRules: number;
   warnings: string[];
 };
-
 export type RuleBindPayload = {
   generatedAt: string;
   bindings: Array<{
@@ -163,7 +194,6 @@ export type RuleBindPayload = {
     reason: string;
   }>;
 };
-
 export type SyncReportPayload = {
   generatedAt: string;
   coverageScore: number;
@@ -176,7 +206,6 @@ export type SyncReportPayload = {
   impacts: string[];
   risks: string[];
 };
-
 export type TracePayload = {
   generatedAt: string;
   items: Array<{
@@ -188,7 +217,6 @@ export type TracePayload = {
     intent: string;
   }>;
 };
-
 export type RoadmapPayload = {
   version: string;
   route: string;
@@ -209,7 +237,6 @@ export type RoadmapPayload = {
   };
   recommendation: string;
 };
-
 export type ModelRelationPayload = {
   id: string;
   fromEntityId: string;

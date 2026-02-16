@@ -105,15 +105,6 @@ def validate_context_bundle(context_bundle):
         return False, missing
     return True, []
 
-FRONTEND_BLOCK = """
-<!-- AUTOboot:BEGIN -->
-<section class="panel autoboot-notice">
-  <h2>自举系统已启用</h2>
-  <p class="muted">该页面由自举流水线可追溯生成与同步，支持自动验证与可回滚。</p>
-</section>
-<!-- AUTOboot:END -->
-""".strip()
-
 BACKEND_TEMPLATE = """
 // AUTOboot:BEGIN
 import Fastify from "fastify";
@@ -417,17 +408,10 @@ def insert_frontend_notice(path):
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    if "AUTOboot:BEGIN" in content and "AUTOboot:END" in content:
-        content = re.sub(
-            r"<!-- AUTOboot:BEGIN -->[\s\S]*?<!-- AUTOboot:END -->",
-            FRONTEND_BLOCK,
-            content,
-        )
-    else:
-        if "</body>" in content:
-            content = content.replace("</body>", FRONTEND_BLOCK + "\n</body>")
-        else:
-            content = content + "\n" + FRONTEND_BLOCK + "\n"
+    # Keep frontend shell clean: remove any legacy AUTOboot UI fragments from index.html.
+    content = re.sub(r"\s*<!-- AUTOboot:BEGIN -->[\s\S]*?<!-- AUTOboot:END -->\s*", "\n", content)
+    content = re.sub(r"\s*<!-- AUTOboot:FIELDS -->[\s\S]*?</section>\s*", "\n", content)
+    content = re.sub(r"\s*<!-- AUTOboot:PAGES -->[\s\S]*?</section>\s*", "\n", content)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -565,9 +549,13 @@ def verify(actions):
             for fpath in action["files"]:
                 with open(fpath, "r", encoding="utf-8") as f:
                     content = f.read()
-                present = "autoboot-notice" in content and "AUTOboot:BEGIN" in content
-                checks.append({"file": fpath, "check": "autoboot-notice", "ok": present})
-                ok = ok and present
+                shell_clean = (
+                    "AUTOboot:BEGIN" not in content
+                    and "AUTOboot:FIELDS" not in content
+                    and "AUTOboot:PAGES" not in content
+                )
+                checks.append({"file": fpath, "check": "frontend shell clean", "ok": shell_clean})
+                ok = ok and shell_clean
         elif action["type"] == "backend_add_status_endpoint":
             fpath = action["file"]
             fallback = os.path.join(
@@ -597,11 +585,13 @@ def verify(actions):
             checks.append({"file": fpath, "check": "doc section", "ok": present})
             ok = ok and present
         elif action["type"] == "add_pages":
-            app_path = os.path.join(ROOT, "v2", "index.html")
-            with open(app_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            present = "AUTOboot:PAGES" in content
-            checks.append({"file": app_path, "check": "pages block", "ok": present})
+            model_file = MODEL_FILE
+            with open(model_file, "r", encoding="utf-8") as f:
+                model = json.load(f)
+            pages = model.get("pages", []) if isinstance(model, dict) else []
+            expected_ids = [f"page_{slugify(item['name'])}" for item in action.get("pages", [])]
+            present = all(any(p.get("id") == page_id for p in pages) for page_id in expected_ids)
+            checks.append({"file": model_file, "check": "model pages", "ok": present})
             ok = ok and present
         elif action["type"] == "add_apis":
             model_file = MODEL_FILE
@@ -612,11 +602,19 @@ def verify(actions):
             checks.append({"file": model_file, "check": "model apis", "ok": present})
             ok = ok and present
         elif action["type"] == "add_fields":
-            app_path = os.path.join(ROOT, "v2", "index.html")
-            with open(app_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            present = "AUTOboot:FIELDS" in content
-            checks.append({"file": app_path, "check": "fields block", "ok": present})
+            model_file = MODEL_FILE
+            with open(model_file, "r", encoding="utf-8") as f:
+                model = json.load(f)
+            entities = model.get("entities", []) if isinstance(model, dict) else []
+            present = True
+            for item in action.get("fields", []):
+                entity_id = f"entity_{slugify(item['entity'])}"
+                field_id = f"field_{slugify(item['name'])}"
+                entity = next((e for e in entities if e.get("id") == entity_id), None)
+                if not entity or not any(field.get("id") == field_id for field in entity.get("fields", [])):
+                    present = False
+                    break
+            checks.append({"file": model_file, "check": "model fields", "ok": present})
             ok = ok and present
 
     return ok, checks
@@ -724,12 +722,10 @@ def apply_actions(actions, run_id, context_bundle=None):
         elif action["type"] == "docs_append_section":
             files_to_backup.append(action["file"])
         elif action["type"] == "add_pages":
-            files_to_backup.append(os.path.join(ROOT, "v2", "index.html"))
             files_to_backup.append(MODEL_FILE)
         elif action["type"] == "add_apis":
             files_to_backup.append(MODEL_FILE)
         elif action["type"] == "add_fields":
-            files_to_backup.append(os.path.join(ROOT, "v2", "index.html"))
             files_to_backup.append(MODEL_FILE)
 
     manifest = backup_files(run_dir, files_to_backup)
@@ -760,11 +756,8 @@ def apply_actions(actions, run_id, context_bundle=None):
                         "layout": "standard",
                         "components": []
                     })
-            # Single-system mode: do not create new legacy html pages, keep additive changes in one workspace.
-            ensure_legacy_page_list(os.path.join(ROOT, "v2", "index.html"), action["pages"])
             save_model(model)
             changed.append(MODEL_FILE)
-            changed.append(os.path.join(ROOT, "v2", "index.html"))
         elif action["type"] == "add_apis":
             model = load_model()
             for api in action["apis"]:
@@ -795,10 +788,8 @@ def apply_actions(actions, run_id, context_bundle=None):
                         "type": field["type"],
                         "required": field["required"]
                     })
-            ensure_legacy_field_list(os.path.join(ROOT, "v2", "index.html"), action["fields"])
             save_model(model)
             changed.append(MODEL_FILE)
-            changed.append(os.path.join(ROOT, "v2", "index.html"))
 
     run_data = {
         "run_id": run_id,

@@ -10,6 +10,9 @@ import model from "../model.json";
 
 export default function App() {
   const controller = useAppController();
+  const backendOffline =
+    controller.status?.status === "offline" ||
+    (controller.error ? controller.error.includes("后端服务不可用") : false);
 
   if (controller.route === "login" || !controller.isAuthenticated) {
     return (
@@ -46,6 +49,11 @@ export default function App() {
       />
 
       <main className={`board ${controller.activeView === "dashboard" ? "dashboard-mode" : "projects-mode"}`}>
+        {backendOffline ? (
+          <section className="backend-offline-banner" role="status" aria-live="polite">
+            后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run start`
+          </section>
+        ) : null}
         {controller.activeView === "dashboard" ? (
           <DashboardView
             projects={controller.projects}
