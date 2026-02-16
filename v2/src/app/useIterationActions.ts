@@ -84,7 +84,11 @@ export function useIterationActions({
     setUploadedFile({ name: file.name, iterationId: currentIteration.id });
     try {
       setIsAnalyzingAttachment(true);
-      const report = await analyzeIterationAttachment(currentIteration.id, file);
+      const report = await analyzeIterationAttachment(currentIteration.id, file, {
+        agentScope: "full-cycle",
+        forceMultiAgent: true,
+        autoTransition: false
+      });
       setAnalysisReport(report);
       setShowAnalysisPanel(false);
       await createMessage(currentIteration.id, "system", `已上传附件：${file.name}`);

@@ -80,8 +80,56 @@ export type AttachmentAnalysisReport = {
     changed: string[];
     removed: string[];
   };
+  diffLocations: Array<{
+    dimension: "goals" | "inScope" | "outOfScope" | "acceptanceCriteria";
+    changeType: "added" | "removed" | "changed";
+    currentItem: string;
+    baselineItem?: string;
+  }>;
+  cyclePhase: "scope-clarified" | "task-planning" | "build-in-progress" | "qa-review" | "ready-for-release";
+  agentPlan: IterationAgentPlan;
+  agentOutputs: IterationAgentOutput[];
+  lifecycleAction: IterationLifecycleAction;
   risks: string[];
   suggestions: string[];
+};
+
+export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
+
+export type IterationAgentPrompt = {
+  agentId: string;
+  role: "orchestrator" | "requirements-analyst" | "task-planner" | "delivery-engineer" | "qa-reviewer";
+  scope: AgentScope;
+  goal: string;
+  systemPrompt: string;
+  userPrompt: string;
+  expectedOutput: string;
+};
+
+export type IterationAgentPlan = {
+  strategy: "single-agent" | "multi-agent";
+  scope: AgentScope;
+  objective: string;
+  recommendedTransition: IterationStatus | null;
+  executionLoop: string[];
+  prompts: IterationAgentPrompt[];
+};
+
+export type IterationAgentOutput = {
+  agentId: string;
+  role: IterationAgentPrompt["role"];
+  status: "success" | "fallback" | "error";
+  content: string;
+  model?: string;
+  error?: string;
+};
+
+export type IterationLifecycleAction = {
+  attempted: boolean;
+  applied: boolean;
+  fromStatus: IterationStatus;
+  toStatus: IterationStatus | null;
+  note: string;
 };
 
 export type AttachmentUploadInput = {
@@ -89,6 +137,9 @@ export type AttachmentUploadInput = {
   mimeType: string;
   size: number;
   excerpt: string;
+  agentScope?: AgentScope;
+  forceMultiAgent?: boolean;
+  autoTransition?: boolean;
 };
 
 export type AssessmentSnapshot = {

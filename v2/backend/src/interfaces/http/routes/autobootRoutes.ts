@@ -141,6 +141,12 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     });
   }
 
+  app.get("/api/roadmaps", async () => {
+    return roadmapPaths
+      .map((path) => service.describeRoadmap(path))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  });
+
   const apis: ModelApi[] = service.listRoutes();
   const reserved = new Set([
     "/api/model",

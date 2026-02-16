@@ -1,0 +1,110 @@
+{
+  "title": "迭代候选：V0.3 规则编译 MVP",
+  "created_at": "2026-02-15T09:53:13.358196Z",
+  "actions": [
+    {
+      "type": "frontend_add_notice",
+      "files": [
+        "/Users/zqs/Downloads/project/BuildWise/v2/index.html"
+      ]
+    },
+    {
+      "type": "backend_add_status_endpoint",
+      "file": "/Users/zqs/Downloads/project/BuildWise/v2/backend/src/interfaces/http/routes/systemRoutes.ts",
+      "readme": "/Users/zqs/Downloads/project/BuildWise/v2/backend/README.md"
+    },
+    {
+      "type": "docs_append_section",
+      "file": "/Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md"
+    },
+    {
+      "type": "add_apis",
+      "apis": [
+        {
+          "method": "GET",
+          "path": "/api/roadmap-v0-3"
+        }
+      ]
+    },
+    {
+      "type": "add_fields",
+      "fields": [
+        {
+          "entity": "Iteration03",
+          "name": "status",
+          "type": "string",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "context": {
+    "context_id": "context-20260215-095313-358162",
+    "files": [
+      {
+        "path": "docs/10-产品顶层设计（执行版）.md",
+        "exists": true,
+        "required": true,
+        "summary": "业务目标、非目标与能力边界",
+        "chars": 303
+      },
+      {
+        "path": "docs/20-技术架构设计（执行版）.md",
+        "exists": true,
+        "required": true,
+        "summary": "DDD 分层、模块边界、技术选型",
+        "chars": 522
+      },
+      {
+        "path": "docs/20-DDD分层与边界规范.md",
+        "exists": true,
+        "required": true,
+        "summary": "工程边界守卫与文件行数约束",
+        "chars": 1163
+      },
+      {
+        "path": "docs/30-版本目标迭代计划.md",
+        "exists": true,
+        "required": true,
+        "summary": "阶段里程碑、验收标准",
+        "chars": 1961
+      },
+      {
+        "path": "docs/30-目标驱动自举执行蓝图.md",
+        "exists": true,
+        "required": true,
+        "summary": "北极星目标、阶段拆解、自举执行口径",
+        "chars": 1657
+      },
+      {
+        "path": "docs/31-里程碑模板.md",
+        "exists": true,
+        "required": false,
+        "summary": "阶段里程碑标准模板",
+        "chars": 273
+      },
+      {
+        "path": "docs/40-工程执行标准（技术栈与模式）.md",
+        "exists": true,
+        "required": true,
+        "summary": "编码标准、测试标准、交付门禁",
+        "chars": 930
+      },
+      {
+        "path": "docs/42-研发治理规范（DDD-TDD-质量门禁）.md",
+        "exists": true,
+        "required": true,
+        "summary": "默认 DDD、可替代策略、TDD 基线、质量门禁",
+        "chars": 1191
+      },
+      {
+        "path": "docs/43-任务执行上下文读取协议.md",
+        "exists": true,
+        "required": true,
+        "summary": "任务执行前必读顺序与固定流程",
+        "chars": 621
+      }
+    ],
+    "merged_text": "## docs/10-产品顶层设计（执行版）.md\n\n# 产品顶层设计（执行版）\n\n## 产品目标\n\n- 构建“业务意图编译器”，让业务目标可直接转化为可运行软件资产。\n- 以统一项目模型作为唯一事实来源，驱动前后端、规则、文档协同演进。\n\n## 非目标\n\n- 不追求一次性大而全平台覆盖。\n- 不在单次迭代内引入与目标无关的技术重构。\n\n## 核心能力边界\n\n- 多源输入（文本/草图/设计）统一进入模型层。\n- 模型驱动的页面、接口、字段与规则同步。\n- 迭代评估、快照恢复、追溯链路能力可验证。\n\n## 质量目标\n\n- 每次变更必须可运行、可验证、可回滚。\n- 每次迭代必须有明确验收标准与风险记录。\n- 每次自动执行必须携带标准上下文，防止任务漂移。\n\n\n## docs/20-技术架构设计（执行版）.md\n\n# 技术架构设计（执行版）\n\n## 架构原则\n\n- 采用 DDD 分层：`domain -> application -> infrastructure -> interfaces`。\n- 入口层只做依赖装配，不承载业务规则。\n- 前端按 `domain/infrastructure/shared/presentation` 分层组织。\n\n## 后端上下文\n\n- 当前核心域：`workspace`（项目、迭代、消息、评估、快照）。\n- 领域层定义类型与仓储接口。\n- 应用层编排用例流程（创建迭代、评估重算、快照恢复）。\n- 基础设施层负责 JSON 持久化与外部适配。\n- 接口层负责 HTTP 路由与请求响应模型。\n\n## 前端上下文\n\n- 领域类型统一放入 `src/domain`。\n- HTTP 客户端与网关逻辑统一放入 `src/infrastructure`。\n- 通用工具放入 `src/shared`。\n- 容器组件负责编排，不重复定义领域模型。\n\n## 扩展策略\n\n- 新增业务能力时先落领域类型与用例，再暴露接口。\n- 自动生成接口需隔离在专用路由模块，避免污染核心域路由。\n- 所有模块必须满足边界守卫与行数阈值。\n\n\n## docs/20-DDD分层与边界规范.md\n\n# DDD 分层与边界规范\n\n## 目标\n\n- 以领域模型为中心组织代码，避免前后端继续演化为单文件巨石。\n- 通过“行数限制 + 分层依赖约束”保证长期可维护性。\n\n## 后端分层（`v2/backend/src`）\n\n- `domain/`：领域对象与仓储接口，只表达业务概念与规则。\n- `application/`：用例编排（服务层），不直接依赖 HTTP 或 UI。\n- `infrastructure/`：文件存储、外部系统适配。\n- `interfaces/`：HTTP 路由与请求响应适配。\n- `index.ts`：依赖装配与启动入口，不放业务逻辑。\n\n## 前端分层（`v2/src`）\n\n- `domain/`：前端领域类型与核心概念。\n- `infrastructure/`：HTTP 客户端、外部 API 访问。\n- `shared/`：纯工具函数（无业务语义）。\n- `App.tsx`：页面编排容器，禁止继续堆叠领域定义与基础设施细节。\n\n## 依赖规则\n\n- 后端 `domain` 不得依赖 `application/infrastructure/interfaces`。\n- 后端 `application` 不得依赖 `interfaces`。\n- 前端 `domain` 不得依赖 `infrastructure`。\n\n## 行数限制（执行守卫）\n\n守卫脚本：`v2/scripts/check-boundaries.mjs`\n\n- `v2/src/domain/**` <= 220 行\n- `v2/src/infrastructure/**` <= 220 行\n- `v2/src/shared/**` <= 180 行\n- `v2/src/App.tsx` <= 900 行（过渡阈值，后续逐步压缩）\n- `v2/backend/src/domain/**` <= 220 行\n- `v2/backend/src/application/**` <= 320 行\n- `v2/backend/src/infrastructure/**` <= 360 行\n- `v2/backend/src/interfaces/**` <= 280 行\n- `v2/backend/src/index.ts` <= 140 行\n\n## 执行命令\n\n```bash\ncd /Users/zqs/Downloads/project/BuildWise/v2\nnpm run check:boundaries\n```\n\n```bash\ncd /Users/zqs/Downloads/project/BuildWise/v2/backend\nnpm run check:boundaries\n```\n\n\n## docs/30-版本目标迭代计划.md\n\n# 版本目标迭代计划（可执行）\n\n目标：以“业务意图编译器 + 统一项目模型 + 智能同步 + 平台生态”为主线，每个版本只围绕目标落地前后端功能与交互能力。\n\n> 执行优先级说明：本文件是版本维度计划，阶段执行口径以 `30-目标驱动自举执行蓝图.md` 为主。  \n> 自举循环必须先判断阶段目标与退出条件，再选择本文件中的版本任务。\n\n## 执行总则\n\n- 每个版本必须包含：前端功能升级 + 后端接口实现 + 数据存储与校验\n- 每个版本必须可运行、可交互、可验收\n- 每个版本以迭代目标为唯一考量点，不引入无关功能\n- 每个迭代版本内，通过类似 IM 的交互形态以自然语言进行沟通与指令下达\n- 大模型对指令进行分析并驱动任务拆解与执行\n- 执行结果需同步更新预览区域，保证“所见即所得”\n\n## 版本计划（12 轮）\n\n1. 版本 V0.1 统一模型最小闭环\n- 目标：实体/字段/规则/页面最小结构可创建与展示\n- 前端：模型编辑器基础布局、实体字段列表\n- 后端：模型 CRUD API\n- 验收：新增实体/字段后可在页面显示\n\n2. 版本 V0.2 多源输入对齐\n- 目标：Figma/草图/文本输入占位与确认流程\n- 前端：上传区、解析状态、确认面板\n- 后端：上传与解析记录 API\n- 验收：上传后生成解析记录并展示\n\n3. 版本 V0.3 规则编译 MVP\n- 目标：自然语言规则转结构化规则\n- 前端：规则输入、编译预览、绑定字段\n- 后端：规则编译与绑定 API\n- 验收：规则可绑定字段并显示状态\n\n4. 版本 V0.4 同步引擎 MVP\n- 目标：变更检测与同步报告可视化\n- 前端：差异列表、影响范围、同步报告\n- 后端：diff 计算与报告 API\n- 验收：变更后报告可生成\n\n5. 版本 V0.5 追溯链路\n- 目标：模型节点 ↔ 代码片段双向追溯\n- 前端：追溯中心、代码映射视图\n- 后端：trace 记录 API\n- 验收：点击模型定位代码标识\n\n6. 版本 V0.6 多实体关联\n- 目标：一对多/多对多关系建模\n- 前端：关系视图、关联选择器\n- 后端：关系定义 API\n- 验收：关联定义可保存并显示\n\n7. 版本 V0.7 状态机与流程\n- 目标：状态流转与工作流编排\n- 前端：状态图、流程步骤面板\n- 后端：状态机 API\n- 验收：状态流转可配置\n\n8. 版本 V0.8 权限与治理\n- 目标：角色、权限、审计日志\n- 前端：权限配置、审计列表\n- 后端：权限与审计 API\n- 验收：角色与权限可配置\n\n9. 版本 V0.9 协作与版本\n- 目标：项目共享、版本快照、回滚\n- 前端：协作成员、版本历史\n- 后端：版本快照 API\n- 验收：版本可回滚\n\n10. 版本 V1.0 模板与智能体\n- 目标：模板市场、智能体执行框架\n- 前端：模板与智能体列表\n- 后端：模板/智能体 API\n- 验收：模板可选择并应用\n\n11. 版本 V1.1 开放平台\n- 目标：开放 API 与集成中心\n- 前端：开放平台设置\n- 后端：平台接入 API\n- 验收：集成条目可配置\n\n12. 版本 V1.2 交付与运维\n- 目标：部署管理与可观测性\n- 前端：部署与监控面板\n- 后端：部署与监控 API\n- 验收：部署记录可展示\n\n## 自举循环可执行流程\n\n- 定义版本目标（一次只做一个目标）\n- 后端新增对应 API 与数据结构\n- 前端新增对应页面模块与交互\n- 运行验证与回滚\n- 进入下一版本\n\n## 运行说明（无上下文也可执行）\n\n1. 启动后端\n```bash\ncd /Users/zqs/Downloads/project/BuildWise/v2/backend\nnpm install\nnpm run dev\n```\n\n2. 打开前端\n```bash\ncd /Users/zqs/Downloads/project/BuildWise/v2\nnpm run dev\n```\n\n3. 创建项目与迭代\n- 点击“新建项目”\n- 点击“新增迭代”，填写迭代目标（每行一个）\n\n4. 验证\n- 迭代列表出现新版本\n- 预览区显示该版本模块\n\n5. 回滚\n```bash\npython3 /Users/zqs/Downloads/project/BuildWise/autoboot/pipeline.py rollback\n```\n\n### 自举系统（自动生成）\n\n- 该章节由 AutoBoot 流水线写入，用于验证文档可追溯更新能力。\n- 自举闭环：需求 → 自动修改 → 自动验证 → 可回滚。\n- 当前演示：前端提示、后端状态接口、文档同步写入。\n\n\n## docs/30-目标驱动自举执行蓝图.md\n\n# 目标驱动自举执行蓝图（主执行口径）\n\n## 1. 北极星目标（唯一）\n\n将**非技术创造者的业务意图**，以可控、低损耗、可持续迭代的方式，编译为**可维护、可演进的软件资产**。\n\n判定标准（目标层）：\n- 业务意图到可运行系统的首轮交付周期显著缩短（周/月 -> 天/小时）\n- 需求变更后可稳定同步，不依赖人工全量返工\n- 产出是可维护资产（而非一次性黑盒）\n\n## 2. 自举循环的角色定位\n\n自举循环是**执行机制**，不是目标本身。\n\n- 目标负责“做什么”\n- 自举循环负责“如何稳定做到”\n\n统一循环：`Goal -> Plan -> Apply -> Verify -> Report -> Next`\n\n## 3. 阶段拆解（目标导向）\n\n### 阶段 S1：最小可用编译闭环（当前必须完成）\n目标：证明“意图 -> 模型 -> 代码/界面”闭环成立。\n\n任务包：\n- 统一项目模型最小结构稳定（实体/字段/规则/页面）\n- 模型中台可见（规则编译、同步评分、追溯预览）\n- 项目/迭代/评估/快照主链路可运行\n- 核心契约测试覆盖成功与失败路径\n\n退出条件：\n- 前后端 `build/typecheck/boundaries/contract` 全绿\n- `autoboot pipeline verify` 全绿\n- 前端存在可见业务能力，不是纯占位\n\n### 阶段 S2：稳定同步与低损耗变更\n目标：需求变更可精准影响分析与增量同步。\n\n任务包：\n- 规则编译与绑定升级为可解释结果（含失败原因）\n- 同步报告引入“影响范围+风险项”\n- 追溯链路支持模型节点到代码定位\n- 变更回归测试（快照回放）\n\n退出条件：\n- 同步场景失败可回滚\n- 关键链路有自动化回归样例集\n\n### 阶段 S3：复杂业务可表达\n目标：支持真实业务复杂度而非仅 CRUD。\n\n任务包：\n- 关系建模（1:N / N:N）\n- 状态机与流程规则\n- 权限与治理基础\n- 多角色协作最小闭环\n\n退出条件：\n- 至少 1 个真实业务场景全流程跑通\n- 复杂规则改动不破坏基础闭环\n\n### 阶段 S4：产品化与投产运营\n目标：从工程可用变成产品可运营。\n\n任务包：\n- 发布/部署/可观测最小体系\n- 运行手册、故障恢复、回滚演练\n- 指标体系（交付时效、失败率、修复时长）\n- 版本节奏与里程碑制度化\n\n退出条件：\n- 可重复部署、可重复验收、可重复回滚\n\n## 4. 每阶段任务拆解模板\n\n每次自循环任务必须按以下 6 项生成：\n\n1. 目标：本轮只对齐一个阶段子目标\n2. 变更：前端/后端/模型/文档具体改动\n3. 验证：命令级门禁列表（必须可执行）\n4. 风险：本轮引入或暴露的风险\n5. 回滚：失败时回滚路径与触发条件\n6. 报告：阶段产物路径（PRD/TECH/Review）\n\n## 5. 非目标清单（执行约束）\n\n以下内容在 S1-S2 期间默认禁止：\n- 平台生态化功能（模板商店、开放市场、企业经营分析）\n- 与核心闭环无关的页面扩张\n- 无验收价值的接口堆叠与占位实体堆叠\n- 大规模技术重构且无直接目标收益\n\n## 6. 当前阶段判定（截至本次）\n\n当前判定：**S1 完成度高，S2 已启动**。\n\n依据：\n- 已有模型中台可见能力与主链路接口\n- 已有契约测试与门禁体系\n- 已完成一轮“非目标功能收敛”\n\n下一轮只允许进入 S2 任务池，不得回到无目标扩张。\n\n## 7. 自循环执行指令（标准）\n\n每轮执行前：\n- 读取本文件 + 10/20/40 执行版文档 + context manifest\n\n每轮执行后：\n- 产出 `docs/milestones/review-*.md`\n- 更新 `autoboot/state.json` 中 `latest_milestone_review`\n- 若未达到阶段退出条件：继续下一轮；达到则阶段自动停止并切换下一阶段任务池\n\n\n## docs/31-里程碑模板.md\n\n# 里程碑模板\n\n## 基本信息\n\n- 里程碑名称：\n- 版本阶段：\n- 负责人：\n- 起止时间：\n\n## 业务目标\n\n- 本阶段要解决的业务问题：\n- 量化目标（最多 3 项）：\n\n## 范围定义\n\n- In Scope：\n- Out of Scope：\n\n## 技术交付\n\n- 前端交付：\n- 后端交付：\n- 数据与模型交付：\n\n## 验收标准\n\n- 功能验收：\n- 质量验收（构建/测试/边界守卫）：\n- 回滚验证：\n\n## 风险与应对\n\n- 风险 1：\n- 风险 2：\n\n## 结果复盘\n\n- 达成项：\n- 偏差项：\n- 下一阶段输入：\n\n\n## docs/40-工程执行标准（技术栈与模式）.md\n\n# 工程执行标准（技术栈与模式）\n\n## 技术栈标准\n\n- 前端：`React + TypeScript + Vite`\n- 后端：`Fastify + TypeScript`\n- 存储：阶段内默认 `JSON Repository`，后续可切换 DB Adapter\n- 自动化：`autoboot/pipeline.py`\n\n## 设计模式标准\n\n- 后端：DDD 分层 + Repository + Application Service\n- 前端：Container/Presenter 分离（逐步推进）\n- 禁止把领域规则直接写进 HTTP 路由和 UI 样式文件\n- 默认采用“单系统叠加”交付模式：新能力叠加到统一工作台，不新增 `legacy/*.html` 页面文件\n\n## 代码质量标准\n\n- 所有新增功能必须有边界守卫通过：\n  - `npm run check:boundaries`（前端）\n  - `npm run check:boundaries`（后端）\n- 所有提交前必须构建通过：\n  - `npm run build`（前端）\n  - `npm run build`（后端）\n- 行数控制必须执行：\n  - `v2/src/App.tsx`、`v2/src/styles/app.css`、`v2/src/pages/**`、`v2/backend/src/**`、`docs/**` 统一受守卫约束\n  - 超过阈值必须拆分，不允许“临时放开阈值”替代重构\n\n## 文档沉淀标准\n\n- 每个里程碑必须沉淀：\n  - 目标与范围\n  - 验收结果\n  - 风险与回滚记录\n- 每个关键技术决策必须有 ADR（可追溯到版本与代码路径）。\n- 文档边界必须清晰：\n  - 单文档单主题\n  - 单文档默认不超过 220 行\n  - 跨主题内容必须拆分到新文档并在 `docs/README.md` 建立索引\n\n## 自动执行上下文标准\n\n- 每次 `plan/run/autoloop` 必须注入统一上下文：\n  - 产品顶层设计\n  - 技术架构设计\n  - DDD 边界规范\n  - 版本里程碑计划\n  - 工程执行标准\n\n\n## docs/42-研发治理规范（DDD-TDD-质量门禁）.md\n\n# 研发治理规范（DDD / TDD / 质量门禁）\n\n## 目的\n\n- 为后续迭代建立统一且可执行的研发规范，防止质量随迭代下降。\n- 约束“需求 -> 设计 -> 开发 -> 验证 -> 文档沉淀”全过程。\n\n## 适用范围\n\n- 前端：`v2/src/**`\n- 后端：`v2/backend/src/**`\n- 规范文档：`docs/**`\n\n## 架构策略（默认 DDD，允许有条件替代）\n\n1. 默认策略：DDD 分层 + 模块边界守卫。\n2. 允许替代：当模块业务复杂度低、生命周期短、协作人数少时，可采用“Feature Slice（按功能切片）”。\n3. 替代前提：\n- 必须在 ADR 记录选择原因、风险和退出条件。\n- 不得破坏现有分层依赖规则和边界守卫。\n- 必须保留可回滚路径。\n\n## DDD 执行基线\n\n1. 领域层只表达业务语义与规则，不依赖 HTTP/UI/存储实现。\n2. 应用层只做用例编排，不承载协议细节。\n3. 基础设施层只做适配，不写业务决策。\n4. 接口层只做请求响应转换，不写领域规则。\n\n## TDD 执行基线\n\n1. 每个新增功能先写失败测试（至少一个主路径、一个失败路径）。\n2. 测试失败后再写最小实现，确保测试转绿。\n3. 转绿后再重构，重构不得改变测试语义。\n4. 新增接口必须有契约测试覆盖核心状态码和错误分支。\n\n## 质量门禁（提交前必须全绿）\n\n1. 前端：`npm run check:boundaries && npm run typecheck && npm run build`\n2. 后端：`npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract`\n3. 文档：单文档单主题、单文件默认不超过 220 行。\n\n## 文件规模控制策略\n\n1. 超过阈值时必须拆分，不允许以“临时放宽阈值”替代重构。\n2. 拆分优先级：\n- 先拆动作（actions）\n- 再拆加载器（loaders）\n- 再拆派生计算（derived）\n- 最后拆状态（state）\n\n## 里程碑沉淀要求\n\n1. 每次迭代必须更新 `docs/milestones/review-*.md`。\n2. 每次关键架构调整必须新增 ADR。\n3. 每次异常回滚必须记录触发条件、影响范围、恢复结果。\n\n## 执行检查清单（DoD）\n\n- [ ] 边界守卫通过\n- [ ] 类型检查通过\n- [ ] 构建通过\n- [ ] 契约测试通过\n- [ ] 文档已更新\n- [ ] 回滚路径已验证\n\n\n## docs/43-任务执行上下文读取协议.md\n\n# 任务执行上下文读取协议\n\n## 目标\n\n- 确保每次执行任务前先读取关键上下文，避免“脱离规范开发”。\n- 确保不同执行者输出质量一致、边界一致。\n\n## 强制读取顺序（不可跳过）\n\n1. `docs/10-产品顶层设计（执行版）.md`\n2. `docs/20-技术架构设计（执行版）.md`\n3. `docs/20-DDD分层与边界规范.md`\n4. `docs/40-工程执行标准（技术栈与模式）.md`\n5. `docs/42-研发治理规范（DDD-TDD-质量门禁）.md`\n6. `docs/30-目标驱动自举执行蓝图.md`\n\n## 执行流程（每次任务固定）\n\n1. 读取上下文并输出“边界理解摘要”。\n2. 定义本次目标、非目标、验证命令。\n3. 先写/补测试（TDD），再实现最小改动。\n4. 运行门禁并修复失败项。\n5. 更新里程碑或 ADR。\n\n## 输出格式要求\n\n1. 先给“结果摘要”，再给“改动清单”，最后给“验证结果”。\n2. 文件引用必须给到明确路径。\n3. 若存在风险或未完成项，必须显式说明。\n\n## 失败处理\n\n1. 任一门禁失败，禁止宣告完成。\n2. 不能在本轮修复时，必须给出可执行回滚方案与后续计划。\n3. 禁止静默跳过测试或守卫命令。\n\n## 变更范围控制\n\n1. 一次任务只处理一个主目标。\n2. 无关代码不混改，防止隐性回归。\n3. 若发现系统性问题，先沉淀 ADR，再开新任务处理。"
+  }
+}

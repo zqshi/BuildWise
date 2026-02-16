@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { ModelingService } from "./application/modeling/modelingService";
 import { PlatformService } from "./application/platform/platformService";
+import { createAgentRunnerFromEnv } from "./application/workspace/agentRunner";
 import { WorkspaceService } from "./application/workspace/workspaceService";
 import { JsonModelRepository } from "./infrastructure/persistence/jsonModelRepository";
 import { JsonWorkspaceRepository } from "./infrastructure/persistence/jsonWorkspaceRepository";
@@ -25,9 +26,10 @@ async function bootstrap() {
   const appRoot = join(backendRoot, "..");
   const dataFile = env.WORKSPACE_DATA_FILE || join(backendRoot, "data.json");
   const modelFile = env.MODEL_FILE || join(appRoot, "model.json");
+  const agentRunner = createAgentRunnerFromEnv(env);
 
   const workspaceRepo = new JsonWorkspaceRepository(dataFile);
-  const workspaceService = new WorkspaceService(workspaceRepo);
+  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner);
   const modelRepo = new JsonModelRepository(modelFile);
   const modelService = new ModelingService(modelRepo, workspaceRepo);
   const platformService = new PlatformService(workspaceRepo, modelRepo);

@@ -6,12 +6,18 @@ import type {
   AssessmentSnapshot,
   GovernanceRole,
   Iteration,
+  IterationAgentOutput,
   IterationContextPayload,
   IterationStatus,
   VersionAssessment
 } from "../../domain/workspace/types";
+import type { AgentRunner } from "./agentRunner";
 import {
+  buildDiffLocations,
+  buildIterationAgentPlan,
+  buildMergedIterationPayload,
   inferRisksFromExcerpt,
+  inferCyclePhase,
   normalizeIteration,
   recomputeAssessment,
   statusTransitions,
@@ -19,8 +25,10 @@ import {
 } from "./workspaceSupport";
 
 export class WorkspaceService {
-  constructor(private readonly repo: WorkspaceRepository) {}
-
+  constructor(
+    private readonly repo: WorkspaceRepository,
+    private readonly agentRunner: AgentRunner | null = null
+  ) {}
   listGovernanceRoles(): GovernanceRole[] {
     return [
       { id: "owner", name: "系统负责人", permissions: ["workspace:*", "model:*", "governance:*"] },
@@ -34,7 +42,6 @@ export class WorkspaceService {
   listAuditLogs(limit = 50) {
     return this.repo.listAuditLogs(limit);
   }
-
   private writeAuditLog(action: string, resource: string, detail: string) {
     const data = this.repo.read();
     this.repo.appendAuditLog({
@@ -50,7 +57,6 @@ export class WorkspaceService {
   hasProject(projectId: number) {
     return this.repo.findProject(projectId) !== null;
   }
-
   listProjects() {
     return this.repo.listProjects();
   }
@@ -58,7 +64,6 @@ export class WorkspaceService {
   createProject(input: { name: string; description: string }) {
     return this.repo.createProject(input);
   }
-
   listIterations(projectId: number) {
     if (!this.hasProject(projectId)) {
       return null;
@@ -70,7 +75,13 @@ export class WorkspaceService {
     if (!this.hasProject(projectId)) {
       return null;
     }
-    const created = this.repo.createIteration(projectId, payload);
+    const project = this.repo.findProject(projectId);
+    const previous = this.repo
+      .listIterations(projectId)
+      .sort((a, b) => b.id - a.id)
+      .map(normalizeIteration)[0] ?? null;
+    const mergedPayload = buildMergedIterationPayload(payload, project, previous);
+    const created = this.repo.createIteration(projectId, mergedPayload);
     const normalized = normalizeIteration(created);
     const snapshot: AssessmentSnapshot = {
       id: this.repo.nextId(this.repo.read().snapshots),
@@ -86,11 +97,9 @@ export class WorkspaceService {
     this.repo.appendSnapshot(snapshot);
     return normalized;
   }
-
   listMessages(iterationId: number) {
     return this.repo.listMessages(iterationId);
   }
-
   createMessage(iterationId: number, role: "system" | "assistant" | "user", content: string) {
     const created = this.repo.createMessage(iterationId, role, content);
     const iteration = this.repo.findIteration(iterationId);
@@ -138,11 +147,9 @@ export class WorkspaceService {
       assessment: normalized.assessment
     };
   }
-
   listAssessmentSnapshots(iterationId: number) {
     return this.repo.listSnapshots(iterationId);
   }
-
   getStateMachine(iterationId: number) {
     const iteration = this.repo.findIteration(iterationId);
     if (!iteration) {
@@ -158,11 +165,8 @@ export class WorkspaceService {
     };
   }
 
-  transitionIteration(
-    iterationId: number,
-    toStatus: IterationStatus,
-    note = ""
-  ): { ok: true; data: { iterationId: number; fromStatus: IterationStatus; toStatus: IterationStatus } } | { ok: false; reason: string } {
+  transitionIteration(iterationId: number, toStatus: IterationStatus, note = ""):
+    { ok: true; data: { iterationId: number; fromStatus: IterationStatus; toStatus: IterationStatus } } | { ok: false; reason: string } {
     const iteration = this.repo.findIteration(iterationId);
     if (!iteration) {
       return { ok: false, reason: "iteration_not_found" };
@@ -270,7 +274,7 @@ export class WorkspaceService {
     };
   }
 
-  analyzeAttachment(iterationId: number, input: AttachmentUploadInput): AttachmentAnalysisReport | null {
+  async analyzeAttachment(iterationId: number, input: AttachmentUploadInput): Promise<AttachmentAnalysisReport | null> {
     const iteration = this.repo.findIteration(iterationId);
     if (!iteration) {
       return null;
@@ -281,8 +285,40 @@ export class WorkspaceService {
     const currentScope = normalized.scope.inScope;
     const added = currentScope.filter((item) => !previousScope.includes(item));
     const removed = previousScope.filter((item) => !currentScope.includes(item));
-    const changed = normalized.assessment.deltaInScope.filter((item) => item.startsWith("+") || item.startsWith("-"));
+    const diffLocations = buildDiffLocations(previous ? normalizeIteration(previous) : null, normalized);
+    const changed = diffLocations
+      .filter((item) => item.changeType === "changed")
+      .map((item) => `${item.dimension}: ${item.currentItem}`);
     const inferredRisks = inferRisksFromExcerpt(input.excerpt);
+    const normalizedRisks =
+      normalized.assessment.risks.length > 0
+        ? normalized.assessment.risks
+        : inferredRisks.length > 0
+          ? inferredRisks
+          : ["暂无显式风险，请结合业务验收继续确认。"];
+    const agentPlan = buildIterationAgentPlan({
+      iteration: normalized,
+      previous: previous ? normalizeIteration(previous) : null,
+      scope: input.agentScope ?? "full-cycle",
+      diffLocations,
+      risks: normalizedRisks,
+      fileName: input.fileName,
+      forceMultiAgent: input.forceMultiAgent
+    });
+    const agentOutputs = await this.executeAgentPlan(agentPlan.prompts);
+    const lifecycleAction = {
+      attempted: false,
+      applied: false,
+      fromStatus: normalized.status,
+      toStatus: agentPlan.recommendedTransition,
+      note: "未执行自动流转"
+    } as const;
+    const finalLifecycleAction = this.applyLifecycleTransition(
+      iterationId,
+      normalized.status,
+      agentPlan.recommendedTransition,
+      input.autoTransition === true
+    ) ?? lifecycleAction;
     this.writeAuditLog("attachment_analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
 
     return {
@@ -300,17 +336,96 @@ export class WorkspaceService {
         changed,
         removed
       },
-      risks:
-        normalized.assessment.risks.length > 0
-          ? normalized.assessment.risks
-          : inferredRisks.length > 0
-            ? inferredRisks
-            : ["暂无显式风险，请结合业务验收继续确认。"],
+      diffLocations,
+      cyclePhase: inferCyclePhase(normalized.status),
+      agentPlan,
+      agentOutputs,
+      lifecycleAction: finalLifecycleAction,
+      risks: normalizedRisks,
       suggestions: [
         "优先处理新增范围中的高业务价值项。",
         "将差异项同步到验收标准，避免交付偏差。",
-        "评估被移出范围是否影响当前里程碑承诺。"
+        "评估被移出范围是否影响当前里程碑承诺。",
+        `建议下一状态：${agentPlan.recommendedTransition ?? "保持当前状态"}`,
+        finalLifecycleAction.note
       ]
+    };
+  }
+
+  private async executeAgentPlan(prompts: ReturnType<typeof buildIterationAgentPlan>["prompts"]): Promise<IterationAgentOutput[]> {
+    const runner = this.agentRunner;
+    if (!runner) {
+      return prompts.map((prompt) => ({
+        agentId: prompt.agentId,
+        role: prompt.role,
+        status: "fallback",
+        content: `[fallback] 未配置 LLM，返回可执行 Prompt。\n${prompt.userPrompt}`
+      }));
+    }
+    return Promise.all(
+      prompts.map(async (prompt) => {
+        try {
+          const result = await runner.run(prompt);
+          return {
+            agentId: prompt.agentId,
+            role: prompt.role,
+            status: "success",
+            content: result.content,
+            model: result.model
+          } as IterationAgentOutput;
+        } catch (error) {
+          return {
+            agentId: prompt.agentId,
+            role: prompt.role,
+            status: "error",
+            content: prompt.userPrompt,
+            error: error instanceof Error ? error.message : "llm_unknown_error"
+          } as IterationAgentOutput;
+        }
+      })
+    );
+  }
+
+  private applyLifecycleTransition(
+    iterationId: number,
+    fromStatus: IterationStatus,
+    toStatus: IterationStatus | null,
+    autoTransition: boolean
+  ) {
+    if (!toStatus || toStatus === fromStatus) {
+      return {
+        attempted: false,
+        applied: false,
+        fromStatus,
+        toStatus,
+        note: "推荐状态与当前一致，未触发自动流转。"
+      };
+    }
+    if (!autoTransition) {
+      return {
+        attempted: false,
+        applied: false,
+        fromStatus,
+        toStatus,
+        note: `已生成状态流转建议 ${fromStatus} -> ${toStatus}，等待手动确认。`
+      };
+    }
+    const result = this.transitionIteration(iterationId, toStatus, "Agent 自动驱动流转");
+    if (result.ok) {
+      return {
+        attempted: true,
+        applied: true,
+        fromStatus,
+        toStatus,
+        note: `已自动流转：${fromStatus} -> ${toStatus}`
+      };
+    }
+    return {
+      attempted: true,
+      applied: false,
+      fromStatus,
+      toStatus,
+      note: `自动流转失败：${result.reason}`
     };
   }
 }

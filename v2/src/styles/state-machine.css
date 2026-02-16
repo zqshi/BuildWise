@@ -2,6 +2,10 @@
   margin-bottom:8px;
 }
 
+.state-machine-box.compact {
+  gap:4px;
+}
+
 .state-machine-head {
   display:flex;
   align-items:center;
@@ -13,6 +17,10 @@
   display:flex;
   flex-wrap:wrap;
   gap:6px;
+}
+
+.state-machine-inline-hint {
+  margin-top:2px;
 }
 
 .status-pill {

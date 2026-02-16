@@ -117,6 +117,11 @@ async function registerAutobootRoutes(app, service) {
             return roadmap;
         });
     }
+    app.get("/api/roadmaps", async () => {
+        return roadmapPaths
+            .map((path) => service.describeRoadmap(path))
+            .filter((item) => Boolean(item));
+    });
     const apis = service.listRoutes();
     const reserved = new Set([
         "/api/model",

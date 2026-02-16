@@ -49,8 +49,10 @@ function extractRoutePaths(content) {
 }
 
 function pathMatches(frontendPath, backendPath) {
-  const front = frontendPath.split("/").filter(Boolean);
-  const back = backendPath.split("/").filter(Boolean);
+  const frontPath = frontendPath.split("?")[0];
+  const backPath = backendPath.split("?")[0];
+  const front = frontPath.split("/").filter(Boolean);
+  const back = backPath.split("/").filter(Boolean);
   if (front.length !== back.length) {
     return false;
   }
@@ -73,12 +75,16 @@ const frontendSources = listFrontendSourceFiles(path.join(workspaceRoot, "v2", "
   .join("\n");
 const workspaceRoutes = read("v2/backend/src/interfaces/http/routes/workspaceRoutes.ts");
 const systemRoutes = read("v2/backend/src/interfaces/http/routes/systemRoutes.ts");
+const platformRoutes = read("v2/backend/src/interfaces/http/routes/platformRoutes.ts");
+const autobootRoutes = read("v2/backend/src/interfaces/http/routes/autobootRoutes.ts");
 const model = JSON.parse(read("v2/model.json"));
 
 const frontendApis = extractFrontendApis(frontendSources);
 const backendRoutes = [
   ...extractRoutePaths(workspaceRoutes),
   ...extractRoutePaths(systemRoutes),
+  ...extractRoutePaths(platformRoutes),
+  ...extractRoutePaths(autobootRoutes),
   ...((Array.isArray(model.apis) ? model.apis : []).map((item) => item.path).filter(Boolean))
 ];
 

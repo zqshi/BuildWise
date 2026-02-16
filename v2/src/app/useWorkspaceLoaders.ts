@@ -39,6 +39,26 @@ import {
 import { nowIsoString } from "./workspaceHelpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
+const BOOT_RETRY_DELAYS_MS = [0, 500, 1200, 2500];
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchStatusWithRetry() {
+  let lastError: unknown = null;
+  for (const delay of BOOT_RETRY_DELAYS_MS) {
+    if (delay > 0) {
+      await wait(delay);
+    }
+    try {
+      return await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("API error: network unavailable");
+}
 
 type UseWorkspaceLoadersParams = {
   currentProjectId: number | null;
@@ -189,11 +209,18 @@ export function useWorkspaceLoaders({
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        const statusData = await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
+        const statusData = await fetchStatusWithRetry();
         setStatus(statusData);
+        setError(null);
         await Promise.all([loadProjects(), loadModelOps(), loadGovernance()]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setStatus({ status: "offline", service: "buildwise-v2-backend" });
+        const raw = err instanceof Error ? err.message : "Unknown error";
+        const offlineMessage =
+          raw.includes("network unavailable") || raw.includes("request timeout")
+            ? "后端服务不可用（127.0.0.1:5055）。请先启动：npm --prefix v2/backend run start"
+            : raw;
+        setError(offlineMessage);
       }
     };
     bootstrap();

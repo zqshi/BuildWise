@@ -133,6 +133,16 @@
   overflow:hidden
 }
 
+.backend-offline-banner {
+  border:1px solid #fdba74;
+  background:#fff7ed;
+  color:#9a3412;
+  border-radius:var(--radius-md);
+  padding:10px 12px;
+  font-size:var(--text-sm);
+  font-weight:var(--font-weight-medium)
+}
+
 .board.dashboard-mode {
   overflow-y:auto;
   overflow-x:hidden;
