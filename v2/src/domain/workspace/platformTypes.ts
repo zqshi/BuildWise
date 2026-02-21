@@ -43,6 +43,7 @@ export type TemplateRunHistory = TemplateRunResult & {
 export type DeploymentRecord = {
   id: number;
   projectId: number;
+  iterationId?: number;
   environment: "staging" | "production";
   version: string;
   status: "queued" | "running" | "success" | "failed";
@@ -53,6 +54,21 @@ export type OpsMetricsPayload = {
   generatedAt: string;
   metrics: Array<{ name: string; value: number; unit: string }>;
   latestAuditAt: string;
+};
+
+export type OpsTriageTemplate = {
+  id: string;
+  category: string;
+  keywords: string[];
+  commands: string[];
+  note: string;
+  source?: "system" | "custom";
+  projectId?: number;
+};
+
+export type OpsTriageTemplatePayload = {
+  generatedAt: string;
+  templates: OpsTriageTemplate[];
 };
 
 export type ShareAccessPayload = {

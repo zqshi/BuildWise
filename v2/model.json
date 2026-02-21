@@ -1087,6 +1087,16 @@
       ]
     }
   ],
+  "relations": [
+    {
+      "id": "relation_entity_project_one_to_many_entity_iteration",
+      "projectId": 1,
+      "fromEntityId": "entity_project",
+      "toEntityId": "entity_iteration",
+      "type": "one_to_many",
+      "name": "x"
+    }
+  ],
   "rules": [
     {
       "id": "rule_price_gt_0",
@@ -1683,6 +1693,5 @@
       "method": "POST",
       "path": "/api/model/entities"
     }
-  ],
-  "relations": []
+  ]
 }

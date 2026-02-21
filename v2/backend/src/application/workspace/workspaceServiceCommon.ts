@@ -1,0 +1,116 @@
+import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import type { Iteration, IterationChangeControl, IterationCodeLink, Project } from "../../domain/workspace/types";
+import { normalizeIteration, normalizeProject } from "./workspaceSupport";
+
+export function writeAuditLog(repo: WorkspaceRepository, action: string, resource: string, detail: string) {
+  const data = repo.read();
+  repo.appendAuditLog({
+    id: repo.nextId(data.auditLogs),
+    actor: "system",
+    action,
+    resource,
+    detail,
+    createdAt: new Date().toISOString()
+  });
+}
+
+export function hasProject(repo: WorkspaceRepository, projectId: number) {
+  const project = repo.findProject(projectId);
+  if (!project) {
+    return false;
+  }
+  return !Boolean(normalizeProject(project).deletedAt);
+}
+
+export function buildDefaultIterationCodeLink(repo: WorkspaceRepository, iteration: Iteration): IterationCodeLink | null {
+  const project = repo.findProject(iteration.projectId);
+  const repository = project ? normalizeProject(project).repository : null;
+  if (!repository) {
+    return null;
+  }
+  const slug =
+    iteration.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `iter-${iteration.id}`;
+  return {
+    repoId: repository.id,
+    branch: `iteration/${iteration.id}-${slug}`,
+    tag: iteration.version ? `v${iteration.version}` : `iter-v${iteration.id}`,
+    commit: "",
+    pr: "",
+    paths: [],
+    note: "",
+    linkedAt: new Date().toISOString()
+  };
+}
+
+export function defaultIterationChangeControl(): IterationChangeControl {
+  return {
+    pendingHumanConfirmation: false,
+    lastAnalysisAt: "",
+    lastAnalysisFileName: "",
+    lastAnalysisDigest: "",
+    clarificationRounds: 0,
+    clarificationQuestions: [],
+    clarificationDraftResolvedQuestions: [],
+    clarificationDraftUpdatedAt: "",
+    lastClarificationResolution: {
+      resolvedQuestions: [],
+      unresolvedQuestions: [],
+      updatedAt: ""
+    },
+    lastClarificationNote: "",
+    confirmedAt: "",
+    confirmedBy: "",
+    generatedTestMatrix: [],
+    generatedTestMatrixUpdatedAt: "",
+    testMatrixExecutionUpdatedAt: "",
+    lastAnalysisP0Count: 0,
+    lastAnalysisHighValueCount: 0,
+    lastAnalysisConsideredFiles: 0,
+    lastAnalysisIgnoredFiles: 0,
+    lastAnalysisIgnoredFileRatio: 0,
+    lastReleaseReviewDecision: "",
+    lastReleaseReviewReason: "",
+    lastReleaseReviewBlockers: [],
+    lastReleaseReviewUpdatedAt: "",
+    lastTraceabilityCoverageScore: 0,
+    lastOpsRollbackSuggested: false,
+    boundary: {
+      requirementRefs: [],
+      componentRefs: [],
+      codePaths: [],
+      note: "",
+      updatedAt: ""
+    }
+  };
+}
+
+export function resolveClarificationSelection(
+  allQuestions: string[],
+  selectedQuestions: string[] | undefined,
+  updatedAt: string
+) {
+  const selectedSet = new Set(
+    Array.isArray(selectedQuestions) ? selectedQuestions.map((item) => item.trim()).filter(Boolean) : []
+  );
+  const resolvedQuestions = allQuestions.filter((item) => selectedSet.has(item));
+  const unresolvedQuestions = allQuestions.filter((item) => !selectedSet.has(item));
+  return {
+    resolvedQuestions,
+    unresolvedQuestions,
+    updatedAt
+  };
+}
+
+export function listProjectsNormalized(repo: WorkspaceRepository): Project[] {
+  return repo
+    .listProjects()
+    .map(normalizeProject)
+    .filter((project) => !project.deletedAt);
+}
+
+export function listIterationsNormalized(repo: WorkspaceRepository, projectId: number): Iteration[] | null {
+  if (!hasProject(repo, projectId)) {
+    return null;
+  }
+  return repo.listIterations(projectId).map(normalizeIteration);
+}

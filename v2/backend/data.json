@@ -15,6 +15,230 @@
       "description": "用于验证创建接口",
       "status": "in-progress",
       "lastUpdated": "2026-02-15"
+    },
+    {
+      "id": 3,
+      "name": "test",
+      "description": "测试",
+      "status": "archived",
+      "lastUpdated": "2026-02-18",
+      "repository": {
+        "id": "repo-3",
+        "provider": "github",
+        "organization": "buildwise",
+        "name": "test",
+        "url": "https://github.com/buildwise/test",
+        "defaultBranch": "main",
+        "structureVersion": "v1",
+        "layout": [
+          {
+            "path": "apps/web",
+            "purpose": "前端应用",
+            "required": true
+          },
+          {
+            "path": "apps/api",
+            "purpose": "后端服务",
+            "required": true
+          },
+          {
+            "path": "packages/domain",
+            "purpose": "领域模型与用例",
+            "required": true
+          },
+          {
+            "path": "packages/shared",
+            "purpose": "跨端共享模块",
+            "required": false
+          },
+          {
+            "path": "docs",
+            "purpose": "PRD/ADR/迭代记录",
+            "required": true
+          },
+          {
+            "path": "tests",
+            "purpose": "集成与契约测试",
+            "required": true
+          },
+          {
+            "path": "infra",
+            "purpose": "部署与环境脚本",
+            "required": true
+          },
+          {
+            "path": ".github/workflows",
+            "purpose": "CI/CD 流水线",
+            "required": true
+          }
+        ],
+        "remote": {
+          "status": "unprovisioned",
+          "visibility": "private",
+          "ownerType": "org",
+          "providerRepoId": "",
+          "htmlUrl": "",
+          "cloneUrl": "",
+          "sshUrl": "",
+          "lastProvisionedAt": ""
+        },
+        "createdAt": "2026-02-18T14:00:18.338Z",
+        "updatedAt": "2026-02-18T14:00:18.338Z",
+        "workspace": {
+          "rootPath": "",
+          "repoPath": "",
+          "gitInitialized": false,
+          "lastScaffoldedAt": ""
+        }
+      },
+      "deletedAt": "2026-02-18T15:08:44.935Z"
+    },
+    {
+      "id": 4,
+      "name": "test",
+      "description": "test",
+      "status": "archived",
+      "lastUpdated": "2026-02-19",
+      "repository": {
+        "id": "repo-4",
+        "provider": "github",
+        "organization": "buildwise",
+        "name": "test",
+        "url": "https://github.com/buildwise/test",
+        "defaultBranch": "main",
+        "structureVersion": "v1",
+        "layout": [
+          {
+            "path": "apps/web",
+            "purpose": "前端应用",
+            "required": true
+          },
+          {
+            "path": "apps/api",
+            "purpose": "后端服务",
+            "required": true
+          },
+          {
+            "path": "packages/domain",
+            "purpose": "领域模型与用例",
+            "required": true
+          },
+          {
+            "path": "packages/shared",
+            "purpose": "跨端共享模块",
+            "required": false
+          },
+          {
+            "path": "docs",
+            "purpose": "PRD/ADR/迭代记录",
+            "required": true
+          },
+          {
+            "path": "tests",
+            "purpose": "集成与契约测试",
+            "required": true
+          },
+          {
+            "path": "infra",
+            "purpose": "部署与环境脚本",
+            "required": true
+          },
+          {
+            "path": ".github/workflows",
+            "purpose": "CI/CD 流水线",
+            "required": true
+          }
+        ],
+        "remote": {
+          "status": "unprovisioned",
+          "visibility": "private",
+          "ownerType": "org",
+          "providerRepoId": "",
+          "htmlUrl": "",
+          "cloneUrl": "",
+          "sshUrl": "",
+          "lastProvisionedAt": ""
+        },
+        "createdAt": "2026-02-18T15:26:03.530Z",
+        "updatedAt": "2026-02-18T15:26:03.530Z",
+        "workspace": {
+          "rootPath": "",
+          "repoPath": "",
+          "gitInitialized": false,
+          "lastScaffoldedAt": ""
+        }
+      },
+      "deletedAt": "2026-02-19T03:00:48.253Z"
+    },
+    {
+      "id": 5,
+      "name": "test",
+      "description": "test",
+      "status": "in-progress",
+      "lastUpdated": "2026-02-19",
+      "repository": {
+        "id": "repo-5",
+        "provider": "github",
+        "organization": "buildwise",
+        "name": "test",
+        "url": "https://github.com/buildwise/test",
+        "defaultBranch": "main",
+        "structureVersion": "v1",
+        "layout": [
+          {
+            "path": "apps/web",
+            "purpose": "前端应用",
+            "required": true
+          },
+          {
+            "path": "apps/api",
+            "purpose": "后端服务",
+            "required": true
+          },
+          {
+            "path": "packages/domain",
+            "purpose": "领域模型与用例",
+            "required": true
+          },
+          {
+            "path": "packages/shared",
+            "purpose": "跨端共享模块",
+            "required": false
+          },
+          {
+            "path": "docs",
+            "purpose": "PRD/ADR/迭代记录",
+            "required": true
+          },
+          {
+            "path": "tests",
+            "purpose": "集成与契约测试",
+            "required": true
+          },
+          {
+            "path": "infra",
+            "purpose": "部署与环境脚本",
+            "required": true
+          },
+          {
+            "path": ".github/workflows",
+            "purpose": "CI/CD 流水线",
+            "required": true
+          }
+        ],
+        "remote": {
+          "status": "unprovisioned",
+          "visibility": "private",
+          "ownerType": "org",
+          "providerRepoId": "",
+          "htmlUrl": "",
+          "cloneUrl": "",
+          "sshUrl": "",
+          "lastProvisionedAt": ""
+        },
+        "createdAt": "2026-02-19T03:00:53.191Z",
+        "updatedAt": "2026-02-19T03:00:53.191Z"
+      }
     }
   ],
   "iterations": [
@@ -67,6 +291,35 @@
           "1"
         ],
         "risks": []
+      },
+      "changeControl": {
+        "pendingHumanConfirmation": true,
+        "lastAnalysisAt": "2026-02-17T07:17:40.673Z",
+        "lastAnalysisFileName": "Capture20260217-100219.png",
+        "lastAnalysisDigest": "added=1;removed=0;diff=3;strategy=direct;chunks=0;degraded=no",
+        "clarificationRounds": 0,
+        "clarificationQuestions": [
+          "模型输出存在较多 unknown 信号（2）。请确认关键事实：需求范围、数据口径、上线门禁。"
+        ],
+        "clarificationDraftResolvedQuestions": [],
+        "clarificationDraftUpdatedAt": "2026-02-17T07:17:40.673Z",
+        "lastClarificationResolution": {
+          "resolvedQuestions": [],
+          "unresolvedQuestions": [
+            "模型输出存在较多 unknown 信号（2）。请确认关键事实：需求范围、数据口径、上线门禁。"
+          ],
+          "updatedAt": "2026-02-17T07:17:40.673Z"
+        },
+        "lastClarificationNote": "",
+        "confirmedAt": "",
+        "confirmedBy": "",
+        "boundary": {
+          "requirementRefs": [],
+          "componentRefs": [],
+          "codePaths": [],
+          "note": "",
+          "updatedAt": ""
+        }
       }
     },
     {
@@ -118,6 +371,506 @@
           "1"
         ],
         "risks": []
+      },
+      "changeControl": {
+        "pendingHumanConfirmation": true,
+        "lastAnalysisAt": "2026-02-19T11:42:27.006Z",
+        "lastAnalysisFileName": "healthcheck.txt",
+        "lastAnalysisDigest": "added=0;removed=0;diff=0;strategy=direct;chunks=0;degraded=no;fastPath=yes",
+        "clarificationRounds": 0,
+        "clarificationQuestions": [
+          "未识别到明确差异，请确认是否属于文案优化、布局微调或跨模块需求。"
+        ],
+        "clarificationDraftResolvedQuestions": [],
+        "clarificationDraftUpdatedAt": "2026-02-19T11:42:27.006Z",
+        "lastClarificationResolution": {
+          "resolvedQuestions": [],
+          "unresolvedQuestions": [
+            "未识别到明确差异，请确认是否属于文案优化、布局微调或跨模块需求。"
+          ],
+          "updatedAt": "2026-02-19T11:42:27.006Z"
+        },
+        "lastClarificationNote": "",
+        "confirmedAt": "",
+        "confirmedBy": "",
+        "generatedTestMatrix": [],
+        "generatedTestMatrixUpdatedAt": "",
+        "testMatrixExecutionUpdatedAt": "",
+        "lastAnalysisP0Count": 1,
+        "lastAnalysisHighValueCount": 3,
+        "lastAnalysisConsideredFiles": 1,
+        "lastAnalysisIgnoredFiles": 0,
+        "lastAnalysisIgnoredFileRatio": 0,
+        "lastReleaseReviewDecision": "caution",
+        "lastReleaseReviewReason": "存在待确认风险。",
+        "lastReleaseReviewBlockers": [],
+        "lastReleaseReviewUpdatedAt": "2026-02-19T11:43:35.143Z",
+        "lastTraceabilityCoverageScore": 67,
+        "lastOpsRollbackSuggested": false,
+        "boundary": {
+          "requirementRefs": [],
+          "componentRefs": [],
+          "codePaths": [],
+          "note": "当前迭代=1，状态=blocked，基线=1。由于确认状态=not-confirmed，且无结构化差异与显式风险，无法基于当前上下文建立可执行边界。边界需在业务验收确认后更新。",
+          "updatedAt": "2026-02-18T14:06:33.085Z"
+        }
+      },
+      "version": "",
+      "interactionState": {
+        "hasPrototypeAssets": true,
+        "uploadKind": "prototype",
+        "lastUpdatedAt": "2026-02-19T13:57:09.078Z",
+        "lastAttachmentName": "demo.html"
+      }
+    },
+    {
+      "id": 3,
+      "projectId": 3,
+      "name": "第一个版本",
+      "description": "测试版本",
+      "goals": [
+        "完成第一个版本"
+      ],
+      "modules": [
+        {
+          "id": "module-1771423388014-0",
+          "title": "完成第一个版本",
+          "status": "planned"
+        }
+      ],
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18",
+      "createdBy": "系统",
+      "current": true,
+      "aiSummary": "基于test，第一个版本聚焦测试版本。",
+      "scope": {
+        "inScope": [
+          "完成第一个版本"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "完成第一个版本 可演示并通过验收"
+        ]
+      },
+      "continuity": {
+        "inheritedFromIterationId": null,
+        "inheritedSummary": "首个迭代，无需继承。",
+        "carriedGoals": [],
+        "carriedRisks": [],
+        "carriedDecisions": [
+          "项目元信息：test｜测试"
+        ]
+      },
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，第一个版本聚焦测试版本。",
+        "deltaInScope": [
+          "+ 完成第一个版本"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "完成第一个版本"
+        ],
+        "risks": []
+      },
+      "changeControl": {
+        "pendingHumanConfirmation": true,
+        "lastAnalysisAt": "2026-02-18T14:14:07.612Z",
+        "lastAnalysisFileName": "灵枢",
+        "lastAnalysisDigest": "added=1;removed=0;diff=3;strategy=folder-batch;chunks=0;degraded=yes;reason=excerpt-too-long(14000>9000)",
+        "clarificationRounds": 0,
+        "clarificationQuestions": [
+          "当前分析触发上下文降级（excerpt-too-long(14000>9000)），请确认本次迭代边界是否仅包含已列出的差异项。"
+        ],
+        "clarificationDraftResolvedQuestions": [],
+        "clarificationDraftUpdatedAt": "2026-02-18T14:14:07.612Z",
+        "lastClarificationResolution": {
+          "resolvedQuestions": [],
+          "unresolvedQuestions": [
+            "当前分析触发上下文降级（excerpt-too-long(14000>9000)），请确认本次迭代边界是否仅包含已列出的差异项。"
+          ],
+          "updatedAt": "2026-02-18T14:14:07.612Z"
+        },
+        "lastClarificationNote": "",
+        "confirmedAt": "",
+        "confirmedBy": "",
+        "generatedTestMatrix": [],
+        "generatedTestMatrixUpdatedAt": "",
+        "testMatrixExecutionUpdatedAt": "",
+        "lastAnalysisP0Count": 0,
+        "lastAnalysisHighValueCount": 4,
+        "lastAnalysisConsideredFiles": 37,
+        "lastAnalysisIgnoredFiles": 0,
+        "lastAnalysisIgnoredFileRatio": 0,
+        "lastReleaseReviewDecision": "caution",
+        "lastReleaseReviewReason": "存在待确认风险。",
+        "lastReleaseReviewBlockers": [],
+        "lastReleaseReviewUpdatedAt": "2026-02-18T14:14:47.627Z",
+        "lastTraceabilityCoverageScore": 67,
+        "lastOpsRollbackSuggested": false,
+        "boundary": {
+          "requirementRefs": [],
+          "componentRefs": [],
+          "codePaths": [],
+          "note": "",
+          "updatedAt": ""
+        }
+      },
+      "codeLink": {
+        "repoId": "repo-3",
+        "branch": "iteration/3-iter-3",
+        "tag": "iter-v3",
+        "commit": "",
+        "pr": "",
+        "paths": [],
+        "note": "",
+        "linkedAt": "2026-02-18T14:03:08.016Z"
+      },
+      "version": ""
+    },
+    {
+      "id": 4,
+      "projectId": 4,
+      "version": "1.0.0",
+      "name": "1",
+      "description": "1",
+      "goals": [
+        "1"
+      ],
+      "modules": [
+        {
+          "id": "module-1771428401140-0",
+          "title": "1",
+          "status": "planned"
+        }
+      ],
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18",
+      "createdBy": "系统",
+      "current": true,
+      "aiSummary": "基于test，1聚焦1。",
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "continuity": {
+        "inheritedFromIterationId": null,
+        "inheritedSummary": "首个迭代，无需继承。",
+        "carriedGoals": [],
+        "carriedRisks": [],
+        "carriedDecisions": [
+          "项目元信息：test｜test"
+        ]
+      },
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "changeControl": {
+        "pendingHumanConfirmation": true,
+        "lastAnalysisAt": "2026-02-18T15:27:28.102Z",
+        "lastAnalysisFileName": "无影",
+        "lastAnalysisDigest": "added=1;removed=0;diff=4;strategy=folder-batch;chunks=0;degraded=no",
+        "clarificationRounds": 0,
+        "clarificationQuestions": [
+          "模型输出存在较多 unknown 信号（4）。请确认关键事实：需求范围、数据口径、上线门禁。"
+        ],
+        "clarificationDraftResolvedQuestions": [
+          "模型输出存在较多 unknown 信号（4）。请确认关键事实：需求范围、数据口径、上线门禁。"
+        ],
+        "clarificationDraftUpdatedAt": "2026-02-19T01:57:49.802Z",
+        "lastClarificationResolution": {
+          "resolvedQuestions": [],
+          "unresolvedQuestions": [
+            "模型输出存在较多 unknown 信号（4）。请确认关键事实：需求范围、数据口径、上线门禁。"
+          ],
+          "updatedAt": "2026-02-18T15:27:28.102Z"
+        },
+        "lastClarificationNote": "",
+        "confirmedAt": "",
+        "confirmedBy": "",
+        "generatedTestMatrix": [],
+        "generatedTestMatrixUpdatedAt": "",
+        "testMatrixExecutionUpdatedAt": "",
+        "lastAnalysisP0Count": 0,
+        "lastAnalysisHighValueCount": 3,
+        "lastAnalysisConsideredFiles": 7,
+        "lastAnalysisIgnoredFiles": 0,
+        "lastAnalysisIgnoredFileRatio": 0,
+        "lastReleaseReviewDecision": "caution",
+        "lastReleaseReviewReason": "存在待确认风险。",
+        "lastReleaseReviewBlockers": [],
+        "lastReleaseReviewUpdatedAt": "2026-02-18T15:28:08.120Z",
+        "lastTraceabilityCoverageScore": 100,
+        "lastOpsRollbackSuggested": false,
+        "boundary": {
+          "requirementRefs": [
+            "PRD-无影集成赋能套件"
+          ],
+          "componentRefs": [
+            "无影集成赋能套件前端",
+            "无影集成赋能套件后端"
+          ],
+          "codePaths": [
+            "无影/wu-ying/",
+            "无影/docs/"
+          ],
+          "note": "边界基于迭代1新增的goals、inScope、acceptanceCriteria及附件文档推导。边界更新时间：当前；确认前提：需业务方确认PRD中的需求范围与验收标准。",
+          "updatedAt": "2026-02-18T15:27:28.102Z"
+        }
+      },
+      "codeLink": {
+        "repoId": "repo-4",
+        "branch": "iteration/4-1",
+        "tag": "v1.0.0",
+        "commit": "",
+        "pr": "",
+        "paths": [],
+        "note": "",
+        "linkedAt": "2026-02-18T15:26:41.143Z"
+      }
+    },
+    {
+      "id": 5,
+      "projectId": 5,
+      "version": "1.0.0",
+      "name": "1",
+      "description": "1",
+      "goals": [
+        "1"
+      ],
+      "modules": [
+        {
+          "id": "module-1771470090574-0",
+          "title": "1",
+          "status": "planned"
+        }
+      ],
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19",
+      "createdBy": "系统",
+      "current": true,
+      "aiSummary": "基于test，1聚焦1。",
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "continuity": {
+        "inheritedFromIterationId": null,
+        "inheritedSummary": "首个迭代，无需继承。",
+        "carriedGoals": [],
+        "carriedRisks": [],
+        "carriedDecisions": [
+          "项目元信息：test｜test"
+        ]
+      },
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "changeControl": {
+        "pendingHumanConfirmation": true,
+        "lastAnalysisAt": "2026-02-20T12:57:41.207Z",
+        "lastAnalysisFileName": "无影",
+        "lastAnalysisDigest": "added=1;removed=0;diff=4;strategy=folder-batch;chunks=0;degraded=no;fastPath=no",
+        "clarificationRounds": 0,
+        "clarificationQuestions": [
+          "模型输出存在较多 unknown 信号（11）。请确认关键事实：需求范围、数据口径、上线门禁。"
+        ],
+        "clarificationDraftResolvedQuestions": [],
+        "clarificationDraftUpdatedAt": "2026-02-20T12:57:41.207Z",
+        "lastClarificationResolution": {
+          "resolvedQuestions": [],
+          "unresolvedQuestions": [
+            "模型输出存在较多 unknown 信号（11）。请确认关键事实：需求范围、数据口径、上线门禁。"
+          ],
+          "updatedAt": "2026-02-20T12:57:41.207Z"
+        },
+        "lastClarificationNote": "",
+        "confirmedAt": "",
+        "confirmedBy": "",
+        "generatedTestMatrix": [
+          {
+            "type": "功能验证",
+            "caseId": "FUNC-001",
+            "focus": "需求文档完整性验证",
+            "expected": "「无影」集成赋能套件产品需求文档.md 内容完整，包含清晰的产品目标、用户故事、功能模块描述",
+            "evidence": "差异显示 goals:added:1；附件包含需求文档 (11152B)，需验证其内容结构是否完整",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "功能验证",
+            "caseId": "FUNC-002",
+            "focus": "功能清单与需求对齐",
+            "expected": "「无影」集成赋能套件功能清单.md 与需求文档中的功能模块一一对应，无遗漏或矛盾",
+            "evidence": "差异显示 inScope:added:1；附件包含功能清单 (4268B)，需验证其与需求文档的一致性",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "功能验证",
+            "caseId": "FUNC-003",
+            "focus": "验收标准可执行性",
+            "expected": "acceptanceCriteria 具体、可测试、可衡量，覆盖核心功能点",
+            "evidence": "差异显示 acceptanceCriteria:added:1，需验证其是否具备可测试性",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "功能验证",
+            "caseId": "FUNC-004",
+            "focus": "技术架构设计完整性",
+            "expected": "「无影」技术顶层架构设计.md 包含清晰的系统组件、数据流、接口定义和技术选型",
+            "evidence": "附件包含架构设计文档 (2752B)，需验证其技术方案的完整性和可行性",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "功能验证",
+            "caseId": "FUNC-005",
+            "focus": "前端入口页面基础功能",
+            "expected": "无影/wu-ying/index.html 可正常加载，包含基础UI元素和导航结构",
+            "evidence": "附件包含 index.html (50192B)，需验证其HTML结构完整性和基础功能",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "回归验证",
+            "caseId": "REG-001",
+            "focus": "范围边界清晰性回归",
+            "expected": "outOfScope 定义清晰，与 inScope 无重叠，避免范围蔓延",
+            "evidence": "差异显示 outOfScope:added:1，需验证其与 inScope 的边界是否明确",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "边界验证",
+            "caseId": "BOUND-001",
+            "focus": "文档格式与完整性边界",
+            "expected": "所有Markdown文档格式正确，无损坏字符；HTML文件符合基本规范",
+            "evidence": "附件包含7个文本文件，需验证文件完整性和格式正确性",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "风险定向验证",
+            "caseId": "RISK-001",
+            "focus": "需求与技术实现一致性风险",
+            "expected": "需求文档中的功能描述与技术架构设计中的实现方案保持一致",
+            "evidence": "上下文风险提示“暂无显式风险，请结合业务验收继续确认”，需定向验证需求与实现的一致性",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          },
+          {
+            "type": "风险定向验证",
+            "caseId": "RISK-002",
+            "focus": "附件处理完整性风险",
+            "expected": "folder-batch 处理模式正确识别所有相关文件，无遗漏",
+            "evidence": "附件处理显示 folder-batch，digest显示7个文件，需验证是否覆盖变更边界定义的所有路径",
+            "executionStatus": "pending",
+            "executionUpdatedAt": "",
+            "executionBy": "",
+            "executionNote": ""
+          }
+        ],
+        "generatedTestMatrixUpdatedAt": "2026-02-20T12:57:41.207Z",
+        "testMatrixExecutionUpdatedAt": "",
+        "lastAnalysisP0Count": 0,
+        "lastAnalysisHighValueCount": 0,
+        "lastAnalysisConsideredFiles": 0,
+        "lastAnalysisIgnoredFiles": 0,
+        "lastAnalysisIgnoredFileRatio": 0,
+        "lastReleaseReviewDecision": "",
+        "lastReleaseReviewReason": "",
+        "lastReleaseReviewBlockers": [],
+        "lastReleaseReviewUpdatedAt": "",
+        "lastTraceabilityCoverageScore": 0,
+        "lastOpsRollbackSuggested": false,
+        "boundary": {
+          "requirementRefs": [
+            "「无影」集成赋能套件产品需求文档.md",
+            "「无影」集成赋能套件功能清单.md",
+            "「无影」技术顶层架构设计.md"
+          ],
+          "componentRefs": [
+            "无影/wu-ying/index.html"
+          ],
+          "codePaths": [
+            "无影/docs/",
+            "无影/wu-ying/"
+          ],
+          "note": "边界基于迭代1的当前上下文（in-progress状态）生成，覆盖已识别的需求文档、功能清单、架构设计文档及前端入口文件。边界更新时间为当前分析时刻，确认前提为：1) 迭代1的目标、范围、验收标准已最终确认；2) 附件中的文档内容为本次迭代的权威依据。",
+          "updatedAt": "2026-02-19T12:11:09.935Z"
+        }
+      },
+      "codeLink": {
+        "repoId": "repo-5",
+        "branch": "iteration/5-1",
+        "tag": "v1.0.0",
+        "commit": "",
+        "pr": "",
+        "paths": [],
+        "note": "",
+        "linkedAt": "2026-02-19T03:01:30.576Z"
+      },
+      "interactionState": {
+        "hasPrototypeAssets": true,
+        "uploadKind": "mixed",
+        "lastUpdatedAt": "2026-02-20T12:56:40.725Z",
+        "lastAttachmentName": "无影 (7 files)"
       }
     }
   ],
@@ -289,6 +1042,419 @@
       "role": "assistant",
       "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
       "createdAt": "2026-02-15T13:53:03.784Z"
+    },
+    {
+      "id": 25,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260216-140213.png",
+      "createdAt": "2026-02-16T09:50:19.918Z"
+    },
+    {
+      "id": 26,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T09:50:19.922Z"
+    },
+    {
+      "id": 27,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260216-140213.png",
+      "createdAt": "2026-02-16T09:52:14.247Z"
+    },
+    {
+      "id": 28,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T09:52:14.252Z"
+    },
+    {
+      "id": 29,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260216-140213.png",
+      "createdAt": "2026-02-16T13:20:18.146Z"
+    },
+    {
+      "id": 30,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T13:20:18.196Z"
+    },
+    {
+      "id": 31,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260216-180257.png",
+      "createdAt": "2026-02-16T14:11:51.563Z"
+    },
+    {
+      "id": 32,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T14:11:51.567Z"
+    },
+    {
+      "id": 33,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260116-110109.png",
+      "createdAt": "2026-02-16T14:12:11.377Z"
+    },
+    {
+      "id": 34,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T14:12:11.383Z"
+    },
+    {
+      "id": 35,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260115-200111.png",
+      "createdAt": "2026-02-16T15:04:04.950Z"
+    },
+    {
+      "id": 36,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T15:04:04.956Z"
+    },
+    {
+      "id": 37,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260115-200111.png",
+      "createdAt": "2026-02-16T16:01:16.483Z"
+    },
+    {
+      "id": 38,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T16:01:16.488Z"
+    },
+    {
+      "id": 39,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260115-200111.png",
+      "createdAt": "2026-02-16T16:02:24.099Z"
+    },
+    {
+      "id": 40,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-16T16:02:24.104Z"
+    },
+    {
+      "id": 41,
+      "iterationId": 1,
+      "role": "system",
+      "content": "已上传附件：Capture20260217-100219.png",
+      "createdAt": "2026-02-17T07:17:40.680Z"
+    },
+    {
+      "id": 42,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”可查看理解结果与版本差异。",
+      "createdAt": "2026-02-17T07:17:40.684Z"
+    },
+    {
+      "id": 43,
+      "iterationId": 1,
+      "role": "user",
+      "content": "你是谁？",
+      "createdAt": "2026-02-17T15:32:19.218Z"
+    },
+    {
+      "id": 44,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "已记录到当前迭代。可用指令：完成: xxx；延期: xxx；新增范围: xxx；移出范围: xxx；验收通过: xxx；风险: xxx；清除风险: xxx；当前总结: xxx。",
+      "createdAt": "2026-02-17T15:32:19.229Z"
+    },
+    {
+      "id": 45,
+      "iterationId": 1,
+      "role": "user",
+      "content": "你是谁？",
+      "createdAt": "2026-02-18T09:07:53.133Z"
+    },
+    {
+      "id": 46,
+      "iterationId": 1,
+      "role": "user",
+      "content": "你是谁？",
+      "createdAt": "2026-02-18T09:17:25.173Z"
+    },
+    {
+      "id": 47,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "我先带你把关键待确认点收敛掉，当前还有 1 项未确认。我们可以从优先级最高的问题开始：模型输出存在较多 unknown 信号（2）。请确认关键事实：需求范围、数据口径、上线门禁。",
+      "createdAt": "2026-02-18T09:17:25.188Z"
+    },
+    {
+      "id": 48,
+      "iterationId": 1,
+      "role": "system",
+      "content": "操作建议JSON:{\"intent\":\"clarify\",\"priority\":\"P1\",\"uploadRecommended\":false,\"actions\":[\"确认澄清问题\",\"补充缺失上下文\",\"确认边界后锁定范围\"],\"checklist\":[\"模型输出存在较多 unknown 信号（2）。请确认关键事实：需求范围、数据口径、上线门禁。\"],\"prerequisites\":[\"先完成关键澄清项确认\"]}",
+      "createdAt": "2026-02-18T09:17:25.194Z"
+    },
+    {
+      "id": 49,
+      "iterationId": 1,
+      "role": "user",
+      "content": "你是谁？",
+      "createdAt": "2026-02-18T13:52:58.969Z"
+    },
+    {
+      "id": 50,
+      "iterationId": 1,
+      "role": "assistant",
+      "content": "我是你的迭代教练，帮你推进这个迭代的澄清和确认。当前迭代还在review阶段，有个关键问题需要先确认：模型输出里有很多unknown信号。我们先把这个问题解决掉，你看可以吗？",
+      "createdAt": "2026-02-18T13:53:03.299Z"
+    },
+    {
+      "id": 51,
+      "iterationId": 1,
+      "role": "system",
+      "content": "操作建议JSON:{\"intent\":\"general\",\"priority\":\"P2\",\"uploadRecommended\":false,\"actions\":[\"确认模型输出unknown信号的具体含义\",\"补充需求范围或数据口径的说明\"],\"checklist\":[\"模型输出unknown信号（2）具体指什么？\",\"需求范围和数据口径是否已明确？\"],\"prerequisites\":[\"先完成关键澄清项确认\"]}",
+      "createdAt": "2026-02-18T13:53:03.310Z"
+    },
+    {
+      "id": 52,
+      "iterationId": 3,
+      "role": "system",
+      "content": "附件分析失败：后端服务不可达，请检查后端是否已启动。",
+      "createdAt": "2026-02-18T14:04:00.805Z"
+    },
+    {
+      "id": 53,
+      "iterationId": 3,
+      "role": "system",
+      "content": "附件分析失败：后端服务不可达，请检查后端是否已启动。",
+      "createdAt": "2026-02-18T14:11:19.637Z"
+    },
+    {
+      "id": 54,
+      "iterationId": 3,
+      "role": "system",
+      "content": "已上传附件：灵枢（37 个文件）",
+      "createdAt": "2026-02-18T14:13:50.798Z"
+    },
+    {
+      "id": 55,
+      "iterationId": 3,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”查看项目识别、产品识别与关键发现。",
+      "createdAt": "2026-02-18T14:14:47.639Z"
+    },
+    {
+      "id": 56,
+      "iterationId": 4,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-18T15:27:08.071Z"
+    },
+    {
+      "id": 57,
+      "iterationId": 4,
+      "role": "assistant",
+      "content": "附件已完成大模型分析，点击“查看分析报告”查看项目识别、产品识别与关键发现。",
+      "createdAt": "2026-02-18T15:28:08.134Z"
+    },
+    {
+      "id": 58,
+      "iterationId": 4,
+      "role": "assistant",
+      "content": "我先发起澄清：模型输出存在较多 unknown 信号（4）。请确认关键事实：需求范围、数据口径、上线门禁。。请直接在对话中回复，我会持续收敛问题；当全部澄清完成后，回复“确认分析”即可完成确认。",
+      "createdAt": "2026-02-18T15:28:08.147Z"
+    },
+    {
+      "id": 59,
+      "iterationId": 4,
+      "role": "user",
+      "content": "问题是什么？",
+      "createdAt": "2026-02-19T01:57:49.794Z"
+    },
+    {
+      "id": 60,
+      "iterationId": 4,
+      "role": "assistant",
+      "content": "澄清问题已收敛。请回复“确认分析”或“确认分析并锁定边界”，我将完成最终确认。",
+      "createdAt": "2026-02-19T01:57:49.811Z"
+    },
+    {
+      "id": 61,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T03:01:38.051Z"
+    },
+    {
+      "id": 62,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T03:01:58.073Z"
+    },
+    {
+      "id": 63,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T03:05:30.939Z"
+    },
+    {
+      "id": 64,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T03:05:50.975Z"
+    },
+    {
+      "id": 65,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T12:10:15.548Z"
+    },
+    {
+      "id": 66,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T12:12:01.858Z"
+    },
+    {
+      "id": 67,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T12:23:00.762Z"
+    },
+    {
+      "id": 68,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T12:24:46.444Z"
+    },
+    {
+      "id": 69,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T12:51:42.397Z"
+    },
+    {
+      "id": 70,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T12:53:21.097Z"
+    },
+    {
+      "id": 71,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T12:54:18.679Z"
+    },
+    {
+      "id": 72,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T12:55:58.617Z"
+    },
+    {
+      "id": 73,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-19T13:02:03.742Z"
+    },
+    {
+      "id": 74,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-19T13:03:45.399Z"
+    },
+    {
+      "id": 75,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-20T09:34:57.146Z"
+    },
+    {
+      "id": 76,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-20T09:36:41.221Z"
+    },
+    {
+      "id": 77,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-20T09:43:49.946Z"
+    },
+    {
+      "id": 78,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。",
+      "createdAt": "2026-02-20T09:45:34.787Z"
+    },
+    {
+      "id": 79,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-20T12:56:40.738Z"
+    },
+    {
+      "id": 80,
+      "iterationId": 5,
+      "role": "system",
+      "content": "附件分析失败：请求超时（分析耗时过长）。请减少单次上传文件数量后重试。",
+      "createdAt": "2026-02-20T12:58:40.919Z"
+    },
+    {
+      "id": 81,
+      "iterationId": 5,
+      "role": "user",
+      "content": "字号小一些",
+      "createdAt": "2026-02-21T11:49:01.542Z"
+    },
+    {
+      "id": 82,
+      "iterationId": 5,
+      "role": "assistant",
+      "content": "可视化编辑执行结果（目标：div.px-6.py-4 > div.flex.items-center > div.flex.items-center > button.btn-primary.px-4）：未识别到可执行的样式或文本变更。",
+      "createdAt": "2026-02-21T11:49:01.560Z"
+    },
+    {
+      "id": 83,
+      "iterationId": 5,
+      "role": "system",
+      "content": "操作建议：仅支持文本/样式/显隐/宽高类指令。",
+      "createdAt": "2026-02-21T11:49:01.568Z"
     }
   ],
   "snapshots": [
@@ -1779,6 +2945,1988 @@
       "status": "blocked",
       "progress": 100,
       "createdAt": "2026-02-16T01:43:18.564Z"
+    },
+    {
+      "id": 49,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T09:50:19.919Z"
+    },
+    {
+      "id": 50,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T09:50:19.923Z"
+    },
+    {
+      "id": 51,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T09:52:14.249Z"
+    },
+    {
+      "id": 52,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T09:52:14.254Z"
+    },
+    {
+      "id": 53,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T13:20:18.149Z"
+    },
+    {
+      "id": 54,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T13:20:18.199Z"
+    },
+    {
+      "id": 55,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T14:11:51.565Z"
+    },
+    {
+      "id": 56,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T14:11:51.568Z"
+    },
+    {
+      "id": 57,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T14:12:11.379Z"
+    },
+    {
+      "id": 58,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T14:12:11.384Z"
+    },
+    {
+      "id": 59,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T15:04:04.952Z"
+    },
+    {
+      "id": 60,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T15:04:04.957Z"
+    },
+    {
+      "id": 61,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T16:01:16.485Z"
+    },
+    {
+      "id": 62,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T16:01:16.490Z"
+    },
+    {
+      "id": 63,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T16:02:24.100Z"
+    },
+    {
+      "id": 64,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-16T16:02:24.106Z"
+    },
+    {
+      "id": 65,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-17T07:17:40.681Z"
+    },
+    {
+      "id": 66,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-17T07:17:40.685Z"
+    },
+    {
+      "id": 67,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-17T15:32:19.222Z"
+    },
+    {
+      "id": 68,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-17T15:32:19.231Z"
+    },
+    {
+      "id": 69,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T09:07:53.137Z"
+    },
+    {
+      "id": 70,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T09:17:25.177Z"
+    },
+    {
+      "id": 71,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T09:17:25.190Z"
+    },
+    {
+      "id": 72,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T09:17:25.195Z"
+    },
+    {
+      "id": 73,
+      "iterationId": 1,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T13:52:58.971Z"
+    },
+    {
+      "id": 74,
+      "iterationId": 1,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T13:53:03.303Z"
+    },
+    {
+      "id": 75,
+      "iterationId": 1,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于构想智造平台的整体架构和需求，本迭代1将重点实现1。建议采用增量开发方式，优先完成核心功能模块，确保与现有系统的兼容性。",
+        "deltaInScope": [
+          "1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "1 可演示并通过验收"
+        ]
+      },
+      "status": "review",
+      "progress": 0,
+      "createdAt": "2026-02-18T13:53:03.313Z"
+    },
+    {
+      "id": 76,
+      "iterationId": 3,
+      "source": "create",
+      "note": "迭代创建自动快照",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，第一个版本聚焦测试版本。",
+        "deltaInScope": [
+          "+ 完成第一个版本"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "完成第一个版本"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "完成第一个版本"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "完成第一个版本 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T14:03:08.021Z"
+    },
+    {
+      "id": 77,
+      "iterationId": 3,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，第一个版本聚焦测试版本。",
+        "deltaInScope": [
+          "+ 完成第一个版本"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "完成第一个版本"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "完成第一个版本"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "完成第一个版本 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T14:04:00.809Z"
+    },
+    {
+      "id": 78,
+      "iterationId": 3,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，第一个版本聚焦测试版本。",
+        "deltaInScope": [
+          "+ 完成第一个版本"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "完成第一个版本"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "完成第一个版本"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "完成第一个版本 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T14:11:19.641Z"
+    },
+    {
+      "id": 79,
+      "iterationId": 3,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，第一个版本聚焦测试版本。",
+        "deltaInScope": [
+          "+ 完成第一个版本"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "完成第一个版本"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "完成第一个版本"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "完成第一个版本 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T14:13:50.802Z"
+    },
+    {
+      "id": 80,
+      "iterationId": 3,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，第一个版本聚焦测试版本。",
+        "deltaInScope": [
+          "+ 完成第一个版本"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "完成第一个版本"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "完成第一个版本"
+        ],
+        "outOfScope": [],
+        "acceptanceCriteria": [
+          "完成第一个版本 可演示并通过验收"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T14:14:47.642Z"
+    },
+    {
+      "id": 81,
+      "iterationId": 4,
+      "source": "create",
+      "note": "迭代创建自动快照",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T15:26:41.149Z"
+    },
+    {
+      "id": 82,
+      "iterationId": 4,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T15:27:08.075Z"
+    },
+    {
+      "id": 83,
+      "iterationId": 4,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T15:28:08.137Z"
+    },
+    {
+      "id": 84,
+      "iterationId": 4,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-18T15:28:08.149Z"
+    },
+    {
+      "id": 85,
+      "iterationId": 4,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T01:57:49.797Z"
+    },
+    {
+      "id": 86,
+      "iterationId": 4,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T01:57:49.814Z"
+    },
+    {
+      "id": 87,
+      "iterationId": 5,
+      "source": "create",
+      "note": "迭代创建自动快照",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T03:01:30.582Z"
+    },
+    {
+      "id": 88,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T03:01:38.054Z"
+    },
+    {
+      "id": 89,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T03:01:58.075Z"
+    },
+    {
+      "id": 90,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T03:05:30.943Z"
+    },
+    {
+      "id": 91,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T03:05:50.979Z"
+    },
+    {
+      "id": 92,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:10:15.551Z"
+    },
+    {
+      "id": 93,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:12:01.862Z"
+    },
+    {
+      "id": 94,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:23:00.768Z"
+    },
+    {
+      "id": 95,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:24:46.447Z"
+    },
+    {
+      "id": 96,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:51:42.401Z"
+    },
+    {
+      "id": 97,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:53:21.101Z"
+    },
+    {
+      "id": 98,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:54:18.684Z"
+    },
+    {
+      "id": 99,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T12:55:58.621Z"
+    },
+    {
+      "id": 100,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T13:02:03.747Z"
+    },
+    {
+      "id": 101,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-19T13:03:45.401Z"
+    },
+    {
+      "id": 102,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-20T09:34:57.149Z"
+    },
+    {
+      "id": 103,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-20T09:36:41.224Z"
+    },
+    {
+      "id": 104,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-20T09:43:49.949Z"
+    },
+    {
+      "id": 105,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-20T09:45:34.791Z"
+    },
+    {
+      "id": 106,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-20T12:56:40.741Z"
+    },
+    {
+      "id": 107,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-20T12:58:40.922Z"
+    },
+    {
+      "id": 108,
+      "iterationId": 5,
+      "source": "message",
+      "note": "user 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-21T11:49:01.547Z"
+    },
+    {
+      "id": 109,
+      "iterationId": 5,
+      "source": "message",
+      "note": "assistant 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-21T11:49:01.563Z"
+    },
+    {
+      "id": 110,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-21T11:49:01.570Z"
     }
   ],
   "transitions": [
@@ -2175,10 +5323,493 @@
       "resource": "iteration:2",
       "detail": "in-progress -> blocked",
       "createdAt": "2026-02-16T01:43:18.567Z"
+    },
+    {
+      "id": 26,
+      "actor": "system",
+      "action": "model_relation_created",
+      "resource": "relation:relation_entity_project_one_to_many_entity_iteration",
+      "detail": "entity_project -> entity_iteration (one_to_many)",
+      "createdAt": "2026-02-16T08:31:41.283Z"
+    },
+    {
+      "id": 27,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260216-140213.png",
+      "createdAt": "2026-02-16T09:50:19.913Z"
+    },
+    {
+      "id": 28,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260216-140213.png",
+      "createdAt": "2026-02-16T09:52:14.241Z"
+    },
+    {
+      "id": 29,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260216-140213.png",
+      "createdAt": "2026-02-16T13:20:18.122Z"
+    },
+    {
+      "id": 30,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260216-180257.png",
+      "createdAt": "2026-02-16T14:11:51.558Z"
+    },
+    {
+      "id": 31,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260116-110109.png",
+      "createdAt": "2026-02-16T14:12:11.373Z"
+    },
+    {
+      "id": 32,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260115-200111.png",
+      "createdAt": "2026-02-16T15:04:04.945Z"
+    },
+    {
+      "id": 33,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260115-200111.png",
+      "createdAt": "2026-02-16T16:01:16.476Z"
+    },
+    {
+      "id": 34,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260115-200111.png",
+      "createdAt": "2026-02-16T16:02:24.092Z"
+    },
+    {
+      "id": 35,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:1",
+      "detail": "分析附件 Capture20260217-100219.png",
+      "createdAt": "2026-02-17T07:17:40.675Z"
+    },
+    {
+      "id": 36,
+      "actor": "system",
+      "action": "deployment_created",
+      "resource": "deployment:1",
+      "detail": "staging@iter-v2-8218 status=queued",
+      "createdAt": "2026-02-18T13:02:38.236Z"
+    },
+    {
+      "id": 37,
+      "actor": "system",
+      "action": "project_repo_initialized",
+      "resource": "project:3",
+      "detail": "repo=https://github.com/buildwise/test",
+      "createdAt": "2026-02-18T14:00:18.341Z"
+    },
+    {
+      "id": 38,
+      "actor": "system",
+      "action": "iteration_code_link_initialized",
+      "resource": "iteration:3",
+      "detail": "iteration/3-iter-3@HEAD",
+      "createdAt": "2026-02-18T14:03:08.019Z"
+    },
+    {
+      "id": 39,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:3",
+      "detail": "分析附件 灵枢",
+      "createdAt": "2026-02-18T14:04:08.683Z"
+    },
+    {
+      "id": 40,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 test.txt",
+      "createdAt": "2026-02-18T14:06:33.090Z"
+    },
+    {
+      "id": 41,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=5",
+      "createdAt": "2026-02-18T14:06:33.093Z"
+    },
+    {
+      "id": 42,
+      "actor": "system",
+      "action": "attachment_project_detection_synthesized",
+      "resource": "iteration:2",
+      "detail": "target=test.txt",
+      "createdAt": "2026-02-18T14:06:50.526Z"
+    },
+    {
+      "id": 43,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:3",
+      "detail": "分析附件 灵枢",
+      "createdAt": "2026-02-18T14:11:23.149Z"
+    },
+    {
+      "id": 44,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:3",
+      "detail": "分析附件 灵枢",
+      "createdAt": "2026-02-18T14:14:07.616Z"
+    },
+    {
+      "id": 45,
+      "actor": "system",
+      "action": "project_soft_deleted",
+      "resource": "project:3",
+      "detail": "deletedAt=2026-02-18T15:08:44.935Z",
+      "createdAt": "2026-02-18T15:08:44.936Z"
+    },
+    {
+      "id": 46,
+      "actor": "system",
+      "action": "project_repo_initialized",
+      "resource": "project:4",
+      "detail": "repo=https://github.com/buildwise/test",
+      "createdAt": "2026-02-18T15:26:03.533Z"
+    },
+    {
+      "id": 47,
+      "actor": "system",
+      "action": "iteration_code_link_initialized",
+      "resource": "iteration:4",
+      "detail": "iteration/4-1@HEAD",
+      "createdAt": "2026-02-18T15:26:41.146Z"
+    },
+    {
+      "id": 48,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:4",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-18T15:27:28.106Z"
+    },
+    {
+      "id": 49,
+      "actor": "system",
+      "action": "iteration_clarification_draft_updated",
+      "resource": "iteration:4",
+      "detail": "resolved=1;total=1",
+      "createdAt": "2026-02-19T01:57:49.804Z"
+    },
+    {
+      "id": 50,
+      "actor": "system",
+      "action": "project_soft_deleted",
+      "resource": "project:4",
+      "detail": "deletedAt=2026-02-19T03:00:48.253Z",
+      "createdAt": "2026-02-19T03:00:48.258Z"
+    },
+    {
+      "id": 51,
+      "actor": "system",
+      "action": "project_repo_initialized",
+      "resource": "project:5",
+      "detail": "repo=https://github.com/buildwise/test",
+      "createdAt": "2026-02-19T03:00:53.194Z"
+    },
+    {
+      "id": 52,
+      "actor": "system",
+      "action": "iteration_code_link_initialized",
+      "resource": "iteration:5",
+      "detail": "iteration/5-1@HEAD",
+      "createdAt": "2026-02-19T03:01:30.579Z"
+    },
+    {
+      "id": 53,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T03:03:26.542Z"
+    },
+    {
+      "id": 54,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=4",
+      "createdAt": "2026-02-19T03:03:26.545Z"
+    },
+    {
+      "id": 55,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T03:05:38.376Z"
+    },
+    {
+      "id": 56,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=4",
+      "createdAt": "2026-02-19T03:05:38.381Z"
+    },
+    {
+      "id": 57,
+      "actor": "system",
+      "action": "attachment_project_detection_synthesized",
+      "resource": "iteration:2",
+      "detail": "target=healthcheck.txt",
+      "createdAt": "2026-02-19T03:05:56.520Z"
+    },
+    {
+      "id": 58,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T09:21:16.309Z"
+    },
+    {
+      "id": 59,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=4",
+      "createdAt": "2026-02-19T09:21:16.312Z"
+    },
+    {
+      "id": 60,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T09:23:50.734Z"
+    },
+    {
+      "id": 61,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=4",
+      "createdAt": "2026-02-19T09:23:50.737Z"
+    },
+    {
+      "id": 62,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T09:25:27.080Z"
+    },
+    {
+      "id": 63,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=4",
+      "createdAt": "2026-02-19T09:25:27.084Z"
+    },
+    {
+      "id": 64,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T09:27:30.943Z"
+    },
+    {
+      "id": 65,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:2",
+      "detail": "cases=4",
+      "createdAt": "2026-02-19T09:27:30.945Z"
+    },
+    {
+      "id": 66,
+      "actor": "system",
+      "action": "attachment_project_detection_synthesized",
+      "resource": "iteration:2",
+      "detail": "target=healthcheck.txt",
+      "createdAt": "2026-02-19T09:28:49.426Z"
+    },
+    {
+      "id": 67,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T10:35:16.607Z"
+    },
+    {
+      "id": 68,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T11:41:04.139Z"
+    },
+    {
+      "id": 69,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:2",
+      "detail": "分析附件 healthcheck.txt",
+      "createdAt": "2026-02-19T11:42:27.010Z"
+    },
+    {
+      "id": 70,
+      "actor": "system",
+      "action": "attachment_project_detection_synthesized",
+      "resource": "iteration:2",
+      "detail": "target=healthcheck.txt",
+      "createdAt": "2026-02-19T11:43:35.148Z"
+    },
+    {
+      "id": 71,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-19T12:11:09.938Z"
+    },
+    {
+      "id": 72,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=7",
+      "createdAt": "2026-02-19T12:11:09.941Z"
+    },
+    {
+      "id": 73,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-19T12:23:53.994Z"
+    },
+    {
+      "id": 74,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-19T12:52:30.440Z"
+    },
+    {
+      "id": 75,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-19T12:55:06.586Z"
+    },
+    {
+      "id": 76,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-19T13:02:53.701Z"
+    },
+    {
+      "id": 77,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:2",
+      "detail": "hasPrototypeAssets=yes;uploadKind=prototype",
+      "createdAt": "2026-02-19T13:57:09.080Z"
+    },
+    {
+      "id": 78,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:5",
+      "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
+      "createdAt": "2026-02-20T09:34:57.136Z"
+    },
+    {
+      "id": 79,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-20T09:35:48.704Z"
+    },
+    {
+      "id": 80,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:5",
+      "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
+      "createdAt": "2026-02-20T09:43:49.936Z"
+    },
+    {
+      "id": 81,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-20T09:44:42.713Z"
+    },
+    {
+      "id": 82,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:5",
+      "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
+      "createdAt": "2026-02-20T12:56:40.729Z"
+    },
+    {
+      "id": 83,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-20T12:57:41.212Z"
+    },
+    {
+      "id": 84,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=9",
+      "createdAt": "2026-02-20T12:57:41.216Z"
     }
   ],
   "versionSnapshots": [],
   "projectShares": [],
-  "deployments": [],
-  "templateRuns": []
+  "deployments": [
+    {
+      "id": 1,
+      "projectId": 1,
+      "iterationId": 2,
+      "environment": "staging",
+      "version": "iter-v2-8218",
+      "status": "queued",
+      "createdAt": "2026-02-18T13:02:38.233Z"
+    }
+  ],
+  "templateRuns": [],
+  "opsTriageTemplates": []
 }

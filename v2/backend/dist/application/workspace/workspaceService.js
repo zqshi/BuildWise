@@ -1,378 +1,399 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspaceService = void 0;
-const workspaceSupport_1 = require("./workspaceSupport");
+const workspaceServiceGovernanceOps_1 = require("./workspaceServiceGovernanceOps");
+const workspaceServiceProjectOps_1 = require("./workspaceServiceProjectOps");
+const workspaceServiceIterationFlowOps_1 = require("./workspaceServiceIterationFlowOps");
+const workspaceServiceChangeControlOps_1 = require("./workspaceServiceChangeControlOps");
+const workspaceServiceAnalysisOps_1 = require("./workspaceServiceAnalysisOps");
+const workspaceServiceCoachOps_1 = require("./workspaceServiceCoachOps");
+const workspaceServiceVisualEditOps_1 = require("./workspaceServiceVisualEditOps");
+const workspaceServiceCommon_1 = require("./workspaceServiceCommon");
+const workspaceServiceCommon_2 = require("./workspaceServiceCommon");
+function readPositiveInt(value, fallback) {
+    const parsed = Number.parseInt((value || "").trim(), 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+function countInputFiles(input) {
+    if (input.sourceType === "folder" && Array.isArray(input.files) && input.files.length > 0) {
+        return input.files.length;
+    }
+    return 1;
+}
+function summarizeInput(input) {
+    const totalFiles = countInputFiles(input);
+    const totalBytes = input.sourceType === "folder" && Array.isArray(input.files) && input.files.length > 0
+        ? input.files.reduce((total, item) => total + (Number.isFinite(item.size) ? item.size : 0), 0)
+        : Number.isFinite(input.size)
+            ? input.size
+            : 0;
+    return {
+        fileName: input.fileName,
+        sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+        folderName: input.folderName?.trim() || "",
+        totalFiles,
+        totalBytes
+    };
+}
+function splitAttachmentInputIntoBatches(input, maxBatchFiles) {
+    if (input.sourceType !== "folder" || !Array.isArray(input.files) || input.files.length <= maxBatchFiles) {
+        return [input];
+    }
+    const files = input.files;
+    const batches = [];
+    const totalBatches = Math.ceil(files.length / maxBatchFiles);
+    for (let index = 0; index < totalBatches; index += 1) {
+        const batchFiles = files.slice(index * maxBatchFiles, (index + 1) * maxBatchFiles);
+        const digestBase = (input.excerptDigest || "").trim();
+        const digest = digestBase
+            ? `${digestBase};batch=${index + 1}/${totalBatches};batchFiles=${batchFiles.length}`
+            : `strategy=folder-batch;batch=${index + 1}/${totalBatches};batchFiles=${batchFiles.length}`;
+        const batchPreview = batchFiles
+            .filter((item) => item.excerpt.trim().length > 0)
+            .slice(0, 3)
+            .map((item) => `${item.path || item.fileName}: ${item.excerpt.slice(0, 180)}`)
+            .join("\n\n");
+        batches.push({
+            ...input,
+            excerpt: (batchPreview || input.excerpt || "").slice(0, 6000),
+            excerptDigest: digest,
+            excerptStrategy: "folder-batch",
+            files: batchFiles
+        });
+    }
+    return batches;
+}
+function rankProjectConfidence(value) {
+    if (value === "high")
+        return 3;
+    if (value === "medium")
+        return 2;
+    return 1;
+}
+function mergeAttachmentReports(input, reports, totalBatches) {
+    if (reports.length === 1) {
+        return reports[0];
+    }
+    const primary = reports[reports.length - 1];
+    const bestProjectDetection = reports.reduce((best, current) => {
+        const bestScore = rankProjectConfidence(best.projectDetection.confidence) * 10 + best.projectDetection.evidence.length;
+        const currentScore = rankProjectConfidence(current.projectDetection.confidence) * 10 + current.projectDetection.evidence.length;
+        return currentScore > bestScore ? current : best;
+    }, primary);
+    const fileStats = input.sourceType === "folder" && Array.isArray(input.files)
+        ? {
+            totalFiles: input.files.length,
+            textFiles: input.files.filter((item) => item.excerpt.trim().length > 0).length,
+            binaryFiles: input.files.filter((item) => item.excerpt.trim().length === 0).length
+        }
+        : primary.fileStats;
+    const fileSelection = input.sourceType === "folder" && Array.isArray(input.files)
+        ? {
+            consideredFiles: input.files.length,
+            includedFiles: input.files.length,
+            skippedNoiseFiles: reports.reduce((total, item) => total + item.fileSelection.skippedNoiseFiles, 0),
+            skippedEmptyFiles: reports.reduce((total, item) => total + item.fileSelection.skippedEmptyFiles, 0),
+            sampled: reports.some((item) => item.fileSelection.sampled),
+            sampleReason: reports.map((item) => item.fileSelection.sampleReason).find(Boolean) || "",
+            includedPaths: Array.from(new Set(reports.flatMap((item) => item.fileSelection.includedPaths))).slice(0, 12),
+            ignoredFiles: Array.from(new Map(reports
+                .flatMap((item) => item.fileSelection.ignoredFiles)
+                .map((item) => [`${item.path}:${item.reason}`, item])).values()).slice(0, 20)
+        }
+        : primary.fileSelection;
+    return {
+        ...primary,
+        fileName: input.fileName,
+        sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+        analyzedTarget: input.sourceType === "folder" ? input.folderName?.trim() || input.fileName : input.fileName,
+        analyzedAt: new Date().toISOString(),
+        fileStats,
+        fileSelection,
+        projectDetection: {
+            ...bestProjectDetection.projectDetection,
+            evidence: Array.from(new Set(reports.flatMap((item) => item.projectDetection.evidence))).slice(0, 6)
+        },
+        meaningfulFindings: Array.from(new Set(reports.flatMap((item) => item.meaningfulFindings))).slice(0, 16),
+        prioritizedFindings: Array.from(new Map(reports.flatMap((item) => item.prioritizedFindings).map((item) => [`${item.priority}:${item.content}`, item])).values()).slice(0, 16),
+        nextActions: Array.from(new Set(reports.flatMap((item) => item.nextActions))).slice(0, 14),
+        clarificationQuestions: Array.from(new Set(reports.flatMap((item) => item.clarificationQuestions))).slice(0, 12),
+        suggestions: Array.from(new Set(reports.flatMap((item) => item.suggestions))).slice(0, 14),
+        llmContext: {
+            ...primary.llmContext,
+            strategy: "folder-batch-job",
+            digest: `strategy=folder-batch-job;batches=${totalBatches};mergedReports=${reports.length}`,
+            excerptLength: reports.reduce((total, item) => total + item.llmContext.excerptLength, 0),
+            chunkCount: reports.reduce((total, item) => total + item.llmContext.chunkCount, 0),
+            promptContextLength: reports.reduce((total, item) => total + item.llmContext.promptContextLength, 0),
+            agentCount: reports.reduce((total, item) => total + item.llmContext.agentCount, 0),
+            unknownSignalCount: reports.reduce((total, item) => total + item.llmContext.unknownSignalCount, 0),
+            degraded: reports.some((item) => item.llmContext.degraded),
+            degradeReason: reports
+                .map((item) => item.llmContext.degradeReason)
+                .filter((item) => item.trim().length > 0)
+                .join(" | ")
+                .slice(0, 300) || ""
+        },
+        understanding: `${primary.understanding}（分批汇总：${reports.length}/${totalBatches}）`,
+        agentOutputs: reports.flatMap((item) => item.agentOutputs).slice(0, 60)
+    };
+}
 class WorkspaceService {
     constructor(repo, agentRunner = null) {
         this.repo = repo;
         this.agentRunner = agentRunner;
+        this.analysisJobs = new Map();
+        this.analysisQueue = [];
+        this.runningAnalysisWorkers = 0;
+        const processEnv = globalThis.process?.env ?? {};
+        this.analysisWorkerConcurrency = readPositiveInt(processEnv.ANALYSIS_JOB_CONCURRENCY, 2);
+        this.analysisBatchFileLimit = readPositiveInt(processEnv.ANALYSIS_JOB_BATCH_FILE_LIMIT, 50);
+        this.analysisBatchRetryLimit = readPositiveInt(processEnv.ANALYSIS_JOB_BATCH_RETRY_LIMIT, 2);
     }
     listGovernanceRoles() {
-        return [
-            { id: "owner", name: "系统负责人", permissions: ["workspace:*", "model:*", "governance:*"] },
-            { id: "pm", name: "产品经理", permissions: ["workspace:read", "workspace:write", "iteration:transition"] },
-            { id: "developer", name: "研发工程师", permissions: ["workspace:read", "model:read", "model:write"] },
-            { id: "qa", name: "测试工程师", permissions: ["workspace:read", "trace:read", "assessment:recompute"] },
-            { id: "viewer", name: "只读成员", permissions: ["workspace:read", "model:read"] }
-        ];
+        return (0, workspaceServiceGovernanceOps_1.listGovernanceRolesOp)();
     }
     listAuditLogs(limit = 50) {
-        return this.repo.listAuditLogs(limit);
-    }
-    writeAuditLog(action, resource, detail) {
-        const data = this.repo.read();
-        this.repo.appendAuditLog({
-            id: this.repo.nextId(data.auditLogs),
-            actor: "system",
-            action,
-            resource,
-            detail,
-            createdAt: new Date().toISOString()
-        });
+        return (0, workspaceServiceGovernanceOps_1.listAuditLogsOp)(this.repo, limit);
     }
     hasProject(projectId) {
-        return this.repo.findProject(projectId) !== null;
+        return (0, workspaceServiceCommon_1.hasProject)(this.repo, projectId);
     }
     listProjects() {
-        return this.repo.listProjects();
+        return (0, workspaceServiceCommon_1.listProjectsNormalized)(this.repo);
     }
     createProject(input) {
-        return this.repo.createProject(input);
+        return (0, workspaceServiceProjectOps_1.createProjectOp)(this.repo, input);
+    }
+    archiveProject(projectId) {
+        return (0, workspaceServiceProjectOps_1.archiveProjectOp)(this.repo, projectId);
+    }
+    getProjectRepository(projectId) {
+        return (0, workspaceServiceProjectOps_1.getProjectRepositoryOp)(this.repo, projectId);
+    }
+    bootstrapProjectRepository(projectId, input) {
+        return (0, workspaceServiceProjectOps_1.bootstrapProjectRepositoryOp)(this.repo, projectId, input);
+    }
+    provisionProjectRepository(projectId, input) {
+        return (0, workspaceServiceProjectOps_1.provisionProjectRepositoryOp)(this.repo, projectId, input);
+    }
+    scaffoldProjectRepository(projectId, input) {
+        return (0, workspaceServiceProjectOps_1.scaffoldProjectRepositoryOp)(this.repo, projectId, input);
+    }
+    publishIterationToRemote(iterationId, input) {
+        return (0, workspaceServiceProjectOps_1.publishIterationToRemoteOp)(this.repo, iterationId, input);
     }
     listIterations(projectId) {
-        if (!this.hasProject(projectId)) {
-            return null;
-        }
-        return this.repo.listIterations(projectId).map(workspaceSupport_1.normalizeIteration);
+        return (0, workspaceServiceIterationFlowOps_1.listIterationsOp)(this.repo, projectId);
     }
     createIteration(projectId, payload) {
-        if (!this.hasProject(projectId)) {
-            return null;
-        }
-        const project = this.repo.findProject(projectId);
-        const previous = this.repo
-            .listIterations(projectId)
-            .sort((a, b) => b.id - a.id)
-            .map(workspaceSupport_1.normalizeIteration)[0] ?? null;
-        const mergedPayload = (0, workspaceSupport_1.buildMergedIterationPayload)(payload, project, previous);
-        const created = this.repo.createIteration(projectId, mergedPayload);
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(created);
-        const snapshot = {
-            id: this.repo.nextId(this.repo.read().snapshots),
-            iterationId: normalized.id,
-            source: "create",
-            note: "迭代创建自动快照",
-            assessment: normalized.assessment,
-            scope: normalized.scope,
-            status: normalized.status,
-            progress: normalized.progress,
-            createdAt: new Date().toISOString()
-        };
-        this.repo.appendSnapshot(snapshot);
-        return normalized;
+        return (0, workspaceServiceIterationFlowOps_1.createIterationOp)(this.repo, projectId, payload);
     }
     listMessages(iterationId) {
-        return this.repo.listMessages(iterationId);
+        return (0, workspaceServiceIterationFlowOps_1.listMessagesOp)(this.repo, iterationId);
     }
     createMessage(iterationId, role, content) {
-        const created = this.repo.createMessage(iterationId, role, content);
-        const iteration = this.repo.findIteration(iterationId);
-        if (iteration) {
-            const snapshot = {
-                id: this.repo.nextId(this.repo.read().snapshots),
-                iterationId,
-                source: "message",
-                note: `${role} 消息更新`,
-                assessment: iteration.assessment,
-                scope: iteration.scope,
-                status: iteration.status,
-                progress: iteration.progress,
-                createdAt: new Date().toISOString()
-            };
-            this.repo.appendSnapshot(snapshot);
-        }
-        return created;
+        return (0, workspaceServiceIterationFlowOps_1.createMessageOp)(this.repo, iterationId, role, content);
+    }
+    bindIterationCodeLink(iterationId, input) {
+        return (0, workspaceServiceIterationFlowOps_1.bindIterationCodeLinkOp)(this.repo, iterationId, input);
+    }
+    getIterationCodeLink(iterationId) {
+        return (0, workspaceServiceIterationFlowOps_1.getIterationCodeLinkOp)(this.repo, iterationId);
+    }
+    getIterationChangeControl(iterationId) {
+        return (0, workspaceServiceChangeControlOps_1.getIterationChangeControlOp)(this.repo, iterationId);
+    }
+    confirmIterationAnalysis(iterationId, input) {
+        return (0, workspaceServiceChangeControlOps_1.confirmIterationAnalysisOp)(this.repo, iterationId, input);
+    }
+    updateIterationBoundary(iterationId, input) {
+        return (0, workspaceServiceChangeControlOps_1.updateIterationBoundaryOp)(this.repo, iterationId, input);
+    }
+    updateClarificationDraft(iterationId, resolvedQuestions) {
+        return (0, workspaceServiceChangeControlOps_1.updateClarificationDraftOp)(this.repo, iterationId, resolvedQuestions);
+    }
+    updateIterationTestMatrixExecution(iterationId, updates) {
+        return (0, workspaceServiceChangeControlOps_1.updateIterationTestMatrixExecutionOp)(this.repo, iterationId, updates);
+    }
+    locateIterationsByCodeRef(projectId, ref) {
+        return (0, workspaceServiceIterationFlowOps_1.locateIterationsByCodeRefOp)(this.repo, projectId, ref);
     }
     getIterationContext(iterationId) {
-        const iteration = this.repo.findIteration(iterationId);
-        if (!iteration) {
-            return null;
-        }
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        const previous = this.repo.findPreviousIteration(normalized);
-        return {
-            iteration: normalized,
-            previous: previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null,
-            continuity: normalized.continuity,
-            scope: normalized.scope
-        };
+        return (0, workspaceServiceIterationFlowOps_1.getIterationContextOp)(this.repo, iterationId);
     }
     getAssessment(iterationId) {
-        const iteration = this.repo.findIteration(iterationId);
-        if (!iteration) {
-            return null;
-        }
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        return {
-            iterationId: normalized.id,
-            iterationName: normalized.name,
-            assessment: normalized.assessment
-        };
+        return (0, workspaceServiceIterationFlowOps_1.getAssessmentOp)(this.repo, iterationId);
     }
     listAssessmentSnapshots(iterationId) {
-        return this.repo.listSnapshots(iterationId);
+        return (0, workspaceServiceIterationFlowOps_1.listAssessmentSnapshotsOp)(this.repo, iterationId);
     }
     getStateMachine(iterationId) {
-        const iteration = this.repo.findIteration(iterationId);
-        if (!iteration) {
-            return null;
-        }
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        const currentStatus = normalized.status;
-        return {
-            iterationId: normalized.id,
-            currentStatus,
-            allowedTransitions: workspaceSupport_1.statusTransitions[currentStatus] || [],
-            transitionHistory: this.repo.listTransitions(iterationId)
-        };
+        return (0, workspaceServiceIterationFlowOps_1.getStateMachineOp)(this.repo, iterationId);
     }
     transitionIteration(iterationId, toStatus, note = "") {
-        const iteration = this.repo.findIteration(iterationId);
-        if (!iteration) {
-            return { ok: false, reason: "iteration_not_found" };
-        }
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        const fromStatus = normalized.status;
-        const allowed = workspaceSupport_1.statusTransitions[fromStatus] || [];
-        if (!allowed.includes(toStatus)) {
-            return { ok: false, reason: "invalid_transition" };
-        }
-        normalized.status = toStatus;
-        if (toStatus === "completed") {
-            normalized.progress = 100;
-        }
-        else if (toStatus === "in-progress" && normalized.progress === 0) {
-            normalized.progress = 10;
-        }
-        this.repo.updateIteration(normalized);
-        const createdAt = new Date().toISOString();
-        this.repo.appendTransition({
-            id: this.repo.nextId(this.repo.read().transitions),
-            iterationId,
-            fromStatus,
-            toStatus,
-            note: note || `${fromStatus} -> ${toStatus}`,
-            createdAt
-        });
-        this.writeAuditLog("iteration_state_transitioned", `iteration:${iterationId}`, `${fromStatus} -> ${toStatus}${note ? ` (${note})` : ""}`);
-        this.repo.appendSnapshot({
-            id: this.repo.nextId(this.repo.read().snapshots),
-            iterationId,
-            source: "state-transition",
-            note: `状态迁移 ${fromStatus} -> ${toStatus}`,
-            assessment: normalized.assessment,
-            scope: normalized.scope,
-            status: normalized.status,
-            progress: normalized.progress,
-            createdAt
-        });
-        return { ok: true, data: { iterationId, fromStatus, toStatus } };
+        return (0, workspaceServiceIterationFlowOps_1.transitionIterationOp)(this.repo, iterationId, toStatus, note);
     }
     recomputeAssessment(iterationId) {
-        const iteration = this.repo.findIteration(iterationId);
-        if (!iteration) {
-            return null;
-        }
-        const previous = this.repo.findPreviousIteration(iteration);
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        normalized.assessment = (0, workspaceSupport_1.recomputeAssessment)(normalized, previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null);
-        this.repo.updateIteration(normalized);
-        this.repo.appendSnapshot({
-            id: this.repo.nextId(this.repo.read().snapshots),
-            iterationId,
-            source: "manual-recompute",
-            note: "手动刷新评估",
-            assessment: normalized.assessment,
-            scope: normalized.scope,
-            status: normalized.status,
-            progress: normalized.progress,
-            createdAt: new Date().toISOString()
-        });
-        this.writeAuditLog("assessment_recomputed", `iteration:${iterationId}`, "手动刷新评估");
-        return {
-            iterationId,
-            iterationName: normalized.name,
-            assessment: normalized.assessment
-        };
+        return (0, workspaceServiceIterationFlowOps_1.recomputeAssessmentOp)(this.repo, iterationId);
     }
     restoreSnapshot(iterationId, snapshotId) {
-        const iteration = this.repo.findIteration(iterationId);
-        if (!iteration) {
-            return null;
-        }
-        const snapshot = this.repo.listSnapshots(iterationId).find((item) => item.id === snapshotId);
-        if (!snapshot) {
-            return null;
-        }
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        normalized.assessment = snapshot.assessment;
-        normalized.scope = snapshot.scope;
-        normalized.status = snapshot.status;
-        normalized.progress = snapshot.progress;
-        this.repo.updateIteration(normalized);
-        this.repo.appendSnapshot({
-            id: this.repo.nextId(this.repo.read().snapshots),
-            iterationId,
-            source: "restore",
-            note: `恢复快照 #${snapshotId}`,
-            assessment: normalized.assessment,
-            scope: normalized.scope,
-            status: normalized.status,
-            progress: normalized.progress,
-            createdAt: new Date().toISOString()
-        });
-        this.writeAuditLog("assessment_restored", `iteration:${iterationId}`, `恢复快照 #${snapshotId}`);
-        return {
-            iterationId,
-            iterationName: normalized.name,
-            assessment: normalized.assessment
-        };
+        return (0, workspaceServiceIterationFlowOps_1.restoreSnapshotOp)(this.repo, iterationId, snapshotId);
     }
-    async analyzeAttachment(iterationId, input) {
+    analyzeAttachment(iterationId, input) {
+        return (0, workspaceServiceAnalysisOps_1.analyzeAttachmentOp)(this.repo, this.agentRunner, (targetIterationId, toStatus, note) => this.transitionIteration(targetIterationId, toStatus, note), iterationId, input);
+    }
+    submitAttachmentAnalysisJob(iterationId, input) {
         const iteration = this.repo.findIteration(iterationId);
         if (!iteration) {
             return null;
         }
-        const normalized = (0, workspaceSupport_1.normalizeIteration)(iteration);
-        const previous = this.repo.findPreviousIteration(normalized);
-        const previousScope = previous?.scope.inScope ?? [];
-        const currentScope = normalized.scope.inScope;
-        const added = currentScope.filter((item) => !previousScope.includes(item));
-        const removed = previousScope.filter((item) => !currentScope.includes(item));
-        const diffLocations = (0, workspaceSupport_1.buildDiffLocations)(previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null, normalized);
-        const changed = diffLocations
-            .filter((item) => item.changeType === "changed")
-            .map((item) => `${item.dimension}: ${item.currentItem}`);
-        const inferredRisks = (0, workspaceSupport_1.inferRisksFromExcerpt)(input.excerpt);
-        const normalizedRisks = normalized.assessment.risks.length > 0
-            ? normalized.assessment.risks
-            : inferredRisks.length > 0
-                ? inferredRisks
-                : ["暂无显式风险，请结合业务验收继续确认。"];
-        const agentPlan = (0, workspaceSupport_1.buildIterationAgentPlan)({
-            iteration: normalized,
-            previous: previous ? (0, workspaceSupport_1.normalizeIteration)(previous) : null,
-            scope: input.agentScope ?? "full-cycle",
-            diffLocations,
-            risks: normalizedRisks,
-            fileName: input.fileName,
-            forceMultiAgent: input.forceMultiAgent
-        });
-        const agentOutputs = await this.executeAgentPlan(agentPlan.prompts);
-        const lifecycleAction = {
-            attempted: false,
-            applied: false,
-            fromStatus: normalized.status,
-            toStatus: agentPlan.recommendedTransition,
-            note: "未执行自动流转"
-        };
-        const finalLifecycleAction = this.applyLifecycleTransition(iterationId, normalized.status, agentPlan.recommendedTransition, input.autoTransition === true) ?? lifecycleAction;
-        this.writeAuditLog("attachment_analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
-        return {
-            iterationId: normalized.id,
-            iterationName: normalized.name,
-            fileName: input.fileName,
-            analyzedAt: new Date().toISOString(),
-            understanding: `${(0, workspaceSupport_1.summarizeFromExcerpt)(input.excerpt, `已基于附件 ${input.fileName} 与当前迭代上下文完成语义理解。`)} 识别到 ${added.length} 项新增范围、${removed.length} 项移出范围。`,
-            versionDiff: {
-                baselineIterationName: previous?.name ?? "无基线",
-                added,
-                changed,
-                removed
+        const now = new Date().toISOString();
+        const jobId = `analysis-${iterationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const summary = summarizeInput(input);
+        const runtimeJob = {
+            jobId,
+            iterationId,
+            status: "queued",
+            createdAt: now,
+            startedAt: "",
+            finishedAt: "",
+            inputSummary: summary,
+            progress: {
+                totalFiles: summary.totalFiles,
+                processedFiles: 0,
+                totalBatches: 0,
+                completedBatches: 0,
+                failedBatches: 0,
+                retriedBatches: 0
             },
-            diffLocations,
-            cyclePhase: (0, workspaceSupport_1.inferCyclePhase)(normalized.status),
-            agentPlan,
-            agentOutputs,
-            lifecycleAction: finalLifecycleAction,
-            risks: normalizedRisks,
-            suggestions: [
-                "优先处理新增范围中的高业务价值项。",
-                "将差异项同步到验收标准，避免交付偏差。",
-                "评估被移出范围是否影响当前里程碑承诺。",
-                `建议下一状态：${agentPlan.recommendedTransition ?? "保持当前状态"}`,
-                finalLifecycleAction.note
-            ]
+            warnings: [],
+            error: "",
+            result: null,
+            input
         };
+        this.analysisJobs.set(jobId, runtimeJob);
+        this.analysisQueue.push(jobId);
+        this.triggerAnalysisQueue();
+        return this.toPublicAnalysisJob(runtimeJob);
     }
-    async executeAgentPlan(prompts) {
-        const runner = this.agentRunner;
-        if (!runner) {
-            return prompts.map((prompt) => ({
-                agentId: prompt.agentId,
-                role: prompt.role,
-                status: "fallback",
-                content: `[fallback] 未配置 LLM，返回可执行 Prompt。\n${prompt.userPrompt}`
-            }));
+    getAttachmentAnalysisJob(iterationId, jobId) {
+        const job = this.analysisJobs.get(jobId);
+        if (!job || job.iterationId !== iterationId) {
+            return null;
         }
-        return Promise.all(prompts.map(async (prompt) => {
-            try {
-                const result = await runner.run(prompt);
-                return {
-                    agentId: prompt.agentId,
-                    role: prompt.role,
-                    status: "success",
-                    content: result.content,
-                    model: result.model
-                };
-            }
-            catch (error) {
-                return {
-                    agentId: prompt.agentId,
-                    role: prompt.role,
-                    status: "error",
-                    content: prompt.userPrompt,
-                    error: error instanceof Error ? error.message : "llm_unknown_error"
-                };
-            }
-        }));
+        return this.toPublicAnalysisJob(job);
     }
-    applyLifecycleTransition(iterationId, fromStatus, toStatus, autoTransition) {
-        if (!toStatus || toStatus === fromStatus) {
-            return {
-                attempted: false,
-                applied: false,
-                fromStatus,
-                toStatus,
-                note: "推荐状态与当前一致，未触发自动流转。"
-            };
+    toPublicAnalysisJob(job) {
+        const { input: _input, ...publicJob } = job;
+        return publicJob;
+    }
+    triggerAnalysisQueue() {
+        while (this.runningAnalysisWorkers < this.analysisWorkerConcurrency && this.analysisQueue.length > 0) {
+            const nextJobId = this.analysisQueue.shift();
+            if (!nextJobId) {
+                return;
+            }
+            const job = this.analysisJobs.get(nextJobId);
+            if (!job || job.status !== "queued") {
+                continue;
+            }
+            this.runningAnalysisWorkers += 1;
+            void this.runAttachmentAnalysisJob(nextJobId)
+                .catch(() => undefined)
+                .finally(() => {
+                this.runningAnalysisWorkers = Math.max(0, this.runningAnalysisWorkers - 1);
+                this.triggerAnalysisQueue();
+            });
         }
-        if (!autoTransition) {
-            return {
-                attempted: false,
-                applied: false,
-                fromStatus,
-                toStatus,
-                note: `已生成状态流转建议 ${fromStatus} -> ${toStatus}，等待手动确认。`
-            };
+    }
+    async runAttachmentAnalysisJob(jobId) {
+        const job = this.analysisJobs.get(jobId);
+        if (!job) {
+            return;
         }
-        const result = this.transitionIteration(iterationId, toStatus, "Agent 自动驱动流转");
-        if (result.ok) {
-            return {
-                attempted: true,
-                applied: true,
-                fromStatus,
-                toStatus,
-                note: `已自动流转：${fromStatus} -> ${toStatus}`
-            };
+        job.status = "running";
+        job.startedAt = new Date().toISOString();
+        const batches = splitAttachmentInputIntoBatches(job.input, this.analysisBatchFileLimit);
+        job.progress.totalBatches = batches.length;
+        const reports = [];
+        const batchFailures = [];
+        try {
+            for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+                const batch = batches[batchIndex];
+                const batchFileCount = batch.sourceType === "folder" && Array.isArray(batch.files) && batch.files.length > 0 ? batch.files.length : 1;
+                let success = false;
+                let lastBatchError = "";
+                for (let attempt = 0; attempt <= this.analysisBatchRetryLimit; attempt += 1) {
+                    try {
+                        const report = await (0, workspaceServiceAnalysisOps_1.analyzeAttachmentOp)(this.repo, this.agentRunner, (targetIterationId, toStatus, note) => this.transitionIteration(targetIterationId, toStatus, note), job.iterationId, batch);
+                        if (!report) {
+                            throw new Error("iteration not found");
+                        }
+                        reports.push(report);
+                        job.progress.completedBatches += 1;
+                        job.progress.processedFiles += batchFileCount;
+                        if (attempt > 0) {
+                            job.progress.retriedBatches += 1;
+                        }
+                        success = true;
+                        break;
+                    }
+                    catch (error) {
+                        lastBatchError = error instanceof Error ? error.message : "unknown_error";
+                        if (attempt < this.analysisBatchRetryLimit) {
+                            continue;
+                        }
+                    }
+                }
+                if (!success) {
+                    job.progress.failedBatches += 1;
+                    batchFailures.push(`batch ${batchIndex + 1}/${batches.length}: ${lastBatchError || "unknown_error"}`);
+                }
+            }
+            if (reports.length === 0) {
+                throw new Error(batchFailures[0] || "analysis failed");
+            }
+            job.result = mergeAttachmentReports(job.input, reports, batches.length);
+            job.finishedAt = new Date().toISOString();
+            job.status = "succeeded";
+            if (batchFailures.length > 0) {
+                job.warnings = [...batchFailures];
+            }
         }
-        return {
-            attempted: true,
-            applied: false,
-            fromStatus,
-            toStatus,
-            note: `自动流转失败：${result.reason}`
+        catch (error) {
+            job.status = "failed";
+            job.finishedAt = new Date().toISOString();
+            job.error = error instanceof Error ? error.message : "analysis failed";
+            if (batchFailures.length > 0) {
+                job.warnings = [...batchFailures];
+            }
+        }
+    }
+    coachIterationConversation(iterationId, message) {
+        return (0, workspaceServiceCoachOps_1.coachIterationConversationOp)(this.repo, this.agentRunner, iterationId, message);
+    }
+    executeVisualEditInstruction(iterationId, message, target) {
+        return (0, workspaceServiceVisualEditOps_1.executeVisualEditInstructionOp)(this.repo, iterationId, message, target);
+    }
+    updateIterationInteractionState(iterationId, input) {
+        const iteration = this.repo.findIteration(iterationId);
+        if (!iteration) {
+            return null;
+        }
+        const now = new Date().toISOString();
+        const normalized = {
+            ...iteration,
+            interactionState: {
+                hasPrototypeAssets: Boolean(input.hasPrototypeAssets),
+                uploadKind: input.uploadKind || iteration.interactionState?.uploadKind || "other",
+                lastUpdatedAt: now,
+                lastAttachmentName: (input.lastAttachmentName || "").trim() || iteration.interactionState?.lastAttachmentName || ""
+            }
         };
+        this.repo.updateIteration(normalized);
+        (0, workspaceServiceCommon_2.writeAuditLog)(this.repo, "iteration_interaction_state_updated", `iteration:${iterationId}`, `hasPrototypeAssets=${normalized.interactionState?.hasPrototypeAssets ? "yes" : "no"};uploadKind=${normalized.interactionState?.uploadKind}`);
+        return normalized;
     }
 }
 exports.WorkspaceService = WorkspaceService;

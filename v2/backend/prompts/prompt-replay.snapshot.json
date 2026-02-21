@@ -1,0 +1,221 @@
+{
+  "generatedAt": "2026-02-18T09:24:21.525Z",
+  "items": [
+    {
+      "file": "agent.iteration-coach.v2.md",
+      "systemLength": 1746,
+      "userLength": 99,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "abc7c56da0375789",
+          "userHash": "79a3e7be213edea9"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "abc7c56da0375789",
+          "userHash": "afe65f891561db2b"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "abc7c56da0375789",
+          "userHash": "aa8fe902104b28dd"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "abc7c56da0375789",
+          "userHash": "6c141586865419ea"
+        }
+      ]
+    },
+    {
+      "file": "agent.orchestrator.v2.md",
+      "systemLength": 1031,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "3ed633bac9aeef8e",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "3ed633bac9aeef8e",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "3ed633bac9aeef8e",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "3ed633bac9aeef8e",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    },
+    {
+      "file": "agent.requirements-analyst.v2.md",
+      "systemLength": 1020,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "b8188054d749cfdc",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "b8188054d749cfdc",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "b8188054d749cfdc",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "b8188054d749cfdc",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    },
+    {
+      "file": "agent.task-planner.v2.md",
+      "systemLength": 865,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "43ed3b35977801c9",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "43ed3b35977801c9",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "43ed3b35977801c9",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "43ed3b35977801c9",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    },
+    {
+      "file": "agent.delivery-engineer.v2.md",
+      "systemLength": 966,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "bde7999ca4d568ce",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "bde7999ca4d568ce",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "bde7999ca4d568ce",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "bde7999ca4d568ce",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    },
+    {
+      "file": "agent.qa-reviewer.v2.md",
+      "systemLength": 910,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "a0bd71208be33114",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "a0bd71208be33114",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "a0bd71208be33114",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "a0bd71208be33114",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    },
+    {
+      "file": "agent.boundary-guardian.v2.md",
+      "systemLength": 458,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "7ff0d37b15f5d3f9",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "7ff0d37b15f5d3f9",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "7ff0d37b15f5d3f9",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "7ff0d37b15f5d3f9",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    },
+    {
+      "file": "agent.release-ops-advisor.v2.md",
+      "systemLength": 523,
+      "userLength": 68,
+      "rendered": [
+        {
+          "scenario": 1,
+          "systemHash": "f7ca8b888fea8385",
+          "userHash": "88db3077991802de"
+        },
+        {
+          "scenario": 2,
+          "systemHash": "f7ca8b888fea8385",
+          "userHash": "12f7f90306dc6bb1"
+        },
+        {
+          "scenario": 3,
+          "systemHash": "f7ca8b888fea8385",
+          "userHash": "28fc0a2364cf1fd1"
+        },
+        {
+          "scenario": 4,
+          "systemHash": "f7ca8b888fea8385",
+          "userHash": "d5c008163e92c3b4"
+        }
+      ]
+    }
+  ]
+}

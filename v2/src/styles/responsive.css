@@ -29,6 +29,23 @@
   .analysis-drawer {
     width:min(640px,100%)
   }
+  .interaction-drawer {
+    width:min(720px,100%)
+  }
+  .interaction-scroll {
+    grid-template-columns:220px 1fr;
+  }
+  .interaction-preview-grid {
+    grid-template-columns:1fr;
+  }
+  .interaction-html-preview {
+    height:100%;
+    min-height:280px;
+  }
+  .interaction-inline-editor {
+    grid-template-columns:1fr;
+    align-items:stretch;
+  }
 
   .ops-grid {
     grid-template-columns:1fr 1fr
@@ -62,11 +79,39 @@
   .chat-input-row {
     grid-template-columns:1fr;
   }
+  .modal-grid-two {
+    grid-template-columns:1fr;
+  }
+  .iteration-modal-card {
+    width:calc(100vw - 20px);
+    max-height:calc(100vh - 20px);
+  }
 
   .analysis-drawer {
     width:100%;
     border-radius:0;
     right:0
+  }
+  .interaction-drawer {
+    width:100%;
+    border-radius:0;
+    right:0
+  }
+  .interaction-drawer-resize-handle {
+    display:none;
+  }
+  .interaction-scroll {
+    grid-template-columns:1fr;
+  }
+  .interaction-preview-grid {
+    grid-template-columns:1fr;
+  }
+  .interaction-html-preview {
+    height:100%;
+    min-height:240px;
+  }
+  .interaction-inline-editor {
+    grid-template-columns:1fr;
   }
 
   .analysis-drawer-mask.open {

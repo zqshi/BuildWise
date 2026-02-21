@@ -40,6 +40,7 @@ import { nowIsoString } from "./workspaceHelpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
 const BOOT_RETRY_DELAYS_MS = [0, 500, 1200, 2500];
+const STATUS_POLL_INTERVAL_MS = 15000;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -121,10 +122,33 @@ export function useWorkspaceLoaders({
   setOpsMetrics,
   setDeployments
 }: UseWorkspaceLoadersParams) {
+  const toOfflineMessage = (raw: string) =>
+    raw.includes("network unavailable") || raw.includes("request timeout")
+      ? "后端服务不可用（127.0.0.1:5055）。请先启动：npm --prefix v2/backend run dev"
+      : raw;
+
+  const probeStatus = async () => {
+    try {
+      const statusData = await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
+      setStatus(statusData);
+      setError((prev) => (prev && prev.includes("后端服务不可用") ? null : prev));
+      return { ok: true as const };
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "Unknown error";
+      setStatus({ status: "offline", service: "buildwise-v2-backend" });
+      return { ok: false as const, raw };
+    }
+  };
+
   const loadProjects = async () => {
     const projectData = await fetchProjects();
     setProjects(projectData);
-    if (!currentProjectId && projectData.length > 0) {
+    if (projectData.length === 0) {
+      setCurrentProjectId(null);
+      return projectData;
+    }
+    const hasCurrentProject = projectData.some((item) => item.id === currentProjectId);
+    if (!currentProjectId || !hasCurrentProject) {
       setCurrentProjectId(projectData[0].id);
     }
     return projectData;
@@ -164,10 +188,10 @@ export function useWorkspaceLoaders({
     setStateMachine(machine);
   };
 
-  const loadModelOps = async () => {
+  const loadModelOps = async (projectId?: number) => {
     try {
       setModelOpsLoading(true);
-      const reports = await fetchModelOps();
+      const reports = await fetchModelOps(projectId);
       setModelSummary(reports.modelSummary);
       setModelRelations(reports.modelRelations);
       setRuleCompile(reports.ruleCompile);
@@ -207,23 +231,46 @@ export function useWorkspaceLoaders({
   };
 
   useEffect(() => {
+    let stopped = false;
     const bootstrap = async () => {
       try {
         const statusData = await fetchStatusWithRetry();
+        if (stopped) {
+          return;
+        }
         setStatus(statusData);
         setError(null);
-        await Promise.all([loadProjects(), loadModelOps(), loadGovernance()]);
+        await Promise.all([loadProjects(), loadGovernance()]);
       } catch (err) {
+        if (stopped) {
+          return;
+        }
         setStatus({ status: "offline", service: "buildwise-v2-backend" });
         const raw = err instanceof Error ? err.message : "Unknown error";
-        const offlineMessage =
-          raw.includes("network unavailable") || raw.includes("request timeout")
-            ? "后端服务不可用（127.0.0.1:5055）。请先启动：npm --prefix v2/backend run start"
-            : raw;
-        setError(offlineMessage);
+        setError(toOfflineMessage(raw));
       }
     };
     bootstrap();
+    const timer = window.setInterval(async () => {
+      const result = await probeStatus();
+      if (!result.ok) {
+        setError((prev) => {
+          if (prev && !prev.includes("后端服务不可用")) {
+            return prev;
+          }
+          return toOfflineMessage(result.raw);
+        });
+        return;
+      }
+      if (stopped) {
+        return;
+      }
+      setError((prev) => (prev && prev.includes("后端服务不可用") ? null : prev));
+    }, STATUS_POLL_INTERVAL_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

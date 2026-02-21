@@ -1,6 +1,8 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
+import type { IterationVersionType } from "../domain/workspace/iterationTypes";
 import type { Project } from "../domain/workspace/types";
-import { createIteration, createProject } from "./workspaceApi";
+import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
+import { createIteration, createProject, deleteProject } from "./workspaceApi";
 import { splitLines } from "./workspaceHelpers";
 
 type UseProjectActionsParams = {
@@ -13,6 +15,7 @@ type UseProjectActionsParams = {
   iterInScope: string;
   iterOutScope: string;
   iterAcceptance: string;
+  iterVersionType: IterationVersionType;
   setBusy: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setCurrentProjectId: Dispatch<SetStateAction<number | null>>;
@@ -20,7 +23,7 @@ type UseProjectActionsParams = {
   setProjectPanelMode: Dispatch<SetStateAction<"project" | "iteration">>;
   setShowCreateProject: Dispatch<SetStateAction<boolean>>;
   setShowCreateIteration: Dispatch<SetStateAction<boolean>>;
-  setUploadedFile: Dispatch<SetStateAction<{ name: string; iterationId: number } | null>>;
+  setUploadedFile: Dispatch<SetStateAction<UploadedAttachmentMeta | null>>;
   setProjectName: Dispatch<SetStateAction<string>>;
   setProjectDesc: Dispatch<SetStateAction<string>>;
   setIterName: Dispatch<SetStateAction<string>>;
@@ -29,7 +32,8 @@ type UseProjectActionsParams = {
   setIterInScope: Dispatch<SetStateAction<string>>;
   setIterOutScope: Dispatch<SetStateAction<string>>;
   setIterAcceptance: Dispatch<SetStateAction<string>>;
-  loadProjects: () => Promise<unknown>;
+  setIterVersionType: Dispatch<SetStateAction<IterationVersionType>>;
+  loadProjects: () => Promise<Project[]>;
   loadIterations: (projectId: number) => Promise<void>;
 };
 
@@ -43,6 +47,7 @@ export function useProjectActions({
   iterInScope,
   iterOutScope,
   iterAcceptance,
+  iterVersionType,
   setBusy,
   setError,
   setCurrentProjectId,
@@ -59,9 +64,21 @@ export function useProjectActions({
   setIterInScope,
   setIterOutScope,
   setIterAcceptance,
+  setIterVersionType,
   loadProjects,
   loadIterations
 }: UseProjectActionsParams) {
+  const resolveProjectApiError = (error: unknown) => {
+    const raw = error instanceof Error ? error.message : "Unknown error";
+    if (raw.includes("API error: network unavailable")) {
+      return "后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev";
+    }
+    if (raw.includes("API error: request timeout")) {
+      return "请求后端超时，请检查后端服务状态后重试。";
+    }
+    return raw;
+  };
+
   const handleCreateProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!projectName.trim()) {
@@ -80,7 +97,7 @@ export function useProjectActions({
       setProjectName("");
       setProjectDesc("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(resolveProjectApiError(err));
     } finally {
       setBusy(false);
     }
@@ -105,6 +122,7 @@ export function useProjectActions({
       const created = await createIteration(currentProject.id, {
         name: iterName.trim(),
         description: iterDesc.trim() || "暂无描述",
+        versionType: iterVersionType,
         goals,
         scope: {
           inScope,
@@ -123,8 +141,9 @@ export function useProjectActions({
       setIterInScope("");
       setIterOutScope("");
       setIterAcceptance("");
+      setIterVersionType("patch");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(resolveProjectApiError(err));
     } finally {
       setBusy(false);
     }
@@ -141,10 +160,40 @@ export function useProjectActions({
     setProjectPanelMode("project");
   };
 
+  const handleDeleteProject = async (projectId: number) => {
+    try {
+      setBusy(true);
+      await deleteProject(projectId);
+      const remaining = await loadProjects();
+      const stillExists = remaining.some((item) => item.id === projectId);
+      if (stillExists) {
+        throw new Error("项目删除未生效：请检查后端服务是否已更新到最新版本。");
+      }
+      setCurrentIterationId(null);
+      setUploadedFile(null);
+      setProjectPanelMode("project");
+      if (remaining.length === 0) {
+        setCurrentProjectId(null);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      if (/^API error: 404\b/.test(message)) {
+        setError("删除接口不可用（404）。请重启后端服务后重试。");
+      } else if (message.includes("API error: network unavailable")) {
+        setError("后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev");
+      } else {
+        setError(message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return {
     handleCreateProject,
     handleCreateIteration,
     handleEnterIteration,
-    handleSelectProject
+    handleSelectProject,
+    handleDeleteProject
   };
 }

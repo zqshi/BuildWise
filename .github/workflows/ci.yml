@@ -1,0 +1,148 @@
+name: BuildWise CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            v2/package-lock.json
+            v2/backend/package-lock.json
+
+      - name: Install Frontend
+        run: npm ci
+        working-directory: v2
+
+      - name: Install Backend
+        run: npm ci
+        working-directory: v2/backend
+
+      - name: Frontend Typecheck
+        run: npm run typecheck
+        working-directory: v2
+
+      - name: Frontend Build
+        run: npm run build
+        working-directory: v2
+
+      - name: Backend Typecheck
+        run: npm run typecheck
+        working-directory: v2/backend
+
+      - name: Backend Build
+        run: npm run build
+        working-directory: v2/backend
+
+      - name: Backend Contract Test
+        run: npm run test:contract
+        working-directory: v2/backend
+
+  ops-preflight:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            v2/backend/package-lock.json
+
+      - name: Install Backend
+        run: npm ci
+        working-directory: v2/backend
+
+      - name: Build Backend
+        run: npm run build
+        working-directory: v2/backend
+
+      - name: Resolve LLM Policy
+        run: |
+          if [ -n "${{ secrets.LLM_API_BASE }}" ]; then
+            echo "LLM_CHECK_REQUIRE_CONFIGURED=true" >> "$GITHUB_ENV"
+            echo "LLM_CHECK_REQUIRE_REACHABLE=true" >> "$GITHUB_ENV"
+            echo "LLM_REQUIRED=true" >> "$GITHUB_ENV"
+          else
+            echo "LLM_CHECK_REQUIRE_CONFIGURED=false" >> "$GITHUB_ENV"
+            echo "LLM_CHECK_REQUIRE_REACHABLE=false" >> "$GITHUB_ENV"
+            echo "LLM_REQUIRED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Start Backend
+        working-directory: v2/backend
+        env:
+          HOST: 127.0.0.1
+          PORT: 5055
+          LLM_API_BASE: ${{ secrets.LLM_API_BASE }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+        run: |
+          mkdir -p ../../tmp/ops-reports
+          npm run start > ../../tmp/ops-reports/backend.log 2>&1 &
+          echo $! > ../../tmp/ops-reports/backend.pid
+
+      - name: Wait For Ready
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "http://127.0.0.1:5055/ready" > /dev/null; then
+              echo "backend ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend is not ready in time"
+          exit 1
+
+      - name: Run Ops Preflight
+        working-directory: v2/backend
+        env:
+          API_BASE: http://127.0.0.1:5055
+          ALERT_MIN_DEPLOYMENT_SUCCESS_RATE: "0"
+        run: |
+          node scripts/check-preflight-baseline.mjs > ../../tmp/ops-reports/ops-preflight.json
+
+      - name: Run Ops LLM Check
+        working-directory: v2/backend
+        env:
+          API_BASE: http://127.0.0.1:5055
+        run: |
+          node scripts/check-llm-baseline.mjs > ../../tmp/ops-reports/ops-llm-check.json
+
+      - name: Upload Ops Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-preflight-reports
+          path: |
+            tmp/ops-reports/ops-preflight.json
+            tmp/ops-reports/ops-llm-check.json
+            tmp/ops-reports/backend.log
+          if-no-files-found: warn
+
+      - name: Stop Backend
+        if: always()
+        run: |
+          if [ -f tmp/ops-reports/backend.pid ]; then
+            kill "$(cat tmp/ops-reports/backend.pid)" || true
+          fi

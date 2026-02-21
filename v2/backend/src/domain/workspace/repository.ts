@@ -1,6 +1,7 @@
 import type {
   AssessmentSnapshot,
   AuditLog,
+  CreateIterationInput,
   DeploymentRecord,
   Iteration,
   IterationMessage,
@@ -24,7 +25,7 @@ export interface WorkspaceRepository {
   findPreviousIteration(iteration: Iteration): Iteration | null;
   createIteration(
     projectId: number,
-    payload: Partial<Iteration> & Pick<Iteration, "name" | "description">
+    payload: CreateIterationInput
   ): Iteration;
   listMessages(iterationId: number): IterationMessage[];
   createMessage(iterationId: number, role: IterationMessage["role"], content: string): IterationMessage;
@@ -46,5 +47,6 @@ export interface WorkspaceRepository {
   updateDeployment(record: DeploymentRecord): void;
   listTemplateRuns(projectId?: number): TemplateRunRecord[];
   appendTemplateRun(record: TemplateRunRecord): void;
+  updateProject(project: Project): void;
   updateIteration(iteration: Iteration): void;
 }

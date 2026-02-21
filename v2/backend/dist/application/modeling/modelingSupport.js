@@ -6,6 +6,8 @@ exports.parseRoadmapPath = parseRoadmapPath;
 exports.stageOfVersion = stageOfVersion;
 exports.resolveRoadmapGoal = resolveRoadmapGoal;
 exports.calculateCoverageScores = calculateCoverageScores;
+exports.buildProjectTraceItems = buildProjectTraceItems;
+exports.buildGlobalTraceItems = buildGlobalTraceItems;
 function nowIso() {
     return new Date().toISOString();
 }
@@ -71,4 +73,35 @@ function calculateCoverageScores(input) {
         workspaceActivity * 0.2) *
         100).toFixed(1));
     return { ruleQuality, coverageScore };
+}
+function buildProjectTraceItems(workspace, projectId) {
+    return workspace.iterations
+        .filter((item) => item.projectId === projectId)
+        .map((item) => {
+        const branch = item.codeLink?.branch || "";
+        const commit = item.codeLink?.commit || "";
+        const pathRef = Array.isArray(item.codeLink?.paths) && item.codeLink?.paths.length > 0 ? item.codeLink?.paths[0] : "";
+        const codeRef = commit || branch || pathRef || "unlinked";
+        return {
+            pageRoute: `/projects/${projectId}/iterations/${item.id}`,
+            apiPath: `/api/projects/${projectId}/iterations/${item.id}`,
+            relation: "iteration-links-code",
+            modelRef: `iteration:${item.id}`,
+            codeRef,
+            intent: `迭代 ${item.name} 关联代码锚点 ${codeRef}`
+        };
+    });
+}
+function buildGlobalTraceItems(model) {
+    return model.pages.flatMap((page) => model.apis
+        .filter((api) => typeof api.path === "string" && api.path)
+        .slice(0, 3)
+        .map((api) => ({
+        pageRoute: page.route,
+        apiPath: api.path,
+        relation: "page-consumes-api",
+        modelRef: `page:${page.id}`,
+        codeRef: `backend/interfaces/http/routes#${api.path.split("/").join("_")}`,
+        intent: `页面 ${page.name} 使用接口 ${api.path}`
+    })));
 }

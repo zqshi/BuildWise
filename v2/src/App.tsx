@@ -1,7 +1,6 @@
 import { useAppController } from "./app/useAppController";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { DashboardView } from "./pages/dashboard/DashboardView";
-import { ModelOpsPanel } from "./pages/dashboard/ModelOpsPanel";
 import { DockSidebar } from "./pages/layout/DockSidebar";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
@@ -51,7 +50,7 @@ export default function App() {
       <main className={`board ${controller.activeView === "dashboard" ? "dashboard-mode" : "projects-mode"}`}>
         {backendOffline ? (
           <section className="backend-offline-banner" role="status" aria-live="polite">
-            后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run start`
+            后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run dev`
           </section>
         ) : null}
         {controller.activeView === "dashboard" ? (
@@ -59,48 +58,12 @@ export default function App() {
             projects={controller.projects}
             inProgressIterations={controller.inProgressIterations}
             completedIterations={controller.completedIterations}
-            modelAssetCount={model.entities.length + model.rules.length + model.pages.length}
             status={controller.status}
             progressBuckets={controller.progressBuckets}
             iterationCount={controller.iterations.length}
             monthlyTrend={controller.monthlyTrend}
             currentProjectId={controller.currentProjectId}
             currentProjectIterations={controller.iterations.length}
-            modelOpsPanel={
-              <ModelOpsPanel
-                loading={controller.modelOpsLoading}
-                modelSummary={controller.modelSummary}
-                modelRelations={controller.modelRelations}
-                ruleCompile={controller.ruleCompile}
-                ruleBind={controller.ruleBind}
-                syncReport={controller.syncReport}
-                traceReport={controller.traceReport}
-                roadmapReports={controller.roadmapReports}
-                governanceRoles={controller.governanceRoles}
-                auditLogs={controller.auditLogs}
-                versionSnapshots={controller.versionSnapshots}
-                projectShares={controller.projectShares}
-                templates={controller.templates}
-                templateRuns={controller.templateRuns}
-                latestTemplateRun={controller.latestTemplateRun}
-                opsMetrics={controller.opsMetrics}
-                deployments={controller.deployments}
-                shareAccess={controller.shareAccess}
-                currentRole={controller.currentRole}
-                onCreateRelation={controller.handleCreateModelRelation}
-                onDeleteRelation={controller.handleDeleteModelRelation}
-                onRefresh={controller.loadModelOps}
-                onCreateSnapshot={controller.handleCreateVersionSnapshot}
-                onRestoreSnapshot={controller.handleRestoreVersionSnapshot}
-                onCreateShare={controller.handleCreateProjectShare}
-                onRunTemplate={controller.handleRunTemplate}
-                onCreateDeployment={controller.handleCreateDeployment}
-                onTransitionDeployment={controller.handleTransitionDeployment}
-                onAccessShare={controller.handleAccessShare}
-                onCommentShare={controller.handleCommentShare}
-                onRoleChange={controller.setCurrentRole}
-              />
-            }
             onViewProjects={() => controller.setActiveView("projects")}
           />
         ) : (
@@ -115,6 +78,11 @@ export default function App() {
             modelPageCount={model.pages.length}
             modelRuleCount={model.rules.length}
             modelEntityCount={model.entities.length}
+            modelRelations={controller.modelRelations}
+            versionSnapshots={controller.versionSnapshots}
+            templateRuns={controller.templateRuns}
+            deployments={controller.deployments}
+            opsMetrics={controller.opsMetrics}
             status={controller.status}
             error={controller.error}
             uploadedFile={controller.uploadedFile}
@@ -128,6 +96,7 @@ export default function App() {
             isAnalyzingAttachment={controller.isAnalyzingAttachment}
             onShowCreateProject={() => controller.setShowCreateProject(true)}
             onShowCreateIteration={() => controller.setShowCreateIteration(true)}
+            onDeleteProject={controller.handleDeleteProject}
             onUploadClick={controller.handleUploadClick}
             onOpenAnalysisPanel={() => controller.setShowAnalysisPanel(true)}
             onCloseAnalysisPanel={() => controller.setShowAnalysisPanel(false)}
@@ -135,9 +104,35 @@ export default function App() {
             onEnterIteration={controller.handleEnterIteration}
             onSwitchToProjectPanel={() => controller.setProjectPanelMode("project")}
             onUpload={controller.handleUpload}
+            onUploadFiles={controller.uploadFiles}
             onChatInputChange={controller.setChatInput}
             onChatSend={controller.handleSend}
+            onUpdateClarificationDraft={controller.handleUpdateClarificationDraft}
+            onConfirmIterationAnalysis={controller.handleConfirmIterationAnalysis}
+            onUpdateIterationBoundary={controller.handleUpdateIterationBoundary}
+            onUpdateTestMatrixExecution={controller.handleUpdateTestMatrixExecution}
             onTransitionState={controller.handleTransitionState}
+            onCreateDeployment={controller.handleCreateDeployment}
+            onTransitionDeployment={controller.handleTransitionDeployment}
+            onPatchUploadedHtmlPreview={(path, content) => {
+              controller.setUploadedFile((prev) => {
+                if (!prev) {
+                  return prev;
+                }
+                const nextPreviews = prev.htmlPreviews.map((item) =>
+                  item.path === path
+                    ? {
+                        ...item,
+                        content
+                      }
+                    : item
+                );
+                return {
+                  ...prev,
+                  htmlPreviews: nextPreviews
+                };
+              });
+            }}
           />
         )}
       </main>
@@ -145,6 +140,7 @@ export default function App() {
       <CreateProjectModal
         open={controller.showCreateProject}
         busy={controller.busy}
+        backendUnavailable={backendOffline}
         projectName={controller.projectName}
         projectDesc={controller.projectDesc}
         errorMessage={controller.error}
@@ -157,12 +153,14 @@ export default function App() {
       <CreateIterationModal
         open={controller.showCreateIteration}
         busy={controller.busy}
+        backendUnavailable={backendOffline}
         iterName={controller.iterName}
         iterDesc={controller.iterDesc}
         iterGoals={controller.iterGoals}
         iterInScope={controller.iterInScope}
         iterOutScope={controller.iterOutScope}
         iterAcceptance={controller.iterAcceptance}
+        iterVersionType={controller.iterVersionType}
         onClose={() => controller.setShowCreateIteration(false)}
         onIterNameChange={controller.setIterName}
         onIterDescChange={controller.setIterDesc}
@@ -170,6 +168,7 @@ export default function App() {
         onIterInScopeChange={controller.setIterInScope}
         onIterOutScopeChange={controller.setIterOutScope}
         onIterAcceptanceChange={controller.setIterAcceptance}
+        onIterVersionTypeChange={controller.setIterVersionType}
         onSubmit={controller.handleCreateIteration}
       />
     </div>

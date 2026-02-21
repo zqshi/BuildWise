@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const TEST_PORT = Number(process.env.CONTRACT_TEST_PORT || 5066);
 const BASE = `http://127.0.0.1:${TEST_PORT}`;
+const llmConfigured = Boolean(process.env.LLM_API_BASE && process.env.LLM_API_BASE.trim());
 
 function assert(condition, message) {
   if (!condition) {
@@ -65,6 +66,14 @@ server.stderr.on("data", (chunk) => {
 try {
   await waitForHealth();
 
+  const readyPayload = await getJson("/ready");
+  assert(readyPayload.status === "ready", "ready endpoint should return ready");
+
+  const statusPayload = await getJson("/api/status");
+  assert(typeof statusPayload.runtime?.llmRequired === "boolean", "status runtime.llmRequired should exist");
+  assert(typeof statusPayload.runtime?.llm?.configured === "boolean", "status runtime.llm.configured should exist");
+  assert(typeof statusPayload.runtime?.llm?.reachable === "boolean", "status runtime.llm.reachable should exist");
+
   const model = await getJson("/api/model");
   assert(Array.isArray(model.entities), "model.entities must be array");
   assert(typeof model.stats?.entities === "number", "model.stats.entities must exist");
@@ -86,6 +95,9 @@ try {
   assert(sync.coverageScore >= 0 && sync.coverageScore <= 100, "sync.coverageScore must be 0-100");
   assert(Array.isArray(sync.impacts), "sync.impacts must be array");
   assert(Array.isArray(sync.risks), "sync.risks must be array");
+  const scopedSync = await getJson("/api/sync/report?projectId=1");
+  assert(scopedSync.projectCount === 1, "scoped sync report should lock to one project");
+  assert(typeof scopedSync.iterationCount === "number", "scoped sync iteration count must exist");
 
   const trace = await getJson("/api/trace");
   assert(Array.isArray(trace.items), "trace.items must be array");
@@ -191,6 +203,32 @@ try {
   });
   assert(deleteRelation.res.status === 200, "delete relation should return 200");
 
+  const projectScopedRelation = await request("/api/model/relations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      projectId: 1,
+      fromEntityId: "entity_project",
+      toEntityId: "entity_iteration",
+      type: "one_to_many",
+      name: "project_scoped_relation"
+    })
+  });
+  assert(projectScopedRelation.res.status === 200, "project-scoped relation should return 200");
+  assert(projectScopedRelation.payload?.projectId === 1, "project-scoped relation should carry projectId");
+
+  const projectScopedList = await getJson("/api/model/relations?projectId=1");
+  assert(Array.isArray(projectScopedList), "project-scoped relations should be array");
+  assert(
+    projectScopedList.some((item) => item.id === projectScopedRelation.payload.id),
+    "project-scoped list should include created relation"
+  );
+
+  const deleteProjectScopedRelation = await request(`/api/model/relations/${projectScopedRelation.payload.id}?projectId=1`, {
+    method: "DELETE"
+  });
+  assert(deleteProjectScopedRelation.res.status === 200, "delete project-scoped relation should return 200");
+
   const auditAfterRelation = await getJson("/api/governance/audit-logs?limit=10");
   assert(Array.isArray(auditAfterRelation), "audit logs must be array");
   assert(
@@ -277,14 +315,19 @@ try {
   const templateRuns = await getJson("/api/templates/runs?projectId=1");
   assert(Array.isArray(templateRuns) && templateRuns.length >= 1, "template runs should be listed");
   assert(typeof templateRuns[0].parameters === "object", "template run parameters should exist");
+  assert(
+    typeof templateRuns[0].parameters?.iterationId === "string" && templateRuns[0].parameters.iterationId.length > 0,
+    "template run should carry iterationId mapping"
+  );
 
   const createDeploy = await request("/api/ops/deployments", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ projectId: 1, environment: "staging", version: "v-test" })
+    body: JSON.stringify({ projectId: 1, iterationId: 1, environment: "staging", version: "iter-v1-test" })
   });
   assert(createDeploy.res.status === 200, "create deployment should return 200");
   assert(createDeploy.payload?.status === "queued", "deployment should start in queued");
+  assert(typeof createDeploy.payload?.iterationId === "number", "deployment should carry iteration mapping");
 
   const createDeployDenied = await request("/api/ops/deployments", {
     method: "POST",
@@ -310,9 +353,30 @@ try {
   const deployList = await getJson("/api/ops/deployments?projectId=1");
   assert(Array.isArray(deployList) && deployList.length >= 1, "deployment list must include created deployment");
   assert(deployList.some((item) => item.status === "success"), "deployment list should include success status");
+  assert(deployList.some((item) => item.iterationId === 1), "deployment list should keep iteration mapping");
 
   const opsMetrics = await getJson("/api/ops/metrics");
   assert(Array.isArray(opsMetrics.metrics), "ops metrics should be array");
+  assert(
+    opsMetrics.metrics.some((item) => item.name === "iteration_test_matrix_execution_coverage"),
+    "ops metrics should include test matrix execution coverage"
+  );
+  assert(
+    opsMetrics.metrics.some((item) => item.name === "iteration_test_matrix_pass_rate"),
+    "ops metrics should include test matrix pass rate"
+  );
+  assert(
+    opsMetrics.metrics.some((item) => item.name === "iteration_high_value_findings_coverage"),
+    "ops metrics should include high value findings coverage"
+  );
+  assert(
+    opsMetrics.metrics.some((item) => item.name === "iteration_p0_findings_total"),
+    "ops metrics should include p0 findings total"
+  );
+  assert(
+    opsMetrics.metrics.some((item) => item.name === "iteration_analysis_ignored_files_ratio"),
+    "ops metrics should include ignored files ratio"
+  );
 
   const invalidCreate = await request("/api/projects", {
     method: "POST",
@@ -326,6 +390,366 @@ try {
 
   const missingProject = await request("/api/projects/999999/iterations");
   assert(missingProject.res.status === 404, "Unknown project id should return 404");
+
+  const projectRepo = await getJson("/api/projects/1/repository");
+  assert(typeof projectRepo.id === "string", "project repository id must exist");
+  assert(Array.isArray(projectRepo.layout) && projectRepo.layout.length >= 1, "project repository layout must exist");
+
+  const bootstrapRepo = await request("/api/projects/1/repository/bootstrap", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ organization: "acme", name: "buildwise-p1" })
+  });
+  assert(bootstrapRepo.res.status === 200, "project repository bootstrap should return 200");
+  assert(bootstrapRepo.payload?.organization === "acme", "repository organization should be updated");
+
+  const provisionRepoDryRun = await request("/api/projects/1/repository/provision", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ownerType: "org",
+      organization: "acme",
+      name: "buildwise-p1",
+      visibility: "private",
+      dryRun: true
+    })
+  });
+  assert(provisionRepoDryRun.res.status === 200, "repository provision(dry-run) should return 200");
+  assert(provisionRepoDryRun.payload?.remote?.status === "dry-run", "repository remote status should be dry-run");
+
+  const scaffoldRepoDryRun = await request("/api/projects/1/repository/scaffold", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      rootDir: path.join(fixtureDir, "repos"),
+      initializeGit: true,
+      createInitialCommit: true,
+      dryRun: true
+    })
+  });
+  assert(scaffoldRepoDryRun.res.status === 200, "repository scaffold(dry-run) should return 200");
+  assert(typeof scaffoldRepoDryRun.payload?.scaffold?.repoPath === "string", "scaffold repo path must exist");
+
+  const scaffoldRepoReal = await request("/api/projects/1/repository/scaffold", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      rootDir: path.join(fixtureDir, "repos-real"),
+      initializeGit: true,
+      createInitialCommit: true,
+      dryRun: false
+    })
+  });
+  assert(scaffoldRepoReal.res.status === 200, "repository scaffold(real) should return 200");
+  assert(scaffoldRepoReal.payload?.repository?.workspace?.gitInitialized === true, "repository should initialize git");
+
+  const publishIterationDryRun = await request("/api/iterations/1/publish", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      commitMessage: "chore: dry-run publish",
+      openPr: true,
+      dryRun: true
+    })
+  });
+  assert(
+    publishIterationDryRun.res.status === 200 || publishIterationDryRun.res.status === 409,
+    "iteration publish(dry-run) should return 200 or 409 when confirmation is pending"
+  );
+  if (publishIterationDryRun.res.status === 200) {
+    assert(typeof publishIterationDryRun.payload?.publish?.commit === "string", "publish commit should exist");
+    assert(
+      typeof publishIterationDryRun.payload?.publish?.prUrl === "string",
+      "publish pr url should exist in dry-run"
+    );
+  }
+
+  const bindCodeLink = await request("/api/iterations/1/code-link", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      branch: "iteration/1-contract",
+      commit: "abc123def",
+      paths: ["apps/api/src", "apps/web/src"],
+      note: "contract mapping"
+    })
+  });
+  assert(bindCodeLink.res.status === 200, "iteration code link should return 200");
+  assert(bindCodeLink.payload?.commit === "abc123def", "iteration code commit should match");
+
+  const getCodeLink = await getJson("/api/iterations/1/code-link");
+  assert(getCodeLink.branch === "iteration/1-contract", "iteration code branch should match");
+
+  const traceByRef = await getJson("/api/projects/1/code-trace?ref=abc123def");
+  assert(Array.isArray(traceByRef.matches), "trace result should include matches");
+  assert(traceByRef.matches.length >= 1, "trace should locate at least one iteration");
+
+  const projectTrace = await getJson("/api/trace?projectId=1");
+  assert(Array.isArray(projectTrace.items), "project trace should be array");
+  assert(projectTrace.items.some((item) => item.modelRef === "iteration:1"), "project trace should include iteration mapping");
+
+  const createdIteration = await request("/api/projects/1/iterations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Iteration Auto Link", description: "auto code link should exist" })
+  });
+  assert(createdIteration.res.status === 200, "create iteration should return 200");
+  const createdIterationId = createdIteration.payload.id;
+  const autoCodeLink = await getJson(`/api/iterations/${createdIterationId}/code-link`);
+  assert(typeof autoCodeLink.branch === "string" && autoCodeLink.branch.length > 0, "new iteration should auto link code branch");
+
+  const analysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      fileName: "ui-v2.png",
+      mimeType: "image/png",
+      size: 2048,
+      excerpt: "新增用户画像组件并调整仪表盘 KPI 卡片布局"
+    })
+  });
+
+  if (!llmConfigured) {
+    assert(analysisResult.res.status === 503, "analysis should return 503 when LLM is not configured");
+    assert(typeof analysisResult.payload?.message === "string", "missing LLM message should exist");
+  } else {
+    assert(analysisResult.res.status === 200, "analysis should return 200");
+    assert(typeof analysisResult.payload?.understanding === "string", "analysis understanding must exist");
+    assert(typeof analysisResult.payload?.projectDetection?.projectName === "string", "analysis projectDetection.projectName must exist");
+    assert(typeof analysisResult.payload?.projectDetection?.productName === "string", "analysis projectDetection.productName must exist");
+    assert(typeof analysisResult.payload?.projectDetection?.confidence === "string", "analysis projectDetection.confidence must exist");
+    assert(Array.isArray(analysisResult.payload?.meaningfulFindings), "analysis meaningfulFindings must be array");
+    assert(Array.isArray(analysisResult.payload?.prioritizedFindings), "analysis prioritizedFindings must be array");
+    assert(Array.isArray(analysisResult.payload?.nextActions), "analysis nextActions must be array");
+    assert(analysisResult.payload?.llmContext?.strategy === "direct", "analysis llmContext strategy should be direct");
+    assert(typeof analysisResult.payload?.llmContext?.promptContextLength === "number", "analysis llmContext prompt length must exist");
+    assert(typeof analysisResult.payload?.llmContext?.degraded === "boolean", "analysis llmContext degraded must exist");
+    assert(typeof analysisResult.payload?.llmContext?.degradeReason === "string", "analysis llmContext degradeReason must exist");
+    assert(Array.isArray(analysisResult.payload?.clarificationQuestions), "analysis clarificationQuestions must exist");
+
+    const chunkedAnalysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fileName: "large-prd.md",
+        mimeType: "text/markdown",
+        size: 20480,
+        excerpt: "这是附件摘要头部。",
+        excerptChunks: [
+          "chunk-1: 新增结算流程与发票状态联动",
+          "chunk-2: 调整仪表盘 KPI 定义与统计口径",
+          "chunk-3: 增加发布前回滚演练验收"
+        ],
+        excerptDigest: "strategy=chunked-head-middle-tail;chunks=3;digest=test-contract",
+        excerptStrategy: "chunked-head-middle-tail"
+      })
+    });
+    assert(chunkedAnalysisResult.res.status === 200, "chunked analysis should return 200");
+    assert(
+      chunkedAnalysisResult.payload?.llmContext?.strategy === "chunked-head-middle-tail",
+      "chunked analysis should keep strategy"
+    );
+    assert(chunkedAnalysisResult.payload?.llmContext?.chunkCount === 3, "chunked analysis chunk count should be 3");
+    assert(typeof chunkedAnalysisResult.payload?.llmContext?.unknownSignalCount === "number", "unknown signal count must exist");
+
+    const folderAnalysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fileName: "sample-folder",
+        sourceType: "folder",
+        folderName: "sample-folder",
+        mimeType: "application/x-directory",
+        size: 4096,
+        files: [
+          {
+            path: "sample-folder/README.md",
+            fileName: "README.md",
+            mimeType: "text/markdown",
+            size: 512,
+            excerpt: "产品: 供应链协同平台\n项目: 订单可视化改造\n新增订单仪表盘和KPI看板"
+          },
+          {
+            path: "sample-folder/openapi.json",
+            fileName: "openapi.json",
+            mimeType: "application/json",
+            size: 1024,
+            excerpt: "{\"paths\":{\"/orders\":{\"get\":{\"summary\":\"订单列表\"}}}}"
+          }
+        ],
+        excerptStrategy: "folder-batch",
+        excerptDigest: "strategy=folder-batch;files=2;textFiles=2;binaryFiles=0"
+      })
+    });
+    assert(folderAnalysisResult.res.status === 200, "folder analysis should return 200");
+    assert(folderAnalysisResult.payload?.sourceType === "folder", "folder analysis sourceType should be folder");
+    assert(folderAnalysisResult.payload?.fileStats?.totalFiles === 2, "folder analysis total files should be 2");
+    assert(typeof folderAnalysisResult.payload?.fileSelection?.includedFiles === "number", "folder analysis fileSelection should exist");
+    assert(Array.isArray(folderAnalysisResult.payload?.fileSelection?.ignoredFiles), "folder analysis ignored files should exist");
+    assert(typeof folderAnalysisResult.payload?.projectDetection?.projectCategory === "string", "folder analysis project category should exist");
+    assert(Array.isArray(folderAnalysisResult.payload?.meaningfulFindings), "folder analysis meaningful findings should exist");
+    assert(Array.isArray(folderAnalysisResult.payload?.prioritizedFindings), "folder analysis prioritized findings should exist");
+
+    const binaryAnalysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fileName: "prototype.fig",
+        mimeType: "application/octet-stream",
+        size: 102400,
+        excerpt: "",
+        excerptStrategy: "binary-no-text",
+        excerptDigest: "strategy=binary-no-text;chunks=0"
+      })
+    });
+    assert(binaryAnalysisResult.res.status === 200, "binary analysis should return 200");
+    assert(binaryAnalysisResult.payload?.llmContext?.strategy === "binary-no-text", "binary strategy should be preserved");
+    assert(binaryAnalysisResult.payload?.llmContext?.degraded === true, "binary analysis should trigger degraded mode");
+    assert(
+      typeof binaryAnalysisResult.payload?.llmContext?.degradeReason === "string" &&
+        binaryAnalysisResult.payload.llmContext.degradeReason.includes("binary-no-text"),
+      "binary analysis should expose degrade reason"
+    );
+    assert(
+      Array.isArray(binaryAnalysisResult.payload?.clarificationQuestions) &&
+        binaryAnalysisResult.payload.clarificationQuestions.length >= 1,
+      "binary analysis should generate clarification questions"
+    );
+
+    const pendingChangeControl = await getJson(`/api/iterations/${createdIterationId}/change-control`);
+    assert(pendingChangeControl.pendingHumanConfirmation === true, "analysis should require human confirmation");
+    assert(
+      Array.isArray(pendingChangeControl.clarificationQuestions) && pendingChangeControl.clarificationQuestions.length >= 1,
+      "change-control should persist clarification questions"
+    );
+    assert(
+      Array.isArray(pendingChangeControl.clarificationDraftResolvedQuestions),
+      "change-control should include clarification draft field"
+    );
+
+    const draftUpdate = await request(`/api/iterations/${createdIterationId}/change-control/draft`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ resolvedQuestions: [pendingChangeControl.clarificationQuestions[0]] })
+    });
+    assert(draftUpdate.res.status === 200, "clarification draft update should return 200");
+    assert(
+      Array.isArray(draftUpdate.payload?.clarificationDraftResolvedQuestions) &&
+        draftUpdate.payload.clarificationDraftResolvedQuestions.length === 1,
+      "clarification draft should persist resolved question"
+    );
+
+    const blockedPublish = await request(`/api/iterations/${createdIterationId}/publish`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        commitMessage: "chore: blocked until confirmation",
+        dryRun: true
+      })
+    });
+    assert(blockedPublish.res.status === 409, "publish should be blocked before analysis confirmation");
+
+    const clarification = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accurate: false,
+        note: "analysis missing billing flow details"
+      })
+    });
+    assert(clarification.res.status === 200, "clarification request should return 200");
+    assert(clarification.payload?.pendingHumanConfirmation === true, "clarification keeps confirmation pending");
+    assert(clarification.payload?.clarificationRounds >= 1, "clarification rounds should increase");
+    assert(
+      clarification.payload?.lastClarificationResolution?.resolvedQuestions?.length >= 0 &&
+        clarification.payload?.lastClarificationResolution?.unresolvedQuestions?.length >= 1,
+      "clarification should keep unresolved clarification resolution"
+    );
+
+    const confirmDenied = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accurate: true,
+        actor: "pm",
+        note: "try confirm with unresolved questions"
+      })
+    });
+    assert(confirmDenied.res.status === 409, "confirmation should be blocked when clarification questions unresolved");
+    assert(
+      Array.isArray(confirmDenied.payload?.unresolvedQuestions) && confirmDenied.payload.unresolvedQuestions.length >= 1,
+      "confirmation block should return unresolved questions"
+    );
+
+    const confirmed = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accurate: true,
+        actor: "pm",
+        note: "confirmed after clarification",
+        resolvedClarificationQuestions: pendingChangeControl.clarificationQuestions,
+        boundary: {
+          requirementRefs: ["REQ-dashboard-kpi"],
+          componentRefs: ["dashboard/kpi-card"],
+          codePaths: ["apps/web/src/pages/dashboard.tsx"],
+          note: "only update dashboard KPI and related api"
+        }
+      })
+    });
+    assert(confirmed.res.status === 200, "analysis confirmation should return 200");
+    assert(confirmed.payload?.pendingHumanConfirmation === false, "confirmation should unlock publish");
+    assert(
+      Array.isArray(confirmed.payload?.clarificationQuestions) && confirmed.payload.clarificationQuestions.length === 0,
+      "confirmation should clear clarification questions"
+    );
+    assert(
+      Array.isArray(confirmed.payload?.lastClarificationResolution?.unresolvedQuestions) &&
+        confirmed.payload.lastClarificationResolution.unresolvedQuestions.length === 0,
+      "confirmation should clear unresolved clarification items"
+    );
+    assert(Array.isArray(confirmed.payload?.boundary?.componentRefs), "confirmed boundary component refs should exist");
+
+    const updatedBoundary = await request(`/api/iterations/${createdIterationId}/change-control/boundary`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requirementRefs: ["REQ-dashboard-kpi", "REQ-dashboard-distribution"],
+        componentRefs: ["dashboard/kpi-card", "dashboard/distribution-chart"],
+        codePaths: ["apps/web/src/pages/dashboard.tsx", "apps/api/src/dashboard.ts"],
+        note: "expanded to distribution chart and api"
+      })
+    });
+    assert(updatedBoundary.res.status === 200, "boundary update should return 200");
+    assert(updatedBoundary.payload?.boundary?.codePaths?.length >= 2, "boundary code paths should update");
+    if (Array.isArray(updatedBoundary.payload?.generatedTestMatrix) && updatedBoundary.payload.generatedTestMatrix.length > 0) {
+      const firstCase = updatedBoundary.payload.generatedTestMatrix[0];
+      const executionUpdate = await request(`/api/iterations/${createdIterationId}/change-control/test-matrix/execution`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          updates: [{ caseId: firstCase.caseId, status: "passed", by: "qa", note: "contract execution" }]
+        })
+      });
+      assert(executionUpdate.res.status === 200, "test matrix execution update should return 200");
+      assert(executionUpdate.payload?.summary?.executed >= 1, "test matrix execution should increase executed cases");
+      assert(
+        typeof executionUpdate.payload?.summary?.coverage === "number",
+        "test matrix execution should return coverage summary"
+      );
+    }
+
+    const publishAfterConfirm = await request(`/api/iterations/${createdIterationId}/publish`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        commitMessage: "chore: publish after confirmation",
+        openPr: true,
+        dryRun: true
+      })
+    });
+    assert(publishAfterConfirm.res.status === 200, "publish should succeed after confirmation");
+  }
 
   const invalidIterationId = await request("/api/iterations/abc/context");
   assert(invalidIterationId.res.status === 400, "Invalid iteration id should return 400");
@@ -357,7 +781,7 @@ try {
   assert(validTransition.res.status === 200, "valid transition should return 200");
   assert(validTransition.payload?.toStatus === "review", "transition target status mismatch");
 
-  const auditAfterTransition = await getJson("/api/governance/audit-logs?limit=20");
+  const auditAfterTransition = await getJson("/api/governance/audit-logs?limit=80");
   assert(
     auditAfterTransition.some((item) => item.action === "iteration_state_transitioned"),
     "audit logs should include transition event"

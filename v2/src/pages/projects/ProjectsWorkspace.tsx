@@ -1,14 +1,18 @@
 import type { ChangeEvent, RefObject } from "react";
+import type { DeploymentRecord, OpsMetricsPayload, TemplateRunHistory, VersionSnapshot } from "../../domain/workspace/platformTypes";
 import type {
   AttachmentAnalysisReport,
   Iteration,
   IterationContextPayload,
   IterationMessage,
+  IterationVisualEditResponse,
+  ModelRelationPayload,
   IterationStateMachinePayload,
   IterationStatus,
   Project,
   StatusPayload
 } from "../../domain/workspace/types";
+import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
 import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
 
@@ -23,9 +27,14 @@ type ProjectsWorkspaceProps = {
   modelPageCount: number;
   modelRuleCount: number;
   modelEntityCount: number;
+  modelRelations?: ModelRelationPayload[];
+  versionSnapshots?: VersionSnapshot[];
+  templateRuns?: TemplateRunHistory[];
+  deployments?: DeploymentRecord[];
+  opsMetrics?: OpsMetricsPayload | null;
   status: StatusPayload | null;
   error: string | null;
-  uploadedFile: { name: string; iterationId: number } | null;
+  uploadedFile: UploadedAttachmentMeta | null;
   analysisReport: AttachmentAnalysisReport | null;
   showAnalysisPanel: boolean;
   isAnalyzingAttachment: boolean;
@@ -36,6 +45,7 @@ type ProjectsWorkspaceProps = {
   fileInputRef: RefObject<HTMLInputElement>;
   onShowCreateProject: () => void;
   onShowCreateIteration: () => void;
+  onDeleteProject: (projectId: number) => Promise<void>;
   onUploadClick: () => void;
   onOpenAnalysisPanel: () => void;
   onCloseAnalysisPanel: () => void;
@@ -43,9 +53,49 @@ type ProjectsWorkspaceProps = {
   onEnterIteration: (iterationId: number) => void;
   onSwitchToProjectPanel: () => void;
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onUploadFiles: (files: File[]) => void;
   onChatInputChange: (value: string) => void;
-  onChatSend: () => void;
+  onChatSend: (options?: {
+    overrideText?: string;
+    prototypeTarget?: string | null;
+    prototypeSummary?: string;
+    interactionContext?: {
+      mode?: "html" | "image" | "prototype";
+      target?: string;
+      summary?: string;
+      html?: {
+        selector?: string;
+        tag?: string;
+        text?: string;
+        styles?: Record<string, string>;
+      };
+    };
+  }) => Promise<IterationVisualEditResponse | null>;
+  onUpdateClarificationDraft: (resolvedQuestions: string[]) => Promise<void> | void;
+  onConfirmIterationAnalysis: (payload: {
+    accurate: boolean;
+    note?: string;
+    resolvedClarificationQuestions?: string[];
+    boundary?: {
+      requirementRefs?: string[];
+      componentRefs?: string[];
+      codePaths?: string[];
+      note?: string;
+    };
+  }) => Promise<void> | void;
+  onUpdateIterationBoundary: (payload: {
+    requirementRefs?: string[];
+    componentRefs?: string[];
+    codePaths?: string[];
+    note?: string;
+  }) => Promise<void> | void;
+  onUpdateTestMatrixExecution: (
+    updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
+  ) => Promise<void> | void;
   onTransitionState: (toStatus: IterationStatus) => void;
+  onCreateDeployment: (environment: "staging" | "production") => Promise<void>;
+  onTransitionDeployment: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
+  onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
 };
 
 export function ProjectsWorkspace({
@@ -59,6 +109,11 @@ export function ProjectsWorkspace({
   modelPageCount,
   modelRuleCount,
   modelEntityCount,
+  modelRelations = [],
+  versionSnapshots = [],
+  templateRuns = [],
+  deployments = [],
+  opsMetrics = null,
   status,
   error,
   uploadedFile,
@@ -72,6 +127,7 @@ export function ProjectsWorkspace({
   fileInputRef,
   onShowCreateProject,
   onShowCreateIteration,
+  onDeleteProject,
   onUploadClick,
   onOpenAnalysisPanel,
   onCloseAnalysisPanel,
@@ -79,12 +135,23 @@ export function ProjectsWorkspace({
   onEnterIteration,
   onSwitchToProjectPanel,
   onUpload,
+  onUploadFiles,
   onChatInputChange,
   onChatSend,
-  onTransitionState
+  onUpdateClarificationDraft,
+  onConfirmIterationAnalysis,
+  onUpdateIterationBoundary,
+  onUpdateTestMatrixExecution,
+  onTransitionState,
+  onCreateDeployment,
+  onTransitionDeployment,
+  onPatchUploadedHtmlPreview
 }: ProjectsWorkspaceProps) {
   const hasProjects = projects.length > 0;
   const showWorkspaceHero = projectPanelMode !== "iteration";
+  const backendUnavailable =
+    status?.status === "offline" ||
+    Boolean(error && (error.includes("后端服务不可达") || error.includes("后端服务不可用") || error.includes("network unavailable")));
 
   return (
     <section className="projects-view">
@@ -108,7 +175,12 @@ export function ProjectsWorkspace({
               </div>
               <h2>欢迎进入项目管理</h2>
               <p>当前还没有项目。请先创建一个项目，然后在右侧项目面板中继续新增迭代版本。</p>
-              <button className="btn primary" onClick={onShowCreateProject}>
+              <button
+                className="btn primary"
+                onClick={onShowCreateProject}
+                disabled={backendUnavailable}
+                title={backendUnavailable ? "后端服务未连接，暂不可创建项目" : undefined}
+              >
                 立即创建项目
               </button>
             </div>
@@ -137,7 +209,12 @@ export function ProjectsWorkspace({
                 ))}
               </ul>
               <div className="project-list-foot sticky">
-                <button className="btn primary" onClick={onShowCreateProject}>
+                <button
+                  className="btn primary"
+                  onClick={onShowCreateProject}
+                  disabled={backendUnavailable}
+                  title={backendUnavailable ? "后端服务未连接，暂不可创建项目" : undefined}
+                >
                   新建项目
                 </button>
               </div>
@@ -150,10 +227,14 @@ export function ProjectsWorkspace({
               modelPageCount={modelPageCount}
               modelRuleCount={modelRuleCount}
               modelEntityCount={modelEntityCount}
+              modelRelations={modelRelations}
+              opsMetrics={opsMetrics}
               status={status}
               error={error}
+              backendUnavailable={backendUnavailable}
               onShowCreateIteration={onShowCreateIteration}
               onEnterIteration={onEnterIteration}
+              onDeleteProject={onDeleteProject}
             />
           </section>
         ) : (
@@ -166,6 +247,7 @@ export function ProjectsWorkspace({
               chatInput={chatInput}
               fileInputRef={fileInputRef}
               uploadedFile={uploadedFile}
+              error={error}
               analysisReport={analysisReport}
               showAnalysisPanel={showAnalysisPanel}
               isAnalyzingAttachment={isAnalyzingAttachment}
@@ -173,10 +255,16 @@ export function ProjectsWorkspace({
               onOpenAnalysisPanel={onOpenAnalysisPanel}
               onCloseAnalysisPanel={onCloseAnalysisPanel}
               onUpload={onUpload}
+              onUploadFiles={onUploadFiles}
               onChatInputChange={onChatInputChange}
               onChatSend={onChatSend}
+              onUpdateClarificationDraft={onUpdateClarificationDraft}
+              onConfirmIterationAnalysis={onConfirmIterationAnalysis}
+              onUpdateIterationBoundary={onUpdateIterationBoundary}
+              onUpdateTestMatrixExecution={onUpdateTestMatrixExecution}
               onTransitionState={onTransitionState}
               onSwitchToProjectPanel={onSwitchToProjectPanel}
+              onPatchUploadedHtmlPreview={onPatchUploadedHtmlPreview}
             />
           </section>
         )

@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 type CreateProjectModalProps = {
   open: boolean;
   busy: boolean;
+  backendUnavailable?: boolean;
   projectName: string;
   projectDesc: string;
   errorMessage?: string | null;
@@ -15,6 +16,7 @@ type CreateProjectModalProps = {
 export function CreateProjectModal({
   open,
   busy,
+  backendUnavailable = false,
   projectName,
   projectDesc,
   errorMessage,
@@ -44,8 +46,9 @@ export function CreateProjectModal({
             项目描述
             <textarea value={projectDesc} onChange={(event) => onDescChange(event.target.value)} required />
           </label>
+          {backendUnavailable ? <p className="hint">后端未连接，暂不可创建项目。请先启动后端服务。</p> : null}
           {errorMessage ? <p className="error-inline">{errorMessage}</p> : null}
-          <button type="submit" className="btn primary" disabled={busy}>
+          <button type="submit" className="btn primary" disabled={busy || backendUnavailable}>
             {busy ? "创建中..." : "创建项目"}
           </button>
         </form>
