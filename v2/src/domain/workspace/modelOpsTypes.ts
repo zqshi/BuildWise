@@ -1,0 +1,83 @@
+export type ModelSummaryPayload = {
+  stats?: {
+    entities?: number;
+    rules?: number;
+    pages?: number;
+    apis?: number;
+  };
+  updatedAt?: string;
+};
+
+export type RuleCompilePayload = {
+  compiledAt: string;
+  ruleCount: number;
+  validRules: number;
+  invalidRules: number;
+  warnings: string[];
+};
+
+export type RuleBindPayload = {
+  generatedAt: string;
+  bindings: Array<{
+    ruleId: string;
+    target: string;
+    matchedEntities: string[];
+    status: "bound" | "unbound";
+    reason: string;
+  }>;
+};
+
+export type SyncReportPayload = {
+  generatedAt: string;
+  coverageScore: number;
+  summary: string;
+  projectCount: number;
+  iterationCount: number;
+  modelEntityCount: number;
+  modelRuleCount: number;
+  modelPageCount: number;
+  impacts: string[];
+  risks: string[];
+};
+
+export type TracePayload = {
+  generatedAt: string;
+  items: Array<{
+    pageRoute: string;
+    apiPath: string;
+    relation: string;
+    modelRef: string;
+    codeRef: string;
+    intent: string;
+  }>;
+};
+
+export type RoadmapPayload = {
+  version: string;
+  route: string;
+  stage: string;
+  goal: string;
+  generatedAt: string;
+  modelContract: {
+    apiDeclared: boolean;
+    entityDeclared: boolean;
+    statusFieldDeclared: boolean;
+    entityRef: string;
+  };
+  runtime: {
+    routeRegistered: boolean;
+    implementedBy: string;
+    workspaceProjectCount: number;
+    workspaceIterationCount: number;
+  };
+  recommendation: string;
+};
+
+export type ModelRelationPayload = {
+  id: string;
+  projectId?: number;
+  fromEntityId: string;
+  toEntityId: string;
+  type: "one_to_one" | "one_to_many" | "many_to_many";
+  name?: string;
+};

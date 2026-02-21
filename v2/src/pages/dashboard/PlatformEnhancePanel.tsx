@@ -13,6 +13,11 @@ import type {
 
 type Props = {
   loading: boolean;
+  deploymentGate?: {
+    score: number;
+    gate: "pass" | "warning" | "block";
+    reason: string;
+  } | null;
   currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
   governanceRoles: GovernanceRole[];
   versionSnapshots: VersionSnapshot[];
@@ -36,6 +41,7 @@ type Props = {
 
 export function PlatformEnhancePanel({
   loading,
+  deploymentGate = null,
   currentRole,
   governanceRoles,
   versionSnapshots,
@@ -65,6 +71,7 @@ export function PlatformEnhancePanel({
     [governanceRoles, currentRole]
   );
 
+  const productionBlocked = deploymentGate?.gate === "block";
   return (
     <>
       <div className="info-box">
@@ -158,10 +165,21 @@ export function PlatformEnhancePanel({
           <button type="button" className="btn ghost mini" onClick={() => onCreateDeployment("staging")} disabled={loading}>
             发布到 Staging
           </button>
-          <button type="button" className="btn ghost mini" onClick={() => onCreateDeployment("production")} disabled={loading}>
+          <button
+            type="button"
+            className="btn ghost mini"
+            onClick={() => onCreateDeployment("production")}
+            disabled={loading || productionBlocked}
+            title={productionBlocked ? deploymentGate?.reason || "" : ""}
+          >
             发布到 Production
           </button>
         </div>
+        {deploymentGate ? (
+          <p className="hint">
+            门禁：{deploymentGate.gate.toUpperCase()}（score={deploymentGate.score}）{deploymentGate.reason ? ` · ${deploymentGate.reason}` : ""}
+          </p>
+        ) : null}
         {deployments.slice(0, 2).map((item) => (
           <p key={item.id}>
             {item.environment} / {item.version} / {item.status}

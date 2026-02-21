@@ -6,12 +6,11 @@ function parsePositiveInt(value) {
     const num = Number(value);
     return Number.isInteger(num) && num > 0 ? num : null;
 }
-function currentRole(headers) {
-    const raw = headers["x-role"];
-    return typeof raw === "string" && raw.trim() ? raw.trim().toLowerCase() : "owner";
+function currentRole(authRole) {
+    return authRole?.trim().toLowerCase() || "viewer";
 }
-function ensurePermission(headers, permission) {
-    const role = currentRole(headers);
+function ensurePermission(authRole, permission) {
+    const role = currentRole(authRole);
     if (!(0, platformSupport_1.hasPermission)(role, permission)) {
         return { ok: false, role };
     }
@@ -28,7 +27,7 @@ async function registerPlatformRoutes(app, service) {
         return service.listVersionSnapshots(projectId);
     });
     app.post("/api/collab/snapshots", async (request, reply) => {
-        const permit = ensurePermission(request.headers, "collab:write");
+        const permit = ensurePermission(request.authRole, "collab:write");
         if (!permit.ok) {
             reply.code(403);
             return { message: `permission denied for role ${permit.role}` };
@@ -49,7 +48,7 @@ async function registerPlatformRoutes(app, service) {
         return created;
     });
     app.post("/api/collab/snapshots/:id/restore", async (request, reply) => {
-        const permit = ensurePermission(request.headers, "collab:write");
+        const permit = ensurePermission(request.authRole, "collab:write");
         if (!permit.ok) {
             reply.code(403);
             return { message: `permission denied for role ${permit.role}` };
@@ -77,7 +76,7 @@ async function registerPlatformRoutes(app, service) {
         return service.listProjectShares(projectId);
     });
     app.post("/api/collab/shares", async (request, reply) => {
-        const permit = ensurePermission(request.headers, "collab:write");
+        const permit = ensurePermission(request.authRole, "collab:write");
         if (!permit.ok) {
             reply.code(403);
             return { message: `permission denied for role ${permit.role}` };
@@ -100,7 +99,7 @@ async function registerPlatformRoutes(app, service) {
         return service.listTemplates();
     });
     app.post("/api/templates/:id/run", async (request, reply) => {
-        const permit = ensurePermission(request.headers, "template:run");
+        const permit = ensurePermission(request.authRole, "template:run");
         if (!permit.ok) {
             reply.code(403);
             return { message: `permission denied for role ${permit.role}` };
@@ -165,13 +164,14 @@ async function registerPlatformRoutes(app, service) {
         return service.listDeployments(projectId || undefined);
     });
     app.post("/api/ops/deployments", async (request, reply) => {
-        const permit = ensurePermission(request.headers, "deploy:write");
+        const permit = ensurePermission(request.authRole, "deploy:write");
         if (!permit.ok) {
             reply.code(403);
             return { message: `permission denied for role ${permit.role}` };
         }
         const body = request.body;
         const projectId = typeof body?.projectId === "number" ? body.projectId : null;
+        const iterationId = typeof body?.iterationId === "number" ? body.iterationId : undefined;
         const environment = body?.environment;
         const version = body?.version?.trim();
         if (!projectId || !environment || !version) {
@@ -182,7 +182,7 @@ async function registerPlatformRoutes(app, service) {
             reply.code(400);
             return { message: "invalid environment" };
         }
-        const created = service.createDeployment(projectId, environment, version);
+        const created = service.createDeployment(projectId, environment, version, iterationId);
         if (!created) {
             reply.code(404);
             return { message: "project not found" };
@@ -190,7 +190,7 @@ async function registerPlatformRoutes(app, service) {
         return created;
     });
     app.post("/api/ops/deployments/:id/transition", async (request, reply) => {
-        const permit = ensurePermission(request.headers, "deploy:transition");
+        const permit = ensurePermission(request.authRole, "deploy:transition");
         if (!permit.ok) {
             reply.code(403);
             return { message: `permission denied for role ${permit.role}` };
@@ -215,5 +215,53 @@ async function registerPlatformRoutes(app, service) {
     });
     app.get("/api/ops/metrics", async () => {
         return service.getOpsMetrics();
+    });
+    app.get("/api/ops/triage-templates", async (request) => {
+        const query = request.query;
+        const projectId = parsePositiveInt(query?.projectId ?? "");
+        return service.listOpsTriageTemplatesByProject(projectId || undefined);
+    });
+    app.post("/api/ops/triage-templates", async (request, reply) => {
+        const permit = ensurePermission(request.authRole, "deploy:write");
+        if (!permit.ok) {
+            reply.code(403);
+            return { message: `permission denied for role ${permit.role}` };
+        }
+        const body = request.body;
+        const category = body?.category?.trim() || "general";
+        const keywords = Array.isArray(body?.keywords) ? body.keywords : [];
+        const commands = Array.isArray(body?.commands) ? body.commands : [];
+        const result = service.upsertOpsTriageTemplate({
+            id: body?.id,
+            projectId: typeof body?.projectId === "number" ? body.projectId : undefined,
+            category,
+            keywords,
+            commands,
+            note: body?.note
+        });
+        if (!result.ok) {
+            reply.code(400);
+            return { message: "invalid template payload" };
+        }
+        return result.data;
+    });
+    app.delete("/api/ops/triage-templates/:id", async (request, reply) => {
+        const permit = ensurePermission(request.authRole, "deploy:write");
+        if (!permit.ok) {
+            reply.code(403);
+            return { message: `permission denied for role ${permit.role}` };
+        }
+        const params = request.params;
+        const templateId = params.id?.trim();
+        if (!templateId) {
+            reply.code(400);
+            return { message: "template id is required" };
+        }
+        const result = service.deleteOpsTriageTemplate(templateId);
+        if (!result.ok) {
+            reply.code(404);
+            return { message: "template not found" };
+        }
+        return { ok: true };
     });
 }

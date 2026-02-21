@@ -1,3 +1,6 @@
+import type { ModelStore, TraceItem } from "../../domain/modeling/types";
+import type { WorkspaceStore } from "../../domain/workspace/types";
+
 export function nowIso() {
   return new Date().toISOString();
 }
@@ -83,4 +86,39 @@ export function calculateCoverageScores(input: {
     ).toFixed(1)
   );
   return { ruleQuality, coverageScore };
+}
+
+export function buildProjectTraceItems(workspace: WorkspaceStore, projectId: number): TraceItem[] {
+  return workspace.iterations
+    .filter((item) => item.projectId === projectId)
+    .map((item) => {
+      const branch = item.codeLink?.branch || "";
+      const commit = item.codeLink?.commit || "";
+      const pathRef = Array.isArray(item.codeLink?.paths) && item.codeLink?.paths.length > 0 ? item.codeLink?.paths[0] : "";
+      const codeRef = commit || branch || pathRef || "unlinked";
+      return {
+        pageRoute: `/projects/${projectId}/iterations/${item.id}`,
+        apiPath: `/api/projects/${projectId}/iterations/${item.id}`,
+        relation: "iteration-links-code",
+        modelRef: `iteration:${item.id}`,
+        codeRef,
+        intent: `迭代 ${item.name} 关联代码锚点 ${codeRef}`
+      };
+    });
+}
+
+export function buildGlobalTraceItems(model: ModelStore): TraceItem[] {
+  return model.pages.flatMap((page) =>
+    model.apis
+      .filter((api) => typeof api.path === "string" && api.path)
+      .slice(0, 3)
+      .map((api) => ({
+        pageRoute: page.route,
+        apiPath: api.path as string,
+        relation: "page-consumes-api",
+        modelRef: `page:${page.id}`,
+        codeRef: `backend/interfaces/http/routes#${(api.path as string).split("/").join("_")}`,
+        intent: `页面 ${page.name} 使用接口 ${api.path as string}`
+      }))
+  );
 }

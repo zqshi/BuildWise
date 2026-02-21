@@ -37,8 +37,12 @@ class JsonModelRepository {
     listEntities() {
         return this.read().entities;
     }
-    listRelations() {
-        return this.read().relations;
+    listRelations(projectId) {
+        const relations = this.read().relations;
+        if (typeof projectId === "number" && projectId > 0) {
+            return relations.filter((item) => item.projectId === projectId);
+        }
+        return relations;
     }
     createEntity(input) {
         const data = this.read();
@@ -56,6 +60,7 @@ class JsonModelRepository {
         const data = this.read();
         const created = {
             id: input.id || makeRelationId(input),
+            projectId: input.projectId,
             fromEntityId: input.fromEntityId,
             toEntityId: input.toEntityId,
             type: input.type,
@@ -65,10 +70,18 @@ class JsonModelRepository {
         this.write(data);
         return created;
     }
-    deleteRelation(relationId) {
+    deleteRelation(relationId, projectId) {
         const data = this.read();
         const before = data.relations.length;
-        data.relations = data.relations.filter((item) => item.id !== relationId);
+        data.relations = data.relations.filter((item) => {
+            if (item.id !== relationId) {
+                return true;
+            }
+            if (typeof projectId === "number" && projectId > 0 && item.projectId !== projectId) {
+                return true;
+            }
+            return false;
+        });
         const changed = before !== data.relations.length;
         if (changed) {
             this.write(data);

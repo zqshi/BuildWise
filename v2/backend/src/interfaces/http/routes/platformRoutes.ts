@@ -7,13 +7,12 @@ function parsePositiveInt(value: string | undefined) {
   return Number.isInteger(num) && num > 0 ? num : null;
 }
 
-function currentRole(headers: Record<string, unknown>) {
-  const raw = headers["x-role"];
-  return typeof raw === "string" && raw.trim() ? raw.trim().toLowerCase() : "owner";
+function currentRole(authRole: string | undefined) {
+  return authRole?.trim().toLowerCase() || "viewer";
 }
 
-function ensurePermission(headers: Record<string, unknown>, permission: string) {
-  const role = currentRole(headers);
+function ensurePermission(authRole: string | undefined, permission: string) {
+  const role = currentRole(authRole);
   if (!hasPermission(role, permission)) {
     return { ok: false as const, role };
   }
@@ -32,7 +31,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
   });
 
   app.post("/api/collab/snapshots", async (request, reply) => {
-    const permit = ensurePermission(request.headers as Record<string, unknown>, "collab:write");
+    const permit = ensurePermission(request.authRole, "collab:write");
     if (!permit.ok) {
       reply.code(403);
       return { message: `permission denied for role ${permit.role}` };
@@ -54,7 +53,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
   });
 
   app.post("/api/collab/snapshots/:id/restore", async (request, reply) => {
-    const permit = ensurePermission(request.headers as Record<string, unknown>, "collab:write");
+    const permit = ensurePermission(request.authRole, "collab:write");
     if (!permit.ok) {
       reply.code(403);
       return { message: `permission denied for role ${permit.role}` };
@@ -84,7 +83,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
   });
 
   app.post("/api/collab/shares", async (request, reply) => {
-    const permit = ensurePermission(request.headers as Record<string, unknown>, "collab:write");
+    const permit = ensurePermission(request.authRole, "collab:write");
     if (!permit.ok) {
       reply.code(403);
       return { message: `permission denied for role ${permit.role}` };
@@ -109,7 +108,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
   });
 
   app.post("/api/templates/:id/run", async (request, reply) => {
-    const permit = ensurePermission(request.headers as Record<string, unknown>, "template:run");
+    const permit = ensurePermission(request.authRole, "template:run");
     if (!permit.ok) {
       reply.code(403);
       return { message: `permission denied for role ${permit.role}` };
@@ -178,17 +177,19 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
   });
 
   app.post("/api/ops/deployments", async (request, reply) => {
-    const permit = ensurePermission(request.headers as Record<string, unknown>, "deploy:write");
+    const permit = ensurePermission(request.authRole, "deploy:write");
     if (!permit.ok) {
       reply.code(403);
       return { message: `permission denied for role ${permit.role}` };
     }
     const body = request.body as {
       projectId?: number;
+      iterationId?: number;
       environment?: "staging" | "production";
       version?: string;
     } | null;
     const projectId = typeof body?.projectId === "number" ? body.projectId : null;
+    const iterationId = typeof body?.iterationId === "number" ? body.iterationId : undefined;
     const environment = body?.environment;
     const version = body?.version?.trim();
     if (!projectId || !environment || !version) {
@@ -199,7 +200,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       reply.code(400);
       return { message: "invalid environment" };
     }
-    const created = service.createDeployment(projectId, environment, version);
+    const created = service.createDeployment(projectId, environment, version, iterationId);
     if (!created) {
       reply.code(404);
       return { message: "project not found" };
@@ -208,7 +209,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
   });
 
   app.post("/api/ops/deployments/:id/transition", async (request, reply) => {
-    const permit = ensurePermission(request.headers as Record<string, unknown>, "deploy:transition");
+    const permit = ensurePermission(request.authRole, "deploy:transition");
     if (!permit.ok) {
       reply.code(403);
       return { message: `permission denied for role ${permit.role}` };
@@ -234,5 +235,63 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
 
   app.get("/api/ops/metrics", async () => {
     return service.getOpsMetrics();
+  });
+
+  app.get("/api/ops/triage-templates", async (request) => {
+    const query = request.query as { projectId?: string } | null;
+    const projectId = parsePositiveInt(query?.projectId ?? "");
+    return service.listOpsTriageTemplatesByProject(projectId || undefined);
+  });
+
+  app.post("/api/ops/triage-templates", async (request, reply) => {
+    const permit = ensurePermission(request.authRole, "deploy:write");
+    if (!permit.ok) {
+      reply.code(403);
+      return { message: `permission denied for role ${permit.role}` };
+    }
+    const body = request.body as {
+      id?: string;
+      projectId?: number;
+      category?: string;
+      keywords?: string[];
+      commands?: string[];
+      note?: string;
+    } | null;
+    const category = body?.category?.trim() || "general";
+    const keywords = Array.isArray(body?.keywords) ? body!.keywords : [];
+    const commands = Array.isArray(body?.commands) ? body!.commands : [];
+    const result = service.upsertOpsTriageTemplate({
+      id: body?.id,
+      projectId: typeof body?.projectId === "number" ? body.projectId : undefined,
+      category,
+      keywords,
+      commands,
+      note: body?.note
+    });
+    if (!result.ok) {
+      reply.code(400);
+      return { message: "invalid template payload" };
+    }
+    return result.data;
+  });
+
+  app.delete("/api/ops/triage-templates/:id", async (request, reply) => {
+    const permit = ensurePermission(request.authRole, "deploy:write");
+    if (!permit.ok) {
+      reply.code(403);
+      return { message: `permission denied for role ${permit.role}` };
+    }
+    const params = request.params as { id: string };
+    const templateId = params.id?.trim();
+    if (!templateId) {
+      reply.code(400);
+      return { message: "template id is required" };
+    }
+    const result = service.deleteOpsTriageTemplate(templateId);
+    if (!result.ok) {
+      reply.code(404);
+      return { message: "template not found" };
+    }
+    return { ok: true };
   });
 }

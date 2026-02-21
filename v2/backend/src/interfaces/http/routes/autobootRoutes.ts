@@ -14,6 +14,28 @@ function normalizeMethod(value: string) {
   return "GET";
 }
 
+function parsePositiveInt(value: string | undefined) {
+  const num = Number(value);
+  return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function isCoreWorkspacePath(path: string) {
+  return (
+    path === "/api/projects" ||
+    path.startsWith("/api/projects/:id/iterations") ||
+    path.startsWith("/api/iterations/")
+  );
+}
+
+function isCorePlatformPath(path: string) {
+  return (
+    path.startsWith("/api/collab/") ||
+    path.startsWith("/api/templates") ||
+    path.startsWith("/api/openapi/") ||
+    path.startsWith("/api/ops/")
+  );
+}
+
 export async function registerAutobootRoutes(app: FastifyInstance, service: ModelingService) {
   app.get("/api/model", async () => {
     return service.getModel();
@@ -37,12 +59,25 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     });
   });
 
-  app.get("/api/model/relations", async () => {
-    return service.listRelations();
+  app.get("/api/model/relations", async (request) => {
+    const query = request.query as { projectId?: string } | null;
+    const projectId = parsePositiveInt(query?.projectId);
+    return service.listRelations(projectId || undefined);
+  });
+
+  app.get("/api/projects/:id/model/relations", async (request, reply) => {
+    const params = request.params as { id?: string };
+    const projectId = parsePositiveInt(params.id);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    return service.listRelations(projectId);
   });
 
   app.post("/api/model/relations", async (request, reply) => {
     const body = request.body as {
+      projectId?: number;
       fromEntityId?: string;
       toEntityId?: string;
       type?: "one_to_one" | "one_to_many" | "many_to_many";
@@ -60,6 +95,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
       return { message: "invalid relation type" };
     }
     const created = service.createRelation({
+      projectId: typeof body?.projectId === "number" ? body.projectId : undefined,
       fromEntityId,
       toEntityId,
       type,
@@ -83,11 +119,13 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
   app.delete("/api/model/relations/:id", async (request, reply) => {
     const params = request.params as { id?: string };
     const relationId = params.id?.trim();
+    const query = request.query as { projectId?: string } | null;
+    const projectId = parsePositiveInt(query?.projectId);
     if (!relationId) {
       reply.code(400);
       return { message: "invalid relation id" };
     }
-    const ok = service.deleteRelation(relationId);
+    const ok = service.deleteRelation(relationId, projectId || undefined);
     if (!ok) {
       reply.code(404);
       return { message: "relation not found" };
@@ -103,16 +141,22 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     return service.bindRules();
   });
 
-  app.get("/api/sync/report", async () => {
-    return service.buildSyncReport();
+  app.get("/api/sync/report", async (request) => {
+    const query = request.query as { projectId?: string } | null;
+    const projectId = parsePositiveInt(query?.projectId);
+    return service.buildSyncReport(projectId || undefined);
   });
 
-  app.get("/api/trace", async () => {
-    return service.buildTraceReport();
+  app.get("/api/trace", async (request) => {
+    const query = request.query as { projectId?: string } | null;
+    const projectId = parsePositiveInt(query?.projectId);
+    return service.buildTraceReport(projectId || undefined);
   });
 
-  app.get("/api/trace/map", async () => {
-    return service.buildTraceReport();
+  app.get("/api/trace/map", async (request) => {
+    const query = request.query as { projectId?: string } | null;
+    const projectId = parsePositiveInt(query?.projectId);
+    return service.buildTraceReport(projectId || undefined);
   });
 
   const roadmapPaths = [
@@ -166,12 +210,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     }
     const method = normalizeMethod(api.method ?? "GET");
     // Keep core workspace routes authoritative.
-    if (
-      reserved.has(path) ||
-      path === "/api/projects" ||
-      path.startsWith("/api/projects/:id/iterations") ||
-      path.startsWith("/api/iterations/")
-    ) {
+    if (reserved.has(path) || isCoreWorkspacePath(path) || isCorePlatformPath(path)) {
       continue;
     }
     const key = `${method} ${path}`;
