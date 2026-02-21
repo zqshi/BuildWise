@@ -1,6 +1,6 @@
-export async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs = 12000): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const mergedOptions: RequestInit = {
     ...options,
     signal: options?.signal ?? controller.signal
@@ -10,7 +10,7 @@ export async function fetchJSON<T>(url: string, options?: RequestInit): Promise<
     res = await fetch(url, mergedOptions);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("API error: request timeout");
+      throw new Error(`API error: request timeout (${timeoutMs}ms)`);
     }
     throw new Error("API error: network unavailable");
   } finally {

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import type { IterationVersionType } from "../domain/workspace/iterationTypes";
 import type {
   AttachmentAnalysisReport,
   AssessmentPayload,
@@ -17,6 +18,7 @@ import type {
   SyncReportPayload,
   TracePayload
 } from "../domain/workspace/types";
+import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 import type {
   DeploymentRecord,
@@ -29,17 +31,43 @@ import type {
   VersionSnapshot
 } from "../domain/workspace/platformTypes";
 
+function readStorageString(key: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function readStorageNumber(key: string): number | null {
+  const raw = readStorageString(key);
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function useWorkspaceState() {
-  const [activeView, setActiveView] = useState<"dashboard" | "projects">("dashboard");
-  const [projectPanelMode, setProjectPanelMode] = useState<"project" | "iteration">("project");
+  const [activeView, setActiveView] = useState<"dashboard" | "projects">(() => {
+    const cached = readStorageString("buildwise:active-view");
+    return cached === "projects" ? "projects" : "dashboard";
+  });
+  const [projectPanelMode, setProjectPanelMode] = useState<"project" | "iteration">(() => {
+    const cached = readStorageString("buildwise:project-panel-mode");
+    return cached === "iteration" ? "iteration" : "project";
+  });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [currentRole, setCurrentRole] = useState<"owner" | "pm" | "developer" | "qa" | "viewer">("owner");
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(() => readStorageNumber("buildwise:current-project-id"));
   const [iterations, setIterations] = useState<Iteration[]>([]);
-  const [currentIterationId, setCurrentIterationId] = useState<number | null>(null);
+  const [currentIterationId, setCurrentIterationId] = useState<number | null>(() => readStorageNumber("buildwise:current-iteration-id"));
   const [showCreateIteration, setShowCreateIteration] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,10 +80,11 @@ export function useWorkspaceState() {
   const [iterInScope, setIterInScope] = useState("");
   const [iterOutScope, setIterOutScope] = useState("");
   const [iterAcceptance, setIterAcceptance] = useState("");
+  const [iterVersionType, setIterVersionType] = useState<IterationVersionType>("patch");
 
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<IterationMessage[]>([]);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; iterationId: number } | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<UploadedAttachmentMeta | null>(null);
   const [contextData, setContextData] = useState<IterationContextPayload | null>(null);
   const [assessmentData, setAssessmentData] = useState<AssessmentPayload | null>(null);
   const [assessmentHistory, setAssessmentHistory] = useState<AssessmentSnapshot[]>([]);
@@ -128,6 +157,8 @@ export function useWorkspaceState() {
     setIterOutScope,
     iterAcceptance,
     setIterAcceptance,
+    iterVersionType,
+    setIterVersionType,
     chatInput,
     setChatInput,
     chatMessages,

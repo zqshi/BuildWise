@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.JsonWorkspaceRepository = void 0;
 const node_fs_1 = require("node:fs");
+const versioning_1 = require("../../domain/workspace/versioning");
 const seedStore = {
     projects: [
         {
@@ -22,10 +23,18 @@ const seedStore = {
     versionSnapshots: [],
     projectShares: [],
     deployments: [],
-    templateRuns: []
+    templateRuns: [],
+    opsTriageTemplates: []
 };
 function toArray(value) {
     return Array.isArray(value) ? value : [];
+}
+function toRepoSlug(value, fallback) {
+    const slug = value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    return slug || fallback;
 }
 class JsonWorkspaceRepository {
     constructor(dataFile) {
@@ -48,7 +57,8 @@ class JsonWorkspaceRepository {
             versionSnapshots: toArray(parsed.versionSnapshots),
             projectShares: toArray(parsed.projectShares),
             deployments: toArray(parsed.deployments),
-            templateRuns: toArray(parsed.templateRuns)
+            templateRuns: toArray(parsed.templateRuns),
+            opsTriageTemplates: toArray(parsed.opsTriageTemplates)
         };
     }
     write(data) {
@@ -65,12 +75,46 @@ class JsonWorkspaceRepository {
     }
     createProject(input) {
         const data = this.read();
+        const id = this.nextId(data.projects);
+        const repoName = toRepoSlug(input.name, `project-${id}`);
+        const now = new Date().toISOString();
         const created = {
-            id: this.nextId(data.projects),
+            id,
             name: input.name,
             description: input.description,
             status: "in-progress",
-            lastUpdated: new Date().toISOString().slice(0, 10)
+            lastUpdated: now.slice(0, 10),
+            repository: {
+                id: `repo-${id}`,
+                provider: "github",
+                organization: "buildwise",
+                name: repoName,
+                url: `https://github.com/buildwise/${repoName}`,
+                defaultBranch: "main",
+                structureVersion: "v1",
+                layout: [
+                    { path: "apps/web", purpose: "前端应用", required: true },
+                    { path: "apps/api", purpose: "后端服务", required: true },
+                    { path: "packages/domain", purpose: "领域模型与用例", required: true },
+                    { path: "packages/shared", purpose: "跨端共享模块", required: false },
+                    { path: "docs", purpose: "PRD/ADR/迭代记录", required: true },
+                    { path: "tests", purpose: "集成与契约测试", required: true },
+                    { path: "infra", purpose: "部署与环境脚本", required: true },
+                    { path: ".github/workflows", purpose: "CI/CD 流水线", required: true }
+                ],
+                remote: {
+                    status: "unprovisioned",
+                    visibility: "private",
+                    ownerType: "org",
+                    providerRepoId: "",
+                    htmlUrl: "",
+                    cloneUrl: "",
+                    sshUrl: "",
+                    lastProvisionedAt: ""
+                },
+                createdAt: now,
+                updatedAt: now
+            }
         };
         data.projects.push(created);
         this.write(data);
@@ -91,6 +135,7 @@ class JsonWorkspaceRepository {
     createIteration(projectId, payload) {
         const data = this.read();
         const existing = data.iterations.filter((item) => item.projectId === projectId);
+        const version = (0, versioning_1.nextThreePartVersion)(existing, payload.versionType || "patch");
         for (const item of existing) {
             item.current = false;
         }
@@ -98,6 +143,7 @@ class JsonWorkspaceRepository {
         const created = {
             id: this.nextId(data.iterations),
             projectId,
+            version,
             name: payload.name,
             description: payload.description,
             goals,
@@ -236,6 +282,14 @@ class JsonWorkspaceRepository {
         const data = this.read();
         data.templateRuns.push(record);
         this.write(data);
+    }
+    updateProject(project) {
+        const data = this.read();
+        const idx = data.projects.findIndex((item) => item.id === project.id);
+        if (idx >= 0) {
+            data.projects[idx] = project;
+            this.write(data);
+        }
     }
     updateIteration(iteration) {
         const data = this.read();

@@ -3,16 +3,19 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   AssessmentSnapshot,
   AuditLog,
+  CreateIterationInput,
   DeploymentRecord,
   Iteration,
   IterationMessage,
   IterationTransition,
+  OpsTriageTemplateRecord,
   ProjectShare,
   Project,
   TemplateRunRecord,
   VersionSnapshot,
   WorkspaceStore
 } from "../../domain/workspace/types";
+import { nextThreePartVersion } from "../../domain/workspace/versioning";
 
 const seedStore: WorkspaceStore = {
   projects: [
@@ -34,11 +37,20 @@ const seedStore: WorkspaceStore = {
   versionSnapshots: [],
   projectShares: [],
   deployments: [],
-  templateRuns: []
+  templateRuns: [],
+  opsTriageTemplates: []
 };
 
 function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function toRepoSlug(value: string, fallback: string) {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || fallback;
 }
 
 export class JsonWorkspaceRepository implements WorkspaceRepository {
@@ -61,7 +73,8 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       versionSnapshots: toArray<VersionSnapshot>(parsed.versionSnapshots),
       projectShares: toArray<ProjectShare>(parsed.projectShares),
       deployments: toArray<DeploymentRecord>(parsed.deployments),
-      templateRuns: toArray<TemplateRunRecord>(parsed.templateRuns)
+      templateRuns: toArray<TemplateRunRecord>(parsed.templateRuns),
+      opsTriageTemplates: toArray<OpsTriageTemplateRecord>(parsed.opsTriageTemplates)
     };
   }
 
@@ -83,12 +96,46 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
 
   createProject(input: Pick<Project, "name" | "description">) {
     const data = this.read();
+    const id = this.nextId(data.projects);
+    const repoName = toRepoSlug(input.name, `project-${id}`);
+    const now = new Date().toISOString();
     const created: Project = {
-      id: this.nextId(data.projects),
+      id,
       name: input.name,
       description: input.description,
       status: "in-progress",
-      lastUpdated: new Date().toISOString().slice(0, 10)
+      lastUpdated: now.slice(0, 10),
+      repository: {
+        id: `repo-${id}`,
+        provider: "github",
+        organization: "buildwise",
+        name: repoName,
+        url: `https://github.com/buildwise/${repoName}`,
+        defaultBranch: "main",
+        structureVersion: "v1",
+        layout: [
+          { path: "apps/web", purpose: "前端应用", required: true },
+          { path: "apps/api", purpose: "后端服务", required: true },
+          { path: "packages/domain", purpose: "领域模型与用例", required: true },
+          { path: "packages/shared", purpose: "跨端共享模块", required: false },
+          { path: "docs", purpose: "PRD/ADR/迭代记录", required: true },
+          { path: "tests", purpose: "集成与契约测试", required: true },
+          { path: "infra", purpose: "部署与环境脚本", required: true },
+          { path: ".github/workflows", purpose: "CI/CD 流水线", required: true }
+        ],
+        remote: {
+          status: "unprovisioned",
+          visibility: "private",
+          ownerType: "org",
+          providerRepoId: "",
+          htmlUrl: "",
+          cloneUrl: "",
+          sshUrl: "",
+          lastProvisionedAt: ""
+        },
+        createdAt: now,
+        updatedAt: now
+      }
     };
     data.projects.push(created);
     this.write(data);
@@ -112,9 +159,10 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     );
   }
 
-  createIteration(projectId: number, payload: Partial<Iteration> & Pick<Iteration, "name" | "description">) {
+  createIteration(projectId: number, payload: CreateIterationInput) {
     const data = this.read();
     const existing = data.iterations.filter((item) => item.projectId === projectId);
+    const version = nextThreePartVersion(existing, payload.versionType || "patch");
     for (const item of existing) {
       item.current = false;
     }
@@ -122,6 +170,7 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     const created: Iteration = {
       id: this.nextId(data.iterations),
       projectId,
+      version,
       name: payload.name,
       description: payload.description,
       goals,
@@ -280,6 +329,15 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     const data = this.read();
     data.templateRuns.push(record);
     this.write(data);
+  }
+
+  updateProject(project: Project) {
+    const data = this.read();
+    const idx = data.projects.findIndex((item) => item.id === project.id);
+    if (idx >= 0) {
+      data.projects[idx] = project;
+      this.write(data);
+    }
   }
 
   updateIteration(iteration: Iteration) {

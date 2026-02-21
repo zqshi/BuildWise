@@ -35,8 +35,8 @@ class ModelingService {
     listEntities() {
         return this.modelRepo.listEntities();
     }
-    listRelations() {
-        return this.modelRepo.listRelations();
+    listRelations(projectId) {
+        return this.modelRepo.listRelations(projectId);
     }
     createEntity(input) {
         return this.modelRepo.createEntity({
@@ -52,9 +52,15 @@ class ModelingService {
         if (!fromExists || !toExists) {
             return { ok: false, reason: "entity_not_found" };
         }
-        const duplicate = model.relations.some((item) => item.fromEntityId === input.fromEntityId &&
-            item.toEntityId === input.toEntityId &&
-            item.type === input.type);
+        const duplicate = model.relations.some((item) => {
+            const sameProjectScope = typeof input.projectId === "number" && input.projectId > 0
+                ? item.projectId === input.projectId
+                : item.projectId === undefined;
+            return (sameProjectScope &&
+                item.fromEntityId === input.fromEntityId &&
+                item.toEntityId === input.toEntityId &&
+                item.type === input.type);
+        });
         if (duplicate) {
             return { ok: false, reason: "relation_duplicated" };
         }
@@ -62,8 +68,8 @@ class ModelingService {
         this.writeAudit("model_relation_created", `relation:${created.id}`, `${input.fromEntityId} -> ${input.toEntityId} (${input.type})`);
         return { ok: true, value: created };
     }
-    deleteRelation(relationId) {
-        const deleted = this.modelRepo.deleteRelation(relationId);
+    deleteRelation(relationId, projectId) {
+        const deleted = this.modelRepo.deleteRelation(relationId, projectId);
         if (deleted) {
             this.writeAudit("model_relation_deleted", `relation:${relationId}`, `删除关系 ${relationId}`);
         }
@@ -98,11 +104,16 @@ class ModelingService {
             warnings
         };
     }
-    buildSyncReport() {
+    buildSyncReport(projectId) {
         const model = this.modelRepo.read();
         const workspace = this.workspaceRepo.read();
-        const projects = workspace.projects.length;
-        const iterations = workspace.iterations.length;
+        const projectScoped = typeof projectId === "number" && projectId > 0 ? workspace.projects.find((item) => item.id === projectId) : null;
+        const projects = projectScoped ? 1 : projectId ? 0 : workspace.projects.length;
+        const iterations = projectScoped
+            ? workspace.iterations.filter((item) => item.projectId === projectScoped.id).length
+            : projectId
+                ? 0
+                : workspace.iterations.length;
         const entities = model.entities.length;
         const pages = model.pages.length;
         const apis = model.apis.filter((api) => typeof api.path === "string" && api.path).length;
@@ -119,7 +130,16 @@ class ModelingService {
         const impacts = [];
         const risks = [];
         impacts.push(`模型实体 ${entities} 个，页面 ${pages} 个，接口 ${apis} 个。`);
-        impacts.push(`项目 ${projects} 个，迭代 ${iterations} 个参与同步评分。`);
+        if (projectScoped) {
+            impacts.push(`项目 ${projectScoped.name}（#${projectScoped.id}）下有 ${iterations} 个迭代参与同步评分。`);
+        }
+        else if (projectId && !projectScoped) {
+            impacts.push(`projectId=${projectId} 未找到匹配项目，当前返回空项目评分。`);
+            risks.push("指定项目不存在，无法提供项目级同步评分。");
+        }
+        else {
+            impacts.push(`项目 ${projects} 个，迭代 ${iterations} 个参与同步评分。`);
+        }
         if (compile.invalidRules > 0) {
             impacts.push(`检测到 ${compile.invalidRules} 条无效规则，可能影响自动生成稳定性。`);
             risks.push("存在未通过编译的规则，建议优先修复规则 target/type。");
@@ -172,19 +192,21 @@ class ModelingService {
             bindings
         };
     }
-    buildTraceReport() {
+    buildTraceReport(projectId) {
+        if (typeof projectId === "number" && projectId > 0) {
+            const workspace = this.workspaceRepo.read();
+            const project = workspace.projects.find((item) => item.id === projectId);
+            if (!project) {
+                return { generatedAt: (0, modelingSupport_1.nowIso)(), items: [] };
+            }
+            const items = (0, modelingSupport_1.buildProjectTraceItems)(workspace, projectId);
+            return {
+                generatedAt: (0, modelingSupport_1.nowIso)(),
+                items
+            };
+        }
         const model = this.modelRepo.read();
-        const items = model.pages.flatMap((page) => model.apis
-            .filter((api) => typeof api.path === "string" && api.path)
-            .slice(0, 3)
-            .map((api) => ({
-            pageRoute: page.route,
-            apiPath: api.path,
-            relation: "page-consumes-api",
-            modelRef: `page:${page.id}`,
-            codeRef: `backend/interfaces/http/routes#${api.path.split("/").join("_")}`,
-            intent: `页面 ${page.name} 使用接口 ${api.path}`
-        })));
+        const items = (0, modelingSupport_1.buildGlobalTraceItems)(model);
         return {
             generatedAt: (0, modelingSupport_1.nowIso)(),
             items

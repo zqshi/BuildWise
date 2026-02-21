@@ -85,26 +85,7 @@ class PlatformService {
         return created;
     }
     listTemplates() {
-        return [
-            {
-                id: "tpl-req-review",
-                name: "需求评审模板",
-                category: "requirements",
-                description: "生成需求评审清单与风险确认项"
-            },
-            {
-                id: "tpl-api-mvp",
-                name: "接口联调模板",
-                category: "delivery",
-                description: "生成联调步骤、验收项与回滚点"
-            },
-            {
-                id: "tpl-release-check",
-                name: "发版巡检模板",
-                category: "ops",
-                description: "生成发布前/后巡检动作与阈值"
-            }
-        ];
+        return [...platformSupport_1.projectTemplates];
     }
     runTemplate(templateId, projectId) {
         const template = this.listTemplates().find((item) => item.id === templateId);
@@ -114,6 +95,7 @@ class PlatformService {
         }
         const createdAt = (0, platformSupport_1.nowIso)();
         const runId = (0, platformSupport_1.randomToken)("run_");
+        const iterationId = (0, platformSupport_1.resolveIterationId)(this.workspaceRepo, projectId);
         const result = {
             runId,
             templateId,
@@ -129,7 +111,7 @@ class PlatformService {
             runId,
             templateId,
             projectId,
-            parameters: {},
+            parameters: iterationId ? { iterationId: String(iterationId) } : {},
             status: "completed",
             startedAt: createdAt,
             finishedAt: createdAt,
@@ -147,6 +129,7 @@ class PlatformService {
         const startedAt = (0, platformSupport_1.nowIso)();
         const focused = parameters.focus || "默认目标";
         const summary = `已执行 ${template.name}，聚焦：${focused}`;
+        const normalizedParameters = (0, platformSupport_1.normalizeTemplateParameters)(this.workspaceRepo, projectId, parameters);
         const record = {
             runId: (0, platformSupport_1.randomToken)("run_"),
             templateId,
@@ -162,13 +145,13 @@ class PlatformService {
             runId: record.runId,
             templateId,
             projectId,
-            parameters,
+            parameters: normalizedParameters,
             status: "completed",
             startedAt: record.startedAt,
             finishedAt: record.finishedAt,
             summary: record.summary
         });
-        this.writeAudit("template_run_completed", `template:${templateId}`, `params:${JSON.stringify(parameters)}`);
+        this.writeAudit("template_run_completed", `template:${templateId}`, `params:${JSON.stringify(normalizedParameters)}`);
         return record;
     }
     listTemplateRuns(projectId) {
@@ -196,15 +179,17 @@ class PlatformService {
     listDeployments(projectId) {
         return this.workspaceRepo.listDeployments(projectId);
     }
-    createDeployment(projectId, environment, version) {
+    createDeployment(projectId, environment, version, iterationId) {
         const project = this.workspaceRepo.findProject(projectId);
         if (!project) {
             return null;
         }
+        const resolvedIterationId = (0, platformSupport_1.resolveDeploymentIterationId)(this.workspaceRepo, projectId, iterationId);
         const data = this.workspaceRepo.read();
         const created = {
             id: this.workspaceRepo.nextId(data.deployments),
             projectId,
+            iterationId: resolvedIterationId || undefined,
             environment,
             version,
             status: "queued",
@@ -274,15 +259,136 @@ class PlatformService {
         const deployTotal = workspace.deployments.length;
         const deploySuccess = workspace.deployments.filter((item) => item.status === "success").length;
         const activeShares = workspace.projectShares.filter((item) => new Date(item.expiresAt).getTime() > Date.now()).length;
+        const iterations = Array.isArray(workspace.iterations) ? workspace.iterations : [];
+        const analyzedIterations = iterations.filter((item) => Boolean(item?.changeControl?.lastAnalysisAt)).length;
+        const generatedMatrixIterations = iterations.filter((item) => Array.isArray(item?.changeControl?.generatedTestMatrix) && item.changeControl.generatedTestMatrix.length > 0).length;
+        const testMatrixCasesTotal = iterations.reduce((total, item) => {
+            const cases = Array.isArray(item?.changeControl?.generatedTestMatrix) ? item.changeControl.generatedTestMatrix.length : 0;
+            return total + cases;
+        }, 0);
+        const testMatrixExecutedCasesTotal = iterations.reduce((total, item) => {
+            const cases = Array.isArray(item?.changeControl?.generatedTestMatrix) ? item.changeControl.generatedTestMatrix : [];
+            return total + cases.filter((testCase) => testCase.executionStatus && testCase.executionStatus !== "pending").length;
+        }, 0);
+        const testMatrixPassedCasesTotal = iterations.reduce((total, item) => {
+            const cases = Array.isArray(item?.changeControl?.generatedTestMatrix) ? item.changeControl.generatedTestMatrix : [];
+            return total + cases.filter((testCase) => testCase.executionStatus === "passed").length;
+        }, 0);
+        const testMatrixExecutionCompletedTotal = iterations.filter((item) => {
+            const cases = Array.isArray(item?.changeControl?.generatedTestMatrix) ? item.changeControl.generatedTestMatrix : [];
+            if (cases.length === 0) {
+                return false;
+            }
+            return cases.every((testCase) => testCase.executionStatus && testCase.executionStatus !== "pending");
+        }).length;
+        const testMatrixCoverage = analyzedIterations === 0 ? 100 : Math.round((generatedMatrixIterations / analyzedIterations) * 100);
+        const testMatrixExecutionCoverage = testMatrixCasesTotal === 0 ? 100 : Math.round((testMatrixExecutedCasesTotal / testMatrixCasesTotal) * 100);
+        const testMatrixPassRate = testMatrixExecutedCasesTotal === 0 ? (testMatrixCasesTotal === 0 ? 100 : 0) : Math.round((testMatrixPassedCasesTotal / testMatrixExecutedCasesTotal) * 100);
+        const p0FindingsTotal = iterations.reduce((total, item) => total + (Number(item?.changeControl?.lastAnalysisP0Count || 0) || 0), 0);
+        const highValueFindingsTotal = iterations.reduce((total, item) => total + (Number(item?.changeControl?.lastAnalysisHighValueCount || 0) || 0), 0);
+        const highValueIterations = iterations.filter((item) => Number(item?.changeControl?.lastAnalysisHighValueCount || 0) > 0).length;
+        const analyzedIterationsWithFindingsCoverage = analyzedIterations === 0 ? 100 : Math.round((highValueIterations / analyzedIterations) * 100);
+        const consideredFilesTotal = iterations.reduce((total, item) => total + (Number(item?.changeControl?.lastAnalysisConsideredFiles || 0) || 0), 0);
+        const ignoredFilesTotal = iterations.reduce((total, item) => total + (Number(item?.changeControl?.lastAnalysisIgnoredFiles || 0) || 0), 0);
+        const ignoredFilesRatio = consideredFilesTotal === 0 ? 0 : Math.round((ignoredFilesTotal / consideredFilesTotal) * 100);
         const latestAuditAt = workspace.auditLogs.length ? workspace.auditLogs[workspace.auditLogs.length - 1].createdAt : "";
         return {
             generatedAt: (0, platformSupport_1.nowIso)(),
             metrics: [
                 { name: "deployment_success_rate", value: deployTotal === 0 ? 100 : Math.round((deploySuccess / deployTotal) * 100), unit: "%" },
+                { name: "iteration_analyzed_total", value: analyzedIterations, unit: "count" },
+                { name: "iteration_test_matrix_generated_total", value: generatedMatrixIterations, unit: "count" },
+                { name: "iteration_test_matrix_cases_total", value: testMatrixCasesTotal, unit: "count" },
+                { name: "iteration_test_matrix_coverage", value: testMatrixCoverage, unit: "%" },
+                { name: "iteration_test_matrix_executed_cases_total", value: testMatrixExecutedCasesTotal, unit: "count" },
+                { name: "iteration_test_matrix_execution_completed_total", value: testMatrixExecutionCompletedTotal, unit: "count" },
+                { name: "iteration_test_matrix_execution_coverage", value: testMatrixExecutionCoverage, unit: "%" },
+                { name: "iteration_test_matrix_pass_rate", value: testMatrixPassRate, unit: "%" },
+                { name: "iteration_p0_findings_total", value: p0FindingsTotal, unit: "count" },
+                { name: "iteration_high_value_findings_total", value: highValueFindingsTotal, unit: "count" },
+                { name: "iteration_high_value_findings_coverage", value: analyzedIterationsWithFindingsCoverage, unit: "%" },
+                { name: "iteration_analysis_ignored_files_ratio", value: ignoredFilesRatio, unit: "%" },
                 { name: "active_share_links", value: activeShares, unit: "count" },
                 { name: "audit_events_total", value: workspace.auditLogs.length, unit: "count" }
             ],
             latestAuditAt
+        };
+    }
+    listOpsTriageTemplates() {
+        const workspace = this.workspaceRepo.read();
+        const customTemplates = Array.isArray(workspace.opsTriageTemplates) ? workspace.opsTriageTemplates : [];
+        return {
+            generatedAt: (0, platformSupport_1.nowIso)(),
+            templates: [
+                ...platformSupport_1.opsTriageTemplates.map((item) => ({
+                    id: item.id,
+                    category: item.category,
+                    keywords: [...item.keywords],
+                    commands: [...item.commands],
+                    note: item.note,
+                    source: "system",
+                    projectId: undefined
+                })),
+                ...customTemplates.map((item) => ({
+                    id: item.id,
+                    category: item.category,
+                    keywords: Array.isArray(item.keywords) ? item.keywords : [],
+                    commands: Array.isArray(item.commands) ? item.commands : [],
+                    note: item.note || "",
+                    source: "custom",
+                    projectId: item.projectId
+                }))
+            ]
+        };
+    }
+    upsertOpsTriageTemplate(input) {
+        const workspace = this.workspaceRepo.read();
+        const now = (0, platformSupport_1.nowIso)();
+        const normalized = {
+            id: input.id?.trim() || (0, platformSupport_1.randomToken)("triage_"),
+            projectId: typeof input.projectId === "number" && input.projectId > 0 ? input.projectId : undefined,
+            category: input.category.trim() || "general",
+            keywords: input.keywords.map((item) => item.trim()).filter(Boolean).slice(0, 12),
+            commands: input.commands.map((item) => item.trim()).filter(Boolean).slice(0, 12),
+            note: input.note?.trim() || "",
+            updatedAt: now
+        };
+        if (normalized.keywords.length === 0 || normalized.commands.length === 0) {
+            return { ok: false, reason: "invalid_template" };
+        }
+        const templates = Array.isArray(workspace.opsTriageTemplates) ? [...workspace.opsTriageTemplates] : [];
+        const index = templates.findIndex((item) => item.id === normalized.id);
+        if (index >= 0) {
+            templates[index] = { ...templates[index], ...normalized };
+        }
+        else {
+            templates.push(normalized);
+        }
+        this.workspaceRepo.write({ ...workspace, opsTriageTemplates: templates });
+        this.writeAudit("ops_triage_template_upserted", `template:${normalized.id}`, `projectId=${normalized.projectId || "global"}`);
+        return { ok: true, data: normalized };
+    }
+    deleteOpsTriageTemplate(templateId) {
+        const workspace = this.workspaceRepo.read();
+        const templates = Array.isArray(workspace.opsTriageTemplates) ? workspace.opsTriageTemplates : [];
+        const index = templates.findIndex((item) => item.id === templateId);
+        if (index < 0) {
+            return { ok: false, reason: "template_not_found" };
+        }
+        const removed = templates[index];
+        const next = [...templates.slice(0, index), ...templates.slice(index + 1)];
+        this.workspaceRepo.write({ ...workspace, opsTriageTemplates: next });
+        this.writeAudit("ops_triage_template_deleted", `template:${templateId}`, `projectId=${removed.projectId || "global"}`);
+        return { ok: true };
+    }
+    listOpsTriageTemplatesByProject(projectId) {
+        const all = this.listOpsTriageTemplates();
+        if (!projectId || projectId <= 0) {
+            return all;
+        }
+        return {
+            ...all,
+            templates: all.templates.filter((item) => item.source === "system" || item.projectId === projectId)
         };
     }
 }

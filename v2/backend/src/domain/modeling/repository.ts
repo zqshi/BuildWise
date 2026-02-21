@@ -4,8 +4,8 @@ export interface ModelingRepository {
   read(): ModelStore;
   write(data: ModelStore): void;
   listEntities(): ModelEntity[];
-  listRelations(): ModelRelation[];
+  listRelations(projectId?: number): ModelRelation[];
   createEntity(input: Pick<ModelEntity, "name"> & Partial<ModelEntity>): ModelEntity;
   createRelation(input: Omit<ModelRelation, "id"> & { id?: string }): ModelRelation;
-  deleteRelation(relationId: string): boolean;
+  deleteRelation(relationId: string, projectId?: number): boolean;
 }

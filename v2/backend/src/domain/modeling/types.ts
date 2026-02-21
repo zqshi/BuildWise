@@ -37,6 +37,7 @@ export type ModelApi = {
 
 export type ModelRelation = {
   id: string;
+  projectId?: number;
   fromEntityId: string;
   toEntityId: string;
   type: "one_to_one" | "one_to_many" | "many_to_many";

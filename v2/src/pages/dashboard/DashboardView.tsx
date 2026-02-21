@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { Project, StatusPayload } from "../../domain/workspace/types";
 
 type ProgressBucket = { label: string; count: number };
@@ -8,14 +7,12 @@ type DashboardViewProps = {
   projects: Project[];
   inProgressIterations: number;
   completedIterations: number;
-  modelAssetCount: number;
   status: StatusPayload | null;
   progressBuckets: ProgressBucket[];
   iterationCount: number;
   monthlyTrend: TrendPoint[];
   currentProjectId: number | null;
   currentProjectIterations: number;
-  modelOpsPanel: ReactNode;
   onViewProjects: () => void;
 };
 
@@ -23,17 +20,23 @@ export function DashboardView({
   projects,
   inProgressIterations,
   completedIterations,
-  modelAssetCount,
   status,
   progressBuckets,
   iterationCount,
   monthlyTrend,
   currentProjectId,
   currentProjectIterations,
-  modelOpsPanel,
   onViewProjects
 }: DashboardViewProps) {
-  const serviceHealthy = (status?.status || "").toLowerCase() === "ok";
+  const normalizedStatus = (status?.status || "").toLowerCase();
+  const serviceHealthy = normalizedStatus === "ok";
+  const statusLabelMap: Record<string, string> = {
+    ok: "正常",
+    offline: "离线",
+    degraded: "降级"
+  };
+  const displayStatus = statusLabelMap[normalizedStatus] || "未获取";
+  const displayHealthHint = normalizedStatus ? (serviceHealthy ? "运行正常" : "待关注") : "未检测";
 
   return (
     <section className="dashboard-view">
@@ -53,28 +56,19 @@ export function DashboardView({
         <article className="stat-card">
           <p>总项目数</p>
           <strong>{projects.length}</strong>
-          <span>全部项目</span>
         </article>
         <article className="stat-card">
           <p>进行中迭代</p>
           <strong>{inProgressIterations}</strong>
-          <span>当前推进中</span>
         </article>
         <article className="stat-card">
           <p>已完成迭代</p>
           <strong>{completedIterations}</strong>
-          <span>可回溯版本</span>
-        </article>
-        <article className="stat-card">
-          <p>模型资产</p>
-          <strong>{modelAssetCount}</strong>
-          <span>实体/规则/页面</span>
         </article>
         <article className="stat-card">
           <p>服务状态</p>
-          <strong>{status?.status || "unknown"}</strong>
-          <span className={`status-chip ${serviceHealthy ? "ok" : "warn"}`}>{serviceHealthy ? "运行正常" : "待关注"}</span>
-          <span>{status?.service || "buildwise-v2-backend"}</span>
+          <strong>{displayStatus}</strong>
+          <span className={`status-chip ${serviceHealthy ? "ok" : "warn"}`}>{displayHealthHint}</span>
         </article>
       </section>
       <section className="dashboard-grid">
@@ -117,7 +111,6 @@ export function DashboardView({
           </div>
         </article>
       </section>
-      {modelOpsPanel}
       <section className="panel recent-panel">
         <div className="panel-head">
           <h2>最近项目</h2>
