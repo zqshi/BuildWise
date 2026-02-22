@@ -706,7 +706,7 @@
       },
       "changeControl": {
         "pendingHumanConfirmation": true,
-        "lastAnalysisAt": "2026-02-20T12:57:41.207Z",
+        "lastAnalysisAt": "2026-02-22T09:30:07.880Z",
         "lastAnalysisFileName": "无影",
         "lastAnalysisDigest": "added=1;removed=0;diff=4;strategy=folder-batch;chunks=0;degraded=no;fastPath=no",
         "clarificationRounds": 0,
@@ -714,13 +714,13 @@
           "模型输出存在较多 unknown 信号（11）。请确认关键事实：需求范围、数据口径、上线门禁。"
         ],
         "clarificationDraftResolvedQuestions": [],
-        "clarificationDraftUpdatedAt": "2026-02-20T12:57:41.207Z",
+        "clarificationDraftUpdatedAt": "2026-02-22T09:30:07.880Z",
         "lastClarificationResolution": {
           "resolvedQuestions": [],
           "unresolvedQuestions": [
             "模型输出存在较多 unknown 信号（11）。请确认关键事实：需求范围、数据口径、上线门禁。"
           ],
-          "updatedAt": "2026-02-20T12:57:41.207Z"
+          "updatedAt": "2026-02-22T09:30:07.880Z"
         },
         "lastClarificationNote": "",
         "confirmedAt": "",
@@ -730,8 +730,8 @@
             "type": "功能验证",
             "caseId": "FUNC-001",
             "focus": "需求文档完整性验证",
-            "expected": "「无影」集成赋能套件产品需求文档.md 内容完整，包含清晰的产品目标、用户故事、功能模块描述",
-            "evidence": "差异显示 goals:added:1；附件包含需求文档 (11152B)，需验证其内容结构是否完整",
+            "expected": "「无影」集成赋能套件产品需求文档.md 内容完整，包含明确的产品目标、用户故事、功能模块描述",
+            "evidence": "输入差异显示 goals:added:1；文档大小 11152B，表明有实质性内容",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -740,9 +740,9 @@
           {
             "type": "功能验证",
             "caseId": "FUNC-002",
-            "focus": "功能清单与需求对齐",
-            "expected": "「无影」集成赋能套件功能清单.md 与需求文档中的功能模块一一对应，无遗漏或矛盾",
-            "evidence": "差异显示 inScope:added:1；附件包含功能清单 (4268B)，需验证其与需求文档的一致性",
+            "focus": "功能清单完整性验证",
+            "expected": "「无影」集成赋能套件功能清单.md 清晰列出所有功能项、优先级和验收标准",
+            "evidence": "输入差异显示 acceptanceCriteria:added:1；文档大小 4268B",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -751,9 +751,9 @@
           {
             "type": "功能验证",
             "caseId": "FUNC-003",
-            "focus": "验收标准可执行性",
-            "expected": "acceptanceCriteria 具体、可测试、可衡量，覆盖核心功能点",
-            "evidence": "差异显示 acceptanceCriteria:added:1，需验证其是否具备可测试性",
+            "focus": "技术架构设计验证",
+            "expected": "「无影」技术顶层架构设计.md 包含系统架构图、技术选型、模块划分和接口定义",
+            "evidence": "输入差异显示 inScope:added:1；文档大小 2752B",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -762,20 +762,9 @@
           {
             "type": "功能验证",
             "caseId": "FUNC-004",
-            "focus": "技术架构设计完整性",
-            "expected": "「无影」技术顶层架构设计.md 包含清晰的系统组件、数据流、接口定义和技术选型",
-            "evidence": "附件包含架构设计文档 (2752B)，需验证其技术方案的完整性和可行性",
-            "executionStatus": "pending",
-            "executionUpdatedAt": "",
-            "executionBy": "",
-            "executionNote": ""
-          },
-          {
-            "type": "功能验证",
-            "caseId": "FUNC-005",
-            "focus": "前端入口页面基础功能",
-            "expected": "无影/wu-ying/index.html 可正常加载，包含基础UI元素和导航结构",
-            "evidence": "附件包含 index.html (50192B)，需验证其HTML结构完整性和基础功能",
+            "focus": "前端入口页面验证",
+            "expected": "无影/wu-ying/index.html 为有效HTML文件，包含基本结构和可访问性",
+            "evidence": "文件大小 50192B，表明为完整HTML页面而非占位符",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -784,9 +773,9 @@
           {
             "type": "回归验证",
             "caseId": "REG-001",
-            "focus": "范围边界清晰性回归",
-            "expected": "outOfScope 定义清晰，与 inScope 无重叠，避免范围蔓延",
-            "evidence": "差异显示 outOfScope:added:1，需验证其与 inScope 的边界是否明确",
+            "focus": "范围边界一致性验证",
+            "expected": "inScope与outOfScope定义清晰且无冲突，outOfScope内容明确排除",
+            "evidence": "输入差异显示 outOfScope:added:1，需验证与inScope无重叠",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -795,9 +784,9 @@
           {
             "type": "边界验证",
             "caseId": "BOUND-001",
-            "focus": "文档格式与完整性边界",
-            "expected": "所有Markdown文档格式正确，无损坏字符；HTML文件符合基本规范",
-            "evidence": "附件包含7个文本文件，需验证文件完整性和格式正确性",
+            "focus": "文档格式与编码验证",
+            "expected": "所有Markdown和HTML文件格式正确，无编码错误或损坏",
+            "evidence": "7个文本文件均被识别，需验证实际可读性",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -806,9 +795,9 @@
           {
             "type": "风险定向验证",
             "caseId": "RISK-001",
-            "focus": "需求与技术实现一致性风险",
-            "expected": "需求文档中的功能描述与技术架构设计中的实现方案保持一致",
-            "evidence": "上下文风险提示“暂无显式风险，请结合业务验收继续确认”，需定向验证需求与实现的一致性",
+            "focus": "需求与技术架构对齐验证",
+            "expected": "产品需求文档中的功能需求在技术架构设计中有对应实现方案",
+            "evidence": "变更边界包含requirements和components，需验证两者一致性",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
@@ -817,16 +806,16 @@
           {
             "type": "风险定向验证",
             "caseId": "RISK-002",
-            "focus": "附件处理完整性风险",
-            "expected": "folder-batch 处理模式正确识别所有相关文件，无遗漏",
-            "evidence": "附件处理显示 folder-batch，digest显示7个文件，需验证是否覆盖变更边界定义的所有路径",
+            "focus": "代码路径与文档对应验证",
+            "expected": "codePaths指定的目录存在且包含与文档描述对应的实际代码或资源",
+            "evidence": "codePaths=无影/docs/|无影/wu-ying/，需验证目录非空且内容相关",
             "executionStatus": "pending",
             "executionUpdatedAt": "",
             "executionBy": "",
             "executionNote": ""
           }
         ],
-        "generatedTestMatrixUpdatedAt": "2026-02-20T12:57:41.207Z",
+        "generatedTestMatrixUpdatedAt": "2026-02-22T09:30:07.880Z",
         "testMatrixExecutionUpdatedAt": "",
         "lastAnalysisP0Count": 0,
         "lastAnalysisHighValueCount": 0,
@@ -869,7 +858,7 @@
       "interactionState": {
         "hasPrototypeAssets": true,
         "uploadKind": "mixed",
-        "lastUpdatedAt": "2026-02-22T07:44:28.791Z",
+        "lastUpdatedAt": "2026-02-22T09:24:16.875Z",
         "lastAttachmentName": "无影 (7 files)"
       }
     }
@@ -1497,6 +1486,48 @@
       "role": "system",
       "content": "已上传附件：无影（7 个文件）",
       "createdAt": "2026-02-22T07:44:28.820Z"
+    },
+    {
+      "id": 90,
+      "iterationId": 5,
+      "role": "system",
+      "content": "batch 1/1: LLM synthesis returned invalid payload: missing projectDetection.projectName/productName",
+      "createdAt": "2026-02-22T07:50:54.691Z"
+    },
+    {
+      "id": 91,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-22T08:49:36.854Z"
+    },
+    {
+      "id": 92,
+      "iterationId": 5,
+      "role": "system",
+      "content": "batch 1/1: LLM synthesis returned invalid payload: missing projectDetection.projectName/productName",
+      "createdAt": "2026-02-22T08:56:00.320Z"
+    },
+    {
+      "id": 93,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-22T09:09:44.671Z"
+    },
+    {
+      "id": 94,
+      "iterationId": 5,
+      "role": "system",
+      "content": "batch 1/1: LLM synthesis returned invalid payload: missing projectDetection.projectName/productName",
+      "createdAt": "2026-02-22T09:16:10.334Z"
+    },
+    {
+      "id": 95,
+      "iterationId": 5,
+      "role": "system",
+      "content": "已上传附件：无影（7 个文件）",
+      "createdAt": "2026-02-22T09:24:16.891Z"
     }
   ],
   "snapshots": [
@@ -5167,6 +5198,204 @@
       "status": "in-progress",
       "progress": 0,
       "createdAt": "2026-02-22T07:44:28.823Z"
+    },
+    {
+      "id": 117,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-22T07:50:54.695Z"
+    },
+    {
+      "id": 118,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-22T08:49:36.857Z"
+    },
+    {
+      "id": 119,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-22T08:56:00.325Z"
+    },
+    {
+      "id": 120,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-22T09:09:44.673Z"
+    },
+    {
+      "id": 121,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-22T09:16:10.339Z"
+    },
+    {
+      "id": 122,
+      "iterationId": 5,
+      "source": "message",
+      "note": "system 消息更新",
+      "assessment": {
+        "baselineIterationId": null,
+        "baselineIterationName": "无基线",
+        "currentSummary": "基于test，1聚焦1。",
+        "deltaInScope": [
+          "+ 1"
+        ],
+        "resolvedItems": [],
+        "pendingItems": [
+          "1"
+        ],
+        "risks": []
+      },
+      "scope": {
+        "inScope": [
+          "1"
+        ],
+        "outOfScope": [
+          "1"
+        ],
+        "acceptanceCriteria": [
+          "1"
+        ]
+      },
+      "status": "in-progress",
+      "progress": 0,
+      "createdAt": "2026-02-22T09:24:16.894Z"
     }
   ],
   "transitions": [
@@ -6043,6 +6272,214 @@
       "resource": "iteration:5",
       "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
       "createdAt": "2026-02-22T07:44:28.796Z"
+    },
+    {
+      "id": 86,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T07:45:27.764Z"
+    },
+    {
+      "id": 87,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=6",
+      "createdAt": "2026-02-22T07:45:27.768Z"
+    },
+    {
+      "id": 88,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T07:47:31.967Z"
+    },
+    {
+      "id": 89,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T07:49:42.345Z"
+    },
+    {
+      "id": 90,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=8",
+      "createdAt": "2026-02-22T07:49:42.349Z"
+    },
+    {
+      "id": 91,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:5",
+      "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
+      "createdAt": "2026-02-22T08:49:36.843Z"
+    },
+    {
+      "id": 92,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T08:50:38.598Z"
+    },
+    {
+      "id": 93,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=8",
+      "createdAt": "2026-02-22T08:50:38.602Z"
+    },
+    {
+      "id": 94,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T08:52:45.177Z"
+    },
+    {
+      "id": 95,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=7",
+      "createdAt": "2026-02-22T08:52:45.180Z"
+    },
+    {
+      "id": 96,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T08:54:51.217Z"
+    },
+    {
+      "id": 97,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=9",
+      "createdAt": "2026-02-22T08:54:51.221Z"
+    },
+    {
+      "id": 98,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:5",
+      "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
+      "createdAt": "2026-02-22T09:09:44.660Z"
+    },
+    {
+      "id": 99,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T09:10:44.959Z"
+    },
+    {
+      "id": 100,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=9",
+      "createdAt": "2026-02-22T09:10:44.961Z"
+    },
+    {
+      "id": 101,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T09:12:52.136Z"
+    },
+    {
+      "id": 102,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=7",
+      "createdAt": "2026-02-22T09:12:52.140Z"
+    },
+    {
+      "id": 103,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T09:15:00.005Z"
+    },
+    {
+      "id": 104,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=7",
+      "createdAt": "2026-02-22T09:15:00.008Z"
+    },
+    {
+      "id": 105,
+      "actor": "system",
+      "action": "iteration_interaction_state_updated",
+      "resource": "iteration:5",
+      "detail": "hasPrototypeAssets=yes;uploadKind=mixed",
+      "createdAt": "2026-02-22T09:24:16.879Z"
+    },
+    {
+      "id": 106,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T09:25:27.818Z"
+    },
+    {
+      "id": 107,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=7",
+      "createdAt": "2026-02-22T09:25:27.822Z"
+    },
+    {
+      "id": 108,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T09:27:55.410Z"
+    },
+    {
+      "id": 109,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=8",
+      "createdAt": "2026-02-22T09:27:55.414Z"
+    },
+    {
+      "id": 110,
+      "actor": "system",
+      "action": "attachment_analyzed",
+      "resource": "iteration:5",
+      "detail": "分析附件 无影",
+      "createdAt": "2026-02-22T09:30:07.886Z"
+    },
+    {
+      "id": 111,
+      "actor": "system",
+      "action": "iteration_test_matrix_generated",
+      "resource": "iteration:5",
+      "detail": "cases=8",
+      "createdAt": "2026-02-22T09:30:07.889Z"
     }
   ],
   "versionSnapshots": [],

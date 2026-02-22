@@ -33,6 +33,7 @@ npm run check:boundaries
 npm run typecheck
 npm run build
 npm run test:contract
+npm run test:e2e
 npm run test:contract:sqlite
 npm run verify:prod-readiness
 npm run verify:prod-readiness:sqlite
@@ -41,12 +42,17 @@ npm run ops:llm-check
 npm run ops:alerts
 npm run ops:rollback
 npm run ops:backup-drill
+npm run e2e:agent-flow
 ```
+
+`e2e:agent-flow` 会在运行结束后输出结构化报告 JSON（默认目录 `tmp/e2e-reports/`，可用 `E2E_REPORT_DIR` 覆盖）。
 
 投产差距与分项评分见：
 `v2/backend/docs/production-readiness.md`
 投产运维 SOP 见：
 `v2/backend/docs/production-operations.md`
+仓库双轨策略设计见：
+`v2/backend/docs/repository-mode-design.md`
 
 ## 关键接口
 
@@ -58,6 +64,8 @@ npm run ops:backup-drill
 - `POST /api/projects`
 - `GET /api/projects/:id/repository`
 - `POST /api/projects/:id/repository/bootstrap`
+- `GET /api/projects/:id/repository/status`
+- `POST /api/projects/:id/repository/mode`
 - `POST /api/projects/:id/repository/provision`
 - `POST /api/projects/:id/repository/scaffold`
 - `POST /api/iterations/:id/publish`
@@ -70,6 +78,8 @@ npm run ops:backup-drill
 - `POST /api/iterations/:id/change-control/confirm`
 - `POST /api/iterations/:id/change-control/boundary`
 - `POST /api/iterations/:id/change-control/test-matrix/execution`
+- `POST /api/iterations/:id/change-control/test-artifacts/generate`
+- `GET /api/iterations/:id/release-review`
 - `GET /api/model`
 - `GET /api/model/entities`
 - `POST /api/model/entities`
@@ -122,6 +132,11 @@ npm run ops:backup-drill
 - 服务启动会探测一次 LLM 连通性，`/api/status` 与 `/api/ops/runtime` 的 `runtime.llm` 字段可查看 `configured/reachable/error`。
 - `runtime.llmRequired` 可查看当前是否启用“LLM 强依赖就绪门禁”。
 - `runtime.dependencies` 与 `runtime.dependencyRequired` 可查看“模型文件/存储”依赖探针状态与是否启用强依赖门禁。
+- 仓库模式支持：
+  - `external_git`：外部 Git 为主（生产推荐）
+  - `managed_local`：本地托管仓库（PoC/离线）
+  - `hybrid`：本地托管 + 远端绑定（推荐过渡方案）
+- 默认治理策略：`production` 要求远端仓库可配置（`requireRemoteForProduction=true`），`staging` 默认不强制远端。
 
 ## 投产补齐能力
 

@@ -52,6 +52,48 @@ jobs:
         run: npm run test:contract
         working-directory: v2/backend
 
+  e2e-agent-flow:
+    if: ${{ secrets.LLM_API_BASE != '' }}
+    needs: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      LLM_API_BASE: ${{ secrets.LLM_API_BASE }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      E2E_TEST_PORT: "5068"
+      E2E_REPORT_DIR: ../../tmp/e2e-reports
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            v2/backend/package-lock.json
+
+      - name: Install Backend
+        run: npm ci
+        working-directory: v2/backend
+
+      - name: Run E2E Agent Flow
+        run: npm run test:e2e
+        working-directory: v2/backend
+
+      - name: Upload E2E Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-agent-flow-reports
+          path: |
+            tmp/e2e-reports/*.json
+          if-no-files-found: warn
+
   ops-preflight:
     runs-on: ubuntu-latest
     defaults:

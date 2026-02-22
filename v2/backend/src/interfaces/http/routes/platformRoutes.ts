@@ -201,11 +201,19 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       return { message: "invalid environment" };
     }
     const created = service.createDeployment(projectId, environment, version, iterationId);
-    if (!created) {
+    if (!created.ok) {
+      if (created.reason === "project_not_found" || created.reason === "iteration_not_found") {
+        reply.code(404);
+        return { message: created.reason === "project_not_found" ? "project not found" : "iteration not found" };
+      }
+      if (created.reason === "release_gate_blocked") {
+        reply.code(409);
+        return { message: created.message || "release gate blocked", blockers: created.blockers || [] };
+      }
       reply.code(404);
       return { message: "project not found" };
     }
-    return created;
+    return created.data;
   });
 
   app.post("/api/ops/deployments/:id/transition", async (request, reply) => {

@@ -72,6 +72,7 @@ export function createDefaultProjectRepository(project: Pick<Project, "id" | "na
   const repoName = toRepoSlug(project.name, `project-${project.id}`);
   return {
     id: `repo-${project.id}`,
+    repoMode: "hybrid",
     provider: "github",
     organization: "buildwise",
     name: repoName,
@@ -89,6 +90,17 @@ export function createDefaultProjectRepository(project: Pick<Project, "id" | "na
       sshUrl: "",
       lastProvisionedAt: ""
     },
+    governance: {
+      requireRemoteForProduction: true,
+      requireRemoteForStaging: false
+    },
+    health: {
+      remoteConfigured: false,
+      remoteReachable: false,
+      remoteSynced: false,
+      lastCheckedAt: "",
+      lastError: ""
+    },
     createdAt: now,
     updatedAt: now
   };
@@ -99,6 +111,8 @@ export function normalizeProject(project: Project): Project {
     ...project,
     repository: {
       ...repo,
+      repoMode:
+        repo.repoMode === "external_git" || repo.repoMode === "managed_local" || repo.repoMode === "hybrid" ? repo.repoMode : "hybrid",
       remote: repo.remote ?? {
         status: "unprovisioned",
         visibility: "private",
@@ -114,6 +128,17 @@ export function normalizeProject(project: Project): Project {
         repoPath: "",
         gitInitialized: false,
         lastScaffoldedAt: ""
+      },
+      governance: repo.governance ?? {
+        requireRemoteForProduction: true,
+        requireRemoteForStaging: false
+      },
+      health: repo.health ?? {
+        remoteConfigured: false,
+        remoteReachable: false,
+        remoteSynced: false,
+        lastCheckedAt: "",
+        lastError: ""
       }
     }
   };
@@ -190,6 +215,58 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
       : [],
     generatedTestMatrixUpdatedAt: control?.generatedTestMatrixUpdatedAt || "",
     testMatrixExecutionUpdatedAt: control?.testMatrixExecutionUpdatedAt || "",
+    qualityArtifacts: {
+      unitTests: Array.isArray(control?.qualityArtifacts?.unitTests) ? control!.qualityArtifacts.unitTests : [],
+      contractTests: Array.isArray(control?.qualityArtifacts?.contractTests) ? control!.qualityArtifacts.contractTests : [],
+      acceptanceChecklist: Array.isArray(control?.qualityArtifacts?.acceptanceChecklist)
+        ? control!.qualityArtifacts.acceptanceChecklist
+        : [],
+      regressionPoints: Array.isArray(control?.qualityArtifacts?.regressionPoints) ? control!.qualityArtifacts.regressionPoints : [],
+      materializedFiles: Array.isArray(control?.qualityArtifacts?.materializedFiles) ? control!.qualityArtifacts.materializedFiles : [],
+      updatedAt: typeof control?.qualityArtifacts?.updatedAt === "string" ? control.qualityArtifacts.updatedAt : ""
+    },
+    executableConstraints: {
+      componentWhitelist: Array.isArray(control?.executableConstraints?.componentWhitelist)
+        ? control!.executableConstraints.componentWhitelist
+        : [],
+      codePathWhitelist: Array.isArray(control?.executableConstraints?.codePathWhitelist)
+        ? control!.executableConstraints.codePathWhitelist
+        : [],
+      acceptanceChecks: Array.isArray(control?.executableConstraints?.acceptanceChecks)
+        ? control!.executableConstraints.acceptanceChecks
+        : [],
+      generatedAt: typeof control?.executableConstraints?.generatedAt === "string" ? control.executableConstraints.generatedAt : ""
+    },
+    traceabilitySnapshot: {
+      requirementCoverage: Number.isFinite(control?.traceabilitySnapshot?.requirementCoverage)
+        ? Number(control?.traceabilitySnapshot?.requirementCoverage)
+        : 0,
+      mappingConfidence:
+        control?.traceabilitySnapshot?.mappingConfidence === "high" ||
+        control?.traceabilitySnapshot?.mappingConfidence === "medium" ||
+        control?.traceabilitySnapshot?.mappingConfidence === "low"
+          ? control.traceabilitySnapshot.mappingConfidence
+          : "low",
+      unmappedRequirements: Array.isArray(control?.traceabilitySnapshot?.unmappedRequirements)
+        ? control!.traceabilitySnapshot.unmappedRequirements
+        : [],
+      conflicts: Array.isArray(control?.traceabilitySnapshot?.conflicts) ? control!.traceabilitySnapshot.conflicts : [],
+      generatedAt: typeof control?.traceabilitySnapshot?.generatedAt === "string" ? control.traceabilitySnapshot.generatedAt : ""
+    },
+    domainKnowledgeEntries: Array.isArray(control?.domainKnowledgeEntries)
+      ? control!.domainKnowledgeEntries
+          .map((item) => ({
+            term: typeof item?.term === "string" ? item.term : "",
+            definition: typeof item?.definition === "string" ? item.definition : "",
+            mappedPages: Array.isArray(item?.mappedPages) ? item.mappedPages.filter((v) => typeof v === "string") : [],
+            mappedApis: Array.isArray(item?.mappedApis) ? item.mappedApis.filter((v) => typeof v === "string") : [],
+            mappedEntities: Array.isArray(item?.mappedEntities) ? item.mappedEntities.filter((v) => typeof v === "string") : [],
+            mappedCodePaths: Array.isArray(item?.mappedCodePaths) ? item.mappedCodePaths.filter((v) => typeof v === "string") : [],
+            evidence: typeof item?.evidence === "string" ? item.evidence : ""
+          }))
+          .filter((item) => item.term || item.definition)
+      : [],
+    domainKnowledgeUpdatedAt: typeof control?.domainKnowledgeUpdatedAt === "string" ? control.domainKnowledgeUpdatedAt : "",
     lastAnalysisP0Count: Number.isFinite(control?.lastAnalysisP0Count) ? Number(control?.lastAnalysisP0Count) : 0,
     lastAnalysisHighValueCount: Number.isFinite(control?.lastAnalysisHighValueCount) ? Number(control?.lastAnalysisHighValueCount) : 0,
     lastAnalysisConsideredFiles: Number.isFinite(control?.lastAnalysisConsideredFiles) ? Number(control?.lastAnalysisConsideredFiles) : 0,
@@ -201,6 +278,7 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
         : "",
     lastReleaseReviewReason: typeof control?.lastReleaseReviewReason === "string" ? control.lastReleaseReviewReason : "",
     lastReleaseReviewBlockers: Array.isArray(control?.lastReleaseReviewBlockers) ? control.lastReleaseReviewBlockers : [],
+    lastReleaseReviewScore: Number.isFinite(control?.lastReleaseReviewScore) ? Number(control?.lastReleaseReviewScore) : 0,
     lastReleaseReviewUpdatedAt: typeof control?.lastReleaseReviewUpdatedAt === "string" ? control.lastReleaseReviewUpdatedAt : "",
     lastTraceabilityCoverageScore: Number.isFinite(control?.lastTraceabilityCoverageScore) ? Number(control?.lastTraceabilityCoverageScore) : 0,
     lastOpsRollbackSuggested: Boolean(control?.lastOpsRollbackSuggested),

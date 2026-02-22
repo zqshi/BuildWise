@@ -18,7 +18,7 @@ import type {
   SyncReportPayload,
   TracePayload
 } from "../domain/workspace/types";
-import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
+import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 import type {
   DeploymentRecord,
@@ -92,6 +92,7 @@ export function useWorkspaceState() {
   const [analysisReport, setAnalysisReport] = useState<AttachmentAnalysisReport | null>(null);
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
   const [isAnalyzingAttachment, setIsAnalyzingAttachment] = useState(false);
+  const [uploadAnalysisProgress, setUploadAnalysisProgress] = useState<UploadAnalysisProgress | null>(null);
   const [modelSummary, setModelSummary] = useState<ModelSummaryPayload | null>(null);
   const [modelRelations, setModelRelations] = useState<ModelRelationPayload[]>([]);
   const [ruleCompile, setRuleCompile] = useState<RuleCompilePayload | null>(null);
@@ -179,6 +180,8 @@ export function useWorkspaceState() {
     setShowAnalysisPanel,
     isAnalyzingAttachment,
     setIsAnalyzingAttachment,
+    uploadAnalysisProgress,
+    setUploadAnalysisProgress,
     modelSummary,
     setModelSummary,
     modelRelations,
