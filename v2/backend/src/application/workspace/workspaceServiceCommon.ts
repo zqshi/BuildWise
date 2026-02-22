@@ -63,6 +63,29 @@ export function defaultIterationChangeControl(): IterationChangeControl {
     generatedTestMatrix: [],
     generatedTestMatrixUpdatedAt: "",
     testMatrixExecutionUpdatedAt: "",
+    qualityArtifacts: {
+      unitTests: [],
+      contractTests: [],
+      acceptanceChecklist: [],
+      regressionPoints: [],
+      materializedFiles: [],
+      updatedAt: ""
+    },
+    executableConstraints: {
+      componentWhitelist: [],
+      codePathWhitelist: [],
+      acceptanceChecks: [],
+      generatedAt: ""
+    },
+    traceabilitySnapshot: {
+      requirementCoverage: 0,
+      mappingConfidence: "low",
+      unmappedRequirements: [],
+      conflicts: [],
+      generatedAt: ""
+    },
+    domainKnowledgeEntries: [],
+    domainKnowledgeUpdatedAt: "",
     lastAnalysisP0Count: 0,
     lastAnalysisHighValueCount: 0,
     lastAnalysisConsideredFiles: 0,
@@ -71,6 +94,7 @@ export function defaultIterationChangeControl(): IterationChangeControl {
     lastReleaseReviewDecision: "",
     lastReleaseReviewReason: "",
     lastReleaseReviewBlockers: [],
+    lastReleaseReviewScore: 0,
     lastReleaseReviewUpdatedAt: "",
     lastTraceabilityCoverageScore: 0,
     lastOpsRollbackSuggested: false,

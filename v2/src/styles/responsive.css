@@ -125,4 +125,15 @@
     background:rgba(5,22,45,.3)
   }
 
+  .repo-status-grid {
+    grid-template-columns:1fr;
+  }
+  .repo-stepper {
+    grid-template-columns:1fr;
+  }
+  .repo-config-actions {
+    justify-content:stretch;
+    flex-wrap:wrap;
+  }
+
 }

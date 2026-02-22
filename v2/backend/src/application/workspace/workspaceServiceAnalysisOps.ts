@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
-import type { AttachmentAnalysisReport, AttachmentUploadInput, IterationAgentOutput, IterationStatus } from "../../domain/workspace/types";
+import type { AttachmentAnalysisReport, AttachmentUploadInput, IterationAgentOutput, IterationStatus, VisionPayload } from "../../domain/workspace/types";
 import {
   buildAttachmentInsights,
   buildNextActions,
@@ -82,6 +82,16 @@ function prioritizeFolderFiles(
 }
 
 function composeAttachmentExcerpt(input: AttachmentUploadInput) {
+  const inlineVisionPayloads = Array.isArray(input.visionPayloads)
+    ? input.visionPayloads
+        .map((item) => ({
+          path: (item.path || "").trim(),
+          mimeType: (item.mimeType || "").trim(),
+          dataUrl: (item.dataUrl || "").trim()
+        }))
+        .filter((item) => item.dataUrl.startsWith("data:image/"))
+        .slice(0, 2)
+    : [];
   const rawFiles = Array.isArray(input.files)
     ? input.files
         .map((item) => ({
@@ -142,7 +152,14 @@ function composeAttachmentExcerpt(input: AttachmentUploadInput) {
         .join("\n\n");
       return [`batch=${index + 1}`, `manifest:\n${manifestPart}`, excerptPart ? `excerpt:\n${excerptPart}` : ""].filter(Boolean).join("\n\n");
     }).slice(0, 4);
-    const text = [`folder=${folderLabel}`, `manifest:\n${manifest}`, excerpts ? `excerpt:\n${excerpts}` : ""]
+    const text = [
+      `folder=${folderLabel}`,
+      `manifest:\n${manifest}`,
+      excerpts ? `excerpt:\n${excerpts}` : "",
+      inlineVisionPayloads.length > 0
+        ? `vision:\n${inlineVisionPayloads.map((item, index) => `[image ${index + 1}] ${item.path || "attachment"} (${item.mimeType || "image"})`).join("\n")}`
+        : ""
+    ]
       .filter(Boolean)
       .join("\n\n")
       .slice(0, 14000);
@@ -175,8 +192,15 @@ function composeAttachmentExcerpt(input: AttachmentUploadInput) {
   const digest = (input.excerptDigest || "").trim();
   const strategy = input.excerptStrategy || "direct";
   if (chunks.length === 0) {
+    const baseText =
+      baseExcerpt.slice(0, 6000) ||
+      (inlineVisionPayloads.length > 0
+        ? inlineVisionPayloads
+            .map((item, index) => `[image ${index + 1}] ${item.path || input.fileName || "attachment"} (${item.mimeType || "image"})`)
+            .join("\n")
+        : "");
     return {
-      text: baseExcerpt.slice(0, 6000),
+      text: baseText,
       digest: digest || `strategy=${strategy};chunks=0`,
       strategy,
       fileStats: {
@@ -198,7 +222,17 @@ function composeAttachmentExcerpt(input: AttachmentUploadInput) {
     };
   }
   const stitched = chunks.map((chunk, index) => `[chunk ${index + 1}/${chunks.length}]\n${chunk}`).join("\n\n---\n\n").slice(0, 12000);
-  const combined = [baseExcerpt.slice(0, 3000), stitched].filter(Boolean).join("\n\n");
+  const combined = [
+    baseExcerpt.slice(0, 3000),
+    stitched,
+    inlineVisionPayloads.length > 0
+      ? inlineVisionPayloads
+          .map((item, index) => `[image ${index + 1}] ${item.path || input.fileName || "attachment"} (${item.mimeType || "image"})`)
+          .join("\n")
+      : ""
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   return {
     text: combined.slice(0, 12000),
     digest: digest || `strategy=${strategy};chunks=${chunks.length}`,
@@ -222,9 +256,34 @@ function composeAttachmentExcerpt(input: AttachmentUploadInput) {
   };
 }
 
+function resolveVisionPayloads(input: AttachmentUploadInput): VisionPayload[] {
+  const fromTopLevel = Array.isArray(input.visionPayloads) ? input.visionPayloads : [];
+  const fromFiles = Array.isArray(input.files)
+    ? input.files
+        .map((item) => ({
+          path: item.path || item.fileName || input.fileName,
+          mimeType: item.mimeType || "image/*",
+          dataUrl: item.imageDataUrl || ""
+        }))
+        .filter((item) => item.dataUrl.trim().startsWith("data:image/"))
+    : [];
+  const merged = [...fromTopLevel, ...fromFiles]
+    .map((item) => ({
+      path: (item.path || "").trim().slice(0, 260),
+      mimeType: (item.mimeType || "").trim().slice(0, 120),
+      dataUrl: (item.dataUrl || "").trim()
+    }))
+    .filter((item) => item.dataUrl.startsWith("data:image/"))
+    .slice(0, 2);
+  return merged;
+}
+
 function evaluateContextGuardrail(excerptPayload: ReturnType<typeof composeAttachmentExcerpt>, input: AttachmentUploadInput) {
   const chunkCount = Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0;
-  if (excerptPayload.strategy === "binary-no-text") {
+  const hasVisionPayload =
+    (Array.isArray(input.visionPayloads) && input.visionPayloads.some((item) => (item?.dataUrl || "").startsWith("data:image/"))) ||
+    (Array.isArray(input.files) && input.files.some((item) => (item?.imageDataUrl || "").startsWith("data:image/")));
+  if (excerptPayload.strategy === "binary-no-text" && !hasVisionPayload) {
     return { degraded: true, reason: "binary-no-text-requires-clarification" };
   }
   if (
@@ -562,6 +621,22 @@ function buildTraceabilityMap(params: {
           evidence: "来源：需求边界与代码路径白名单"
         }))
       : [];
+  const unmappedRequirements = requirementToCode
+    .filter((item) => item.codePaths.length === 0)
+    .map((item) => item.requirement)
+    .slice(0, 8);
+  const conflicts: string[] = [];
+  for (const item of requirementToCode) {
+    if (item.codePaths.length > 0 && components.length === 0) {
+      conflicts.push(`需求「${item.requirement}」映射到代码，但缺少组件映射。`);
+    }
+  }
+  const mapConfidence: "high" | "medium" | "low" =
+    unmappedRequirements.length === 0 && conflicts.length === 0
+      ? "high"
+      : unmappedRequirements.length <= Math.ceil(Math.max(1, requirements.length * 0.3))
+        ? "medium"
+        : "low";
   const mappingSlots = requirements.length * 3;
   const mappedSlots = requirementToComponent.length + requirementToCode.length + componentToCode.length;
   const coverageScore = mappingSlots === 0 ? 0 : Math.min(100, Math.round((mappedSlots / mappingSlots) * 100));
@@ -583,7 +658,50 @@ function buildTraceabilityMap(params: {
     componentToCode,
     requirementToCode,
     coverageScore,
+    mappingConfidence: mapConfidence,
+    unmappedRequirements,
+    conflicts: Array.from(new Set(conflicts)).slice(0, 8),
     gaps: Array.from(new Set(gaps)).slice(0, 8)
+  };
+}
+
+function inferDiffRisk(item: string) {
+  const text = item.toLowerCase();
+  if (/(auth|payment|权限|鉴权|风控|库存|结算|生产|回滚)/.test(text)) {
+    return "high" as const;
+  }
+  if (/(api|接口|schema|model|路由|controller|service)/.test(text)) {
+    return "medium" as const;
+  }
+  return "low" as const;
+}
+
+function buildVersionDiffDetailed(params: {
+  added: string[];
+  changed: string[];
+  removed: string[];
+  diffLocations: AttachmentAnalysisReport["diffLocations"];
+}) {
+  const toItems = (items: string[], fallbackDimension: string) =>
+    items.slice(0, 12).map((item) => ({
+      dimension:
+        params.diffLocations.find((entry) => entry.currentItem === item || entry.baselineItem === item)?.dimension || fallbackDimension,
+      item,
+      impact: inferDiffRisk(item) === "high" ? "涉及核心链路或高风险能力，需增加回归与发布门禁。" : "影响受控，按边界与验收清单推进。",
+      risk: inferDiffRisk(item)
+    }));
+  const impactScope = Array.from(
+    new Set(params.diffLocations.map((item) => item.dimension).filter(Boolean))
+  ).map((item) => String(item));
+  const allRiskItems = [...params.added, ...params.changed, ...params.removed];
+  const highRiskPoints = allRiskItems.filter((item) => inferDiffRisk(item) === "high");
+  return {
+    summary: `新增${params.added.length}项，变化${params.changed.length}项，移除${params.removed.length}项。`,
+    impactScope,
+    riskPoints: highRiskPoints.slice(0, 8),
+    added: toItems(params.added, "inScope"),
+    changed: toItems(params.changed, "inScope"),
+    removed: toItems(params.removed, "inScope")
   };
 }
 
@@ -618,7 +736,9 @@ function buildDomainKnowledge(params: {
       entities: inferMappedEntities(params.codePaths, params.excerpt),
       codePaths: params.codePaths.slice(0, 3)
     },
-    evidence: "来源：需求条目 / 附件摘要"
+    evidence: "来源：需求条目 / 附件摘要",
+    bindingStrength:
+      params.codePaths.length >= 3 ? ("high" as const) : params.codePaths.length >= 1 ? ("medium" as const) : ("low" as const)
   }));
   return {
     terms,
@@ -627,7 +747,11 @@ function buildDomainKnowledge(params: {
   };
 }
 
-async function executeAgentPlanOp(agentRunner: AgentRunner | null, prompts: ReturnType<typeof buildIterationAgentPlan>["prompts"]): Promise<IterationAgentOutput[]> {
+async function executeAgentPlanOp(
+  agentRunner: AgentRunner | null,
+  prompts: ReturnType<typeof buildIterationAgentPlan>["prompts"],
+  visionPayloads: VisionPayload[]
+): Promise<IterationAgentOutput[]> {
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
@@ -641,7 +765,9 @@ async function executeAgentPlanOp(agentRunner: AgentRunner | null, prompts: Retu
       group.map(async (prompt) => {
         let result;
         try {
-          result = await agentRunner.run(prompt);
+          result = await agentRunner.run(prompt, {
+            imageDataUrls: visionPayloads.map((item) => item.dataUrl)
+          });
         } catch (error) {
           throw new LlmInvocationError(`LLM invocation failed for ${prompt.role}: ${error instanceof Error ? error.message : "unknown_error"}`);
         }
@@ -657,6 +783,19 @@ async function executeAgentPlanOp(agentRunner: AgentRunner | null, prompts: Retu
     outputs.push(...groupOutputs);
   }
   return outputs;
+}
+
+function extractGeneratedQualityArtifacts(agentOutputs: IterationAgentOutput[]) {
+  const qaParsed = listParsedRoleOutputs(agentOutputs, "qa-reviewer")[0] ?? null;
+  const pickList = (value: unknown, max = 20) =>
+    Array.isArray(value)
+      ? value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, max)
+      : [];
+  const unitTests = pickList(qaParsed?.unitTests, 20);
+  const contractTests = pickList(qaParsed?.contractTests, 20);
+  const acceptanceChecklist = pickList(qaParsed?.acceptanceChecklist, 20);
+  const regressionPoints = pickList(qaParsed?.regressionsToWatch, 20);
+  return { unitTests, contractTests, acceptanceChecklist, regressionPoints, materializedFiles: [] as string[] };
 }
 
 async function synthesizeProjectProfileOp(
@@ -797,6 +936,22 @@ async function synthesizeProjectProfileOp(
     }
 
     if (!candidate.projectName && !candidate.productName) {
+      const fallbackDetection = detectProjectAndProduct({
+        excerpt: params.excerpt,
+        iterationName: params.iterationName,
+        fileName: params.analyzedTarget,
+        fileCount: params.fileStats.totalFiles
+      });
+      candidate = {
+        ...candidate,
+        projectName: fallbackDetection.projectName,
+        productName: fallbackDetection.productName,
+        projectCategory: candidate.projectCategory || fallbackDetection.projectCategory,
+        evidence: candidate.evidence.length > 0 ? candidate.evidence : fallbackDetection.evidence
+      };
+    }
+
+    if (!candidate.projectName && !candidate.productName) {
       throw new LlmInvocationError("LLM synthesis returned invalid payload: missing projectDetection.projectName/productName");
     }
     if (candidate.meaningfulFindings.length === 0) {
@@ -926,6 +1081,7 @@ export async function analyzeAttachmentOp(
   const previousScope = previous?.scope.inScope ?? [];
   const currentScope = normalized.scope.inScope;
   const excerptPayload = composeAttachmentExcerpt(input);
+  const visionPayloads = resolveVisionPayloads(input);
   const initialContextGuardrail = evaluateContextGuardrail(excerptPayload, input);
   const added = currentScope.filter((item) => !previousScope.includes(item));
   const removed = previousScope.filter((item) => !currentScope.includes(item));
@@ -970,9 +1126,10 @@ export async function analyzeAttachmentOp(
         forceMultiAgent: false
       })
     : agentPlan;
-  const agentOutputs = await executeAgentPlanOp(agentRunner, finalAgentPlan.prompts);
+  const agentOutputs = await executeAgentPlanOp(agentRunner, finalAgentPlan.prompts, visionPayloads);
   const unknownSignalCount = agentOutputs.reduce((total, output) => total + (output.content.toLowerCase().match(/unknown/g)?.length ?? 0), 0);
   const generatedTestMatrix = extractGeneratedTestMatrix(agentOutputs);
+  const qualityArtifacts = extractGeneratedQualityArtifacts(agentOutputs);
   const boundarySuggestion = extractBoundarySuggestion(agentOutputs);
   const releaseOpsActions = extractReleaseOpsActions(agentOutputs);
   const clarificationQuestions = buildClarificationQuestions({
@@ -1001,23 +1158,52 @@ export async function analyzeAttachmentOp(
           updatedAt: new Date().toISOString()
         }
       : currentBoundary;
+  const generatedAt = new Date().toISOString();
+  const existingMaterializedFiles = Array.isArray(currentChangeControl.qualityArtifacts?.materializedFiles)
+    ? currentChangeControl.qualityArtifacts.materializedFiles
+    : [];
+  const resolvedQualityArtifacts = {
+    ...qualityArtifacts,
+    materializedFiles: existingMaterializedFiles
+  };
+  const executableConstraintsState = {
+    componentWhitelist: resolvedBoundary.componentRefs.slice(0, 24),
+    codePathWhitelist: resolvedBoundary.codePaths.slice(0, 24),
+    acceptanceChecks: Array.from(new Set([...normalized.scope.acceptanceCriteria, ...qualityArtifacts.acceptanceChecklist])).slice(0, 24)
+  };
+  const executableConstraints = {
+    ...executableConstraintsState,
+    gateRules: [
+      "仅允许改动 codePathWhitelist 内文件。",
+      "发布前测试矩阵不得存在 failed/blocked。",
+      "生产环境需 releaseReview=go 且验收清单非空。"
+    ]
+  };
   normalized.changeControl = {
     ...currentChangeControl,
     pendingHumanConfirmation: true,
-    lastAnalysisAt: new Date().toISOString(),
+    lastAnalysisAt: generatedAt,
     lastAnalysisFileName: input.fileName,
     lastAnalysisDigest: `added=${added.length};removed=${removed.length};diff=${diffLocations.length};strategy=${excerptPayload.strategy};chunks=${Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0};degraded=${finalContextGuardrail.degraded ? "yes" : "no"};fastPath=${singleAgentFastPath ? "yes" : "no"}${finalContextGuardrail.reason ? `;reason=${finalContextGuardrail.reason}` : ""}`,
     clarificationQuestions,
     clarificationDraftResolvedQuestions: [],
-    clarificationDraftUpdatedAt: new Date().toISOString(),
-    lastClarificationResolution: { resolvedQuestions: [], unresolvedQuestions: clarificationQuestions, updatedAt: new Date().toISOString() },
+    clarificationDraftUpdatedAt: generatedAt,
+    lastClarificationResolution: { resolvedQuestions: [], unresolvedQuestions: clarificationQuestions, updatedAt: generatedAt },
     lastClarificationNote: "",
     confirmedAt: "",
     confirmedBy: "",
     boundary: resolvedBoundary,
     generatedTestMatrix,
-    generatedTestMatrixUpdatedAt: generatedTestMatrix.length > 0 ? new Date().toISOString() : "",
-    testMatrixExecutionUpdatedAt: ""
+    generatedTestMatrixUpdatedAt: generatedTestMatrix.length > 0 ? generatedAt : "",
+    testMatrixExecutionUpdatedAt: "",
+    qualityArtifacts: {
+      ...resolvedQualityArtifacts,
+      updatedAt: generatedAt
+    },
+    executableConstraints: {
+      ...executableConstraintsState,
+      generatedAt
+    }
   };
   repo.updateIteration(normalized);
   writeAuditLog(repo, "attachment_analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
@@ -1140,6 +1326,7 @@ export async function analyzeAttachmentOp(
     agentOutputs,
     projectCategory: attachmentInsights.projectCategory
   });
+  const versionDiffDetailed = buildVersionDiffDetailed({ added, changed, removed, diffLocations });
   const boundaryCoverage =
     (resolvedBoundaryForReport?.requirementRefs?.length || 0) > 0 &&
     (resolvedBoundaryForReport?.componentRefs?.length || 0) > 0 &&
@@ -1156,12 +1343,20 @@ export async function analyzeAttachmentOp(
       : qaReleaseReview.qaPass
         ? "go"
         : "caution";
+  const traceabilityHardBlock =
+    resolvedPrioritizedFindings.some((item) => item.priority === "P0") && (resolvedBoundaryForReport?.codePaths?.length || 0) === 0;
+  const releaseDecisionWithHardBlock: "go" | "caution" | "block" = traceabilityHardBlock ? "block" : releaseDecision;
+  const mergedBlockers = traceabilityHardBlock
+    ? Array.from(new Set([...(qaReleaseReview.blockers || []), "存在 P0 发现但缺少 codePaths 白名单"]))
+    : qaReleaseReview.blockers;
   const opsRollbackReason = releaseOpsStructured.rollbackDecision.reason;
   const opsRollbackTrigger = releaseOpsStructured.rollbackDecision.trigger;
   const releaseReview = {
-    decision: releaseDecision,
-    reason: qaReleaseReview.releaseReason || (releaseDecision === "go" ? "未发现阻断项，可按门禁发布。" : "存在待确认风险。"),
-    blockers: qaReleaseReview.blockers,
+    decision: releaseDecisionWithHardBlock,
+    reason:
+      qaReleaseReview.releaseReason ||
+      (releaseDecisionWithHardBlock === "go" ? "未发现阻断项，可按门禁发布。" : "存在待确认风险。"),
+    blockers: mergedBlockers,
     releaseGates: qaReleaseReview.releaseGates,
     recommendations: finalNextActions.slice(0, 6),
     rollback: {
@@ -1177,6 +1372,18 @@ export async function analyzeAttachmentOp(
       boundaryCoverage
     }
   };
+  const releaseReviewScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (releaseReview.decision === "go" ? 90 : releaseReview.decision === "caution" ? 70 : 40) * 0.4 +
+          Math.max(0, 100 - releaseReview.blockers.length * 12) * 0.25 +
+          Math.max(0, 100 - releaseReview.qualitySignals.p0FindingCount * 25) * 0.2 +
+          releaseReview.qualitySignals.boundaryCoverage * 0.15
+      )
+    )
+  );
   const opsTriage = {
     hypotheses: releaseOpsStructured.hypotheses,
     triageSteps: releaseOpsStructured.triageSteps,
@@ -1200,9 +1407,31 @@ export async function analyzeAttachmentOp(
     lastReleaseReviewDecision: releaseReview.decision,
     lastReleaseReviewReason: releaseReview.reason,
     lastReleaseReviewBlockers: releaseReview.blockers,
-    lastReleaseReviewUpdatedAt: new Date().toISOString(),
+    lastReleaseReviewScore: releaseReviewScore,
+    lastReleaseReviewUpdatedAt: generatedAt,
     lastTraceabilityCoverageScore: traceabilityMap.coverageScore,
-    lastOpsRollbackSuggested: releaseReview.rollback.shouldRollback
+    lastOpsRollbackSuggested: releaseReview.rollback.shouldRollback,
+    executableConstraints: {
+      ...executableConstraintsState,
+      generatedAt
+    },
+    traceabilitySnapshot: {
+      requirementCoverage: traceabilityMap.coverageScore,
+      mappingConfidence: traceabilityMap.mappingConfidence,
+      unmappedRequirements: traceabilityMap.unmappedRequirements,
+      conflicts: traceabilityMap.conflicts,
+      generatedAt
+    },
+    domainKnowledgeEntries: domainKnowledge.terms.map((item) => ({
+      term: item.term,
+      definition: item.definition,
+      mappedPages: item.mappedTo.pages,
+      mappedApis: item.mappedTo.apis,
+      mappedEntities: item.mappedTo.entities,
+      mappedCodePaths: item.mappedTo.codePaths,
+      evidence: item.evidence
+    })),
+    domainKnowledgeUpdatedAt: generatedAt
   };
   repo.updateIteration(normalized);
   writeAuditLog(repo, "attachment_project_detection_synthesized", `iteration:${iterationId}`, `target=${input.fileName}`);
@@ -1223,7 +1452,7 @@ export async function analyzeAttachmentOp(
     meaningfulFindings: resolvedMeaningfulFindings,
     prioritizedFindings: resolvedPrioritizedFindings,
     nextActions: finalNextActions,
-    analyzedAt: new Date().toISOString(),
+    analyzedAt: generatedAt,
     attachmentInsights,
     llmContext: {
       strategy: excerptPayload.strategy,
@@ -1239,6 +1468,7 @@ export async function analyzeAttachmentOp(
     clarificationQuestions,
     understanding: `${summarizeFromExcerpt(excerptPayload.text, `已基于附件 ${input.fileName} 与当前迭代上下文完成语义理解。`)} 识别到 ${added.length} 项新增范围、${removed.length} 项移出范围。(${excerptPayload.digest})`,
     versionDiff: { baselineIterationName: previous?.name ?? "无基线", added, changed, removed },
+    versionDiffDetailed,
     diffLocations,
     cyclePhase: inferCyclePhase(normalized.status),
     agentPlan: finalAgentPlan,
@@ -1246,7 +1476,9 @@ export async function analyzeAttachmentOp(
     lifecycleAction: finalLifecycleAction,
     risks: normalizedRisks,
     traceabilityMap,
+    executableConstraints,
     releaseReview,
+    qualityArtifacts: resolvedQualityArtifacts,
     domainKnowledge,
     opsTriage,
     suggestions: [

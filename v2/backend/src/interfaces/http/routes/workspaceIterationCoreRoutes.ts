@@ -11,7 +11,8 @@ function parseAttachmentUploadInput(body: {
   excerpt?: string;
   sourceType?: "single-file" | "folder";
   folderName?: string;
-  files?: Array<{ path?: string; fileName?: string; mimeType?: string; size?: number; excerpt?: string }>;
+  files?: Array<{ path?: string; fileName?: string; mimeType?: string; size?: number; excerpt?: string; imageDataUrl?: string }>;
+  visionPayloads?: Array<{ path?: string; mimeType?: string; dataUrl?: string }>;
   excerptChunks?: string[];
   excerptDigest?: string;
   excerptStrategy?: "direct" | "chunked-head-middle-tail" | "binary-no-text" | "folder-batch";
@@ -41,10 +42,21 @@ function parseAttachmentUploadInput(body: {
               fileName: typeof item?.fileName === "string" ? item.fileName.slice(0, 120) : "",
               mimeType: typeof item?.mimeType === "string" ? item.mimeType.slice(0, 120) : "application/octet-stream",
               size: typeof item?.size === "number" && Number.isFinite(item.size) ? item.size : 0,
-              excerpt: typeof item?.excerpt === "string" ? item.excerpt.slice(0, 1200) : ""
+              excerpt: typeof item?.excerpt === "string" ? item.excerpt.slice(0, 1200) : "",
+              imageDataUrl: typeof item?.imageDataUrl === "string" ? item.imageDataUrl.slice(0, 300000) : ""
             }))
             .filter((item) => item.fileName.trim().length > 0)
             .slice(0, 1000)
+        : [],
+      visionPayloads: Array.isArray(body?.visionPayloads)
+        ? body.visionPayloads
+            .map((item) => ({
+              path: typeof item?.path === "string" ? item.path.slice(0, 260) : "",
+              mimeType: typeof item?.mimeType === "string" ? item.mimeType.slice(0, 120) : "image/*",
+              dataUrl: typeof item?.dataUrl === "string" ? item.dataUrl.slice(0, 300000) : ""
+            }))
+            .filter((item) => item.dataUrl.startsWith("data:image/"))
+            .slice(0, 2)
         : [],
       excerptChunks: Array.isArray(body?.excerptChunks)
         ? body.excerptChunks

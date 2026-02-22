@@ -8,7 +8,7 @@ import type {
   IterationMessage,
   IterationVisualEditResponse,
 } from "../../domain/workspace/types";
-import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
+import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
 import { deleteOpsTriageTemplate, fetchOpsTriageTemplates, upsertOpsTriageTemplate } from "../../app/workspaceApi";
 
@@ -344,6 +344,7 @@ type IterationWorkspacePanelProps = {
   analysisReport: AttachmentAnalysisReport | null;
   showAnalysisPanel: boolean;
   isAnalyzingAttachment: boolean;
+  uploadAnalysisProgress: UploadAnalysisProgress | null;
   onUploadClick: () => void;
   onOpenAnalysisPanel: () => void;
   onCloseAnalysisPanel: () => void;
@@ -387,6 +388,8 @@ type IterationWorkspacePanelProps = {
   onUpdateTestMatrixExecution: (
     updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
   ) => void | Promise<void>;
+  onGenerateTestArtifacts: (dryRun?: boolean) => void | Promise<void>;
+  onRefreshReleaseReview: () => void | Promise<void>;
   onTransitionState: (toStatus: IterationStatus) => void;
   onSwitchToProjectPanel: () => void;
   onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
@@ -404,6 +407,7 @@ export function IterationWorkspacePanel({
   analysisReport,
   showAnalysisPanel,
   isAnalyzingAttachment,
+  uploadAnalysisProgress,
   onUploadClick,
   onOpenAnalysisPanel,
   onCloseAnalysisPanel,
@@ -415,6 +419,8 @@ export function IterationWorkspacePanel({
   onConfirmIterationAnalysis,
   onUpdateIterationBoundary,
   onUpdateTestMatrixExecution,
+  onGenerateTestArtifacts,
+  onRefreshReleaseReview,
   onTransitionState,
   onSwitchToProjectPanel,
   onPatchUploadedHtmlPreview
@@ -533,7 +539,7 @@ export function IterationWorkspacePanel({
   const hasBaselineComparison = Boolean(
     analysisReport?.versionDiff?.baselineIterationName && analysisReport?.versionDiff?.baselineIterationName !== analysisReport?.iterationName
   );
-  const showAdvancedReportSections = false;
+  const showAdvancedReportSections = Boolean(analysisReport);
   const allowedTransitions = stateMachine?.allowedTransitions ?? [];
   const transitionHistory = stateMachine?.transitionHistory ?? [];
   const hasStateMachineActions = allowedTransitions.length > 0;
@@ -546,9 +552,12 @@ export function IterationWorkspacePanel({
     (item) => !item.includes("当前澄清问题已收敛") && !item.includes("暂无结构化差异")
   );
   const traceabilityMap = analysisReport?.traceabilityMap;
+  const executableConstraints = analysisReport?.executableConstraints;
+  const versionDiffDetailed = analysisReport?.versionDiffDetailed;
   const releaseReview = analysisReport?.releaseReview;
   const domainKnowledge = analysisReport?.domainKnowledge;
   const opsTriage = analysisReport?.opsTriage;
+  const qualityArtifacts = analysisReport?.qualityArtifacts;
   const prioritizedFindings = analysisReport?.prioritizedFindings || [];
   const visiblePrioritizedFindings = onlyHighValue
     ? prioritizedFindings.filter((item) => item.priority === "P0" || item.priority === "P1")
@@ -1516,6 +1525,18 @@ export function IterationWorkspacePanel({
             ))
           )}
         </div>
+        {uploadAnalysisProgress ? (
+          <div className={`upload-analysis-status stage-${uploadAnalysisProgress.stage}`} role="status" aria-live="polite">
+            <div className="upload-analysis-status-head">
+              <strong>{uploadAnalysisProgress.label}</strong>
+              <span>{Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%</span>
+            </div>
+            <p>{uploadAnalysisProgress.detail}</p>
+            <div className="progress-bar">
+              <div className="progress-value" style={{ width: `${Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%` }} />
+            </div>
+          </div>
+        ) : null}
         <div className="chat-input-row">
           <input
             ref={fileInputRef}
@@ -1815,6 +1836,38 @@ export function IterationWorkspacePanel({
                       >
                         保存测试执行状态
                       </button>
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        disabled={changeControlBusy}
+                        onClick={async () => {
+                          setChangeControlBusy(true);
+                          try {
+                            await onGenerateTestArtifacts(true);
+                            setChangeControlNotice("已生成测试产物计划（dry-run）。");
+                          } finally {
+                            setChangeControlBusy(false);
+                          }
+                        }}
+                      >
+                        生成测试产物（Dry Run）
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        disabled={changeControlBusy}
+                        onClick={async () => {
+                          setChangeControlBusy(true);
+                          try {
+                            await onRefreshReleaseReview();
+                            setChangeControlNotice("已刷新发布前质量评审。");
+                          } finally {
+                            setChangeControlBusy(false);
+                          }
+                        }}
+                      >
+                        刷新发布评审
+                      </button>
                     </div>
                   </div>
                 ) : null}
@@ -1831,11 +1884,40 @@ export function IterationWorkspacePanel({
                     <p className="hint">请在 IM 中逐项确认或修正，系统会按你的反馈更新理解与边界。</p>
                   </div>
                 ) : null}
+                {showAdvancedReportSections && qualityArtifacts ? (
+                  <div className="info-box">
+                    <h3>测试与验收产物</h3>
+                    {(qualityArtifacts.acceptanceChecklist?.length ?? 0) > 0 ? (
+                      <p className="hint">验收清单：{qualityArtifacts.acceptanceChecklist.join("；")}</p>
+                    ) : (
+                      <p className="hint">验收清单：未生成</p>
+                    )}
+                    {(qualityArtifacts.unitTests?.length ?? 0) > 0 ? (
+                      <p className="hint">单测建议：{qualityArtifacts.unitTests.join("；")}</p>
+                    ) : null}
+                    {(qualityArtifacts.contractTests?.length ?? 0) > 0 ? (
+                      <p className="hint">契约测试建议：{qualityArtifacts.contractTests.join("；")}</p>
+                    ) : null}
+                    {(qualityArtifacts.regressionPoints?.length ?? 0) > 0 ? (
+                      <p className="hint">回归关注点：{qualityArtifacts.regressionPoints.join("；")}</p>
+                    ) : null}
+                    {(qualityArtifacts.materializedFiles?.length ?? 0) > 0 ? (
+                      <p className="hint">已落盘测试产物：{qualityArtifacts.materializedFiles.join("；")}</p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {showAdvancedReportSections && traceabilityMap ? (
                   <div className="info-box">
                     <h3>需求-组件-代码映射</h3>
                     <p>覆盖分：{traceabilityMap.coverageScore}%</p>
+                    <p>映射置信度：{traceabilityMap.mappingConfidence?.toUpperCase?.() || "-"}</p>
                     {traceabilityMap.gaps.length > 0 ? <p className="hint">缺口：{traceabilityMap.gaps.join("；")}</p> : null}
+                    {(traceabilityMap.unmappedRequirements?.length ?? 0) > 0 ? (
+                      <p className="hint">未映射需求：{traceabilityMap.unmappedRequirements.join("；")}</p>
+                    ) : null}
+                    {(traceabilityMap.conflicts?.length ?? 0) > 0 ? (
+                      <p className="hint">映射冲突：{traceabilityMap.conflicts.join("；")}</p>
+                    ) : null}
                     {(traceabilityMap.requirementToCode?.length ?? 0) > 0 ? (
                       <ul className="history-list">
                         {traceabilityMap.requirementToCode.slice(0, 6).map((item, index) => (
@@ -1849,6 +1931,17 @@ export function IterationWorkspacePanel({
                     ) : (
                       <p className="hint">暂无可用三向映射，请先补齐 requirement/component/codePath 边界。</p>
                     )}
+                  </div>
+                ) : null}
+                {showAdvancedReportSections && executableConstraints ? (
+                  <div className="info-box">
+                    <h3>可执行边界约束</h3>
+                    <p>组件白名单：{executableConstraints.componentWhitelist.join("；") || "-"}</p>
+                    <p>代码路径白名单：{executableConstraints.codePathWhitelist.join("；") || "-"}</p>
+                    <p>验收约束：{executableConstraints.acceptanceChecks.join("；") || "-"}</p>
+                    {(executableConstraints.gateRules?.length ?? 0) > 0 ? (
+                      <p className="hint">门禁规则：{executableConstraints.gateRules.join("；")}</p>
+                    ) : null}
                   </div>
                 ) : null}
                 {showAdvancedReportSections && releaseReview ? (
@@ -1878,6 +1971,7 @@ export function IterationWorkspacePanel({
                             <strong>{item.term}</strong>
                             <p>{item.definition}</p>
                             <p className="hint">绑定路径：{item.mappedTo.codePaths.join("；") || "-"}</p>
+                            <p className="hint">绑定强度：{item.bindingStrength?.toUpperCase?.() || "-"}</p>
                           </li>
                         ))}
                       </ul>
@@ -2037,6 +2131,18 @@ export function IterationWorkspacePanel({
                     </div>
                     {opsCopyNotice ? <p className="hint">{opsCopyNotice}</p> : null}
                     <p className="hint">{opsTriage.rollbackSuggestion}</p>
+                  </div>
+                ) : null}
+                {showAdvancedReportSections && versionDiffDetailed ? (
+                  <div className="info-box">
+                    <h3>版本差异细化评估</h3>
+                    <p>{versionDiffDetailed.summary}</p>
+                    {(versionDiffDetailed.impactScope?.length ?? 0) > 0 ? (
+                      <p className="hint">影响面：{versionDiffDetailed.impactScope.join("；")}</p>
+                    ) : null}
+                    {(versionDiffDetailed.riskPoints?.length ?? 0) > 0 ? (
+                      <p className="hint">高风险点：{versionDiffDetailed.riskPoints.join("；")}</p>
+                    ) : null}
                   </div>
                 ) : null}
                 {hasBaselineComparison ? (

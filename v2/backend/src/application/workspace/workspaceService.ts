@@ -5,6 +5,8 @@ import type {
   AttachmentAnalysisReport,
   AssessmentPayload,
   CreateIterationInput,
+  IterationReleaseReviewResponse,
+  IterationTestArtifactsGenerationResponse,
   IterationCodeLink,
   IterationChangeBoundary,
   Iteration,
@@ -16,8 +18,11 @@ import { listAuditLogsOp, listGovernanceRolesOp } from "./workspaceServiceGovern
 import {
   archiveProjectOp,
   bootstrapProjectRepositoryOp,
+  configureProjectRepositoryModeOp,
   createProjectOp,
+  getProjectRepositoryStatusOp,
   getProjectRepositoryOp,
+  getProjectRepositoryMigrationPlanOp,
   provisionProjectRepositoryOp,
   publishIterationToRemoteOp,
   scaffoldProjectRepositoryOp
@@ -49,6 +54,7 @@ import { analyzeAttachmentOp } from "./workspaceServiceAnalysisOps";
 import { coachIterationConversationOp } from "./workspaceServiceCoachOps";
 import { executeVisualEditInstructionOp } from "./workspaceServiceVisualEditOps";
 import { rewriteCodeInBoundaryOp } from "./workspaceServiceCodeRewriteOps";
+import { buildIterationReleaseReviewOp, generateIterationTestArtifactsOp } from "./workspaceServiceQualityOps";
 import { hasProject, listProjectsNormalized } from "./workspaceServiceCommon";
 import { writeAuditLog } from "./workspaceServiceCommon";
 
@@ -251,9 +257,33 @@ export class WorkspaceService {
 
   bootstrapProjectRepository(
     projectId: number,
-    input: Partial<Pick<NonNullable<ReturnType<typeof this.getProjectRepository>>, "provider" | "organization" | "name" | "url" | "defaultBranch">>
+    input: Partial<
+      Pick<NonNullable<ReturnType<typeof this.getProjectRepository>>, "provider" | "organization" | "name" | "url" | "defaultBranch" | "repoMode"> & {
+        requireRemoteForProduction: boolean;
+        requireRemoteForStaging: boolean;
+      }
+    >
   ) {
     return bootstrapProjectRepositoryOp(this.repo, projectId, input);
+  }
+
+  configureProjectRepositoryMode(
+    projectId: number,
+    input: {
+      repoMode?: "external_git" | "managed_local" | "hybrid";
+      requireRemoteForProduction?: boolean;
+      requireRemoteForStaging?: boolean;
+    }
+  ) {
+    return configureProjectRepositoryModeOp(this.repo, projectId, input);
+  }
+
+  getProjectRepositoryStatus(projectId: number) {
+    return getProjectRepositoryStatusOp(this.repo, projectId);
+  }
+
+  getProjectRepositoryMigrationPlan(projectId: number) {
+    return getProjectRepositoryMigrationPlanOp(this.repo, projectId);
   }
 
   provisionProjectRepository(
@@ -565,6 +595,17 @@ export class WorkspaceService {
     }
   ) {
     return rewriteCodeInBoundaryOp(this.repo, this.agentRunner, iterationId, input);
+  }
+
+  generateIterationTestArtifacts(
+    iterationId: number,
+    input: { dryRun?: boolean } = {}
+  ): IterationTestArtifactsGenerationResponse | null {
+    return generateIterationTestArtifactsOp(this.repo, iterationId, input);
+  }
+
+  getIterationReleaseReview(iterationId: number): IterationReleaseReviewResponse | null {
+    return buildIterationReleaseReviewOp(this.repo, iterationId);
   }
 
   updateIterationInteractionState(

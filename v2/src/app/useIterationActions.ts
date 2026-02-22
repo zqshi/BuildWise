@@ -1,5 +1,6 @@
 import type { ChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
 import type {
+  AttachmentAnalysisJob,
   AttachmentAnalysisReport,
   ChatRole,
   Iteration,
@@ -9,7 +10,7 @@ import type {
   IterationStatus,
   IterationVisualEditResponse
 } from "../domain/workspace/types";
-import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
+import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
 import {
   analyzeIterationAttachment,
   analyzeIterationAttachmentFolder,
@@ -17,6 +18,8 @@ import {
   coachIterationMessage,
   createIterationMessage,
   executeIterationVisualEdit,
+  fetchIterationReleaseReview,
+  generateIterationTestArtifacts,
   rewriteIterationCode,
   recomputeAssessment,
   restoreAssessment,
@@ -43,6 +46,7 @@ type UseIterationActionsParams = {
   setAnalysisReport: Dispatch<SetStateAction<AttachmentAnalysisReport | null>>;
   setShowAnalysisPanel: Dispatch<SetStateAction<boolean>>;
   setIsAnalyzingAttachment: Dispatch<SetStateAction<boolean>>;
+  setUploadAnalysisProgress: Dispatch<SetStateAction<UploadAnalysisProgress | null>>;
   loadIterationDetail: (iterationId: number) => Promise<void>;
   loadIterations: (projectId: number) => Promise<void>;
   loadGovernance: () => Promise<void>;
@@ -64,12 +68,19 @@ export function useIterationActions({
   setAnalysisReport,
   setShowAnalysisPanel,
   setIsAnalyzingAttachment,
+  setUploadAnalysisProgress,
   loadIterationDetail,
   loadIterations,
   loadGovernance
 }: UseIterationActionsParams) {
   const resolveUploadErrorMessage = (error: unknown) => {
     const raw = error instanceof Error ? error.message : "Unknown error";
+    if (raw.includes("llm_preflight_not_configured")) {
+      return "附件分析失败：当前未配置大模型（LLM_API_BASE / LLM_API_KEY）。请联系管理员完成配置。";
+    }
+    if (raw.includes("llm_preflight_unreachable")) {
+      return "附件分析失败：大模型服务当前不可用（鉴权或网络异常）。请检查 LLM_API_KEY/服务连通性后重试。";
+    }
     if (raw.includes("request timeout")) {
       return "附件分析失败：请求超时（分析耗时过长）。请减少单次上传文件数量后重试。";
     }
@@ -113,6 +124,52 @@ export function useIterationActions({
       return;
     }
     fileInputRef.current?.click();
+  };
+
+  const toUploadProgress = (job: AttachmentAnalysisJob): UploadAnalysisProgress => {
+    const totalBatches = Math.max(1, job.progress.totalBatches || 1);
+    const completedBatches = Math.min(totalBatches, Math.max(0, job.progress.completedBatches || 0));
+    const failedBatches = Math.max(0, job.progress.failedBatches || 0);
+    const effectiveDoneBatches = Math.min(totalBatches, completedBatches + failedBatches);
+    const percentByBatches = Math.round((effectiveDoneBatches / totalBatches) * 100);
+    const totalFiles = Math.max(1, job.progress.totalFiles || 1);
+    const processedFiles = Math.min(totalFiles, Math.max(0, job.progress.processedFiles || 0));
+    const percentByFiles = Math.round((processedFiles / totalFiles) * 100);
+    const basePercent = Math.max(percentByBatches, percentByFiles);
+    if (job.status === "queued") {
+      return {
+        stage: "queued",
+        label: "分析任务已创建，等待执行",
+        detail: "任务已进入队列，稍后开始调用大模型。",
+        percent: 8,
+        jobId: job.jobId
+      };
+    }
+    if (job.status === "running") {
+      return {
+        stage: "running",
+        label: "正在调用大模型分析",
+        detail: `批次 ${Math.min(effectiveDoneBatches + 1, totalBatches)}/${totalBatches} · 已处理 ${processedFiles}/${totalFiles} 文件`,
+        percent: Math.max(12, Math.min(96, basePercent)),
+        jobId: job.jobId
+      };
+    }
+    if (job.status === "succeeded") {
+      return {
+        stage: "succeeded",
+        label: "大模型分析完成",
+        detail: `共处理 ${processedFiles}/${totalFiles} 文件，可查看分析报告。`,
+        percent: 100,
+        jobId: job.jobId
+      };
+    }
+    return {
+      stage: "failed",
+      label: "大模型分析失败",
+      detail: job.error || "分析任务失败，请重试。",
+      percent: Math.max(10, basePercent),
+      jobId: job.jobId
+    };
   };
 
   const appendMessageLocal = (message: IterationMessage) => {
@@ -253,6 +310,12 @@ export function useIterationActions({
     }
     try {
       setIsAnalyzingAttachment(true);
+      setUploadAnalysisProgress({
+        stage: "preparing",
+        label: "正在准备上传内容",
+        detail: "正在读取文件并构建分析上下文...",
+        percent: 5
+      });
       try {
         await createMessage(currentIteration.id, "system", isBatch ? `已上传附件：${folderName}（${files.length} 个文件）` : `已上传附件：${files[0].name}`);
       } catch {
@@ -261,6 +324,12 @@ export function useIterationActions({
       if (hasPrototypeAssets && !hasDocumentAssets) {
         setAnalysisReport(null);
         setShowAnalysisPanel(false);
+        setUploadAnalysisProgress({
+          stage: "succeeded",
+          label: "原型已上传",
+          detail: "仅原型素材无需调用大模型分析，可直接进入交互渲染模式。",
+          percent: 100
+        });
         await createMessage(
           currentIteration.id,
           "assistant",
@@ -275,15 +344,27 @@ export function useIterationActions({
             folderName,
             agentScope: "full-cycle",
             forceMultiAgent: true,
-            autoTransition: false
+            autoTransition: false,
+            onJobUpdate: (job) => setUploadAnalysisProgress(toUploadProgress(job))
           })
         : await analyzeIterationAttachment(currentIteration.id, files[0], {
             agentScope: "full-cycle",
             forceMultiAgent: true,
-            autoTransition: false
+            autoTransition: false,
+            onJobUpdate: (job) => setUploadAnalysisProgress(toUploadProgress(job))
           });
       setAnalysisReport(report);
       setShowAnalysisPanel(false);
+      setUploadAnalysisProgress((prev) =>
+        prev?.stage === "succeeded"
+          ? prev
+          : {
+              stage: "succeeded",
+              label: "大模型分析完成",
+              detail: "分析报告已生成，可点击“查看分析报告”。",
+              percent: 100
+            }
+      );
       await createMessage(
         currentIteration.id,
         "assistant",
@@ -300,6 +381,12 @@ export function useIterationActions({
     } catch (err) {
       const message = resolveUploadErrorMessage(err);
       setError(message);
+      setUploadAnalysisProgress({
+        stage: "failed",
+        label: "大模型分析失败",
+        detail: message,
+        percent: 15
+      });
       try {
         await createMessage(currentIteration.id, "system", message);
       } catch {
@@ -627,6 +714,79 @@ export function useIterationActions({
     }
   };
 
+  const handleGenerateTestArtifacts = async (dryRun = true) => {
+    if (!currentIteration) {
+      return;
+    }
+    try {
+      setBusy(true);
+      const result = await generateIterationTestArtifacts(currentIteration.id, { dryRun });
+      setAnalysisReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              qualityArtifacts: {
+                ...prev.qualityArtifacts,
+                materializedFiles: result.generatedFiles
+              }
+            }
+          : prev
+      );
+      await createMessage(
+        currentIteration.id,
+        "assistant",
+        `${result.summary}\n产物文件：${result.generatedFiles.join("；") || "无"}`
+      );
+      await loadIterationDetail(currentIteration.id);
+      await loadGovernance();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRefreshReleaseReview = async () => {
+    if (!currentIteration) {
+      return;
+    }
+    try {
+      setBusy(true);
+      const review = await fetchIterationReleaseReview(currentIteration.id);
+      setAnalysisReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              releaseReview: {
+                decision: review.decision,
+                reason: `score=${review.score}; ${review.blockers[0] || review.warnings[0] || "无明显阻断"}`,
+                blockers: review.blockers,
+                releaseGates: [],
+                recommendations: review.recommendations,
+                rollback: review.rollback,
+                qualitySignals: {
+                  testCaseCount: prev.releaseReview?.qualitySignals?.testCaseCount || 0,
+                  p0FindingCount: prev.releaseReview?.qualitySignals?.p0FindingCount || 0,
+                  unknownSignalCount: prev.releaseReview?.qualitySignals?.unknownSignalCount || 0,
+                  boundaryCoverage: review.evidence.boundaryReady ? 100 : 60
+                }
+              }
+            }
+          : prev
+      );
+      await createMessage(
+        currentIteration.id,
+        "assistant",
+        `发布评审刷新：${review.decision.toUpperCase()}（score=${review.score}）`
+      );
+      await loadGovernance();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return {
     handleUploadClick,
     handleUpload,
@@ -638,6 +798,8 @@ export function useIterationActions({
     handleUpdateClarificationDraft,
     handleConfirmIterationAnalysis,
     handleUpdateIterationBoundary,
-    handleUpdateTestMatrixExecution
+    handleUpdateTestMatrixExecution,
+    handleGenerateTestArtifacts,
+    handleRefreshReleaseReview
   };
 }

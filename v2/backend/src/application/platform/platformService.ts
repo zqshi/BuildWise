@@ -29,6 +29,117 @@ export class PlatformService {
     });
   }
 
+  private parseJsonObject(text: string) {
+    const content = (text || "").trim();
+    if (!content) {
+      return null;
+    }
+    try {
+      return JSON.parse(content) as Record<string, unknown>;
+    } catch {
+      const start = content.indexOf("{");
+      const end = content.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        try {
+          return JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+  }
+
+  private pickString(value: unknown) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  private async runOpsAdvisorLlm(input: {
+    severity: "low" | "medium" | "high" | "critical";
+    title: string;
+    description: string;
+    signals: string[];
+    metricsDigest: string;
+  }) {
+    const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+    const baseUrlRaw = (processEnv.LLM_API_BASE || "").trim().replace(/\/+$/, "");
+    const model = (processEnv.LLM_MODEL || "gpt-4o-mini").trim();
+    const apiKey = (processEnv.LLM_API_KEY || "").trim();
+    if (!baseUrlRaw) {
+      return null;
+    }
+    try {
+      const response = await fetch(`${baseUrlRaw}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens: 1000,
+          messages: [
+            {
+              role: "system",
+              content:
+                "你是发布运维顾问。只输出 JSON：{hypotheses:[{priority,item,evidence}], triageSteps:[{step,expectedSignal,fallback}], rollbackDecision:{shouldRollback,reason,trigger}}"
+            },
+            {
+              role: "user",
+              content: [
+                `severity=${input.severity}`,
+                `title=${input.title}`,
+                `description=${input.description || "-"}`,
+                `signals=${input.signals.join(" | ") || "-"}`,
+                `metrics=${input.metricsDigest}`
+              ].join("\n")
+            }
+          ]
+        })
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const payload = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = payload.choices?.[0]?.message?.content?.trim() || "";
+      const parsed = this.parseJsonObject(content);
+      if (!parsed) {
+        return null;
+      }
+      const hypotheses = Array.isArray(parsed.hypotheses) ? (parsed.hypotheses as Array<Record<string, unknown>>) : [];
+      const triageSteps = Array.isArray(parsed.triageSteps) ? (parsed.triageSteps as Array<Record<string, unknown>>) : [];
+      const rollbackDecision = (parsed.rollbackDecision || {}) as Record<string, unknown>;
+      return {
+        hypotheses: hypotheses
+          .map((item) => ({
+            priority: this.pickString(item.priority) as "P0" | "P1" | "P2",
+            item: this.pickString(item.item),
+            evidence: this.pickString(item.evidence)
+          }))
+          .filter((item) => (item.priority === "P0" || item.priority === "P1" || item.priority === "P2") && item.item)
+          .slice(0, 6),
+        triageSteps: triageSteps
+          .map((item) => ({
+            step: this.pickString(item.step),
+            expectedSignal: this.pickString(item.expectedSignal),
+            fallback: this.pickString(item.fallback)
+          }))
+          .filter((item) => item.step)
+          .slice(0, 6),
+        rollbackDecision: {
+          shouldRollback: Boolean(rollbackDecision.shouldRollback),
+          reason: this.pickString(rollbackDecision.reason),
+          trigger: this.pickString(rollbackDecision.trigger)
+        }
+      };
+    } catch {
+      return null;
+    }
+  }
+
   listVersionSnapshots(projectId: number) {
     return this.workspaceRepo.listVersionSnapshots(projectId);
   }
@@ -206,9 +317,87 @@ export class PlatformService {
   createDeployment(projectId: number, environment: "staging" | "production", version: string, iterationId?: number) {
     const project = this.workspaceRepo.findProject(projectId);
     if (!project) {
-      return null;
+      return { ok: false as const, reason: "project_not_found" };
     }
     const resolvedIterationId = resolveDeploymentIterationId(this.workspaceRepo, projectId, iterationId);
+    if (resolvedIterationId) {
+      const targetIteration = this.workspaceRepo.findIteration(resolvedIterationId);
+      if (!targetIteration) {
+        return { ok: false as const, reason: "iteration_not_found" };
+      }
+      const blockers: string[] = [];
+      const projectRepo = project.repository;
+      const repoMode = projectRepo?.repoMode || "hybrid";
+      const governance = projectRepo?.governance || {
+        requireRemoteForProduction: true,
+        requireRemoteForStaging: false
+      };
+      const requireRemote = environment === "production" ? governance.requireRemoteForProduction : governance.requireRemoteForStaging;
+      const remoteConfigured =
+        Boolean(projectRepo?.remote?.status === "provisioned") ||
+        Boolean((projectRepo?.url || "").trim() && /^(https?:\/\/|git@|ssh:\/\/)/i.test((projectRepo?.url || "").trim())) ||
+        Boolean(projectRepo?.health?.remoteConfigured);
+      const remoteReachable = projectRepo?.health?.remoteReachable;
+      if (requireRemote && repoMode === "managed_local") {
+        blockers.push("当前仓库模式为 managed_local，按门禁要求需先绑定远端 Git 仓库。");
+      }
+      if (requireRemote && !remoteConfigured) {
+        blockers.push("远端 Git 仓库未配置，无法通过发布门禁。");
+      }
+      if (requireRemote && remoteConfigured && remoteReachable === false) {
+        blockers.push("远端 Git 仓库当前不可达，请检查网络或仓库权限。");
+      }
+      const control = targetIteration.changeControl;
+      if (control?.pendingHumanConfirmation) {
+        blockers.push("分析结果尚未人工确认（pendingHumanConfirmation=true）");
+      }
+      if (control?.lastReleaseReviewDecision === "block") {
+        blockers.push(control.lastReleaseReviewReason || "发布评审结论为 block");
+        if (Array.isArray(control.lastReleaseReviewBlockers)) {
+          blockers.push(...control.lastReleaseReviewBlockers);
+        }
+      }
+      if (environment === "production" && control?.lastReleaseReviewDecision === "caution") {
+        blockers.push("生产环境发布要求 releaseReview=go，当前为 caution");
+      }
+      const releaseScore = Number(control?.lastReleaseReviewScore || 0);
+      if (environment === "production" && releaseScore > 0 && releaseScore < 75) {
+        blockers.push(`生产环境发布要求 releaseReviewScore>=75，当前为 ${releaseScore}`);
+      }
+      const matrix = Array.isArray(control?.generatedTestMatrix) ? control!.generatedTestMatrix : [];
+      const failedOrBlocked = matrix.filter((item) => item.executionStatus === "failed" || item.executionStatus === "blocked");
+      if (failedOrBlocked.length > 0) {
+        blockers.push(`测试矩阵存在失败/阻断用例 ${failedOrBlocked.length} 条`);
+      }
+      if (environment === "production" && matrix.length > 0) {
+        const pendingCount = matrix.filter((item) => item.executionStatus === "pending").length;
+        if (pendingCount > 0) {
+          blockers.push(`生产发布前仍有 pending 测试用例 ${pendingCount} 条`);
+        }
+      }
+      const acceptanceChecklist = Array.isArray(control?.qualityArtifacts?.acceptanceChecklist)
+        ? control!.qualityArtifacts.acceptanceChecklist
+        : [];
+      if (acceptanceChecklist.length === 0) {
+        blockers.push("缺少验收清单（acceptanceChecklist）");
+      }
+      const boundaryCodePaths = Array.isArray(control?.boundary?.codePaths)
+        ? control!.boundary.codePaths
+        : Array.isArray(control?.executableConstraints?.codePathWhitelist)
+          ? control!.executableConstraints.codePathWhitelist
+          : [];
+      if (boundaryCodePaths.length === 0) {
+        blockers.push("缺少代码路径白名单（boundary.codePaths）");
+      }
+      if (blockers.length > 0) {
+        return {
+          ok: false as const,
+          reason: "release_gate_blocked",
+          message: "release gate blocked",
+          blockers: Array.from(new Set(blockers)).slice(0, 20)
+        };
+      }
+    }
     const data = this.workspaceRepo.read();
     const created = {
       id: this.workspaceRepo.nextId(data.deployments),
@@ -221,7 +410,7 @@ export class PlatformService {
     };
     this.workspaceRepo.appendDeployment(created);
     this.writeAudit("deployment_created", `deployment:${created.id}`, `${environment}@${version} status=queued`);
-    return created;
+    return { ok: true as const, data: created };
   }
 
   transitionDeployment(deploymentId: number, toStatus: "running" | "success" | "failed") {
@@ -442,7 +631,7 @@ export class PlatformService {
     };
   }
 
-  analyzeOpsAlert(input: {
+  async analyzeOpsAlert(input: {
     projectId: number;
     severity?: "low" | "medium" | "high" | "critical";
     title: string;
@@ -514,16 +703,56 @@ export class PlatformService {
         commands: tpl.commands.slice(0, 4)
       });
     }
-    const shouldRollback = severity === "critical" || hypotheses.some((item) => item.priority === "P0");
-    const rollbackSuggestion = shouldRollback ? "建议立即进入受控回滚，并保留问题快照用于复盘。" : "建议先按排障步骤验证，不建议立即回滚。";
+    const llmResult = await this.runOpsAdvisorLlm({
+      severity,
+      title,
+      description,
+      signals: Array.isArray(input.signals) ? input.signals.slice(0, 12) : [],
+      metricsDigest: metrics
+        .slice(0, 8)
+        .map((item) => `${item.name}=${item.value}${item.unit || ""}`)
+        .join("; ")
+    });
+    const finalHypotheses = llmResult?.hypotheses?.length ? llmResult.hypotheses : hypotheses.slice(0, 6);
+    const finalTriageSteps = llmResult?.triageSteps?.length
+      ? llmResult.triageSteps.map((item) => ({
+          ...item,
+          commands: [] as string[]
+        }))
+      : triageSteps.slice(0, 6);
+    const shouldRollback =
+      llmResult?.rollbackDecision.shouldRollback || severity === "critical" || finalHypotheses.some((item) => item.priority === "P0");
+    const dispositionAction: "observe" | "mitigate" | "rollback" = shouldRollback
+      ? "rollback"
+      : severity === "high" || severity === "medium"
+        ? "mitigate"
+        : "observe";
+    const rollbackSuggestion = shouldRollback
+      ? `建议立即进入受控回滚，并保留问题快照用于复盘。${llmResult?.rollbackDecision.reason ? `（${llmResult.rollbackDecision.reason}）` : ""}`
+      : "建议先按排障步骤验证，不建议立即回滚。";
     return {
       generatedAt: nowIso(),
       projectId: input.projectId,
       severity,
-      hypotheses: hypotheses.slice(0, 6),
-      triageSteps: triageSteps.slice(0, 6),
+      hypotheses: finalHypotheses,
+      triageSteps: finalTriageSteps.map((item) => ({
+        ...item,
+        commands:
+          Array.isArray((item as { commands?: string[] }).commands) && (item as { commands?: string[] }).commands!.length > 0
+            ? (item as { commands?: string[] }).commands!.slice(0, 4)
+            : [
+                "curl -sS {{apiBase}}/api/ops/runtime",
+                "curl -sS {{apiBase}}/api/ops/metrics"
+              ]
+      })),
       rollbackSuggestion,
-      matchedTemplates: matchedTemplates.map((item) => item.id)
+      matchedTemplates: matchedTemplates.map((item) => item.id),
+      disposition: {
+        action: dispositionAction,
+        escalationOwner: severity === "critical" || severity === "high" ? "oncall-primary" : "service-owner",
+        rationale: shouldRollback ? "触发高优先级故障信号或 LLM 建议回滚。" : "未命中强回滚条件，先执行止损与验证。",
+        rollbackTrigger: llmResult?.rollbackDecision.trigger || "关键接口错误率持续上升且 15 分钟无恢复"
+      }
     };
   }
 

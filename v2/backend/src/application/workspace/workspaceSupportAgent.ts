@@ -241,7 +241,7 @@ export function buildIterationAgentPlan(params: {
         goal: "生成验收脚本并判定是否进入下一状态",
         context: contextWithControl,
         expectedOutput:
-          "JSON: {testMatrix:[{type,caseId,focus,expected,evidence}], regressionsToWatch[], releaseDecision:{pass:boolean,reason,blockers[]}, recommendedTransition, unknowns[]}"
+          "JSON: {testMatrix:[{type,caseId,focus,expected,evidence}], unitTests[], contractTests[], acceptanceChecklist[], regressionsToWatch[], releaseDecision:{pass:boolean,reason,blockers[]}, recommendedTransition, unknowns[]}"
       }),
       buildPrompt({
         agentId: "agent-boundary-guardian-1",

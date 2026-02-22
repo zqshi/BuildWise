@@ -12,7 +12,7 @@ import type {
   Project,
   StatusPayload
 } from "../../domain/workspace/types";
-import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
+import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
 import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
 
@@ -38,6 +38,7 @@ type ProjectsWorkspaceProps = {
   analysisReport: AttachmentAnalysisReport | null;
   showAnalysisPanel: boolean;
   isAnalyzingAttachment: boolean;
+  uploadAnalysisProgress: UploadAnalysisProgress | null;
   contextData: IterationContextPayload | null;
   stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
@@ -92,6 +93,8 @@ type ProjectsWorkspaceProps = {
   onUpdateTestMatrixExecution: (
     updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
   ) => Promise<void> | void;
+  onGenerateTestArtifacts: (dryRun?: boolean) => Promise<void> | void;
+  onRefreshReleaseReview: () => Promise<void> | void;
   onTransitionState: (toStatus: IterationStatus) => void;
   onCreateDeployment: (environment: "staging" | "production") => Promise<void>;
   onTransitionDeployment: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
@@ -120,6 +123,7 @@ export function ProjectsWorkspace({
   analysisReport,
   showAnalysisPanel,
   isAnalyzingAttachment,
+  uploadAnalysisProgress,
   contextData,
   stateMachine,
   chatMessages,
@@ -142,6 +146,8 @@ export function ProjectsWorkspace({
   onConfirmIterationAnalysis,
   onUpdateIterationBoundary,
   onUpdateTestMatrixExecution,
+  onGenerateTestArtifacts,
+  onRefreshReleaseReview,
   onTransitionState,
   onCreateDeployment,
   onTransitionDeployment,
@@ -251,6 +257,7 @@ export function ProjectsWorkspace({
               analysisReport={analysisReport}
               showAnalysisPanel={showAnalysisPanel}
               isAnalyzingAttachment={isAnalyzingAttachment}
+              uploadAnalysisProgress={uploadAnalysisProgress}
               onUploadClick={onUploadClick}
               onOpenAnalysisPanel={onOpenAnalysisPanel}
               onCloseAnalysisPanel={onCloseAnalysisPanel}
@@ -262,6 +269,8 @@ export function ProjectsWorkspace({
               onConfirmIterationAnalysis={onConfirmIterationAnalysis}
               onUpdateIterationBoundary={onUpdateIterationBoundary}
               onUpdateTestMatrixExecution={onUpdateTestMatrixExecution}
+              onGenerateTestArtifacts={onGenerateTestArtifacts}
+              onRefreshReleaseReview={onRefreshReleaseReview}
               onTransitionState={onTransitionState}
               onSwitchToProjectPanel={onSwitchToProjectPanel}
               onPatchUploadedHtmlPreview={onPatchUploadedHtmlPreview}

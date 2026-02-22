@@ -62,6 +62,15 @@ export type IterationGeneratedTestCase = {
   executionNote: string;
 };
 
+export type IterationQualityArtifacts = {
+  unitTests: string[];
+  contractTests: string[];
+  acceptanceChecklist: string[];
+  regressionPoints: string[];
+  materializedFiles: string[];
+  updatedAt: string;
+};
+
 export type IterationChangeControl = {
   pendingHumanConfirmation: boolean;
   lastAnalysisAt: string;
@@ -82,6 +91,30 @@ export type IterationChangeControl = {
   generatedTestMatrix: IterationGeneratedTestCase[];
   generatedTestMatrixUpdatedAt: string;
   testMatrixExecutionUpdatedAt: string;
+  qualityArtifacts: IterationQualityArtifacts;
+  executableConstraints: {
+    componentWhitelist: string[];
+    codePathWhitelist: string[];
+    acceptanceChecks: string[];
+    generatedAt: string;
+  };
+  traceabilitySnapshot: {
+    requirementCoverage: number;
+    mappingConfidence: "high" | "medium" | "low";
+    unmappedRequirements: string[];
+    conflicts: string[];
+    generatedAt: string;
+  };
+  domainKnowledgeEntries: Array<{
+    term: string;
+    definition: string;
+    mappedPages: string[];
+    mappedApis: string[];
+    mappedEntities: string[];
+    mappedCodePaths: string[];
+    evidence: string;
+  }>;
+  domainKnowledgeUpdatedAt: string;
   lastAnalysisP0Count: number;
   lastAnalysisHighValueCount: number;
   lastAnalysisConsideredFiles: number;
@@ -90,6 +123,7 @@ export type IterationChangeControl = {
   lastReleaseReviewDecision: "go" | "caution" | "block" | "";
   lastReleaseReviewReason: string;
   lastReleaseReviewBlockers: string[];
+  lastReleaseReviewScore: number;
   lastReleaseReviewUpdatedAt: string;
   lastTraceabilityCoverageScore: number;
   lastOpsRollbackSuggested: boolean;

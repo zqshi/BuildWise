@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-02-22T08:45:03.446Z",
+  "finishedAt": "2026-02-22T08:45:03.446Z",
+  "baseUrl": "http://127.0.0.1:5068",
+  "testPort": 5068,
+  "status": "failed",
+  "error": "backend did not become healthy in time",
+  "steps": []
+}

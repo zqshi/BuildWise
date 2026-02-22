@@ -16,6 +16,10 @@ export type AgentRunResult = {
   model?: string;
 };
 
+export type AgentRunOptions = {
+  imageDataUrls?: string[];
+};
+
 export class LlmUnavailableError extends Error {
   readonly code = "llm_unavailable";
 
@@ -35,7 +39,7 @@ export class LlmInvocationError extends Error {
 }
 
 export interface AgentRunner {
-  run(prompt: IterationAgentPrompt): Promise<AgentRunResult>;
+  run(prompt: IterationAgentPrompt, options?: AgentRunOptions): Promise<AgentRunResult>;
 }
 
 class OpenAICompatibleAgentRunner implements AgentRunner {
@@ -47,10 +51,23 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     private readonly maxOutputTokens: number = 1200
   ) {}
 
-  async run(prompt: IterationAgentPrompt): Promise<AgentRunResult> {
+  async run(prompt: IterationAgentPrompt, options?: AgentRunOptions): Promise<AgentRunResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
+      const imageDataUrls = Array.isArray(options?.imageDataUrls)
+        ? options!.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
+        : [];
+      const userContent =
+        imageDataUrls.length === 0
+          ? prompt.userPrompt
+          : [
+              { type: "text", text: prompt.userPrompt },
+              ...imageDataUrls.map((url) => ({
+                type: "image_url",
+                image_url: { url }
+              }))
+            ];
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -63,7 +80,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
           max_tokens: this.maxOutputTokens,
           messages: [
             { role: "system", content: prompt.systemPrompt },
-            { role: "user", content: prompt.userPrompt }
+            { role: "user", content: userContent }
           ]
         }),
         signal: controller.signal

@@ -134,9 +134,11 @@ export async function rewriteCodeInBoundaryOp(
   const summary = pickString(parsed?.summary) || "已完成边界内改写建议。";
   const rawEdits = Array.isArray(parsed?.edits) ? parsed!.edits : [];
   const outOfBoundaryFiles: string[] = [];
+  const outOfCandidateFiles: string[] = [];
   const appliedFiles: string[] = [];
   const skippedFiles: string[] = [];
   const edits: IterationCodeRewriteResponse["edits"] = [];
+  const candidateSet = new Set(candidateFiles.map((item) => normalizeRelPath(item)));
 
   for (const item of rawEdits.slice(0, maxFiles)) {
     const row = item as Record<string, unknown>;
@@ -144,6 +146,10 @@ export async function rewriteCodeInBoundaryOp(
     const reason = pickString(row.reason) || "LLM rewrite";
     const content = pickString(row.content);
     if (!path || !content) {
+      continue;
+    }
+    if (!candidateSet.has(path)) {
+      outOfCandidateFiles.push(path);
       continue;
     }
     const boundaryCheck = assertBoundaryWhitelist({
@@ -176,7 +182,10 @@ export async function rewriteCodeInBoundaryOp(
     iterationId,
     dryRun,
     summary,
-    warnings,
+    warnings:
+      outOfCandidateFiles.length > 0
+        ? [...warnings, `以下文件未在候选列表中，已忽略：${Array.from(new Set(outOfCandidateFiles)).slice(0, 6).join("、")}`]
+        : warnings,
     appliedFiles: Array.from(new Set(appliedFiles)),
     skippedFiles: Array.from(new Set(skippedFiles)),
     outOfBoundaryFiles: Array.from(new Set(outOfBoundaryFiles)),

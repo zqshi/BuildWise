@@ -39,6 +39,12 @@ export type IterationAgentOutput = {
   error?: string;
 };
 
+export type VisionPayload = {
+  path: string;
+  mimeType: string;
+  dataUrl: string;
+};
+
 export type IterationLifecycleAction = {
   attempted: boolean;
   applied: boolean;
@@ -110,6 +116,14 @@ export type AttachmentAnalysisReport = {
     changed: string[];
     removed: string[];
   };
+  versionDiffDetailed: {
+    summary: string;
+    impactScope: string[];
+    riskPoints: string[];
+    added: Array<{ dimension: string; item: string; impact: string; risk: "low" | "medium" | "high" }>;
+    changed: Array<{ dimension: string; item: string; impact: string; risk: "low" | "medium" | "high" }>;
+    removed: Array<{ dimension: string; item: string; impact: string; risk: "low" | "medium" | "high" }>;
+  };
   diffLocations: Array<{
     dimension: "goals" | "inScope" | "outOfScope" | "acceptanceCriteria";
     changeType: "added" | "removed" | "changed";
@@ -127,7 +141,16 @@ export type AttachmentAnalysisReport = {
     componentToCode: Array<{ component: string; codePaths: string[]; evidence: string }>;
     requirementToCode: Array<{ requirement: string; codePaths: string[]; evidence: string }>;
     coverageScore: number;
+    mappingConfidence: "high" | "medium" | "low";
+    unmappedRequirements: string[];
+    conflicts: string[];
     gaps: string[];
+  };
+  executableConstraints: {
+    componentWhitelist: string[];
+    codePathWhitelist: string[];
+    acceptanceChecks: string[];
+    gateRules: string[];
   };
   releaseReview: {
     decision: "go" | "caution" | "block";
@@ -148,6 +171,13 @@ export type AttachmentAnalysisReport = {
       boundaryCoverage: number;
     };
   };
+  qualityArtifacts: {
+    unitTests: string[];
+    contractTests: string[];
+    acceptanceChecklist: string[];
+    regressionPoints: string[];
+    materializedFiles: string[];
+  };
   domainKnowledge: {
     terms: Array<{
       term: string;
@@ -159,6 +189,7 @@ export type AttachmentAnalysisReport = {
         codePaths: string[];
       };
       evidence: string;
+      bindingStrength: "high" | "medium" | "low";
     }>;
     rules: string[];
     unknowns: string[];
@@ -183,7 +214,9 @@ export type AttachmentUploadInput = {
     mimeType: string;
     size: number;
     excerpt: string;
+    imageDataUrl?: string;
   }>;
+  visionPayloads?: VisionPayload[];
   excerptChunks?: string[];
   excerptDigest?: string;
   excerptStrategy?: "direct" | "chunked-head-middle-tail" | "binary-no-text" | "folder-batch";
@@ -219,6 +252,14 @@ export type AttachmentAnalysisJob = {
   warnings: string[];
   error: string;
   result: AttachmentAnalysisReport | null;
+};
+
+export type UploadAnalysisProgress = {
+  stage: "preparing" | "queued" | "running" | "succeeded" | "failed";
+  label: string;
+  detail: string;
+  percent: number;
+  jobId?: string;
 };
 
 export type UploadedAttachmentMeta = {
@@ -294,6 +335,38 @@ export type IterationCodeRewriteResponse = {
   }>;
 };
 
+export type IterationTestArtifactsGenerationResponse = {
+  iterationId: number;
+  dryRun: boolean;
+  summary: string;
+  generatedFiles: string[];
+  skippedFiles: string[];
+  warnings: string[];
+};
+
+export type IterationReleaseReviewResponse = {
+  iterationId: number;
+  decision: "go" | "caution" | "block";
+  score: number;
+  blockers: string[];
+  warnings: string[];
+  recommendations: string[];
+  rollback: {
+    shouldRollback: boolean;
+    reason: string;
+    trigger: string;
+    actions: string[];
+  };
+  evidence: {
+    testMatrixCoverage: number;
+    testMatrixPassRate: number;
+    traceabilityCoverage: number;
+    boundaryReady: boolean;
+    acceptanceChecklistCount: number;
+  };
+  generatedAt: string;
+};
+
 export type OpsAlertTriageResponse = {
   generatedAt: string;
   projectId: number;
@@ -302,4 +375,10 @@ export type OpsAlertTriageResponse = {
   triageSteps: Array<{ step: string; expectedSignal: string; fallback: string; commands: string[] }>;
   rollbackSuggestion: string;
   matchedTemplates: string[];
+  disposition?: {
+    action: "observe" | "mitigate" | "rollback";
+    escalationOwner: string;
+    rationale: string;
+    rollbackTrigger: string;
+  };
 };
