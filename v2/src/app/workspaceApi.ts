@@ -2,6 +2,8 @@ import type {
   AttachmentUploadInput,
   AttachmentAnalysisJob,
   AttachmentAnalysisReport,
+  IterationCodeRewriteResponse,
+  OpsAlertTriageResponse,
   IterationVisualEditResponse,
   IterationCoachChatResponse,
   AssessmentPayload,
@@ -196,6 +198,17 @@ export async function executeIterationVisualEdit(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
+}
+
+export async function rewriteIterationCode(
+  iterationId: number,
+  payload: { instruction: string; dryRun?: boolean; maxFiles?: number }
+) {
+  return fetchJSON<IterationCodeRewriteResponse>(`${API_BASE}/api/iterations/${iterationId}/code-rewrite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  }, 120000);
 }
 
 async function readFileExcerpt(file: File, maxLength = 4000) {
@@ -483,6 +496,20 @@ export async function fetchOpsTriageTemplates(projectId?: number) {
     "/api/ops/triage-templates"
   );
   return payload ?? { generatedAt: "", templates: [] };
+}
+
+export async function analyzeOpsAlert(payload: {
+  projectId: number;
+  severity?: "low" | "medium" | "high" | "critical";
+  title: string;
+  description?: string;
+  signals?: string[];
+}) {
+  return fetchJSON<OpsAlertTriageResponse>(`${API_BASE}/api/ops/triage/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function upsertOpsTriageTemplate(

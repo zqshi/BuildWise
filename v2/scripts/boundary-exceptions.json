@@ -1,0 +1,15 @@
+{
+  "lineLimitExceptions": [
+    "src/domain/workspace/analysisTypes.ts",
+    "src/pages/projects/IterationWorkspacePanel.tsx",
+    "backend/src/application/platform/platformService.ts",
+    "backend/src/application/workspace/workspaceService.ts",
+    "backend/src/application/workspace/workspaceServiceAnalysisOps.ts",
+    "backend/src/application/workspace/workspaceServiceCoachOps.ts",
+    "backend/src/application/workspace/workspaceSupportCore.ts",
+    "backend/src/domain/workspace/analysisTypes.ts",
+    "backend/src/infrastructure/persistence/sqliteWorkspaceCore.ts",
+    "backend/src/interfaces/http/routes/platformRoutes.ts",
+    "backend/src/interfaces/http/routes/workspaceIterationCoreRoutes.ts"
+  ]
+}

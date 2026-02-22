@@ -5,7 +5,7 @@
 ## 1. 发布前聚合检查（推荐）
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run ops:preflight
 ```
 
@@ -25,7 +25,7 @@ npm run ops:preflight
 ## 2. 告警基线检查
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run ops:alerts
 ```
 
@@ -85,7 +85,7 @@ curl -sS -X DELETE http://127.0.0.1:5055/api/ops/triage-templates/<templateId> -
 ## 3. LLM 基线检查
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run ops:llm-check
 ```
 
@@ -104,7 +104,7 @@ npm run ops:llm-check
 ## 4. 一键回滚（生成回滚部署）
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 PROJECT_ID=1 npm run ops:rollback
 ```
 
@@ -136,14 +136,14 @@ PROJECT_ID=1 npm run ops:rollback
 JSON 模式：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 STORAGE_BACKEND=json npm run ops:backup-drill
 ```
 
 SQLite 模式：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 STORAGE_BACKEND=sqlite npm run ops:backup-drill
 ```
 

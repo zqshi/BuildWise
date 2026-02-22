@@ -17,6 +17,7 @@ import {
   coachIterationMessage,
   createIterationMessage,
   executeIterationVisualEdit,
+  rewriteIterationCode,
   recomputeAssessment,
   restoreAssessment,
   updateIterationInteractionState,
@@ -357,6 +358,28 @@ export function useIterationActions({
           await createMessage(currentIteration.id, "system", `操作建议：${visualEditResult.warnings.join("；")}`);
         }
         return visualEditResult;
+      }
+      const rewriteMatch = text.match(/^(代码改写|增量改写|rewrite)\s*[:：]\s*(.+)$/i);
+      const applyMatch = text.match(/^(执行代码改写|apply rewrite)\s*[:：]\s*(.+)$/i);
+      if (rewriteMatch || applyMatch) {
+        const instruction = (rewriteMatch?.[2] || applyMatch?.[2] || "").trim();
+        if (!instruction) {
+          await createMessage(currentIteration.id, "assistant", "请在“代码改写: ...”后补充具体改写指令。");
+          return null;
+        }
+        const rewrite = await rewriteIterationCode(currentIteration.id, {
+          instruction,
+          dryRun: !applyMatch,
+          maxFiles: 6
+        });
+        const header = rewrite.dryRun ? "边界内改写预览（dry-run）" : "边界内改写已执行";
+        const changed = rewrite.edits.map((item) => item.path).join("；") || "无变更";
+        await createMessage(currentIteration.id, "assistant", `${header}：${rewrite.summary}\n变更文件：${changed}`);
+        if (rewrite.outOfBoundaryFiles.length > 0) {
+          await createMessage(currentIteration.id, "system", `越界阻断：${rewrite.outOfBoundaryFiles.join("；")}`);
+        }
+        await loadIterationDetail(currentIteration.id);
+        return null;
       }
       const clarificationQuestions = currentIteration.changeControl?.clarificationQuestions ?? [];
       const resolvedQuestions = currentIteration.changeControl?.clarificationDraftResolvedQuestions ?? [];

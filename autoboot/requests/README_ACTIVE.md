@@ -7,7 +7,7 @@
 快速执行：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise
+cd .
 python3 autoboot/pipeline.py autoloop --from 200 --goal-req 211
 ```
 

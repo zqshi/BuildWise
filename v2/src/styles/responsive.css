@@ -13,6 +13,10 @@
     grid-template-columns:1fr
   }
 
+  .insight-list {
+    grid-template-columns:1fr
+  }
+
   .project-panel {
     max-height:none;
     height:auto
@@ -96,6 +100,9 @@
     width:100%;
     border-radius:0;
     right:0
+  }
+  .chat-panel.interaction-companion-open {
+    margin-right:0;
   }
   .interaction-drawer-resize-handle {
     display:none;

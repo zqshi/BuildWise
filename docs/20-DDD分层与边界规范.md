@@ -43,11 +43,11 @@
 ## 执行命令
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run check:boundaries
 ```
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run check:boundaries
 ```

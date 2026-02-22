@@ -46,6 +46,7 @@
 
 ## 统一质量门禁
 
+- 仓库卫生：`cd v2 && npm run check:hygiene`
 - 前端：`npm run check:boundaries && npm run typecheck && npm run build`
 - 后端：`npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract`
 

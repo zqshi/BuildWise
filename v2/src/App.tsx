@@ -65,6 +65,7 @@ export default function App() {
             currentProjectId={controller.currentProjectId}
             currentProjectIterations={controller.iterations.length}
             onViewProjects={() => controller.setActiveView("projects")}
+            onSelectProject={controller.handleSelectProject}
           />
         ) : (
           <ProjectsWorkspace

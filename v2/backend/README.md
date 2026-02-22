@@ -3,7 +3,7 @@
 ## 快速开始
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm install
 npm run build
 npm run start
@@ -17,12 +17,12 @@ npm run dev
 
 环境变量加载：
 
-- 服务启动会自动读取当前目录的 `.env`（路径：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.env`）。
+- 服务启动会自动读取当前目录的 `.env`（路径：`v2/backend/.env`）。
 - 若同时存在 shell 环境变量和 `.env`，以 shell 环境变量优先。
 - 可从模板复制：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 cp .env.example .env
 ```
 
@@ -44,9 +44,9 @@ npm run ops:backup-drill
 ```
 
 投产差距与分项评分见：
-`/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-readiness.md`
+`v2/backend/docs/production-readiness.md`
 投产运维 SOP 见：
-`/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-operations.md`
+`v2/backend/docs/production-operations.md`
 
 ## 关键接口
 
@@ -152,7 +152,7 @@ npm run ops:backup-drill
 ## 存储迁移（JSON -> SQLite）
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run migrate:sqlite
 ```
 
@@ -160,14 +160,14 @@ npm run migrate:sqlite
 
 ```bash
 STORAGE_BACKEND=sqlite
-WORKSPACE_DB_FILE=/Users/zqs/Downloads/project/BuildWise/v2/backend/workspace.db
+WORKSPACE_DB_FILE=./workspace.db
 ```
 
 SQLite 模式下已提供分集合表存储与索引（`projects`、`iterations`、`messages`、`audit_logs`），高频读取走 SQL 查询。
 
 ## Agent Prompt 维护
 
-- Prompt 模板目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/prompts`
+- Prompt 模板目录：`v2/backend/prompts`
 - 命名约定：`agent.<role>.v1.md`
 - 目前支持角色：
   - `orchestrator`
@@ -182,4 +182,4 @@ SQLite 模式下已提供分集合表存储与索引（`projects`、`iterations`
   - 代码位置：`src/application/workspace/workspaceSupport.ts`
   - 若模板缺失或格式不合法，将自动回退到内置默认模板。
 - LLM 调用链路与 Prompt 体系说明：
-  - `/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/llm-chain-and-prompts.md`
+  - `v2/backend/docs/llm-chain-and-prompts.md`

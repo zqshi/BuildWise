@@ -48,6 +48,7 @@ import {
 import { analyzeAttachmentOp } from "./workspaceServiceAnalysisOps";
 import { coachIterationConversationOp } from "./workspaceServiceCoachOps";
 import { executeVisualEditInstructionOp } from "./workspaceServiceVisualEditOps";
+import { rewriteCodeInBoundaryOp } from "./workspaceServiceCodeRewriteOps";
 import { hasProject, listProjectsNormalized } from "./workspaceServiceCommon";
 import { writeAuditLog } from "./workspaceServiceCommon";
 
@@ -552,7 +553,18 @@ export class WorkspaceService {
       };
     }
   ) {
-    return executeVisualEditInstructionOp(this.repo, iterationId, message, target);
+    return executeVisualEditInstructionOp(this.agentRunner, this.repo, iterationId, message, target);
+  }
+
+  rewriteCodeInBoundary(
+    iterationId: number,
+    input: {
+      instruction: string;
+      dryRun?: boolean;
+      maxFiles?: number;
+    }
+  ) {
+    return rewriteCodeInBoundaryOp(this.repo, this.agentRunner, iterationId, input);
   }
 
   updateIterationInteractionState(
