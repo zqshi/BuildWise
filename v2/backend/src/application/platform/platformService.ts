@@ -442,4 +442,89 @@ export class PlatformService {
     };
   }
 
+  analyzeOpsAlert(input: {
+    projectId: number;
+    severity?: "low" | "medium" | "high" | "critical";
+    title: string;
+    description?: string;
+    signals?: string[];
+  }) {
+    const severity = input.severity || "medium";
+    const title = (input.title || "").trim();
+    const description = (input.description || "").trim();
+    const mergedText = `${title}\n${description}\n${(input.signals || []).join("\n")}`.toLowerCase();
+    const templates = this.listOpsTriageTemplatesByProject(input.projectId).templates;
+    const matchedTemplates = templates
+      .filter((tpl) => tpl.keywords.some((keyword) => keyword && mergedText.includes(keyword.toLowerCase())))
+      .slice(0, 6);
+    const metrics = this.getOpsMetrics().metrics;
+    const metricMap = new Map(metrics.map((item) => [item.name, item.value]));
+    const deploySuccessRate = Number(metricMap.get("deployment_success_rate") || 0);
+    const matrixPassRate = Number(metricMap.get("iteration_test_matrix_pass_rate") || 0);
+    const p0Count = Number(metricMap.get("iteration_p0_findings_total") || 0);
+    const hypotheses: Array<{ priority: "P0" | "P1" | "P2"; item: string; evidence: string }> = [];
+
+    if (/timeout|超时|latency|慢|延迟/.test(mergedText)) {
+      hypotheses.push({ priority: "P0", item: "可能存在上游依赖超时或连接池耗尽。", evidence: "告警文本命中 timeout/延迟 关键词。" });
+    }
+    if (/db|database|数据库|sql|连接/.test(mergedText)) {
+      hypotheses.push({ priority: "P0", item: "数据库连接或慢查询导致服务退化。", evidence: "告警文本命中 db/sql/数据库 关键词。" });
+    }
+    if (/memory|oom|内存|cpu|负载/.test(mergedText)) {
+      hypotheses.push({ priority: "P1", item: "资源瓶颈（CPU/内存）导致实例不稳定。", evidence: "告警文本命中资源类关键词。" });
+    }
+    if (deploySuccessRate < 80) {
+      hypotheses.push({ priority: "P1", item: "近期发布成功率偏低，可能存在发布工单质量回退。", evidence: `deployment_success_rate=${deploySuccessRate}%` });
+    }
+    if (matrixPassRate < 75) {
+      hypotheses.push({ priority: "P1", item: "测试通过率不足，线上故障可能由未覆盖回归引入。", evidence: `iteration_test_matrix_pass_rate=${matrixPassRate}%` });
+    }
+    if (p0Count > 0) {
+      hypotheses.push({ priority: "P1", item: "当前仍有 P0 分析发现未闭环，需优先排查相关代码路径。", evidence: `iteration_p0_findings_total=${p0Count}` });
+    }
+
+    const triageSteps = [
+      {
+        step: "确认运行时健康与错误分布",
+        expectedSignal: "最近 15 分钟内错误率曲线与峰值区间",
+        fallback: "若无法获取指标，先抓取最近失败部署与应用日志片段",
+        commands: ["curl -sS {{apiBase}}/api/ops/runtime", "curl -sS {{apiBase}}/api/ops/metrics"]
+      },
+      {
+        step: "定位最近改动与越界风险",
+        expectedSignal: "故障窗口前后是否有高风险发布",
+        fallback: "若无发布记录，检查外部依赖可用性",
+        commands: ["curl -sS {{apiBase}}/api/ops/deployments", "cd {{backendDir}} && npm run ops:preflight"]
+      },
+      {
+        step: "执行回滚决策前置校验",
+        expectedSignal: "回滚后关键接口错误率下降",
+        fallback: "若回滚不可行，先熔断高风险入口并降级",
+        commands: ["cd {{backendDir}} && PROJECT_ID={{projectId}} npm run ops:rollback", "curl -sS {{apiBase}}/api/ops/deployments"]
+      }
+    ];
+    for (const tpl of matchedTemplates) {
+      if (triageSteps.length >= 6) {
+        break;
+      }
+      triageSteps.push({
+        step: `模板排障：${tpl.category}`,
+        expectedSignal: "模板命令输出与告警现象一致",
+        fallback: "若模板步骤无法复现，请回到基础三步排障流程",
+        commands: tpl.commands.slice(0, 4)
+      });
+    }
+    const shouldRollback = severity === "critical" || hypotheses.some((item) => item.priority === "P0");
+    const rollbackSuggestion = shouldRollback ? "建议立即进入受控回滚，并保留问题快照用于复盘。" : "建议先按排障步骤验证，不建议立即回滚。";
+    return {
+      generatedAt: nowIso(),
+      projectId: input.projectId,
+      severity,
+      hypotheses: hypotheses.slice(0, 6),
+      triageSteps: triageSteps.slice(0, 6),
+      rollbackSuggestion,
+      matchedTemplates: matchedTemplates.map((item) => item.id)
+    };
+  }
+
 }

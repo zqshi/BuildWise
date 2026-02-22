@@ -3,3 +3,23 @@
 *.db-wal
 .DS_Store
 
+# Node / build artifacts
+**/node_modules/
+**/dist/
+**/.vite/
+*.tsbuildinfo
+
+# Runtime workspace data
+v2/backend/.env
+v2/backend/data.runtime.json
+v2/backend/backups/
+
+# Local automation runtime artifacts
+autoboot/runs/
+autoboot/archive/
+autoboot/reports/*.md
+autoboot/plans/*.json
+autoboot/state.json
+autoboot/state/*.json
+autoboot/__pycache__/
+*.pyc

@@ -184,7 +184,7 @@
 
 ## 5. Prompt 文件与维护位置
 
-- 目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/prompts`
+- 目录：`v2/backend/prompts`
 - 文件：
   - `agent.orchestrator.v1.md`
   - `agent.requirements-analyst.v1.md`

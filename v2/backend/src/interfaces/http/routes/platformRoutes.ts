@@ -294,4 +294,27 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     }
     return { ok: true };
   });
+
+  app.post("/api/ops/triage/analyze", async (request, reply) => {
+    const body = request.body as {
+      projectId?: number;
+      severity?: "low" | "medium" | "high" | "critical";
+      title?: string;
+      description?: string;
+      signals?: string[];
+    } | null;
+    const projectId = typeof body?.projectId === "number" ? body.projectId : null;
+    const title = body?.title?.trim() || "";
+    if (!projectId || !title) {
+      reply.code(400);
+      return { message: "projectId and title are required" };
+    }
+    return service.analyzeOpsAlert({
+      projectId,
+      severity: body?.severity,
+      title,
+      description: body?.description,
+      signals: Array.isArray(body?.signals) ? body!.signals : []
+    });
+  });
 }

@@ -178,7 +178,58 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "message is required" };
     }
-    const result = service.executeVisualEditInstruction(iterationId, message, body?.target);
+    let result;
+    try {
+      result = await service.executeVisualEditInstruction(iterationId, message, body?.target);
+    } catch (error) {
+      if (error instanceof LlmUnavailableError) {
+        reply.code(503);
+        return { message: error.message };
+      }
+      if (error instanceof LlmInvocationError) {
+        reply.code(502);
+        return { message: error.message };
+      }
+      throw error;
+    }
+    if (!result) {
+      reply.code(404);
+      return { message: "iteration not found" };
+    }
+    return result;
+  });
+
+  app.post("/api/iterations/:id/code-rewrite", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as { instruction?: string; dryRun?: boolean; maxFiles?: number } | null;
+    const instruction = body?.instruction?.trim() || "";
+    if (!instruction) {
+      reply.code(400);
+      return { message: "instruction is required" };
+    }
+    let result;
+    try {
+      result = await service.rewriteCodeInBoundary(iterationId, {
+        instruction,
+        dryRun: body?.dryRun !== false,
+        maxFiles: typeof body?.maxFiles === "number" ? body.maxFiles : undefined
+      });
+    } catch (error) {
+      if (error instanceof LlmUnavailableError) {
+        reply.code(503);
+        return { message: error.message };
+      }
+      if (error instanceof LlmInvocationError) {
+        reply.code(502);
+        return { message: error.message };
+      }
+      throw error;
+    }
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };

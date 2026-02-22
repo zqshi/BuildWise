@@ -8,14 +8,14 @@
 ## 2. 安装依赖
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run install:all
 ```
 
 ## 3. 一键质量验证（发布前必跑）
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run verify:all
 ```
 
@@ -35,28 +35,28 @@ npm run verify:all
 一键启动前后端（推荐）：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run dev:stack:start
 ```
 
 一键停止：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run dev:stack:stop
 ```
 
 前端：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run dev
 ```
 
 后端：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run dev
 ```
 
@@ -65,14 +65,14 @@ npm run dev
 前端静态构建：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2
+cd v2
 npm run build
 ```
 
 后端启动：
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run build
 npm run start
 ```
@@ -87,7 +87,7 @@ npm run start
 - `SERVICE_NAME`：服务名
 - `SERVICE_VERSION`：服务版本
 - `MODEL_FILE`：模型文件路径（默认 `v2/model.json`）
-- `WORKSPACE_DATA_FILE`：工作区数据文件路径（默认 `v2/backend/data.json`）
+- `WORKSPACE_DATA_FILE`：工作区数据文件路径（默认 `v2/backend/data.runtime.json`）
 - `CORS_ORIGINS`：允许跨域来源，生产环境需显式配置
 - `RATE_LIMIT_WINDOW_MS`：限流窗口毫秒数
 - `RATE_LIMIT_MAX`：窗口内单 IP 请求上限
@@ -105,6 +105,20 @@ npm run start
 
 ## 6. 交付产物
 
-- 前端：`/Users/zqs/Downloads/project/BuildWise/v2/dist`
-- 后端：`/Users/zqs/Downloads/project/BuildWise/v2/backend/dist`
-- 阶段报告：`/Users/zqs/Downloads/project/BuildWise/docs/milestones`
+- 前端：`v2/dist`
+- 后端：`v2/backend/dist`
+- 阶段报告：`docs/milestones`
+
+## 7. 仓库治理（强制执行）
+
+```bash
+cd v2
+npm run check:hygiene
+```
+
+若需清理本地构建与运行期产物：
+
+```bash
+cd v2
+npm run clean:workspace
+```

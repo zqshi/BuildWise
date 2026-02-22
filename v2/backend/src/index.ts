@@ -69,7 +69,7 @@ async function bootstrap() {
   const backendRoot = join(__dirname, "..");
   const appRoot = join(backendRoot, "..");
   const config = loadRuntimeConfig(env, {
-    dataFile: join(backendRoot, "data.json"),
+    dataFile: join(backendRoot, "data.runtime.json"),
     modelFile: join(appRoot, "model.json")
   });
   const runtime = new RuntimeState(config);
