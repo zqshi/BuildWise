@@ -150,4 +150,35 @@ export function registerWorkspaceIterationChangeControlRoutes(app: FastifyInstan
     }
     return result;
   });
+
+  app.post("/api/iterations/:id/change-control/test-artifacts/generate", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as { dryRun?: boolean } | null;
+    const result = service.generateIterationTestArtifacts(iterationId, { dryRun: body?.dryRun !== false });
+    if (!result) {
+      reply.code(404);
+      return { message: "iteration not found" };
+    }
+    return result;
+  });
+
+  app.get("/api/iterations/:id/release-review", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const result = service.getIterationReleaseReview(iterationId);
+    if (!result) {
+      reply.code(404);
+      return { message: "iteration not found" };
+    }
+    return result;
+  });
 }

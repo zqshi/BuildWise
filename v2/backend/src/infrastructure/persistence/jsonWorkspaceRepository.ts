@@ -107,6 +107,7 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       lastUpdated: now.slice(0, 10),
       repository: {
         id: `repo-${id}`,
+        repoMode: "hybrid",
         provider: "github",
         organization: "buildwise",
         name: repoName,
@@ -132,6 +133,17 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
           cloneUrl: "",
           sshUrl: "",
           lastProvisionedAt: ""
+        },
+        governance: {
+          requireRemoteForProduction: true,
+          requireRemoteForStaging: false
+        },
+        health: {
+          remoteConfigured: false,
+          remoteReachable: false,
+          remoteSynced: false,
+          lastCheckedAt: "",
+          lastError: ""
         },
         createdAt: now,
         updatedAt: now

@@ -1,0 +1,19 @@
+{
+  "startedAt": "2026-02-22T08:46:59.120Z",
+  "baseUrl": "http://127.0.0.1:5068",
+  "testPort": 5068,
+  "status": "failed",
+  "projectId": null,
+  "iterationId": null,
+  "blockedDeployBlockers": [],
+  "steps": [
+    {
+      "name": "fatal",
+      "status": "failed",
+      "detail": "backend did not become healthy in time",
+      "at": "2026-02-22T08:47:09.193Z"
+    }
+  ],
+  "error": "backend did not become healthy in time",
+  "finishedAt": "2026-02-22T08:47:09.193Z"
+}

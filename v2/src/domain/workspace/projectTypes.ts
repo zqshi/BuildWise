@@ -11,6 +11,7 @@ export type RepositoryLayoutNode = {
 
 export type ProjectRepository = {
   id: string;
+  repoMode: "external_git" | "managed_local" | "hybrid";
   provider: "github" | "gitlab" | "gitea" | "bitbucket" | "custom";
   organization: string;
   name: string;
@@ -33,6 +34,17 @@ export type ProjectRepository = {
     repoPath: string;
     gitInitialized: boolean;
     lastScaffoldedAt: string;
+  };
+  governance?: {
+    requireRemoteForProduction: boolean;
+    requireRemoteForStaging: boolean;
+  };
+  health?: {
+    remoteConfigured: boolean;
+    remoteReachable: boolean;
+    remoteSynced: boolean;
+    lastCheckedAt: string;
+    lastError: string;
   };
   createdAt: string;
   updatedAt: string;

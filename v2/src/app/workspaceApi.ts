@@ -3,6 +3,8 @@ import type {
   AttachmentAnalysisJob,
   AttachmentAnalysisReport,
   IterationCodeRewriteResponse,
+  IterationReleaseReviewResponse,
+  IterationTestArtifactsGenerationResponse,
   OpsAlertTriageResponse,
   IterationVisualEditResponse,
   IterationCoachChatResponse,
@@ -41,6 +43,17 @@ import { ensureArray } from "../shared/ensureArray";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
 const missingOptionalEndpoints = new Set<string>();
 
+type LlmPreflightStatus = {
+  status?: string;
+  runtime?: {
+    llm?: {
+      configured?: boolean;
+      reachable?: boolean;
+      error?: string;
+    };
+  };
+};
+
 function isApiNotFound(error: unknown) {
   return error instanceof Error && /^API error: 404\b/.test(error.message);
 }
@@ -67,6 +80,82 @@ export async function fetchProjects() {
 
 export async function createProject(payload: { name: string; description: string }) {
   return fetchJSON<Project>(`${API_BASE}/api/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchProjectRepository(projectId: number) {
+  return fetchJSON(`${API_BASE}/api/projects/${projectId}/repository`);
+}
+
+export async function bootstrapProjectRepository(
+  projectId: number,
+  payload: {
+    provider?: "github" | "gitlab" | "gitea" | "bitbucket" | "custom";
+    organization?: string;
+    name?: string;
+    url: string;
+    defaultBranch?: string;
+    repoMode?: "external_git" | "managed_local" | "hybrid";
+    requireRemoteForProduction?: boolean;
+    requireRemoteForStaging?: boolean;
+  }
+) {
+  return fetchJSON(`${API_BASE}/api/projects/${projectId}/repository/bootstrap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchProjectRepositoryStatus(projectId: number) {
+  return fetchJSON<{
+    projectId: number;
+    repoMode: "external_git" | "managed_local" | "hybrid";
+    governance: {
+      requireRemoteForProduction: boolean;
+      requireRemoteForStaging: boolean;
+    };
+    health: {
+      remoteConfigured: boolean;
+      remoteReachable: boolean;
+      remoteSynced: boolean;
+      lastCheckedAt: string;
+      lastError: string;
+    };
+    remote?: unknown;
+    workspace?: unknown;
+  }>(`${API_BASE}/api/projects/${projectId}/repository/status`);
+}
+
+export async function fetchProjectRepositoryMigrationPlan(projectId: number) {
+  return fetchJSON<{
+    projectId: number;
+    currentMode: "external_git" | "managed_local" | "hybrid";
+    targetMode: "hybrid" | "external_git";
+    blockers: string[];
+    nextAction: string;
+    steps: Array<{
+      id: string;
+      title: string;
+      description: string;
+      status: "pending" | "ready" | "done" | "blocked";
+      action: string;
+    }>;
+  }>(`${API_BASE}/api/projects/${projectId}/repository/migration-plan`);
+}
+
+export async function configureProjectRepositoryMode(
+  projectId: number,
+  payload: {
+    repoMode?: "external_git" | "managed_local" | "hybrid";
+    requireRemoteForProduction?: boolean;
+    requireRemoteForStaging?: boolean;
+  }
+) {
+  return fetchJSON(`${API_BASE}/api/projects/${projectId}/repository/mode`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -224,18 +313,36 @@ async function readFileExcerpt(file: File, maxLength = 4000) {
   }
 }
 
+async function readImageDataUrl(file: File, maxBytes = 220_000) {
+  const type = (file.type || "").toLowerCase();
+  if (!type.startsWith("image/")) {
+    return "";
+  }
+  if (file.size <= 0 || file.size > maxBytes) {
+    return "";
+  }
+  return new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve("");
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result.slice(0, 300000) : "");
+    reader.readAsDataURL(file);
+  });
+}
+
 function getFilePath(file: File) {
   const maybePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
   return maybePath || file.name;
 }
 
 async function toAttachmentFileEntry(file: File, withExcerpt = true) {
+  const imageDataUrl = await readImageDataUrl(file);
   return {
     path: getFilePath(file),
     fileName: file.name,
     mimeType: file.type || "application/octet-stream",
     size: file.size,
-    excerpt: withExcerpt ? await readFileExcerpt(file, 1500) : ""
+    excerpt: withExcerpt ? await readFileExcerpt(file, 1500) : "",
+    imageDataUrl
   };
 }
 
@@ -247,6 +354,17 @@ async function submitAttachmentAnalysisJob(iterationId: number, payload: Attachm
   }, 45000);
 }
 
+async function ensureLlmReadyForAnalysis() {
+  const status = await fetchJSON<LlmPreflightStatus>(`${API_BASE}/api/status`, undefined, 15000);
+  const llm = status?.runtime?.llm;
+  if (!llm?.configured) {
+    throw new Error(`llm_preflight_not_configured:${llm?.error || "missing_configuration"}`);
+  }
+  if (!llm?.reachable) {
+    throw new Error(`llm_preflight_unreachable:${llm?.error || "probe_failed"}`);
+  }
+}
+
 async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
   return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}/api/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}`, undefined, 45000);
 }
@@ -254,13 +372,14 @@ async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
 async function waitForAttachmentAnalysisJob(
   iterationId: number,
   jobId: string,
-  options?: { timeoutMs?: number; pollIntervalMs?: number }
+  options?: { timeoutMs?: number; pollIntervalMs?: number; onJobUpdate?: (job: AttachmentAnalysisJob) => void }
 ) {
   const timeoutMs = options?.timeoutMs ?? 15 * 60 * 1000;
   const pollIntervalMs = options?.pollIntervalMs ?? 2000;
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const job = await fetchAttachmentAnalysisJob(iterationId, jobId);
+    options?.onJobUpdate?.(job);
     if (job.status === "succeeded") {
       if (!job.result) {
         throw new Error("analysis job completed without result");
@@ -278,21 +397,38 @@ async function waitForAttachmentAnalysisJob(
 export async function analyzeIterationAttachment(
   iterationId: number,
   file: File,
-  options?: { agentScope?: AttachmentUploadInput["agentScope"]; forceMultiAgent?: boolean; autoTransition?: boolean }
+  options?: {
+    agentScope?: AttachmentUploadInput["agentScope"];
+    forceMultiAgent?: boolean;
+    autoTransition?: boolean;
+    onJobUpdate?: (job: AttachmentAnalysisJob) => void;
+  }
 ) {
+  await ensureLlmReadyForAnalysis();
+  const imageDataUrl = await readImageDataUrl(file);
   const payload: AttachmentUploadInput = {
     fileName: file.name,
     mimeType: file.type || "application/octet-stream",
     size: file.size,
     sourceType: "single-file",
     excerpt: await readFileExcerpt(file),
+    visionPayloads: imageDataUrl
+      ? [
+          {
+            path: file.name,
+            mimeType: file.type || "image/*",
+            dataUrl: imageDataUrl
+          }
+        ]
+      : [],
     agentScope: options?.agentScope ?? "full-cycle",
     forceMultiAgent: options?.forceMultiAgent ?? false,
     autoTransition: options?.autoTransition ?? false
   };
   try {
     const createdJob = await submitAttachmentAnalysisJob(iterationId, payload);
-    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId);
+    options?.onJobUpdate?.(createdJob);
+    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
   } catch (error) {
     if (isApiNotFound(error)) {
       return fetchJSON<AttachmentAnalysisReport>(`${API_BASE}/api/iterations/${iterationId}/analysis`, {
@@ -308,8 +444,15 @@ export async function analyzeIterationAttachment(
 export async function analyzeIterationAttachmentFolder(
   iterationId: number,
   files: File[],
-  options?: { folderName?: string; agentScope?: AttachmentUploadInput["agentScope"]; forceMultiAgent?: boolean; autoTransition?: boolean }
+  options?: {
+    folderName?: string;
+    agentScope?: AttachmentUploadInput["agentScope"];
+    forceMultiAgent?: boolean;
+    autoTransition?: boolean;
+    onJobUpdate?: (job: AttachmentAnalysisJob) => void;
+  }
 ) {
+  await ensureLlmReadyForAnalysis();
   const normalized = files.filter((item) => item.size >= 0).slice(0, 1000);
   const excerptCandidates = normalized.filter((item) => {
     const fileType = (item.type || "").toLowerCase();
@@ -344,6 +487,14 @@ export async function analyzeIterationAttachmentFolder(
     sourceType: "folder",
     folderName,
     files: entries,
+    visionPayloads: entries
+      .filter((item) => typeof item.imageDataUrl === "string" && item.imageDataUrl.startsWith("data:image/"))
+      .slice(0, 2)
+      .map((item) => ({
+        path: item.path,
+        mimeType: item.mimeType,
+        dataUrl: item.imageDataUrl || ""
+      })),
     excerpt: preview.slice(0, 6000),
     excerptDigest: digest,
     excerptStrategy: "folder-batch",
@@ -353,7 +504,8 @@ export async function analyzeIterationAttachmentFolder(
   };
   try {
     const createdJob = await submitAttachmentAnalysisJob(iterationId, payload);
-    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId);
+    options?.onJobUpdate?.(createdJob);
+    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
   } catch (error) {
     if (isApiNotFound(error)) {
       return fetchJSON<AttachmentAnalysisReport>(`${API_BASE}/api/iterations/${iterationId}/analysis`, {
@@ -434,6 +586,21 @@ export async function updateClarificationDraft(iterationId: number, resolvedQues
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resolvedQuestions })
   });
+}
+
+export async function generateIterationTestArtifacts(iterationId: number, payload?: { dryRun?: boolean }) {
+  return fetchJSON<IterationTestArtifactsGenerationResponse>(
+    `${API_BASE}/api/iterations/${iterationId}/change-control/test-artifacts/generate`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dryRun: payload?.dryRun !== false })
+    }
+  );
+}
+
+export async function fetchIterationReleaseReview(iterationId: number) {
+  return fetchJSON<IterationReleaseReviewResponse>(`${API_BASE}/api/iterations/${iterationId}/release-review`);
 }
 
 export async function fetchModelOps(_projectId?: number) {

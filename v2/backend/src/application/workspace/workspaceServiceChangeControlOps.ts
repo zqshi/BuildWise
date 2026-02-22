@@ -115,6 +115,16 @@ export function confirmIterationAnalysisOp(
         : current?.boundary.codePaths || [],
       note: boundary?.note?.trim() || current?.boundary.note || "",
       updatedAt: now
+    },
+    executableConstraints: {
+      componentWhitelist: Array.isArray(boundary?.componentRefs)
+        ? boundary.componentRefs.map((item) => item.trim()).filter(Boolean)
+        : current?.executableConstraints?.componentWhitelist || [],
+      codePathWhitelist: Array.isArray(boundary?.codePaths)
+        ? boundary.codePaths.map((item) => item.trim()).filter(Boolean)
+        : current?.executableConstraints?.codePathWhitelist || [],
+      acceptanceChecks: current?.qualityArtifacts?.acceptanceChecklist || [],
+      generatedAt: now
     }
   };
   repo.updateIteration(normalized);
@@ -144,6 +154,16 @@ export function updateIterationBoundaryOp(repo: WorkspaceRepository, iterationId
         : current?.boundary.codePaths || [],
       note: input.note?.trim() || current?.boundary.note || "",
       updatedAt: now
+    },
+    executableConstraints: {
+      componentWhitelist: Array.isArray(input.componentRefs)
+        ? input.componentRefs.map((item) => item.trim()).filter(Boolean)
+        : current?.executableConstraints?.componentWhitelist || [],
+      codePathWhitelist: Array.isArray(input.codePaths)
+        ? input.codePaths.map((item) => item.trim()).filter(Boolean)
+        : current?.executableConstraints?.codePathWhitelist || [],
+      acceptanceChecks: current?.qualityArtifacts?.acceptanceChecklist || [],
+      generatedAt: now
     }
   };
   repo.updateIteration(normalized);

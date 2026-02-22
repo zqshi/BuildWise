@@ -129,7 +129,7 @@ export function useAppController() {
   }, [state.currentProjectId]);
 
   useEffect(() => {
-    if (!state.currentIterationId) {
+    if (!state.currentIterationId || !derived.currentIteration) {
       state.setChatMessages([]);
       state.setUploadedFile(null);
       state.setContextData(null);
@@ -139,8 +139,10 @@ export function useAppController() {
       state.setAnalysisReport(null);
       state.setShowAnalysisPanel(false);
       state.setIsAnalyzingAttachment(false);
+      state.setUploadAnalysisProgress(null);
       return;
     }
+    state.setUploadAnalysisProgress(null);
     state.setUploadedFile(null);
     try {
       const rawUpload = localStorage.getItem(uploadedAttachmentCacheKey(state.currentIterationId));
@@ -164,10 +166,21 @@ export function useAppController() {
     } catch {
       // ignore broken cache and continue with backend data
     }
-    loaders.loadIterationDetail(state.currentIterationId).catch((err) => {
-      state.setError(err instanceof Error ? err.message : "Unknown error");
+    loaders.loadIterationDetail(state.currentIterationId).catch(async (err) => {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      if (/^API error: 404\b/.test(message)) {
+        if (state.currentProjectId) {
+          try {
+            await loaders.loadIterations(state.currentProjectId);
+          } catch {
+            // keep existing behavior: only surface the original fetch error if recovery fails
+          }
+        }
+        return;
+      }
+      state.setError(message);
     });
-  }, [state.currentIterationId]);
+  }, [state.currentIterationId, state.currentProjectId, derived.currentIteration]);
 
   useEffect(() => {
     if (!state.currentIterationId || !state.analysisReport) {
@@ -257,6 +270,7 @@ export function useAppController() {
     setAnalysisReport: state.setAnalysisReport,
     setShowAnalysisPanel: state.setShowAnalysisPanel,
     setIsAnalyzingAttachment: state.setIsAnalyzingAttachment,
+    setUploadAnalysisProgress: state.setUploadAnalysisProgress,
     loadIterationDetail: loaders.loadIterationDetail,
     loadIterations: loaders.loadIterations,
     loadGovernance: loaders.loadGovernance

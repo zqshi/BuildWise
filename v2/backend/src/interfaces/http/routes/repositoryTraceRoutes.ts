@@ -35,19 +35,79 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       name?: string;
       url?: string;
       defaultBranch?: string;
+      repoMode?: "external_git" | "managed_local" | "hybrid";
+      requireRemoteForProduction?: boolean;
+      requireRemoteForStaging?: boolean;
     } | null;
     const repo = service.bootstrapProjectRepository(projectId, {
       provider: body?.provider,
       organization: body?.organization,
       name: body?.name,
       url: body?.url,
-      defaultBranch: body?.defaultBranch
+      defaultBranch: body?.defaultBranch,
+      repoMode: body?.repoMode,
+      requireRemoteForProduction: body?.requireRemoteForProduction,
+      requireRemoteForStaging: body?.requireRemoteForStaging
     });
     if (!repo) {
       reply.code(404);
       return { message: "project not found" };
     }
     return repo;
+  });
+
+  app.get("/api/projects/:id/repository/status", async (request, reply) => {
+    const params = request.params as { id: string };
+    const projectId = parsePositiveInt(params.id);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    const status = service.getProjectRepositoryStatus(projectId);
+    if (!status) {
+      reply.code(404);
+      return { message: "project not found" };
+    }
+    return status;
+  });
+
+  app.get("/api/projects/:id/repository/migration-plan", async (request, reply) => {
+    const params = request.params as { id: string };
+    const projectId = parsePositiveInt(params.id);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    const plan = service.getProjectRepositoryMigrationPlan(projectId);
+    if (!plan) {
+      reply.code(404);
+      return { message: "project not found" };
+    }
+    return plan;
+  });
+
+  app.post("/api/projects/:id/repository/mode", async (request, reply) => {
+    const params = request.params as { id: string };
+    const projectId = parsePositiveInt(params.id);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    const body = request.body as {
+      repoMode?: "external_git" | "managed_local" | "hybrid";
+      requireRemoteForProduction?: boolean;
+      requireRemoteForStaging?: boolean;
+    } | null;
+    const configured = service.configureProjectRepositoryMode(projectId, {
+      repoMode: body?.repoMode,
+      requireRemoteForProduction: body?.requireRemoteForProduction,
+      requireRemoteForStaging: body?.requireRemoteForStaging
+    });
+    if (!configured) {
+      reply.code(404);
+      return { message: "project not found" };
+    }
+    return configured;
   });
 
   app.post("/api/projects/:id/repository/provision", async (request, reply) => {
@@ -161,6 +221,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       if (result.reason === "boundary_violation") {
         reply.code(409);
         return { message: result.message || "boundary violation", blockers: result.blockers || [] };
+      }
+      if (result.reason === "remote_required_for_publish") {
+        reply.code(409);
+        return { message: result.message || "remote repository is required for publish" };
       }
       reply.code(502);
       return { message: result.message || "iteration publish failed" };

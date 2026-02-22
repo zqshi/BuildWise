@@ -95,6 +95,7 @@ export default function App() {
             analysisReport={controller.analysisReport}
             showAnalysisPanel={controller.showAnalysisPanel}
             isAnalyzingAttachment={controller.isAnalyzingAttachment}
+            uploadAnalysisProgress={controller.uploadAnalysisProgress}
             onShowCreateProject={() => controller.setShowCreateProject(true)}
             onShowCreateIteration={() => controller.setShowCreateIteration(true)}
             onDeleteProject={controller.handleDeleteProject}
@@ -112,6 +113,8 @@ export default function App() {
             onConfirmIterationAnalysis={controller.handleConfirmIterationAnalysis}
             onUpdateIterationBoundary={controller.handleUpdateIterationBoundary}
             onUpdateTestMatrixExecution={controller.handleUpdateTestMatrixExecution}
+            onGenerateTestArtifacts={controller.handleGenerateTestArtifacts}
+            onRefreshReleaseReview={controller.handleRefreshReleaseReview}
             onTransitionState={controller.handleTransitionState}
             onCreateDeployment={controller.handleCreateDeployment}
             onTransitionDeployment={controller.handleTransitionDeployment}

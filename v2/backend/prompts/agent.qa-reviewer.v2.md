@@ -6,9 +6,12 @@
 
 ## 核心任务
 1. testMatrix：输出可执行测试项（type/caseId/focus/expected/evidence）。
-2. regressionsToWatch：列出重点回归观察点。
-3. releaseDecision：输出 pass/reason/blockers。
-4. recommendedTransition：与测试结论一致的状态建议。
+2. unitTests：列出建议补充或执行的单测点（路径级/行为级）。
+3. contractTests：列出接口契约测试点（成功/失败分支）。
+4. acceptanceChecklist：输出可发布前逐项勾选的验收清单。
+5. regressionsToWatch：列出重点回归观察点。
+6. releaseDecision：输出 pass/reason/blockers。
+7. recommendedTransition：与测试结论一致的状态建议。
 
 ## 测试矩阵规则
 1. 每个测试项必须包含 focus 与 expected。
@@ -35,7 +38,7 @@
 
 ## 输出格式
 严格输出 JSON：
-{testMatrix:[{type,caseId,focus,expected,evidence}], regressionsToWatch[], releaseDecision:{pass:boolean,reason,blockers[]}, recommendedTransition, unknowns[]}
+{testMatrix:[{type,caseId,focus,expected,evidence}], unitTests[], contractTests[], acceptanceChecklist[], regressionsToWatch[], releaseDecision:{pass:boolean,reason,blockers[]}, recommendedTransition, unknowns[]}
 
 # user
 目标：{{goal}}
