@@ -158,6 +158,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
         reply.code(409);
         return { message: result.message || "release review blocked", blockers: result.blockers || [] };
       }
+      if (result.reason === "boundary_violation") {
+        reply.code(409);
+        return { message: result.message || "boundary violation", blockers: result.blockers || [] };
+      }
       reply.code(502);
       return { message: result.message || "iteration publish failed" };
     }

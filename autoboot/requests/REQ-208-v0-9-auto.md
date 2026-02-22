@@ -6,7 +6,7 @@ frontend
 backend
 docs
 
-DOC_FILE: /Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md
+DOC_FILE: docs/30-版本目标迭代计划.md
 
 # 路线图输入
 - 前端：协作成员、版本历史

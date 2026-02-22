@@ -35,6 +35,14 @@
   z-index:1200
 }
 .analysis-drawer-mask.open { opacity:1; pointer-events:auto; background:rgba(5,22,45,.22) }
+.interaction-drawer-mask.open {
+  background:transparent;
+  pointer-events:none;
+}
+.chat-panel.interaction-companion-open {
+  margin-right:var(--interaction-drawer-offset,0px);
+  transition:margin-right var(--duration-fast) var(--ease-standard);
+}
 .analysis-drawer {
   position:fixed;
   top:0;

@@ -6,7 +6,7 @@ frontend
 backend
 docs
 
-DOC_FILE: /Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md
+DOC_FILE: docs/30-版本目标迭代计划.md
 
 PAGE: 统一模型工作台 | /model-workbench
 API: GET /api/model/entities

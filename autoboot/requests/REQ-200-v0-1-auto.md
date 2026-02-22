@@ -6,7 +6,7 @@ frontend
 backend
 docs
 
-DOC_FILE: /Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md
+DOC_FILE: docs/30-版本目标迭代计划.md
 
 # 路线图输入
 - 前端：模型编辑器基础布局、实体字段列表

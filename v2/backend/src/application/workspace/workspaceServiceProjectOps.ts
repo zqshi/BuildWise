@@ -5,6 +5,7 @@ import { provisionGitHubRepository } from "./repositoryProvisioning";
 import { publishIterationBranch } from "./repositoryPublishing";
 import { scaffoldRepository } from "./repositoryScaffolding";
 import { buildDefaultIterationCodeLink, writeAuditLog } from "./workspaceServiceCommon";
+import { assertBoundaryWhitelist, listWorkingTreeChangedPaths } from "./boundaryGuard";
 
 export function createProjectOp(repo: WorkspaceRepository, input: { name: string; description: string }) {
   const created = normalizeProject(repo.createProject(input));
@@ -251,7 +252,22 @@ export async function publishIterationToRemoteOp(
   const prTitle = input.prTitle?.trim() || `Iteration #${normalizedIteration.id}: ${normalizedIteration.name}`;
   const prBody = input.prBody?.trim() || `Auto-generated PR for iteration ${normalizedIteration.id}.`;
   const openPr = input.openPr !== false;
+  const boundaryCodePaths = normalizedIteration.changeControl?.boundary?.codePaths ?? [];
   try {
+    const changedPaths = listWorkingTreeChangedPaths(projectRepo.workspace.repoPath);
+    const boundaryCheck = assertBoundaryWhitelist({
+      repoPath: projectRepo.workspace.repoPath,
+      whitelist: boundaryCodePaths,
+      changedPaths
+    });
+    if (!boundaryCheck.ok) {
+      return {
+        ok: false as const,
+        reason: "boundary_violation",
+        message: "changed files exceed boundary whitelist",
+        blockers: boundaryCheck.violations
+      };
+    }
     const published = await publishIterationBranch({
       repoPath: projectRepo.workspace.repoPath,
       branch: codeLink.branch,

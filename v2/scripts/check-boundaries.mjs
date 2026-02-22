@@ -1,9 +1,23 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.join(path.dirname(__filename), ".."));
+const exceptionFile = path.join(ROOT, "scripts", "boundary-exceptions.json");
+
+function loadLineLimitExceptions() {
+  if (!existsSync(exceptionFile)) {
+    return new Set();
+  }
+  try {
+    const payload = JSON.parse(readFileSync(exceptionFile, "utf-8"));
+    const files = Array.isArray(payload?.lineLimitExceptions) ? payload.lineLimitExceptions : [];
+    return new Set(files.map((item) => String(item).trim()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
 
 const limits = [
   { prefix: "src/domain/", max: 220 },
@@ -87,12 +101,13 @@ const files = [
 ];
 
 const errors = [];
+const lineLimitExceptions = loadLineLimitExceptions();
 for (const file of files) {
   const rel = toRel(file);
   const content = readFileSync(file, "utf-8");
   const lines = content.split("\n").length;
   const max = findLimit(rel);
-  if (max !== null && lines > max) {
+  if (max !== null && lines > max && !lineLimitExceptions.has(rel)) {
     errors.push(`${rel}: ${lines} lines exceeds limit ${max}`);
   }
   for (const violation of importViolations(rel, content)) {

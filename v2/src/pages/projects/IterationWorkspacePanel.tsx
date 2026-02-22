@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import type {
   AttachmentAnalysisReport,
   Iteration,
@@ -830,7 +830,7 @@ export function IterationWorkspacePanel({
           .split("{{apiBase}}")
           .join("http://127.0.0.1:5055")
           .split("{{backendDir}}")
-          .join("/Users/zqs/Downloads/project/BuildWise/v2/backend");
+          .join("backend");
       return Array.from(
         new Set(
           matched
@@ -850,10 +850,10 @@ export function IterationWorkspacePanel({
     }
     if (lowered.includes("发布") || lowered.includes("deploy")) {
       commands.push("curl -sS http://127.0.0.1:5055/api/ops/deployments");
-      commands.push(`cd /Users/zqs/Downloads/project/BuildWise/v2/backend && PROJECT_ID=${projectId} npm run ops:rollback`);
+      commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
     }
     if (lowered.includes("回滚") || lowered.includes("rollback")) {
-      commands.push(`cd /Users/zqs/Downloads/project/BuildWise/v2/backend && PROJECT_ID=${projectId} npm run ops:rollback`);
+      commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
     }
     if (commands.length === 0) {
       commands.push("curl -sS http://127.0.0.1:5055/api/ops/runtime");
@@ -1342,7 +1342,10 @@ export function IterationWorkspacePanel({
 
   return (
     <>
-      <article className="panel chat-panel">
+      <article
+        className={`panel chat-panel ${showInteractionPanel ? "interaction-companion-open" : ""}`}
+        style={{ "--interaction-drawer-offset": `min(${interactionDrawerWidth}px, 100vw)` } as CSSProperties}
+      >
         <div className="panel-head">
           <div className="panel-title-wrap">
             <button type="button" className="icon-btn" onClick={onSwitchToProjectPanel} aria-label="返回项目管理">
@@ -2090,7 +2093,7 @@ export function IterationWorkspacePanel({
       </aside>
 
       <div
-        className={`analysis-drawer-mask ${showInteractionPanel ? "open" : ""}`}
+        className={`analysis-drawer-mask interaction-drawer-mask ${showInteractionPanel ? "open" : ""}`}
         onClick={() => setShowInteractionPanel(false)}
         aria-hidden={!showInteractionPanel}
       />

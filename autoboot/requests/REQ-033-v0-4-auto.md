@@ -11,7 +11,7 @@ frontend
 backend
 docs
 
-DOC_FILE: /Users/zqs/Downloads/project/BuildWise/docs/30-版本目标迭代计划.md
+DOC_FILE: docs/30-版本目标迭代计划.md
 
 # 路线图输入
 - 前端：差异列表、影响范围、同步报告

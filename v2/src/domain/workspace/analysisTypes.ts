@@ -277,3 +277,29 @@ export type IterationVisualEditResponse = {
     target: string;
   };
 };
+
+export type IterationCodeRewriteResponse = {
+  iterationId: number;
+  dryRun: boolean;
+  summary: string;
+  warnings: string[];
+  appliedFiles: string[];
+  skippedFiles: string[];
+  outOfBoundaryFiles: string[];
+  edits: Array<{
+    path: string;
+    reason: string;
+    beforePreview: string;
+    afterPreview: string;
+  }>;
+};
+
+export type OpsAlertTriageResponse = {
+  generatedAt: string;
+  projectId: number;
+  severity: "low" | "medium" | "high" | "critical";
+  hypotheses: Array<{ priority: "P0" | "P1" | "P2"; item: string; evidence: string }>;
+  triageSteps: Array<{ step: string; expectedSignal: string; fallback: string; commands: string[] }>;
+  rollbackSuggestion: string;
+  matchedTemplates: string[];
+};

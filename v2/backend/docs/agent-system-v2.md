@@ -28,7 +28,7 @@
 ## 3. 提示词维护规范
 
 ### 3.1 文件路径
-目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/prompts`
+目录：`v2/backend/prompts`
 
 版本命名：
 - `agent.<role>.v1.md`：旧版

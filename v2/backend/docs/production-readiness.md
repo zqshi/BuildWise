@@ -49,7 +49,7 @@
 ## 推荐执行命令
 
 ```bash
-cd /Users/zqs/Downloads/project/BuildWise/v2/backend
+cd v2/backend
 npm run verify:prod-readiness
 npm run verify:prod-readiness:sqlite
 npm run ops:preflight

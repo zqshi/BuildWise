@@ -6,7 +6,7 @@ frontend
 backend
 docs
 
-DOC_FILE: /Users/zqs/Downloads/project/BuildWise/docs/32-平台生态目标迭代计划.md
+DOC_FILE: docs/32-平台生态目标迭代计划.md
 
 # 路线图输入
 - 前端：审计筛选与合规规则面板。

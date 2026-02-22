@@ -6,7 +6,7 @@ frontend
 backend
 docs
 
-DOC_FILE: /Users/zqs/Downloads/project/BuildWise/docs/32-平台生态目标迭代计划.md
+DOC_FILE: docs/32-平台生态目标迭代计划.md
 
 # 路线图输入
 - 前端：开放 API 配置页、令牌管理。

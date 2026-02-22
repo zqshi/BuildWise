@@ -473,6 +473,52 @@ function extractReleaseReview(agentOutputs: IterationAgentOutput[]) {
   };
 }
 
+function tokenizeRequirement(value: string) {
+  const normalized = value.toLowerCase();
+  const tokens = normalized
+    .split(/[^a-zA-Z0-9\u4e00-\u9fa5]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+    .slice(0, 8);
+  return Array.from(new Set(tokens));
+}
+
+function scorePathAgainstRequirement(requirement: string, path: string) {
+  const lowerPath = path.toLowerCase();
+  const tokens = tokenizeRequirement(requirement);
+  if (tokens.length === 0) {
+    return 0;
+  }
+  return tokens.reduce((total, token) => (lowerPath.includes(token) ? total + 1 : total), 0);
+}
+
+function inferMappedPages(codePaths: string[]) {
+  return codePaths
+    .filter((item) => /(page|view|screen|ui|component)/i.test(item))
+    .slice(0, 6);
+}
+
+function inferMappedApis(codePaths: string[]) {
+  return codePaths
+    .filter((item) => /(route|controller|api|interfaces\/http)/i.test(item))
+    .slice(0, 6);
+}
+
+function inferMappedEntities(codePaths: string[], excerpt: string) {
+  const entitiesFromPath = codePaths
+    .filter((item) => /(entity|model|domain)/i.test(item))
+    .map((item) => item.split("/").pop() || item)
+    .map((item) => item.replace(/\.[a-z0-9]+$/i, ""))
+    .filter(Boolean)
+    .slice(0, 6);
+  const excerptEntities = excerpt
+    .split(/[，。；、\n:：/ ]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2 && item.length <= 24 && /(用户|订单|商品|账户|项目|任务|权限|配置|支付|库存)/.test(item))
+    .slice(0, 6);
+  return Array.from(new Set([...entitiesFromPath, ...excerptEntities])).slice(0, 8);
+}
+
 function buildTraceabilityMap(params: {
   requirements: string[];
   components: string[];
@@ -486,7 +532,12 @@ function buildTraceabilityMap(params: {
     requirements.length > 0
       ? requirements.map((requirement) => ({
           requirement,
-          components: components.slice(0, 4),
+          components:
+            components
+              .map((component) => ({ component, score: scorePathAgainstRequirement(requirement, component) }))
+              .sort((a, b) => b.score - a.score)
+              .map((item) => item.component)
+              .slice(0, 4),
           evidence: "来源：需求范围与边界组件集合"
         }))
       : [];
@@ -502,7 +553,12 @@ function buildTraceabilityMap(params: {
     requirements.length > 0
       ? requirements.map((requirement) => ({
           requirement,
-          codePaths: codePaths.slice(0, 4),
+          codePaths:
+            codePaths
+              .map((path) => ({ path, score: scorePathAgainstRequirement(requirement, path) }))
+              .sort((a, b) => b.score - a.score)
+              .map((item) => item.path)
+              .slice(0, 4),
           evidence: "来源：需求边界与代码路径白名单"
         }))
       : [];
@@ -557,9 +613,9 @@ function buildDomainKnowledge(params: {
     term,
     definition: `与${params.projectCategory || "业务"}相关的需求术语，需在实现与验收中保持一致语义。`,
     mappedTo: {
-      pages: [],
-      apis: [],
-      entities: [],
+      pages: inferMappedPages(params.codePaths),
+      apis: inferMappedApis(params.codePaths),
+      entities: inferMappedEntities(params.codePaths, params.excerpt),
       codePaths: params.codePaths.slice(0, 3)
     },
     evidence: "来源：需求条目 / 附件摘要"
