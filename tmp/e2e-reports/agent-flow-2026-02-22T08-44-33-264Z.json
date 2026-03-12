@@ -1,9 +1,0 @@
-{
-  "startedAt": "2026-02-22T08:44:33.266Z",
-  "finishedAt": "2026-02-22T08:44:33.266Z",
-  "baseUrl": "http://127.0.0.1:5068",
-  "testPort": 5068,
-  "status": "failed",
-  "error": "mkdtempSync is not defined",
-  "steps": []
-}

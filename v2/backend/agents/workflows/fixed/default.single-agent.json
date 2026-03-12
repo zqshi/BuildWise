@@ -1,0 +1,11 @@
+{
+  "name": "single-agent-lightweight",
+  "strategy": "single-agent",
+  "executionLoop": [
+    "项目管理Agent收敛需求目标和边界",
+    "输出单阶段执行计划并请求人工确认",
+    "落地执行与验收检查",
+    "给出状态流转建议"
+  ],
+  "contextHint": "当前采用轻量单Agent模式，项目管理Agent兼任编排与决策建议。"
+}

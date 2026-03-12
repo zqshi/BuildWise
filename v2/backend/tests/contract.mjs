@@ -5,8 +5,10 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 const TEST_PORT = Number(process.env.CONTRACT_TEST_PORT || 5066);
-const BASE = `http://127.0.0.1:${TEST_PORT}`;
-const llmConfigured = Boolean(process.env.LLM_API_BASE && process.env.LLM_API_BASE.trim());
+const BASE = (process.env.CONTRACT_BASE_URL || `http://127.0.0.1:${TEST_PORT}`).replace(/\/+$/, "");
+const llmConfigured = process.env.CONTRACT_ENABLE_LLM === "1" && Boolean(process.env.LLM_API_BASE && process.env.LLM_API_BASE.trim());
+const REQUEST_TIMEOUT_MS = Number(process.env.CONTRACT_REQUEST_TIMEOUT_MS || 180000);
+const REQUEST_RETRY_TIMES = Math.max(0, Number(process.env.CONTRACT_REQUEST_RETRY_TIMES || 2));
 
 function assert(condition, message) {
   if (!condition) {
@@ -14,14 +16,52 @@ function assert(condition, message) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isRetryableFetchError(error) {
+  const code = error?.cause?.code || error?.code || "";
+  if (code === "ECONNRESET" || code === "EPIPE" || code === "UND_ERR_SOCKET") {
+    return true;
+  }
+  if (error?.name === "AbortError") {
+    return true;
+  }
+  const message = (error instanceof Error ? error.message : String(error || "")).toLowerCase();
+  return message.includes("fetch failed") || message.includes("socket") || message.includes("network") || message.includes("aborted");
+}
+
+async function fetchWithRetry(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= REQUEST_RETRY_TIMES; attempt += 1) {
+    try {
+      return await fetchWithTimeout(url, options, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= REQUEST_RETRY_TIMES || !isRetryableFetchError(error)) {
+        throw error;
+      }
+      await delay(150 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 async function getJson(path) {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetchWithRetry(`${BASE}${path}`);
   assert(res.ok, `Request failed: ${path} -> ${res.status}`);
   return res.json();
 }
 
 async function request(path, options) {
-  const res = await fetch(`${BASE}${path}`, options);
+  const res = await fetchWithRetry(`${BASE}${path}`, options);
   const contentType = res.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await res.json() : await res.text();
   return { res, payload };
@@ -31,7 +71,7 @@ async function waitForHealth(timeoutMs = 8000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(`${BASE}/health`);
+      const res = await fetchWithTimeout(`${BASE}/health`, {}, 1000);
       if (res.ok) return;
     } catch {}
     await delay(200);
@@ -40,28 +80,47 @@ async function waitForHealth(timeoutMs = 8000) {
 }
 
 const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-contract-"));
-const workspaceRoot = path.resolve(process.cwd(), "..", "..");
-const modelFixture = path.join(fixtureDir, "model.json");
-const dataFixture = path.join(fixtureDir, "data.json");
-cpSync(path.join(workspaceRoot, "v2", "model.json"), modelFixture);
-cpSync(path.join(workspaceRoot, "v2", "backend", "data.json"), dataFixture);
+const useExternalServer = Boolean(process.env.CONTRACT_BASE_URL && process.env.CONTRACT_BASE_URL.trim());
+let server = null;
+if (!useExternalServer) {
+  const workspaceRoot = path.resolve(process.cwd(), "..", "..");
+  const modelFixture = path.join(fixtureDir, "model.json");
+  const dataFixture = path.join(fixtureDir, "data.json");
+  cpSync(path.join(workspaceRoot, "v2", "model.json"), modelFixture);
+  cpSync(path.join(workspaceRoot, "v2", "backend", "data.json"), dataFixture);
 
-const server = spawn("node", ["dist/index.js"], {
-  cwd: process.cwd(),
-  env: {
+  const serverEnv = {
     ...process.env,
     PORT: String(TEST_PORT),
     HOST: "127.0.0.1",
     MODEL_FILE: modelFixture,
-    WORKSPACE_DATA_FILE: dataFixture
-  },
-  stdio: ["ignore", "pipe", "pipe"]
-});
+    WORKSPACE_DATA_FILE: dataFixture,
+    BUILDWISE_PREFER_PROCESS_ENV: "1"
+  };
+
+  if (!llmConfigured) {
+    serverEnv.LLM_API_BASE = "";
+    serverEnv.LLM_API_KEY = "";
+    serverEnv.LLM_MODEL = "";
+  }
+
+  server = spawn("node", ["dist/index.js"], {
+    cwd: process.cwd(),
+    env: serverEnv,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+}
 
 let stderr = "";
-server.stderr.on("data", (chunk) => {
-  stderr += chunk.toString();
-});
+let stdout = "";
+if (server) {
+  server.stdout.on("data", (chunk) => {
+    stdout += chunk.toString();
+  });
+  server.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+}
 
 try {
   await waitForHealth();
@@ -113,6 +172,138 @@ try {
   const roles = await getJson("/api/governance/roles");
   assert(Array.isArray(roles) && roles.length >= 1, "governance roles must exist");
   assert(typeof roles[0].id === "string", "governance role id must exist");
+  const permissionPoints = await getJson("/api/governance/permission-points");
+  assert(Array.isArray(permissionPoints) && permissionPoints.length >= 1, "governance permission points must exist");
+  assert(permissionPoints.some((item) => item.key === "template:run"), "permission points should include template:run");
+  assert(permissionPoints.some((item) => item.key === "deploy:write"), "permission points should include deploy:write");
+
+  const contractPhone = `19${String(Date.now()).slice(-9)}`;
+  const smsRequestBeforeBinding = await request("/api/auth/sms/request", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: contractPhone })
+  });
+  assert(smsRequestBeforeBinding.res.status === 200, "sms request should return 200");
+  assert(typeof smsRequestBeforeBinding.payload?.debugCode === "string", "sms request should return debug code");
+
+  const smsVerifyBeforeBinding = await request("/api/auth/sms/verify", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: contractPhone, code: smsRequestBeforeBinding.payload.debugCode })
+  });
+  assert(smsVerifyBeforeBinding.res.status === 403, "unbound phone should not pass sms verify");
+
+  const addPhoneBinding = await request("/api/governance/platform-role-bindings", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "owner" },
+    body: JSON.stringify({ userId: contractPhone, role: "member" })
+  });
+  assert(addPhoneBinding.res.status === 200, "add platform binding should return 200");
+  assert(addPhoneBinding.payload?.userId === contractPhone, "binding user id should match phone");
+
+  const smsRequestAfterBinding = await request("/api/auth/sms/request", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: contractPhone })
+  });
+  assert(smsRequestAfterBinding.res.status === 200, "sms request after binding should return 200");
+  assert(typeof smsRequestAfterBinding.payload?.debugCode === "string", "sms request after binding should return debug code");
+
+  const smsVerifyAfterBinding = await request("/api/auth/sms/verify", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ phone: contractPhone, code: smsRequestAfterBinding.payload.debugCode })
+  });
+  assert(smsVerifyAfterBinding.res.status === 200, "bound phone should pass sms verify");
+  assert(smsVerifyAfterBinding.payload?.user?.phone === contractPhone, "sms verify user phone should match");
+  assert(smsVerifyAfterBinding.payload?.user?.workspaceRole === "pm", "member platform role should map to pm workspace role");
+
+  const invalidCustomRole = await request("/api/governance/custom-roles", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "owner" },
+    body: JSON.stringify({
+      name: "ContractInvalidPermissionRole",
+      description: "invalid permission guard",
+      level: 1,
+      permissions: ["unknown:permission:key"]
+    })
+  });
+  assert(invalidCustomRole.res.status === 400, "custom role with unknown permissions should be rejected");
+
+  const customRolesLegacy = await request("/api/governance/custom_roles");
+  assert(customRolesLegacy.res.status === 200, "legacy GET /api/governance/custom_roles should return 200");
+  assert(Array.isArray(customRolesLegacy.payload), "legacy custom roles response should be array");
+
+  const invalidCustomRoleLegacy = await request("/api/governance/custom_roles", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "owner" },
+    body: JSON.stringify({
+      name: "ContractInvalidPermissionRoleLegacy",
+      description: "invalid permission guard legacy",
+      level: 1,
+      permissions: ["unknown:permission:key"]
+    })
+  });
+  assert(invalidCustomRoleLegacy.res.status === 400, "legacy custom role endpoint should validate permissions");
+
+  const openclawStatus = await getJson("/api/governance/openclaw/status");
+  assert(typeof openclawStatus.integrated === "boolean", "openclaw status should expose integrated flag");
+  assert(typeof openclawStatus.reason === "string", "openclaw status should expose reason");
+  assert(typeof openclawStatus.openclawEntryExists === "boolean", "openclaw status should expose entry existence");
+  assert(typeof openclawStatus.openclawHomeWritable === "boolean", "openclaw status should expose writable state");
+  assert(typeof openclawStatus.authConfigured === "boolean", "openclaw status should expose auth state");
+  assert(typeof openclawStatus.authProfilePath === "string", "openclaw status should expose auth profile path");
+
+  const globalPolicyDraft = await request("/api/governance/orchestration/policies", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-role": "owner", "x-user-id": "contract-owner" },
+    body: JSON.stringify({
+      strategy: {
+        requiredConfirmations: {
+          firstIterationGitReport: false
+        }
+      }
+    })
+  });
+  assert(globalPolicyDraft.res.status === 200, "create global orchestration policy draft should return 200");
+  assert(globalPolicyDraft.payload?.projectId === 0, "global orchestration policy should use projectId=0 scope");
+
+  const activateGlobalPolicy = await request(`/api/governance/orchestration/policies/${globalPolicyDraft.payload.version}/activate`, {
+    method: "POST",
+    headers: { "x-role": "owner", "x-user-id": "contract-owner" }
+  });
+  assert(activateGlobalPolicy.res.status === 200, "activate global orchestration policy should return 200");
+  assert(activateGlobalPolicy.payload?.status === "active", "activated global orchestration policy should be active");
+
+  const globalPolicies = await getJson("/api/governance/orchestration/policies");
+  assert(globalPolicies?.active?.projectId === 0, "global orchestration active policy should stay in global scope");
+  assert(Array.isArray(globalPolicies?.items), "global orchestration policies list should be array");
+  assert(
+    globalPolicies.items.some((item) => item.version === globalPolicyDraft.payload.version),
+    "global orchestration policies should include created version"
+  );
+
+  const restoreGlobalPolicy = await request("/api/governance/orchestration/policies/restore-initial", {
+    method: "POST",
+    headers: { "x-role": "owner", "x-user-id": "contract-owner" }
+  });
+  assert(restoreGlobalPolicy.res.status === 200, "restore global orchestration policy should return 200");
+  assert(restoreGlobalPolicy.payload?.status === "active", "restored global orchestration policy should be active");
+  assert(
+    restoreGlobalPolicy.payload?.strategy?.requiredConfirmations?.firstIterationGitReport === true,
+    "restored global orchestration policy should recover initial confirmation gate"
+  );
+
+  const policyExecute = await request("/api/iterations/1/policy-execute", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "contract-global-policy-check", message: "执行全局策略检查" })
+  });
+  assert(policyExecute.res.status === 200, "policy execute should return 200 under global orchestration policy");
+  assert(
+    policyExecute.payload?.policyVersion === restoreGlobalPolicy.payload.version,
+    "policy execute should use active global orchestration policy version"
+  );
 
   const templates = await getJson("/api/templates");
   assert(Array.isArray(templates) && templates.length >= 1, "templates must exist");
@@ -360,10 +551,13 @@ try {
   }
 
   const deployList = await getJson("/api/ops/deployments?projectId=1");
-  assert(Array.isArray(deployList) && deployList.length >= 1, "deployment list must include created deployment");
+  assert(Array.isArray(deployList), "deployment list must be array");
   if (createDeploy.res.status === 200) {
+    assert(deployList.length >= 1, "deployment list must include created deployment");
     assert(deployList.some((item) => item.status === "success"), "deployment list should include success status");
     assert(deployList.some((item) => item.iterationId === 1), "deployment list should keep iteration mapping");
+  } else {
+    assert(deployList.every((item) => item.projectId === 1), "deployment list should stay project-scoped when deployment is blocked");
   }
 
   const opsMetrics = await getJson("/api/ops/metrics");
@@ -523,15 +717,89 @@ try {
   assert(Array.isArray(projectTrace.items), "project trace should be array");
   assert(projectTrace.items.some((item) => item.modelRef === "iteration:1"), "project trace should include iteration mapping");
 
+  const scopedAcceptanceCriteria = [
+    "仪表盘 KPI 指标可见且口径一致",
+    "核心查询接口 P95 小于 300ms"
+  ];
   const createdIteration = await request("/api/projects/1/iterations", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "Iteration Auto Link", description: "auto code link should exist" })
+    body: JSON.stringify({
+      name: "Iteration Auto Link",
+      description: "auto code link should exist",
+      goals: ["仪表盘改造", "查询性能优化"],
+      scope: {
+        inScope: ["dashboard", "query-api"],
+        outOfScope: ["payment"],
+        acceptanceCriteria: scopedAcceptanceCriteria
+      }
+    })
   });
   assert(createdIteration.res.status === 200, "create iteration should return 200");
   const createdIterationId = createdIteration.payload.id;
+  assert(
+    Array.isArray(createdIteration.payload?.scope?.acceptanceCriteria) &&
+      createdIteration.payload.scope.acceptanceCriteria.includes(scopedAcceptanceCriteria[0]),
+    "create iteration should persist scope.acceptanceCriteria"
+  );
   const autoCodeLink = await getJson(`/api/iterations/${createdIterationId}/code-link`);
   assert(typeof autoCodeLink.branch === "string" && autoCodeLink.branch.length > 0, "new iteration should auto link code branch");
+  const createdIterationContext = await getJson(`/api/iterations/${createdIterationId}/context`);
+  assert(
+    Array.isArray(createdIterationContext?.scope?.acceptanceCriteria) &&
+      createdIterationContext.scope.acceptanceCriteria.includes(scopedAcceptanceCriteria[1]),
+    "iteration context should expose persisted acceptance criteria"
+  );
+
+  const acceptanceConfirmed = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      accurate: true,
+      actor: "contract-bot",
+      note: "seed acceptance checks from scope acceptanceCriteria",
+      boundary: {
+        requirementRefs: ["REQ-acceptance-propagation"],
+        componentRefs: ["dashboard/kpi-card"],
+        codePaths: ["apps/web/src/pages/dashboard.tsx"],
+        note: "contract acceptance boundary"
+      }
+    })
+  });
+  assert(acceptanceConfirmed.res.status === 200, "initial confirmation should return 200");
+  assert(
+    Array.isArray(acceptanceConfirmed.payload?.executableConstraints?.acceptanceChecks) &&
+      acceptanceConfirmed.payload.executableConstraints.acceptanceChecks.includes(scopedAcceptanceCriteria[0]),
+    "analysis confirmation should keep scope acceptance criteria in executable constraints"
+  );
+
+  const acceptanceBoundaryUpdate = await request(`/api/iterations/${createdIterationId}/change-control/boundary`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      requirementRefs: ["REQ-acceptance-propagation", "REQ-dashboard-kpi"],
+      componentRefs: ["dashboard/kpi-card", "dashboard/distribution-chart"],
+      codePaths: ["apps/web/src/pages/dashboard.tsx", "apps/api/src/dashboard.ts"],
+      note: "expand boundary and keep acceptance checks"
+    })
+  });
+  assert(acceptanceBoundaryUpdate.res.status === 200, "acceptance boundary update should return 200");
+  assert(
+    Array.isArray(acceptanceBoundaryUpdate.payload?.executableConstraints?.acceptanceChecks) &&
+      acceptanceBoundaryUpdate.payload.executableConstraints.acceptanceChecks.includes(scopedAcceptanceCriteria[1]),
+    "boundary update should not drop scope acceptance criteria from executable constraints"
+  );
+  const releaseReviewWithAcceptanceGap = await request(`/api/iterations/${createdIterationId}/release-review`);
+  assert(releaseReviewWithAcceptanceGap.res.status === 200, "release review with acceptance gap should return 200");
+  assert(
+    releaseReviewWithAcceptanceGap.payload?.decision === "block",
+    "release review should be blocked when acceptance criteria are not fully covered"
+  );
+  assert(
+    Array.isArray(releaseReviewWithAcceptanceGap.payload?.blockers) &&
+      releaseReviewWithAcceptanceGap.payload.blockers.some((item) => item.includes("验收标准未完全覆盖")),
+    "release review blockers should include acceptance coverage gap"
+  );
 
   const analysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
     method: "POST",
@@ -759,6 +1027,58 @@ try {
     });
       assert(updatedBoundary.res.status === 200, "boundary update should return 200");
       assert(updatedBoundary.payload?.boundary?.codePaths?.length >= 2, "boundary code paths should update");
+      const messagesBeforeArtifactCommit = await getJson(`/api/iterations/${createdIterationId}/messages`);
+      const analysisDraftSave = await request(`/api/iterations/${createdIterationId}/change-control/artifacts/analysis-report/draft`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          actor: "pm",
+          content: "更新分析报告：补充管理员确认对话路径。"
+        })
+      });
+      assert(analysisDraftSave.res.status === 200, "artifact draft save should return 200");
+      const analysisCommit = await request(`/api/iterations/${createdIterationId}/change-control/artifacts/analysis-report/commit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          actor: "pm",
+          summary: "分析报告已更新并提交",
+          source: "contract-test",
+          evidence: ["contract-evidence-1"]
+        })
+      });
+      assert(analysisCommit.res.status === 200, "artifact commit should return 200");
+      const messagesAfterArtifactCommit = await getJson(`/api/iterations/${createdIterationId}/messages`);
+      assert(
+        messagesAfterArtifactCommit.length > messagesBeforeArtifactCommit.length,
+        "artifact commit should append a deliverable reference message"
+      );
+      const lastArtifactRefMessage = [...messagesAfterArtifactCommit]
+        .reverse()
+        .find((item) => typeof item?.content === "string" && item.content.includes("【交付物引用】附件分析报告"));
+      assert(Boolean(lastArtifactRefMessage), "artifact commit should write deliverable reference card");
+      assert(
+        typeof lastArtifactRefMessage?.content === "string" && lastArtifactRefMessage.content.includes("类型：document"),
+        "deliverable reference card should include artifact type"
+      );
+      const blockedArtifactConfirm = await request(
+        `/api/iterations/${createdIterationId}/change-control/artifacts/test-matrix/confirm`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            actor: "qa",
+            passed: false,
+            note: "发现关键测试未执行，需管理员裁决。"
+          })
+        }
+      );
+      assert(blockedArtifactConfirm.res.status === 200, "artifact blocked confirm should return 200");
+      const messagesAfterBlockedConfirm = await getJson(`/api/iterations/${createdIterationId}/messages`);
+      const adminConfirmRequest = [...messagesAfterBlockedConfirm]
+        .reverse()
+        .find((item) => typeof item?.content === "string" && item.content.includes("【管理员确认请求】"));
+      assert(Boolean(adminConfirmRequest), "blocked artifact confirm should create admin confirmation notification");
       if (Array.isArray(updatedBoundary.payload?.generatedTestMatrix) && updatedBoundary.payload.generatedTestMatrix.length > 0) {
         const firstCase = updatedBoundary.payload.generatedTestMatrix[0];
         const executionUpdate = await request(`/api/iterations/${createdIterationId}/change-control/test-matrix/execution`, {
@@ -796,6 +1116,57 @@ try {
       assert(Array.isArray(testArtifacts.payload?.generatedFiles), "test artifacts generatedFiles should exist");
       assert(testArtifacts.payload?.generatedFiles?.length >= 1, "test artifacts should include at least one file");
 
+      const fullCycle = await request(`/api/iterations/${createdIterationId}/full-cycle`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          runAnalysis: false,
+          autoConfirmAnalysis: false,
+          rewriteInstruction: "仅在边界内完成最小增量改写",
+          rewriteDryRun: true,
+          generateTestArtifacts: false,
+          refreshReleaseReview: true,
+          generateDeliveryPackage: true,
+          deliveryPackageDryRun: true,
+          publish: { enabled: false, dryRun: true }
+        })
+      });
+      assert(fullCycle.res.status === 200, "full-cycle route should return 200");
+      assert(
+        fullCycle.payload?.status === "completed" ||
+          fullCycle.payload?.status === "partial" ||
+          fullCycle.payload?.status === "blocked" ||
+          fullCycle.payload?.status === "failed",
+        "full-cycle status should be valid"
+      );
+      assert(typeof fullCycle.payload?.steps?.frontendRewrite?.status === "string", "full-cycle frontend rewrite step should exist");
+      assert(typeof fullCycle.payload?.steps?.backendRewrite?.status === "string", "full-cycle backend rewrite step should exist");
+      assert(typeof fullCycle.payload?.steps?.rewrite?.status === "string", "full-cycle rewrite step should exist");
+      assert(typeof fullCycle.payload?.steps?.releaseReview?.status === "string", "full-cycle release-review step should exist");
+      assert(typeof fullCycle.payload?.steps?.deliveryPackage?.status === "string", "full-cycle delivery-package step should exist");
+      assert(
+        typeof fullCycle.payload?.rewriteResult?.summary === "string" &&
+          fullCycle.payload.rewriteResult.summary.includes("frontend:") &&
+          fullCycle.payload.rewriteResult.summary.includes("backend:"),
+        "full-cycle rewrite summary should include frontend/backend lanes"
+      );
+      assert(
+        Array.isArray(fullCycle.payload?.deliveryPackageResult?.reviewReportFiles),
+        "full-cycle should return delivery review report files"
+      );
+      assert(
+        Array.isArray(fullCycle.payload?.deliveryPackageResult?.packageFiles),
+        "full-cycle should return delivery package files"
+      );
+      assert(
+        (fullCycle.payload?.deliveryPackageResult?.reviewReportFiles?.length ?? 0) >= 1,
+        "delivery review report files should include at least one item"
+      );
+      assert(
+        (fullCycle.payload?.deliveryPackageResult?.packageFiles?.length ?? 0) >= 1,
+        "delivery package files should include at least one item"
+      );
+
       const publishAfterConfirm = await request(`/api/iterations/${createdIterationId}/publish`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -832,17 +1203,18 @@ try {
   const invalidTransition = await request("/api/iterations/1/state/transition", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ toStatus: "planned" })
+    body: JSON.stringify({ toStatus: "planned", reason: "manual transition for contract test" })
   });
   assert(invalidTransition.res.status === 409, "invalid transition should return 409");
 
   const validTransition = await request("/api/iterations/1/state/transition", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ toStatus: "review", note: "contract test transition" })
+    body: JSON.stringify({ toStatus: "review", reason: "contract test transition reason" })
   });
   assert(validTransition.res.status === 200, "valid transition should return 200");
   assert(validTransition.payload?.toStatus === "review", "transition target status mismatch");
+  assert(validTransition.payload?.source === "manual", "transition source should be manual");
 
   const auditAfterTransition = await getJson("/api/governance/audit-logs?limit=80");
   assert(Array.isArray(auditAfterTransition), "audit logs should be array");
@@ -850,11 +1222,16 @@ try {
   console.log("Contract test passed.");
 } catch (error) {
   console.error("Contract test failed:", error);
+  if (stdout.trim()) {
+    console.error(stdout);
+  }
   if (stderr.trim()) {
     console.error(stderr);
   }
   process.exitCode = 1;
 } finally {
-  server.kill("SIGTERM");
+  if (server) {
+    server.kill("SIGTERM");
+  }
   rmSync(fixtureDir, { recursive: true, force: true });
 }

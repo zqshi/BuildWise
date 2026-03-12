@@ -73,18 +73,28 @@ function pathMatches(frontendPath, backendPath) {
 const frontendSources = listFrontendSourceFiles(path.join(workspaceRoot, "v2", "src"))
   .map((file) => readFileSync(file, "utf-8"))
   .join("\n");
-const workspaceRoutes = read("v2/backend/src/interfaces/http/routes/workspaceRoutes.ts");
-const systemRoutes = read("v2/backend/src/interfaces/http/routes/systemRoutes.ts");
-const platformRoutes = read("v2/backend/src/interfaces/http/routes/platformRoutes.ts");
-const autobootRoutes = read("v2/backend/src/interfaces/http/routes/autobootRoutes.ts");
+function listRouteFiles(dir) {
+  const results = [];
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    const info = statSync(full);
+    if (info.isDirectory()) {
+      results.push(...listRouteFiles(full));
+      continue;
+    }
+    if (/Routes\.ts$/.test(entry)) {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
 const model = JSON.parse(read("v2/model.json"));
 
 const frontendApis = extractFrontendApis(frontendSources);
+const routeFiles = listRouteFiles(path.join(workspaceRoot, "v2", "backend", "src", "interfaces", "http", "routes"));
 const backendRoutes = [
-  ...extractRoutePaths(workspaceRoutes),
-  ...extractRoutePaths(systemRoutes),
-  ...extractRoutePaths(platformRoutes),
-  ...extractRoutePaths(autobootRoutes),
+  ...routeFiles.flatMap((file) => extractRoutePaths(readFileSync(file, "utf-8"))),
   ...((Array.isArray(model.apis) ? model.apis : []).map((item) => item.path).filter(Boolean))
 ];
 

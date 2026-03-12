@@ -5,6 +5,7 @@ import type {
   SyncReport,
   TraceReport
 } from "../../domain/modeling/types";
+import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "../workspace/agentRunner";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import {
   calculateCoverageScores,
@@ -20,7 +21,8 @@ import {
 export class ModelingService {
   constructor(
     private readonly modelRepo: ModelingRepository,
-    private readonly workspaceRepo: WorkspaceRepository
+    private readonly workspaceRepo: WorkspaceRepository,
+    private readonly agentRunner: AgentRunner | null = null
   ) {}
 
   private writeAudit(action: string, resource: string, detail: string) {
@@ -266,6 +268,80 @@ export class ModelingService {
       }));
   }
 
+  async generateProjectBusinessSummary(input: { projectId: number; iterationId?: number }) {
+    if (!this.agentRunner) {
+      throw new LlmUnavailableError("LLM runner is unavailable for project model summary");
+    }
+    const workspace = this.workspaceRepo.read();
+    const project = workspace.projects.find((item) => item.id === input.projectId);
+    if (!project) {
+      return null;
+    }
+    const projectIterations = workspace.iterations.filter((item) => item.projectId === input.projectId);
+    const targetIteration =
+      typeof input.iterationId === "number" && input.iterationId > 0
+        ? projectIterations.find((item) => item.id === input.iterationId) || null
+        : null;
+    const model = this.modelRepo.read();
+    const relations = this.modelRepo.listRelations(input.projectId);
+    const relationStats = new Map<string, number>();
+    for (const relation of relations) {
+      relationStats.set(relation.type, (relationStats.get(relation.type) || 0) + 1);
+    }
+    const relationProfile =
+      Array.from(relationStats.entries())
+        .map(([type, count]) => `${type}:${count}`)
+        .join(", ") || "none";
+    const prompt = {
+      agentId: "project-model-summary",
+      role: "iteration-coach" as const,
+      scope: "iteration" as const,
+      goal: "生成项目业务建模摘要",
+      expectedOutput: "JSON: {summary,focus[],risks[]}",
+      systemPrompt:
+        "你是资深业务建模顾问。请基于输入的项目/迭代/建模数据，输出简洁、可执行、业务语义清晰的中文摘要。不要编造数据。",
+      userPrompt: [
+        `项目名称: ${project.name}`,
+        `项目描述: ${project.description || "无"}`,
+        `项目迭代总数: ${projectIterations.length}`,
+        targetIteration
+          ? `当前迭代: ${targetIteration.name} (version=${targetIteration.version || "未生成"}, status=${targetIteration.status}, progress=${targetIteration.progress}%)`
+          : "当前迭代: 未指定",
+        `模型实体数: ${model.entities.length}`,
+        `模型规则数: ${model.rules.length}`,
+        `模型页面数: ${model.pages.length}`,
+        `项目关系数: ${relations.length}`,
+        `关系类型分布: ${relationProfile}`,
+        "输出要求:",
+        "1) summary 为 80-180 字，强调当前建模沉淀、主要业务结构和下一步关注点。",
+        "2) focus 输出 2-4 条。",
+        "3) risks 输出 1-3 条。"
+      ].join("\n")
+    };
+    let result;
+    try {
+      result = await this.agentRunner.run(prompt);
+    } catch (error) {
+      throw new LlmInvocationError(error instanceof Error ? error.message : "project_model_summary_llm_failed");
+    }
+    const parsed = safeParseJson(result.content);
+    const summary = pickString(parsed?.summary) || pickString(result.content) || "";
+    const focus = pickStringArray(parsed?.focus).slice(0, 4);
+    const risks = pickStringArray(parsed?.risks).slice(0, 3);
+    return {
+      generatedAt: nowIso(),
+      source: "llm" as const,
+      model: result.model || "",
+      projectId: input.projectId,
+      iterationId: targetIteration?.id ?? null,
+      summary:
+        summary ||
+        `项目 ${project.name} 当前沉淀实体 ${model.entities.length} 个、规则 ${model.rules.length} 条、关系 ${relations.length} 条。建议围绕关键业务链路补全规则闭环。`,
+      focus,
+      risks
+    };
+  }
+
   describeRoadmap(path: string) {
     const parsed = parseRoadmapPath(path);
     if (!parsed) {
@@ -306,4 +382,23 @@ export class ModelingService {
           : "模型契约不完整，请先补齐 API 与 Iteration.status 字段定义。"
     };
   }
+}
+
+function safeParseJson(raw: string) {
+  try {
+    return JSON.parse(raw) as { summary?: unknown; focus?: unknown; risks?: unknown };
+  } catch {
+    return null;
+  }
+}
+
+function pickString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function pickStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => pickString(item)).filter(Boolean);
 }

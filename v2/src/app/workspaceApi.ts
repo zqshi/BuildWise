@@ -1,13 +1,7 @@
 import type {
-  AttachmentUploadInput,
-  AttachmentAnalysisJob,
-  AttachmentAnalysisReport,
-  IterationCodeRewriteResponse,
   IterationReleaseReviewResponse,
   IterationTestArtifactsGenerationResponse,
   OpsAlertTriageResponse,
-  IterationVisualEditResponse,
-  IterationCoachChatResponse,
   AssessmentPayload,
   AssessmentSnapshot,
   ChatRole,
@@ -17,6 +11,7 @@ import type {
   IterationMessage,
   ModelSummaryPayload,
   ModelRelationPayload,
+  ProjectModelBusinessSummaryPayload,
   RoadmapPayload,
   Project,
   RuleBindPayload,
@@ -25,7 +20,8 @@ import type {
   TracePayload
 } from "../domain/workspace/types";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";
-import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
+import type { IterationArtifactStage, IterationArtifactWorkflow } from "../domain/workspace/iterationTypes";
+import type { AuditLog, GovernancePermissionPoint, GovernanceRole } from "../domain/workspace/governanceTypes";
 import type {
   DeploymentRecord,
   OpsMetricsPayload,
@@ -39,39 +35,9 @@ import type {
 } from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
+import { API_BASE, isApiNotFound } from "./workspaceApiCore";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
-const missingOptionalEndpoints = new Set<string>();
-
-type LlmPreflightStatus = {
-  status?: string;
-  runtime?: {
-    llm?: {
-      configured?: boolean;
-      reachable?: boolean;
-      error?: string;
-    };
-  };
-};
-
-function isApiNotFound(error: unknown) {
-  return error instanceof Error && /^API error: 404\b/.test(error.message);
-}
-
-async function fetchOptionalJSON<T>(path: string, fallback: T, cacheKey = path): Promise<T> {
-  if (missingOptionalEndpoints.has(cacheKey)) {
-    return fallback;
-  }
-  try {
-    return await fetchJSON<T>(`${API_BASE}${path}`);
-  } catch (error) {
-    if (isApiNotFound(error)) {
-      missingOptionalEndpoints.add(cacheKey);
-      return fallback;
-    }
-    throw error;
-  }
-}
+export * from "./workspaceApiAgentOps";
 
 export async function fetchProjects() {
   const projectDataRaw = await fetchJSON<unknown>(`${API_BASE}/api/projects`);
@@ -168,6 +134,14 @@ export async function deleteProject(projectId: number) {
   });
 }
 
+export async function fetchProjectModelBusinessSummary(projectId: number, iterationId?: number) {
+  const endpoint =
+    typeof iterationId === "number" && iterationId > 0
+      ? `${API_BASE}/api/projects/${projectId}/model/business-summary?iterationId=${iterationId}`
+      : `${API_BASE}/api/projects/${projectId}/model/business-summary`;
+  return fetchJSON<ProjectModelBusinessSummaryPayload>(endpoint);
+}
+
 export async function fetchProjectIterations(projectId: number) {
   const dataRaw = await fetchJSON<unknown>(`${API_BASE}/api/projects/${projectId}/iterations`);
   return ensureArray<Iteration>(dataRaw);
@@ -207,11 +181,7 @@ export async function fetchIterationDetail(iterationId: number) {
 }
 
 export async function fetchIterationStateMachine(iterationId: number) {
-  return fetchOptionalJSON<IterationStateMachinePayload | null>(
-    `/api/iterations/${iterationId}/state-machine`,
-    null,
-    "/api/iterations/:id/state-machine"
-  );
+  return fetchJSON<IterationStateMachinePayload>(`${API_BASE}/api/iterations/${iterationId}/state-machine`);
 }
 
 export async function transitionIterationState(iterationId: number, payload: { toStatus: string; note?: string }) {
@@ -255,267 +225,6 @@ export async function updateIterationInteractionState(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-}
-
-export async function coachIterationMessage(iterationId: number, message: string) {
-  return fetchJSON<IterationCoachChatResponse>(`${API_BASE}/api/iterations/${iterationId}/agent-chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message })
-  });
-}
-
-export async function executeIterationVisualEdit(
-  iterationId: number,
-  payload: {
-    message: string;
-    target?: {
-      mode?: "html" | "image" | "prototype";
-      target?: string;
-      summary?: string;
-      html?: {
-        selector?: string;
-        tag?: string;
-        text?: string;
-        styles?: Record<string, string>;
-      };
-    };
-  }
-) {
-  return fetchJSON<IterationVisualEditResponse>(`${API_BASE}/api/iterations/${iterationId}/visual-edit/execute`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function rewriteIterationCode(
-  iterationId: number,
-  payload: { instruction: string; dryRun?: boolean; maxFiles?: number }
-) {
-  return fetchJSON<IterationCodeRewriteResponse>(`${API_BASE}/api/iterations/${iterationId}/code-rewrite`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  }, 120000);
-}
-
-async function readFileExcerpt(file: File, maxLength = 4000) {
-  const textLike = file.type.startsWith("text/") || /json|xml|javascript/.test(file.type);
-  if (!textLike) {
-    return "";
-  }
-  try {
-    const content = await file.text();
-    return content.slice(0, maxLength);
-  } catch {
-    return "";
-  }
-}
-
-async function readImageDataUrl(file: File, maxBytes = 220_000) {
-  const type = (file.type || "").toLowerCase();
-  if (!type.startsWith("image/")) {
-    return "";
-  }
-  if (file.size <= 0 || file.size > maxBytes) {
-    return "";
-  }
-  return new Promise<string>((resolve) => {
-    const reader = new FileReader();
-    reader.onerror = () => resolve("");
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result.slice(0, 300000) : "");
-    reader.readAsDataURL(file);
-  });
-}
-
-function getFilePath(file: File) {
-  const maybePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-  return maybePath || file.name;
-}
-
-async function toAttachmentFileEntry(file: File, withExcerpt = true) {
-  const imageDataUrl = await readImageDataUrl(file);
-  return {
-    path: getFilePath(file),
-    fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
-    size: file.size,
-    excerpt: withExcerpt ? await readFileExcerpt(file, 1500) : "",
-    imageDataUrl
-  };
-}
-
-async function submitAttachmentAnalysisJob(iterationId: number, payload: AttachmentUploadInput) {
-  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}/api/iterations/${iterationId}/analysis/jobs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  }, 45000);
-}
-
-async function ensureLlmReadyForAnalysis() {
-  const status = await fetchJSON<LlmPreflightStatus>(`${API_BASE}/api/status`, undefined, 15000);
-  const llm = status?.runtime?.llm;
-  if (!llm?.configured) {
-    throw new Error(`llm_preflight_not_configured:${llm?.error || "missing_configuration"}`);
-  }
-  if (!llm?.reachable) {
-    throw new Error(`llm_preflight_unreachable:${llm?.error || "probe_failed"}`);
-  }
-}
-
-async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
-  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}/api/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}`, undefined, 45000);
-}
-
-async function waitForAttachmentAnalysisJob(
-  iterationId: number,
-  jobId: string,
-  options?: { timeoutMs?: number; pollIntervalMs?: number; onJobUpdate?: (job: AttachmentAnalysisJob) => void }
-) {
-  const timeoutMs = options?.timeoutMs ?? 15 * 60 * 1000;
-  const pollIntervalMs = options?.pollIntervalMs ?? 2000;
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const job = await fetchAttachmentAnalysisJob(iterationId, jobId);
-    options?.onJobUpdate?.(job);
-    if (job.status === "succeeded") {
-      if (!job.result) {
-        throw new Error("analysis job completed without result");
-      }
-      return job.result;
-    }
-    if (job.status === "failed") {
-      throw new Error(job.error || "analysis job failed");
-    }
-    await new Promise<void>((resolve) => setTimeout(resolve, pollIntervalMs));
-  }
-  throw new Error(`analysis job timeout (${timeoutMs}ms)`);
-}
-
-export async function analyzeIterationAttachment(
-  iterationId: number,
-  file: File,
-  options?: {
-    agentScope?: AttachmentUploadInput["agentScope"];
-    forceMultiAgent?: boolean;
-    autoTransition?: boolean;
-    onJobUpdate?: (job: AttachmentAnalysisJob) => void;
-  }
-) {
-  await ensureLlmReadyForAnalysis();
-  const imageDataUrl = await readImageDataUrl(file);
-  const payload: AttachmentUploadInput = {
-    fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
-    size: file.size,
-    sourceType: "single-file",
-    excerpt: await readFileExcerpt(file),
-    visionPayloads: imageDataUrl
-      ? [
-          {
-            path: file.name,
-            mimeType: file.type || "image/*",
-            dataUrl: imageDataUrl
-          }
-        ]
-      : [],
-    agentScope: options?.agentScope ?? "full-cycle",
-    forceMultiAgent: options?.forceMultiAgent ?? false,
-    autoTransition: options?.autoTransition ?? false
-  };
-  try {
-    const createdJob = await submitAttachmentAnalysisJob(iterationId, payload);
-    options?.onJobUpdate?.(createdJob);
-    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
-  } catch (error) {
-    if (isApiNotFound(error)) {
-      return fetchJSON<AttachmentAnalysisReport>(`${API_BASE}/api/iterations/${iterationId}/analysis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }, 120000);
-    }
-    throw error;
-  }
-}
-
-export async function analyzeIterationAttachmentFolder(
-  iterationId: number,
-  files: File[],
-  options?: {
-    folderName?: string;
-    agentScope?: AttachmentUploadInput["agentScope"];
-    forceMultiAgent?: boolean;
-    autoTransition?: boolean;
-    onJobUpdate?: (job: AttachmentAnalysisJob) => void;
-  }
-) {
-  await ensureLlmReadyForAnalysis();
-  const normalized = files.filter((item) => item.size >= 0).slice(0, 1000);
-  const excerptCandidates = normalized.filter((item) => {
-    const fileType = (item.type || "").toLowerCase();
-    const name = (item.name || "").toLowerCase();
-    return (
-      fileType.startsWith("text/") ||
-      fileType.includes("json") ||
-      fileType.includes("xml") ||
-      fileType.includes("javascript") ||
-      name.endsWith(".md") ||
-      name.endsWith(".txt") ||
-      name.endsWith(".json") ||
-      name.endsWith(".ts") ||
-      name.endsWith(".tsx") ||
-      name.endsWith(".js") ||
-      name.endsWith(".jsx")
-    );
-  });
-  const excerptPathSet = new Set(excerptCandidates.slice(0, 160).map((item) => getFilePath(item)));
-  const entries = await Promise.all(normalized.map((item) => toAttachmentFileEntry(item, excerptPathSet.has(getFilePath(item)))));
-  const textEntries = entries.filter((item) => item.excerpt.trim().length > 0);
-  const folderName = options?.folderName?.trim() || "uploaded-folder";
-  const digest = `strategy=folder-batch;files=${entries.length};textFiles=${textEntries.length};binaryFiles=${entries.length - textEntries.length}`;
-  const preview = textEntries
-    .slice(0, 3)
-    .map((item) => `${item.path}: ${item.excerpt.slice(0, 200)}`)
-    .join("\n\n");
-  const payload: AttachmentUploadInput = {
-    fileName: folderName,
-    mimeType: "application/x-directory",
-    size: entries.reduce((total, item) => total + item.size, 0),
-    sourceType: "folder",
-    folderName,
-    files: entries,
-    visionPayloads: entries
-      .filter((item) => typeof item.imageDataUrl === "string" && item.imageDataUrl.startsWith("data:image/"))
-      .slice(0, 2)
-      .map((item) => ({
-        path: item.path,
-        mimeType: item.mimeType,
-        dataUrl: item.imageDataUrl || ""
-      })),
-    excerpt: preview.slice(0, 6000),
-    excerptDigest: digest,
-    excerptStrategy: "folder-batch",
-    agentScope: options?.agentScope ?? "full-cycle",
-    forceMultiAgent: options?.forceMultiAgent ?? true,
-    autoTransition: options?.autoTransition ?? false
-  };
-  try {
-    const createdJob = await submitAttachmentAnalysisJob(iterationId, payload);
-    options?.onJobUpdate?.(createdJob);
-    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
-  } catch (error) {
-    if (isApiNotFound(error)) {
-      return fetchJSON<AttachmentAnalysisReport>(`${API_BASE}/api/iterations/${iterationId}/analysis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }, 120000);
-    }
-    throw error;
-  }
 }
 
 export async function updateIterationTestMatrixExecution(
@@ -588,19 +297,85 @@ export async function updateClarificationDraft(iterationId: number, resolvedQues
   });
 }
 
-export async function generateIterationTestArtifacts(iterationId: number, payload?: { dryRun?: boolean }) {
+export async function generateIterationTestArtifacts(iterationId: number) {
   return fetchJSON<IterationTestArtifactsGenerationResponse>(
     `${API_BASE}/api/iterations/${iterationId}/change-control/test-artifacts/generate`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dryRun: payload?.dryRun !== false })
+      body: JSON.stringify({ dryRun: false })
     }
   );
 }
 
 export async function fetchIterationReleaseReview(iterationId: number) {
   return fetchJSON<IterationReleaseReviewResponse>(`${API_BASE}/api/iterations/${iterationId}/release-review`);
+}
+
+export async function fetchIterationArtifactWorkflow(iterationId: number) {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts`);
+}
+
+export async function saveIterationArtifactDraft(
+  iterationId: number,
+  artifactId: string,
+  payload: { content: string; media?: string[]; actor?: string }
+) {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function commitIterationArtifact(
+  iterationId: number,
+  artifactId: string,
+  payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }
+) {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/commit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function confirmIterationArtifact(
+  iterationId: number,
+  artifactId: string,
+  payload: { actor?: string; passed?: boolean; note?: string }
+) {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function appendIterationArtifactToChat(
+  iterationId: number,
+  artifactId: string,
+  payload?: { actor?: string; prompt?: string }
+) {
+  return fetchJSON<{ workflow: IterationArtifactWorkflow; message: IterationMessage }>(
+    `${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    }
+  );
+}
+
+export async function transitionIterationArtifactStage(
+  iterationId: number,
+  payload: { toStage: IterationArtifactStage; actor?: string; note?: string }
+) {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/stage/transition`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function fetchModelOps(_projectId?: number) {
@@ -617,17 +392,17 @@ export async function fetchModelOps(_projectId?: number) {
     opsMetrics,
     deploymentsRaw
   ] = await Promise.all([
-    fetchOptionalJSON<ModelSummaryPayload | null>("/api/model", null),
-    fetchOptionalJSON<unknown>("/api/model/relations", []),
-    fetchOptionalJSON<RuleCompilePayload | null>("/api/rules/compile", null),
-    fetchOptionalJSON<RuleBindPayload | null>("/api/rules/bind", null),
-    fetchOptionalJSON<SyncReportPayload | null>("/api/sync/report", null),
-    fetchOptionalJSON<TracePayload | null>("/api/trace", null),
-    fetchOptionalJSON<unknown>("/api/roadmaps", []),
-    fetchOptionalJSON<unknown>("/api/templates", []),
-    fetchOptionalJSON<unknown>("/api/templates/runs", []),
-    fetchOptionalJSON<OpsMetricsPayload | null>("/api/ops/metrics", null),
-    fetchOptionalJSON<unknown>("/api/ops/deployments", [])
+    fetchJSON<ModelSummaryPayload>(`${API_BASE}/api/model`),
+    fetchJSON<unknown>(`${API_BASE}/api/model/relations`),
+    fetchJSON<RuleCompilePayload>(`${API_BASE}/api/rules/compile`),
+    fetchJSON<RuleBindPayload>(`${API_BASE}/api/rules/bind`),
+    fetchJSON<SyncReportPayload>(`${API_BASE}/api/sync/report`),
+    fetchJSON<TracePayload>(`${API_BASE}/api/trace`),
+    fetchJSON<unknown>(`${API_BASE}/api/roadmaps`),
+    fetchJSON<unknown>(`${API_BASE}/api/templates`),
+    fetchJSON<unknown>(`${API_BASE}/api/templates/runs`),
+    fetchJSON<OpsMetricsPayload>(`${API_BASE}/api/ops/metrics`),
+    fetchJSON<unknown>(`${API_BASE}/api/ops/deployments`)
   ]);
   return {
     modelSummary,
@@ -646,8 +421,8 @@ export async function fetchModelOps(_projectId?: number) {
 
 export async function fetchGovernance() {
   const [rolesRaw, auditLogsRaw] = await Promise.all([
-    fetchOptionalJSON<unknown>("/api/governance/roles", []),
-    fetchOptionalJSON<unknown>("/api/governance/audit-logs?limit=30", [])
+    fetchJSON<unknown>(`${API_BASE}/api/governance/roles`),
+    fetchJSON<unknown>(`${API_BASE}/api/governance/audit-logs?limit=30`)
   ]);
   return {
     roles: ensureArray<GovernanceRole>(rolesRaw),
@@ -655,14 +430,23 @@ export async function fetchGovernance() {
   };
 }
 
+export async function fetchGovernancePermissionPoints() {
+  try {
+    const data = await fetchJSON<unknown>(`${API_BASE}/api/governance/permission-points`);
+    return ensureArray<GovernancePermissionPoint>(data);
+  } catch (error) {
+    if (isApiNotFound(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function fetchOpsTriageTemplates(projectId?: number) {
-  const path = typeof projectId === "number" && projectId > 0 ? `/api/ops/triage-templates?projectId=${projectId}` : "/api/ops/triage-templates";
-  const payload = await fetchOptionalJSON<OpsTriageTemplatePayload | null>(
-    path,
-    null,
-    "/api/ops/triage-templates"
-  );
-  return payload ?? { generatedAt: "", templates: [] };
+  const path = typeof projectId === "number" && projectId > 0
+    ? `${API_BASE}/api/ops/triage-templates?projectId=${projectId}`
+    : `${API_BASE}/api/ops/triage-templates`;
+  return fetchJSON<OpsTriageTemplatePayload>(path);
 }
 
 export async function analyzeOpsAlert(payload: {
@@ -702,8 +486,8 @@ export async function deleteOpsTriageTemplate(templateId: string, role = "owner"
 
 export async function fetchCollaboration(projectId: number) {
   const [snapshotsRaw, sharesRaw] = await Promise.all([
-    fetchOptionalJSON<unknown>(`/api/collab/snapshots?projectId=${projectId}`, []),
-    fetchOptionalJSON<unknown>(`/api/collab/shares?projectId=${projectId}`, [])
+    fetchJSON<unknown>(`${API_BASE}/api/collab/snapshots?projectId=${projectId}`),
+    fetchJSON<unknown>(`${API_BASE}/api/collab/shares?projectId=${projectId}`)
   ]);
   return {
     snapshots: ensureArray<VersionSnapshot>(snapshotsRaw),
@@ -813,4 +597,315 @@ export async function commentByShare(token: string, content: string) {
       body: JSON.stringify({ content })
     }
   );
+}
+
+export type ProjectPolicyPayload = {
+  id: number;
+  projectId: number;
+  version: number;
+  status: "draft" | "active" | "archived";
+  strategy: Record<string, unknown>;
+  createdBy: string;
+  approvedBy: string;
+  createdAt: string;
+  approvedAt: string;
+};
+
+export type GlobalOrchestrationPolicyPayload = ProjectPolicyPayload;
+
+export type ProjectWorkspaceBindingPayload = {
+  id: number;
+  projectId: number;
+  openclawProfile: string;
+  agentId: string;
+  workspacePath: string;
+  runtimeMode: "openclaw-native" | "bridge";
+  locked: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProjectRoleBindingPayload = {
+  id: number;
+  projectId: number;
+  userId: string;
+  role: "admin" | "member" | "viewer";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PolicyExecutionLogPayload = {
+  id: number;
+  projectId: number;
+  iterationId: number;
+  policyVersion: number;
+  stage: string;
+  action: string;
+  result: "success" | "blocked" | "error";
+  evidence: string[];
+  createdAt: string;
+};
+
+export async function fetchProjectPolicies(projectId: number) {
+  return fetchJSON<{ active: ProjectPolicyPayload | null; items: ProjectPolicyPayload[] }>(`${API_BASE}/api/projects/${projectId}/policies`);
+}
+
+export async function fetchGlobalOrchestrationPolicies() {
+  return fetchJSON<{ active: GlobalOrchestrationPolicyPayload | null; items: GlobalOrchestrationPolicyPayload[] }>(
+    `${API_BASE}/api/governance/orchestration/policies`
+  );
+}
+
+export async function createGlobalOrchestrationPolicyDraft(strategy?: Record<string, unknown>, role = "owner", userId = "admin-1") {
+  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}/api/governance/orchestration/policies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
+    body: JSON.stringify({ strategy: strategy || {} })
+  });
+}
+
+export async function activateGlobalOrchestrationPolicy(version: number, role = "owner", userId = "admin-1") {
+  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}/api/governance/orchestration/policies/${version}/activate`, {
+    method: "POST",
+    headers: { "x-role": role, "x-user-id": userId }
+  });
+}
+
+export async function restoreGlobalOrchestrationPolicyToInitialMode(role = "owner", userId = "admin-1") {
+  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}/api/governance/orchestration/policies/restore-initial`, {
+    method: "POST",
+    headers: { "x-role": role, "x-user-id": userId }
+  });
+}
+
+export async function createProjectPolicyDraft(projectId: number, strategy?: Record<string, unknown>, role = "owner", userId = "admin-1") {
+  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}/api/projects/${projectId}/policies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
+    body: JSON.stringify({ strategy: strategy || {} })
+  });
+}
+
+export async function activateProjectPolicy(projectId: number, version: number, role = "owner", userId = "admin-1") {
+  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}/api/projects/${projectId}/policies/${version}/activate`, {
+    method: "POST",
+    headers: { "x-role": role, "x-user-id": userId }
+  });
+}
+
+export async function restoreProjectPolicyToInitialMode(projectId: number, role = "owner", userId = "admin-1") {
+  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}/api/projects/${projectId}/policies/restore-initial`, {
+    method: "POST",
+    headers: { "x-role": role, "x-user-id": userId }
+  });
+}
+
+export async function bindProjectWorkspace(
+  projectId: number,
+  payload: {
+    openclawProfile: string;
+    agentId?: string;
+    workspacePath: string;
+    runtimeMode?: "openclaw-native" | "bridge";
+    locked?: boolean;
+  },
+  role = "owner",
+  userId = "admin-1"
+) {
+  return fetchJSON<ProjectWorkspaceBindingPayload>(`${API_BASE}/api/projects/${projectId}/workspace/bind`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function fetchProjectRoleBindings(projectId: number) {
+  const data = await fetchJSON<unknown>(`${API_BASE}/api/projects/${projectId}/roles`);
+  return ensureArray<ProjectRoleBindingPayload>(data);
+}
+
+export async function upsertProjectRoleBinding(
+  projectId: number,
+  payload: { userId: string; role: "admin" | "member" | "viewer" },
+  role = "owner"
+) {
+  return fetchJSON<ProjectRoleBindingPayload>(`${API_BASE}/api/projects/${projectId}/roles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function removeProjectRoleBinding(projectId: number, userId: string, role = "owner") {
+  return fetchJSON<{ ok: boolean; projectId: number; userId: string }>(`${API_BASE}/api/projects/${projectId}/roles/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: { "x-role": role }
+  });
+}
+
+export async function sendOpenclawProjectChat(projectId: number, message: string, role = "owner") {
+  return fetchJSON<{
+    mode: "openclaw-native";
+    profile: string;
+    agentId: string;
+    workspacePath: string;
+    reply: string;
+    at: string;
+  }>(`${API_BASE}/api/projects/${projectId}/openclaw/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role },
+    body: JSON.stringify({ message })
+  });
+}
+
+export type PlatformRoleBindingPayload = {
+  id: number;
+  userId: string;
+  role: "admin" | "member" | "viewer";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GovernanceCustomRolePayload = {
+  id: number;
+  roleKey: string;
+  name: string;
+  description: string;
+  level: number;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchPlatformRoleBindings() {
+  const data = await fetchJSON<unknown>(`${API_BASE}/api/governance/platform-role-bindings`);
+  return ensureArray<PlatformRoleBindingPayload>(data);
+}
+
+export async function upsertPlatformRoleBinding(payload: { userId: string; role: "admin" | "member" | "viewer" }, role = "owner") {
+  return fetchJSON<PlatformRoleBindingPayload>(`${API_BASE}/api/governance/platform-role-bindings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role },
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function removePlatformRoleBinding(userId: string, role = "owner") {
+  return fetchJSON<{ ok: boolean; userId: string }>(`${API_BASE}/api/governance/platform-role-bindings/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: { "x-role": role }
+  });
+}
+
+export async function fetchGovernanceCustomRoles() {
+  try {
+    const data = await fetchJSON<unknown>(`${API_BASE}/api/governance/custom-roles`);
+    return ensureArray<GovernanceCustomRolePayload>(data);
+  } catch (error) {
+    if (isApiNotFound(error)) {
+      const legacy = await fetchJSON<unknown>(`${API_BASE}/api/governance/custom_roles`);
+      return ensureArray<GovernanceCustomRolePayload>(legacy);
+    }
+    throw error;
+  }
+}
+
+export async function upsertGovernanceCustomRole(
+  payload: { roleKey?: string; name: string; description?: string; level?: number; permissions?: string[] },
+  role = "owner"
+) {
+  try {
+    return await fetchJSON<GovernanceCustomRolePayload>(`${API_BASE}/api/governance/custom-roles`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-role": role },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    if (isApiNotFound(error)) {
+      return fetchJSON<GovernanceCustomRolePayload>(`${API_BASE}/api/governance/custom_roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-role": role },
+        body: JSON.stringify(payload)
+      });
+    }
+    throw error;
+  }
+}
+
+export async function sendOpenclawGlobalChat(message: string, role = "owner") {
+  return fetchJSON<{
+    mode: "openclaw-native";
+    profile: string;
+    agentId: string;
+    workspacePath: string;
+    reply: string;
+    at: string;
+  }>(`${API_BASE}/api/governance/openclaw/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-role": role },
+    body: JSON.stringify({ message })
+  }, 130000);
+}
+
+export type OpenclawIntegrationStatusPayload = {
+  runtimeConfigFound: boolean;
+  openclawRoot: string;
+  openclawEntry: string;
+  openclawEntryExists: boolean;
+  profile: string;
+  agentId: string;
+  openclawHome: string;
+  openclawHomeWritable: boolean;
+  authProfilePath: string;
+  authConfigured: boolean;
+  modelStatusChecked: boolean;
+  modelAuthSource: string;
+  integrated: boolean;
+  reason: string;
+};
+
+export async function fetchOpenclawIntegrationStatus(role = "owner") {
+  return fetchJSON<OpenclawIntegrationStatusPayload>(`${API_BASE}/api/governance/openclaw/status`, {
+    headers: { "x-role": role }
+  });
+}
+
+export async function requestSmsLoginCode(phone: string) {
+  return fetchJSON<{ ok: boolean; expireAt: string; debugCode?: string }>(`${API_BASE}/api/auth/sms/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone })
+  });
+}
+
+export async function verifySmsLoginCode(phone: string, code: string) {
+  return fetchJSON<{
+    ok: boolean;
+    user: {
+      phone: string;
+      platformRole: "admin" | "member" | "viewer";
+      workspaceRole: "owner" | "pm" | "viewer";
+    };
+  }>(`${API_BASE}/api/auth/sms/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, code })
+  });
+}
+
+export async function executePolicyStep(iterationId: number, payload: { action?: string; message?: string }) {
+  return fetchJSON<{ ok: boolean; gate: { blocked: boolean; stage: string; reason: string; requiredActions: string[] }; policyVersion: number }>(
+    `${API_BASE}/api/iterations/${iterationId}/policy-execute`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export async function fetchIterationPolicyLogs(iterationId: number) {
+  const data = await fetchJSON<unknown>(`${API_BASE}/api/iterations/${iterationId}/policy-log`);
+  return ensureArray<PolicyExecutionLogPayload>(data);
 }

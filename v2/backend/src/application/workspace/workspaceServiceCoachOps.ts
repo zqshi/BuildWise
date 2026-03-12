@@ -1,9 +1,17 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Iteration, IterationCoachChatResponse } from "../../domain/workspace/types";
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
+import { loadAgentPromptTemplate } from "./agentAssetRegistry";
+import { dedupeActions, isMechanicalSimilarReply, parseRecentSuggestedActions } from "./workspaceCoachReplyGuard";
 import { normalizeIteration } from "./workspaceSupport";
+import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitIntakeOps";
+import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
+import { runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
+import {
+  appendPolicyExecutionLogOp,
+  evaluatePolicyGateForCoachOp,
+  getEffectiveOrchestrationPolicyForProjectOp
+} from "./workspaceServicePolicyOps";
 
 type CoachPromptTemplate = {
   systemPrompt: string;
@@ -23,41 +31,8 @@ const coachPromptFallback: CoachPromptTemplate = {
   ].join("\n\n")
 };
 
-function parsePromptTemplate(content: string): CoachPromptTemplate | null {
-  const lower = content.toLowerCase();
-  const systemStart = lower.indexOf("# system");
-  const userStart = lower.indexOf("# user");
-  if (systemStart < 0 || userStart < 0 || userStart <= systemStart) {
-    return null;
-  }
-  const systemPrompt = content.slice(systemStart + "# system".length, userStart).trim();
-  const userPrompt = content.slice(userStart + "# user".length).trim();
-  if (!systemPrompt || !userPrompt) {
-    return null;
-  }
-  return { systemPrompt, userPrompt };
-}
-
 function loadCoachPromptTemplate(): CoachPromptTemplate {
-  const candidates = [
-    resolve(process.cwd(), "prompts", "agent.iteration-coach.v2.md"),
-    resolve(process.cwd(), "prompts", "agent.iteration-coach.v1.md")
-  ];
-  for (const filePath of candidates) {
-    if (!existsSync(filePath)) {
-      continue;
-    }
-    try {
-      const raw = readFileSync(filePath, "utf-8");
-      const parsed = parsePromptTemplate(raw);
-      if (parsed) {
-        return parsed;
-      }
-    } catch {
-      // keep fallback
-    }
-  }
-  return coachPromptFallback;
+  return loadAgentPromptTemplate("iteration-coach", coachPromptFallback);
 }
 
 function renderTemplate(template: string, vars: Record<string, string>) {
@@ -99,81 +74,6 @@ function pickStringList(value: unknown, max = 8) {
     .slice(0, max);
 }
 
-function parseRecentSuggestedActions(messages: Array<{ role: string; content: string }>) {
-  const actions: string[] = [];
-  for (const msg of messages) {
-    if (msg.role !== "system") {
-      continue;
-    }
-    if (msg.content.startsWith("操作建议：")) {
-      const parsed = msg.content
-        .replace(/^操作建议：/, "")
-        .split("；")
-        .map((item) => item.trim())
-        .filter(Boolean);
-      actions.push(...parsed);
-      continue;
-    }
-    if (msg.content.startsWith("操作建议JSON:")) {
-      const raw = msg.content.replace(/^操作建议JSON:/, "").trim();
-      try {
-        const data = JSON.parse(raw) as { actions?: unknown };
-        if (Array.isArray(data.actions)) {
-          actions.push(
-            ...data.actions
-              .map((item) => (typeof item === "string" ? item.trim() : ""))
-              .filter(Boolean)
-          );
-        }
-      } catch {
-        // ignore parse error
-      }
-    }
-  }
-  return Array.from(new Set(actions));
-}
-
-function dedupeActions(current: string[], recent: string[]) {
-  const recentSet = new Set(recent.map((item) => item.trim()).filter(Boolean));
-  const result = current.filter((item) => !recentSet.has(item));
-  return result.length > 0 ? result : current;
-}
-
-function normalizeForCompare(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[，。！？；：,.!?;:]/g, "")
-    .trim();
-}
-
-function calcOverlapRatio(a: string, b: string) {
-  if (!a || !b) {
-    return 0;
-  }
-  const shorter = a.length <= b.length ? a : b;
-  const longer = a.length > b.length ? a : b;
-  let hit = 0;
-  for (const ch of shorter) {
-    if (longer.includes(ch)) {
-      hit += 1;
-    }
-  }
-  return hit / Math.max(1, shorter.length);
-}
-
-function isMechanicalSimilarReply(current: string, previous: string) {
-  const a = normalizeForCompare(current);
-  const b = normalizeForCompare(previous);
-  if (!a || !b) {
-    return false;
-  }
-  if (a === b) {
-    return true;
-  }
-  return calcOverlapRatio(a, b) >= 0.86;
-}
-
 function inferIntent(iteration: Iteration, message: string): IterationCoachChatResponse["intent"] {
   const text = message.toLowerCase();
   const pendingQuestions = iteration.changeControl?.clarificationQuestions ?? [];
@@ -191,6 +91,9 @@ function inferIntent(iteration: Iteration, message: string): IterationCoachChatR
   }
   if (/发布|上线|回滚|release|deploy/.test(text)) {
     return "release";
+  }
+  if (/闭环|全流程|端到端|一键跑完|full[\s-]?cycle/.test(text)) {
+    return "full-cycle";
   }
   if (/计划|拆解|任务|排期|实现/.test(text)) {
     return "plan";
@@ -248,13 +151,72 @@ export async function coachIterationConversationOp(
   const recentSuggestedActions = parseRecentSuggestedActions(recentMessages);
   const intent = inferIntent(normalized, message);
   const promptTemplate = loadCoachPromptTemplate();
+  const project = repo.findProject(normalized.projectId);
+  const repoSyncResponse = handleCoachPeriodicRepositorySync({
+    repo,
+    iteration: normalized
+  });
+  if (repoSyncResponse) {
+    return repoSyncResponse;
+  }
+  const gitIntakeResponse = handlePendingGitRequirementIntake({
+    repo,
+    iteration: normalized,
+    projectRepo: project?.repository ?? null,
+    userMessage: message
+  });
+  if (gitIntakeResponse) {
+    return gitIntakeResponse;
+  }
+  const activePolicy = getEffectiveOrchestrationPolicyForProjectOp(repo, normalized.projectId);
+  const gate = evaluatePolicyGateForCoachOp(repo, normalized, message, activePolicy);
+  if (gate.blocked) {
+    if (activePolicy) {
+      appendPolicyExecutionLogOp(repo, {
+        projectId: normalized.projectId,
+        iterationId: normalized.id,
+        policyVersion: activePolicy.version,
+        stage: gate.stage,
+        action: "coach_gate_check",
+        result: "blocked",
+        evidence: [gate.reason, `message=${message.slice(0, 180)}`]
+      });
+    }
+    return {
+      iterationId: normalized.id,
+      intent: "clarify",
+      reply: `当前策略阻断：${gate.reason}。请先完成前置确认后再继续。`,
+      execution: {
+        action: "none",
+        instruction: "",
+        apply: false
+      },
+      guidance: {
+        uploadRecommended: false,
+        suggestedUploadTypes: [],
+        suggestedActions: gate.requiredActions.length > 0 ? gate.requiredActions : ["请先补齐前置确认"],
+        clarificationChecklist: [gate.reason]
+      },
+      llm: {
+        used: false,
+        model: "policy-guard",
+        degraded: false,
+        reason: "policy_blocked"
+      }
+    };
+  }
+  const skillChain = runOpenclawSkillChainForCoach({
+    iteration: normalized,
+    previousIterationName: previous?.name || "",
+    userMessage: message
+  });
 
   if (!agentRunner) {
-    throw new LlmUnavailableError("Coach LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL).");
+    throw new LlmUnavailableError(skillChain.error || "openclaw_runtime_unavailable");
   }
 
   const expectedOutput =
-    "JSON: {intent, reply, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}";
+    "JSON: {intent, reply, execution:{action,instruction,apply}, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}";
   const context = [
     buildCoachContext(normalized, previous ? normalizeIteration(previous) : null, message),
     `recent_messages=${recentMessages
@@ -297,6 +259,23 @@ export async function coachIterationConversationOp(
     const suggestedUploadTypes = pickStringList(guidance.suggestedUploadTypes, 6);
     const suggestedActionsRaw = pickStringList(guidance.suggestedActions, 8);
     const clarificationChecklist = pickStringList(guidance.clarificationChecklist, 8);
+    const executionRaw = (parsed?.execution ?? {}) as Record<string, unknown>;
+    const actionRaw = pickString(executionRaw.action);
+    const validActionSet = new Set<NonNullable<IterationCoachChatResponse["execution"]>["action"]>([
+      "none",
+      "rewrite",
+      "confirm-accurate",
+      "confirm-inaccurate",
+      "enter-clarify-mode",
+      "run-full-cycle"
+    ]);
+    const executionAction: NonNullable<IterationCoachChatResponse["execution"]>["action"] = validActionSet.has(
+      actionRaw as NonNullable<IterationCoachChatResponse["execution"]>["action"]
+    )
+      ? (actionRaw as NonNullable<IterationCoachChatResponse["execution"]>["action"])
+      : "none";
+    const executionInstruction = pickString(executionRaw.instruction);
+    const executionApply = Boolean(executionRaw.apply);
     if (suggestedActionsRaw.length === 0) {
       throw new LlmInvocationError("Coach LLM returned invalid payload: missing guidance.suggestedActions");
     }
@@ -312,19 +291,31 @@ export async function coachIterationConversationOp(
       "plan",
       "qa",
       "release",
+      "full-cycle",
       "general"
     ]);
     const finalIntent = validIntentSet.has(modelIntent) ? modelIntent : intent;
-    return {
+    const skillActions = dedupeActions(skillChain.suggestedActions, recentSuggestedActions);
+    const mergedActions = dedupeActions(
+      [...suggestedActionsRaw, ...skillActions],
+      recentSuggestedActions
+    );
+    const mergedChecklist = Array.from(new Set([...(clarificationChecklist || []), ...skillChain.checklist])).slice(0, 8);
+    const skillSummarySuffix = skillChain.summaries.length > 0 ? `\n\n[skills] ${skillChain.summaries.slice(0, 2).join("；")}` : "";
+    const response: IterationCoachChatResponse = {
       iterationId: normalized.id,
       intent: finalIntent,
-      reply,
+      reply: `${reply}${skillSummarySuffix}`.trim(),
+      execution: {
+        action: executionAction,
+        instruction: executionInstruction,
+        apply: executionApply
+      },
       guidance: {
         uploadRecommended: Boolean(guidance.uploadRecommended),
         suggestedUploadTypes,
-        suggestedActions:
-          dedupeActions(suggestedActionsRaw, recentSuggestedActions),
-        clarificationChecklist
+        suggestedActions: mergedActions,
+        clarificationChecklist: mergedChecklist
       },
       llm: {
         used: true,
@@ -333,6 +324,18 @@ export async function coachIterationConversationOp(
         reason: ""
       }
     };
+    if (activePolicy) {
+      appendPolicyExecutionLogOp(repo, {
+        projectId: normalized.projectId,
+        iterationId: normalized.id,
+        policyVersion: activePolicy.version,
+        stage: gate.stage,
+        action: "coach_reply_generated",
+        result: "success",
+        evidence: [response.reply.slice(0, 180), `skills=${skillChain.summaries.slice(0, 2).join(" | ") || "none"}`]
+      });
+    }
+    return response;
   } catch (error) {
     if (error instanceof LlmInvocationError) {
       throw error;

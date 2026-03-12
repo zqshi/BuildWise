@@ -93,6 +93,8 @@ export function useAppController() {
     try {
       if (state.currentProjectId) {
         localStorage.setItem("buildwise:current-project-id", String(state.currentProjectId));
+      } else {
+        localStorage.removeItem("buildwise:current-project-id");
       }
     } catch {
       // ignore storage failure
@@ -103,11 +105,17 @@ export function useAppController() {
     try {
       if (state.currentIterationId) {
         localStorage.setItem("buildwise:current-iteration-id", String(state.currentIterationId));
+      } else {
+        localStorage.removeItem("buildwise:current-iteration-id");
       }
     } catch {
       // ignore storage failure
     }
   }, [state.currentIterationId]);
+
+  useEffect(() => {
+    state.setCurrentRole(auth.workspaceRole);
+  }, [auth.workspaceRole, state.setCurrentRole]);
 
   useEffect(() => {
     if (!state.currentProjectId) {
@@ -119,6 +127,15 @@ export function useAppController() {
       state.setShareAccess(null);
       return;
     }
+    if (!derived.currentProject || derived.currentProject.id !== state.currentProjectId) {
+      state.setIterations([]);
+      state.setCurrentIterationId(null);
+      state.setVersionSnapshots([]);
+      state.setProjectShares([]);
+      state.setShareAccess(null);
+      state.setError((prev) => (prev && /^API error: 404\b/.test(prev) ? null : prev));
+      return;
+    }
     Promise.all([
       loaders.loadIterations(state.currentProjectId),
       loaders.loadCollaboration(state.currentProjectId),
@@ -126,11 +143,12 @@ export function useAppController() {
     ]).catch((err) => {
       state.setError(err instanceof Error ? err.message : "Unknown error");
     });
-  }, [state.currentProjectId]);
+  }, [state.currentProjectId, derived.currentProject]);
 
   useEffect(() => {
     if (!state.currentIterationId || !derived.currentIteration) {
       state.setChatMessages([]);
+      state.setChatSendStatus("idle");
       state.setUploadedFile(null);
       state.setContextData(null);
       state.setAssessmentData(null);
@@ -140,9 +158,12 @@ export function useAppController() {
       state.setShowAnalysisPanel(false);
       state.setIsAnalyzingAttachment(false);
       state.setUploadAnalysisProgress(null);
+      state.setUploadToastMessage(null);
       return;
     }
+    state.setChatSendStatus("idle");
     state.setUploadAnalysisProgress(null);
+    state.setUploadToastMessage(null);
     state.setUploadedFile(null);
     try {
       const rawUpload = localStorage.getItem(uploadedAttachmentCacheKey(state.currentIterationId));
@@ -259,9 +280,12 @@ export function useAppController() {
     currentProjectId: state.currentProjectId,
     currentRole: state.currentRole,
     contextData: state.contextData,
+    analysisReport: state.analysisReport,
+    uploadedFile: state.uploadedFile,
     chatInput: state.chatInput,
     fileInputRef: state.fileInputRef,
     setChatInput: state.setChatInput,
+    setChatSendStatus: state.setChatSendStatus,
     setBusy: state.setBusy,
     setError: state.setError,
     setUploadedFile: state.setUploadedFile,
@@ -271,6 +295,7 @@ export function useAppController() {
     setShowAnalysisPanel: state.setShowAnalysisPanel,
     setIsAnalyzingAttachment: state.setIsAnalyzingAttachment,
     setUploadAnalysisProgress: state.setUploadAnalysisProgress,
+    setUploadToastMessage: state.setUploadToastMessage,
     loadIterationDetail: loaders.loadIterationDetail,
     loadIterations: loaders.loadIterations,
     loadGovernance: loaders.loadGovernance
