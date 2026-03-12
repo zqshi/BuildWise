@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "provider": "agent-scope",
+  "repository": "https://github.com/agentscope-ai/agentscope",
+  "capabilities": [
+    "single-agent-orchestration",
+    "tool-routing",
+    "session-memory-bridge",
+    "role-based-runtime-extension"
+  ],
+  "integrationMode": "adapter-only"
+}

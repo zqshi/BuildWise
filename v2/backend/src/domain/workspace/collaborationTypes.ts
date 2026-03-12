@@ -7,6 +7,14 @@ export type GovernanceRole = {
   permissions: string[];
 };
 
+export type GovernancePermissionPoint = {
+  key: string;
+  title: string;
+  module: string;
+  sourceType: "page" | "api";
+  source: string;
+};
+
 export type AuditLog = {
   id: number;
   actor: string;
@@ -70,6 +78,92 @@ export type OpsTriageTemplateRecord = {
   updatedAt: string;
 };
 
+export type ProjectPolicyStatus = "draft" | "active" | "archived";
+
+export type ProjectPolicyRecord = {
+  id: number;
+  projectId: number;
+  version: number;
+  status: ProjectPolicyStatus;
+  strategy: {
+    stages: string[];
+    gates: Array<{
+      stage: string;
+      requiredArtifacts: string[];
+      requireHumanConfirmation: boolean;
+    }>;
+    requiredConfirmations: {
+      firstIterationGitReport: boolean;
+    };
+    exceptions: Array<{
+      key: string;
+      fallbackAction: string;
+      requireUserDecision: boolean;
+    }>;
+    skillsPlan: Array<{
+      stage: string;
+      skills: string[];
+    }>;
+  };
+  createdBy: string;
+  approvedBy: string;
+  createdAt: string;
+  approvedAt: string;
+};
+
+export type ProjectWorkspaceBindingRecord = {
+  id: number;
+  projectId: number;
+  openclawProfile: string;
+  agentId: string;
+  workspacePath: string;
+  runtimeMode: "openclaw-native" | "bridge";
+  locked: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PolicyExecutionLogRecord = {
+  id: number;
+  projectId: number;
+  iterationId: number;
+  policyVersion: number;
+  stage: string;
+  action: string;
+  result: "success" | "blocked" | "error";
+  evidence: string[];
+  createdAt: string;
+};
+
+export type ProjectRoleBindingRecord = {
+  id: number;
+  projectId: number;
+  userId: string;
+  role: "admin" | "member" | "viewer";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlatformRoleBindingRecord = {
+  id: number;
+  userId: string;
+  role: "admin" | "member" | "viewer";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GovernanceCustomRoleRecord = {
+  id: number;
+  roleKey: string;
+  name: string;
+  description: string;
+  level: number;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type WorkspaceStore = {
   projects: Project[];
   iterations: Iteration[];
@@ -82,4 +176,10 @@ export type WorkspaceStore = {
   deployments: DeploymentRecord[];
   templateRuns: TemplateRunRecord[];
   opsTriageTemplates: OpsTriageTemplateRecord[];
+  projectPolicies: ProjectPolicyRecord[];
+  projectWorkspaceBindings: ProjectWorkspaceBindingRecord[];
+  policyExecutionLogs: PolicyExecutionLogRecord[];
+  projectRoleBindings: ProjectRoleBindingRecord[];
+  platformRoleBindings: PlatformRoleBindingRecord[];
+  governanceCustomRoles: GovernanceCustomRoleRecord[];
 };

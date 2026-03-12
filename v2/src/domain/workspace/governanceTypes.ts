@@ -4,6 +4,14 @@ export type GovernanceRole = {
   permissions: string[];
 };
 
+export type GovernancePermissionPoint = {
+  key: string;
+  title: string;
+  module: string;
+  sourceType: "page" | "api";
+  source: string;
+};
+
 export type AuditLog = {
   id: number;
   actor: string;

@@ -1,11 +1,79 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { parsePositiveInt } from "./workspaceRouteUtils";
 
+const smsCodeStore = new Map<string, { code: string; expireAt: number }>();
+
+function currentRole(authRole: string | undefined) {
+  const role = authRole?.trim().toLowerCase() || "viewer";
+  return role === "admin" ? "owner" : role;
+}
+
+function isAdmin(role: string) {
+  return role === "owner";
+}
+
+function isValidPhone(phone: string) {
+  return /^1\d{10}$/.test(phone);
+}
+
+function normalizeWorkspaceRole(platformRole: "admin" | "member" | "viewer"): "owner" | "pm" | "viewer" {
+  if (platformRole === "admin") return "owner";
+  if (platformRole === "member") return "pm";
+  return "viewer";
+}
+
 export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
   const validVersionTypes = new Set(["major", "minor", "patch"]);
+  app.post("/api/auth/sms/request", async (request, reply) => {
+    const body = request.body as { phone?: string } | null;
+    const phone = (body?.phone || "").trim();
+    if (!isValidPhone(phone)) {
+      reply.code(400);
+      return { message: "invalid phone" };
+    }
+    const code = `${Math.floor(100000 + Math.random() * 900000)}`;
+    const expireAt = Date.now() + 5 * 60 * 1000;
+    smsCodeStore.set(phone, { code, expireAt });
+    return { ok: true, expireAt: new Date(expireAt).toISOString(), debugCode: code };
+  });
+
+  app.post("/api/auth/sms/verify", async (request, reply) => {
+    const body = request.body as { phone?: string; code?: string } | null;
+    const phone = (body?.phone || "").trim();
+    const code = (body?.code || "").trim();
+    if (!isValidPhone(phone) || !/^\d{6}$/.test(code)) {
+      reply.code(400);
+      return { message: "invalid phone or code" };
+    }
+    const saved = smsCodeStore.get(phone);
+    if (!saved || saved.expireAt < Date.now() || saved.code !== code) {
+      reply.code(400);
+      return { message: "invalid or expired code" };
+    }
+    smsCodeStore.delete(phone);
+    const binding = service.listPlatformRoleBindings().find((item) => item.userId === phone);
+    if (!binding) {
+      reply.code(403);
+      return { message: "phone is not registered in platform members" };
+    }
+    const workspaceRole = normalizeWorkspaceRole(binding.role);
+    return {
+      ok: true,
+      user: {
+        phone,
+        platformRole: binding.role,
+        workspaceRole
+      }
+    };
+  });
+
   app.get("/api/governance/roles", async () => {
     return service.listGovernanceRoles();
+  });
+
+  app.get("/api/governance/permission-points", async () => {
+    return service.listGovernancePermissionPoints();
   });
 
   app.get("/api/governance/audit-logs", async (request, reply) => {
@@ -16,6 +84,137 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       return { message: "invalid limit" };
     }
     return service.listAuditLogs(Math.min(200, Math.floor(limit)));
+  });
+
+  app.get("/api/governance/platform-role-bindings", async () => {
+    return service.listPlatformRoleBindings();
+  });
+
+  app.post("/api/governance/platform-role-bindings", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
+    const body = request.body as { userId?: string; role?: "admin" | "member" | "viewer" } | null;
+    const userId = body?.userId?.trim() || "";
+    if (!userId || !body?.role) {
+      reply.code(400);
+      return { message: "userId and role are required" };
+    }
+    if (!isValidPhone(userId)) {
+      reply.code(400);
+      return { message: "userId must be 11-digit mainland phone" };
+    }
+    return service.upsertPlatformRoleBinding({ userId, role: body.role });
+  });
+
+  app.delete("/api/governance/platform-role-bindings/:userId", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
+    const params = request.params as { userId: string };
+    const userId = (params.userId || "").trim();
+    if (!userId) {
+      reply.code(400);
+      return { message: "invalid user id" };
+    }
+    const removed = service.removePlatformRoleBinding(userId);
+    if (!removed) {
+      reply.code(404);
+      return { message: "role binding not found" };
+    }
+    return { ok: true, userId };
+  });
+
+  const listCustomRolesHandler = async () => service.listGovernanceCustomRoles();
+
+  const upsertCustomRolesHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
+    const body = request.body as {
+      roleKey?: string;
+      name?: string;
+      description?: string;
+      level?: number;
+      permissions?: string[];
+    } | null;
+    const name = body?.name?.trim() || "";
+    if (!name) {
+      reply.code(400);
+      return { message: "name is required" };
+    }
+    const permissionPoints = service.listGovernancePermissionPoints();
+    const allowed = new Set(permissionPoints.map((item) => item.key));
+    const submitted = Array.isArray(body?.permissions) ? body?.permissions : [];
+    const invalid = submitted.filter((item) => !allowed.has(item));
+    if (invalid.length > 0) {
+      reply.code(400);
+      return { message: `unknown permissions: ${invalid.join(",")}` };
+    }
+    return service.upsertGovernanceCustomRole({
+      roleKey: body?.roleKey?.trim() || "",
+      name,
+      description: body?.description?.trim() || "",
+      level: Number.isFinite(body?.level) ? Number(body?.level) : 1,
+      permissions: submitted
+    });
+  };
+
+  const removeCustomRoleHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
+    const params = request.params as { roleKey: string };
+    const roleKey = (params.roleKey || "").trim();
+    if (!roleKey) {
+      reply.code(400);
+      return { message: "invalid role key" };
+    }
+    const removed = service.removeGovernanceCustomRole(roleKey);
+    if (!removed) {
+      reply.code(404);
+      return { message: "custom role not found" };
+    }
+    return { ok: true, roleKey };
+  };
+
+  app.get("/api/governance/custom-roles", listCustomRolesHandler);
+  app.get("/api/governance/custom_roles", listCustomRolesHandler);
+  app.post("/api/governance/custom-roles", upsertCustomRolesHandler);
+  app.post("/api/governance/custom_roles", upsertCustomRolesHandler);
+  app.delete("/api/governance/custom-roles/:roleKey", removeCustomRoleHandler);
+  app.delete("/api/governance/custom_roles/:roleKey", removeCustomRoleHandler);
+
+  app.post("/api/governance/openclaw/chat", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
+    const body = request.body as { message?: string } | null;
+    const message = body?.message?.trim() || "";
+    if (!message) {
+      reply.code(400);
+      return { message: "message is required" };
+    }
+    try {
+      return service.openclawDirectChatGlobal(message);
+    } catch (error) {
+      reply.code(500);
+      return { message: error instanceof Error ? error.message : "openclaw chat failed" };
+    }
+  });
+
+  app.get("/api/governance/openclaw/status", async () => {
+    return service.probeOpenclawIntegration();
   });
 
   app.get("/api/projects", async () => {

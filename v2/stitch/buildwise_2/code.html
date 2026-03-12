@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0066ff",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1723",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "system-ui", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-size: 24px; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display transition-colors duration-200">
+<div class="flex h-screen overflow-hidden">
+<!-- Side Narrow Dock -->
+<aside class="w-16 flex flex-col items-center py-6 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0">
+<div class="mb-8">
+<div class="size-10 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">architecture</span>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-6">
+<button class="p-2 rounded-lg bg-primary/10 text-primary transition-colors" title="仪表盘">
+<span class="material-symbols-outlined">dashboard</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="项目库">
+<span class="material-symbols-outlined">database</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="统计分析">
+<span class="material-symbols-outlined">monitoring</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="团队管理">
+<span class="material-symbols-outlined">group</span>
+</button>
+</nav>
+<div class="mt-auto flex flex-col gap-6">
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="通知">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="设置">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-2 ring-slate-100 dark:ring-slate-800">
+<img alt="用户头像" class="w-full h-full object-cover" data-alt="Professional user profile avatar photo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2ooub1kMobz3Nq1zCr1VJoQaSmzHaOrFXsIS1KoPMHPOqZ96teB_VfrNOOgfcNAfEydunPzFg9KGPVxRGVqZ6mIZ-Yq1DF2uFk2HLkND0mQvNkz921oNu5IUapXCRXmFD84zNSGo_JOBpwOjdI2GpUFD1rwZvkdikLWEBx_Rk-mzoGYa70O7ySBQn-SKrXUMZywqPzlkHOWD_hu0ds_rV1yEmbWcxPnoZ2WUFyYfjgVEbLItfVObnoD12y9Do5TsKTi4ArIAAbLML"/>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-y-auto">
+<!-- Top Header & Breadcrumbs -->
+<header class="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+<div class="flex items-center gap-4">
+<nav class="flex items-center text-sm font-medium">
+<a class="text-slate-500 hover:text-primary transition-colors" href="#">概览</a>
+<span class="mx-2 text-slate-300">/</span>
+<span class="text-slate-900 dark:text-slate-100">仪表盘</span>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm w-64 focus:ring-2 focus:ring-primary/50 transition-all" placeholder="搜索项目或指标..." type="text"/>
+</div>
+<button class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+                        新建项目
+                    </button>
+</div>
+</header>
+<div class="p-8 space-y-8">
+<!-- 1. Key Metrics Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined">assignment</span>
+</span>
+<span class="text-xs font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded">+12%</span>
+</div>
+<h3 class="text-slate-500 dark:text-slate-400 text-sm font-medium">项目总数</h3>
+<p class="text-3xl font-bold mt-1">12</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 rounded-lg bg-orange-100 text-orange-600">
+<span class="material-symbols-outlined">sync</span>
+</span>
+<span class="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">本月</span>
+</div>
+<h3 class="text-slate-500 dark:text-slate-400 text-sm font-medium">进行中 / 已完成迭代</h3>
+<p class="text-3xl font-bold mt-1">4 <span class="text-lg font-medium text-slate-400">/ 48</span></p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 rounded-lg bg-emerald-100 text-emerald-600">
+<span class="material-symbols-outlined">check_circle</span>
+</span>
+<span class="flex items-center gap-1">
+<span class="size-2 bg-emerald-500 rounded-full animate-pulse"></span>
+<span class="text-xs font-medium text-emerald-500">实时</span>
+</span>
+</div>
+<h3 class="text-slate-500 dark:text-slate-400 text-sm font-medium">服务状态</h3>
+<p class="text-3xl font-bold mt-1 text-emerald-500">正常</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined">favorite</span>
+</span>
+<span class="text-xs font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded">+2%</span>
+</div>
+<h3 class="text-slate-500 dark:text-slate-400 text-sm font-medium">健康分</h3>
+<p class="text-3xl font-bold mt-1">96</p>
+</div>
+</div>
+<!-- 2. Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Iteration Distribution Bar Chart -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-bold text-lg">迭代进度分布图</h3>
+<select class="bg-slate-50 dark:bg-slate-800 border-none text-xs rounded-lg py-1 px-3">
+<option>最近 7 天</option>
+<option>最近 30 天</option>
+</select>
+</div>
+<div class="h-64 flex items-end justify-between gap-4 px-2">
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[70%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[85%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Mon</span>
+</div>
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[85%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[92%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tue</span>
+</div>
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[60%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[40%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Wed</span>
+</div>
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[90%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[78%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Thu</span>
+</div>
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[75%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[95%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Fri</span>
+</div>
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[50%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[30%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sat</span>
+</div>
+<div class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-t-lg relative group h-[80%]">
+<div class="absolute inset-x-0 bottom-0 bg-primary/40 rounded-t-lg transition-all h-[88%] group-hover:bg-primary"></div>
+<span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sun</span>
+</div>
+</div>
+</div>
+<!-- Monthly Delivery Trend Line Chart -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="font-bold text-lg">月度交付趋势图</h3>
+<p class="text-xs text-slate-400">环比增长 <span class="text-emerald-500">+12.5%</span></p>
+</div>
+<div class="flex gap-2">
+<span class="flex items-center gap-1 text-[10px] text-slate-400 uppercase font-bold"><span class="size-2 rounded-full bg-primary"></span> 交付</span>
+<span class="flex items-center gap-1 text-[10px] text-slate-400 uppercase font-bold"><span class="size-2 rounded-full bg-slate-200"></span> 计划</span>
+</div>
+</div>
+<div class="h-64 relative">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 400 150">
+<defs>
+<lineargradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#0066ff" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#0066ff" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<path d="M0 120 Q50 80, 100 100 T200 60 T300 40 T400 10 V150 H0 Z" fill="url(#chartGradient)"></path>
+<path d="M0 120 Q50 80, 100 100 T200 60 T300 40 T400 10" fill="none" stroke="#0066ff" stroke-linecap="round" stroke-width="3"></path>
+<circle cx="100" cy="100" fill="#0066ff" r="4" stroke="white" stroke-width="2"></circle>
+<circle cx="200" cy="60" fill="#0066ff" r="4" stroke="white" stroke-width="2"></circle>
+<circle cx="300" cy="40" fill="#0066ff" r="4" stroke="white" stroke-width="2"></circle>
+<circle cx="400" cy="10" fill="#0066ff" r="4" stroke="white" stroke-width="2"></circle>
+</svg>
+<div class="flex justify-between mt-4">
+<span class="text-[10px] text-slate-400 font-bold uppercase">Jan</span>
+<span class="text-[10px] text-slate-400 font-bold uppercase">Feb</span>
+<span class="text-[10px] text-slate-400 font-bold uppercase">Mar</span>
+<span class="text-[10px] text-slate-400 font-bold uppercase">Apr</span>
+<span class="text-[10px] text-slate-400 font-bold uppercase">May</span>
+<span class="text-[10px] text-slate-400 font-bold uppercase">Jun</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 3. Bottom Table & AI Insights -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<!-- Project Table (2/3 width) -->
+<div class="xl:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+<h3 class="font-bold text-lg">最近项目</h3>
+<button class="text-primary text-sm font-medium hover:underline">查看全部</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left text-sm">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400">
+<th class="px-6 py-4 font-semibold uppercase tracking-wider text-xs">项目名称</th>
+<th class="px-6 py-4 font-semibold uppercase tracking-wider text-xs">状态</th>
+<th class="px-6 py-4 font-semibold uppercase tracking-wider text-xs">最后更新</th>
+<th class="px-6 py-4 font-semibold uppercase tracking-wider text-xs w-48">进度</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 font-medium">企业 CRM 系统升级</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10">进行中</span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">2 小时前</td>
+<td class="px-6 py-4">
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 65%"></div>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 font-medium">智慧城市数据大屏</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-600 dark:bg-blue-500/10">待评审</span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">昨天 18:30</td>
+<td class="px-6 py-4">
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 20%"></div>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 font-medium">金融 APP 4.0 迭代</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-50 text-orange-600 dark:bg-orange-500/10">风险警告</span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">3 天前</td>
+<td class="px-6 py-4">
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+<div class="bg-orange-500 h-full rounded-full" style="width: 88%"></div>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 font-medium">内部办公 OA 自动化</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800">已完成</span>
+</td>
+<td class="px-6 py-4 text-slate-500 dark:text-slate-400">2023-10-24</td>
+<td class="px-6 py-4">
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+<div class="bg-emerald-500 h-full rounded-full" style="width: 100%"></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- AI Insights (1/3 width) -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+<div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+<span class="material-symbols-outlined text-orange-500">auto_awesome</span>
+<h3 class="font-bold text-lg">智能洞察建议</h3>
+</div>
+<div class="p-6 space-y-4 flex-1">
+<div class="p-4 bg-orange-50 dark:bg-orange-500/5 rounded-lg border border-orange-100 dark:border-orange-500/20">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-orange-600 text-xl">warning</span>
+<div>
+<h4 class="text-sm font-bold text-orange-900 dark:text-orange-200">进度偏差风险</h4>
+<p class="text-xs text-orange-800/80 dark:text-orange-300/80 mt-1 leading-relaxed">“金融 APP 4.0”迭代剩余工作量超出计划 15%，建议调整资源优先级。</p>
+</div>
+</div>
+<button class="mt-3 w-full py-2 bg-orange-600 text-white rounded text-xs font-bold hover:bg-orange-700 transition-colors">优化排期</button>
+</div>
+<div class="p-4 bg-primary/5 dark:bg-primary/5 rounded-lg border border-primary/10 dark:border-primary/20">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-primary text-xl">insights</span>
+<div>
+<h4 class="text-sm font-bold text-primary">资源优化机会</h4>
+<p class="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">检测到 QA 团队在周三存在空置率，可提前开启 CRM 系统测试流程。</p>
+</div>
+</div>
+<button class="mt-3 w-full py-2 bg-primary/10 text-primary rounded text-xs font-bold hover:bg-primary/20 transition-colors">立即分配</button>
+</div>
+<div class="p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-emerald-600 text-xl">verified</span>
+<div>
+<h4 class="text-sm font-bold text-emerald-900 dark:text-emerald-200">质量趋势向好</h4>
+<p class="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-1 leading-relaxed">本周 Bug 修复率提升 22%，CI/CD 通过率保持在 98% 以上。</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 mt-auto bg-slate-50 dark:bg-slate-800/50">
+<p class="text-[10px] text-center text-slate-400 font-medium italic">基于 BuildWise AI 引擎的实时分析生成</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

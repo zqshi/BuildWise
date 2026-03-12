@@ -1,0 +1,90 @@
+import type { PolicyExecutionLogPayload, ProjectPolicyPayload, ProjectRoleBindingPayload } from "../../app/workspaceApi";
+import type { OpenclawDialogMode } from "../layout/openclawPromptComposer";
+
+export type RepoHealthView = {
+  remoteConfigured: boolean;
+  remoteReachable: boolean;
+  remoteSynced: boolean;
+  lastCheckedAt: string;
+  lastError: string;
+};
+
+export type RepoMigrationPlanView = {
+  currentMode: "external_git" | "managed_local" | "hybrid";
+  targetMode: "hybrid" | "external_git";
+  blockers: string[];
+  nextAction: string;
+  steps: Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: "pending" | "ready" | "done" | "blocked";
+    action: string;
+  }>;
+};
+
+export type ProjectOverviewGovernanceDrawersProps = {
+  showPolicyDrawer: boolean;
+  setShowPolicyDrawer: (value: boolean) => void;
+  showOpenclawDrawer: boolean;
+  setShowOpenclawDrawer: (value: boolean) => void;
+  activePolicy: ProjectPolicyPayload | null;
+  policyItems: ProjectPolicyPayload[];
+  isAdmin: boolean;
+  policyBusy: boolean;
+  handleCreatePolicyDraft: () => Promise<void>;
+  handleActivateLatestDraft: () => Promise<void>;
+  handleRestoreInitialPolicyMode: () => Promise<void>;
+  handleRunPolicyStep: () => Promise<void>;
+  bindingProfile: string;
+  setBindingProfile: (value: string) => void;
+  bindingAgentId: string;
+  setBindingAgentId: (value: string) => void;
+  bindingWorkspacePath: string;
+  setBindingWorkspacePath: (value: string) => void;
+  bindingRuntimeMode: "openclaw-native" | "bridge";
+  setBindingRuntimeMode: (value: "openclaw-native" | "bridge") => void;
+  handleBindWorkspace: () => Promise<void>;
+  newRoleUserId: string;
+  setNewRoleUserId: (value: string) => void;
+  newRoleValue: "admin" | "member" | "viewer";
+  setNewRoleValue: (value: "admin" | "member" | "viewer") => void;
+  handleAddRoleBinding: () => Promise<void>;
+  roleBindings: ProjectRoleBindingPayload[];
+  handleRemoveRoleBinding: (userId: string) => Promise<void>;
+  targetIterationId: number | null;
+  openclawChatLines: Array<{ role: "admin" | "openclaw"; content: string; at: string }>;
+  openclawDialogMode: OpenclawDialogMode;
+  setOpenclawDialogMode: (value: OpenclawDialogMode) => void;
+  openclawChatInput: string;
+  setOpenclawChatInput: (value: string) => void;
+  openclawChatBusy: boolean;
+  handleOpenclawSend: () => Promise<void>;
+  policyLogs: PolicyExecutionLogPayload[];
+};
+
+export type ProjectOverviewRepositoryDrawerProps = {
+  showRepoConfigDrawer: boolean;
+  setShowRepoConfigDrawer: (value: boolean) => void;
+  repoConfigStep: 1 | 2 | 3;
+  setRepoConfigStep: (value: 1 | 2 | 3 | ((prev: 1 | 2 | 3) => 1 | 2 | 3)) => void;
+  repoUrlDraft: string;
+  setRepoUrlDraft: (value: string) => void;
+  currentProjectExists: boolean;
+  repoConfigBusy: boolean;
+  repoUrlValid: boolean;
+  requireRemoteForProduction: boolean;
+  setRequireRemoteForProduction: (value: boolean) => void;
+  requireRemoteForStaging: boolean;
+  setRequireRemoteForStaging: (value: boolean) => void;
+  repoHealth: RepoHealthView | null;
+  repoLastCheckedText: string;
+  repoConfigNotice: string;
+  showRepoAdvanced: boolean;
+  setShowRepoAdvanced: (updater: (prev: boolean) => boolean) => void;
+  repoMigrationPlan: RepoMigrationPlanView | null;
+  canMoveToNextStep: boolean;
+  handleSaveRepositoryPolicy: () => Promise<void>;
+  handleRefreshRepositoryStatus: () => Promise<void>;
+  handleConnectRepository: () => Promise<void>;
+};

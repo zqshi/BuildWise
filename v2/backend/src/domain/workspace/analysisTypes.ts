@@ -3,8 +3,15 @@ import type { IterationStatus } from "./iterationTypes";
 export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
 export type AgentRole =
   | "orchestrator"
+  | "project-manager"
+  | "context-integrator"
+  | "prototype-analyst"
+  | "ux-designer"
+  | "solution-architect"
   | "requirements-analyst"
   | "task-planner"
+  | "frontend-developer"
+  | "backend-developer"
   | "delivery-engineer"
   | "qa-reviewer"
   | "iteration-coach"
@@ -22,7 +29,7 @@ export type IterationAgentPrompt = {
 };
 
 export type IterationAgentPlan = {
-  strategy: "single-agent" | "multi-agent";
+  strategy: "single-agent";
   scope: AgentScope;
   objective: string;
   recommendedTransition: IterationStatus | null;
@@ -178,6 +185,12 @@ export type AttachmentAnalysisReport = {
     regressionPoints: string[];
     materializedFiles: string[];
   };
+  uxArtifacts: {
+    informationArchitecture: string[];
+    interactionFlows: string[];
+    uiStates: string[];
+    uxConstraints: string[];
+  };
   domainKnowledge: {
     terms: Array<{
       term: string;
@@ -198,6 +211,86 @@ export type AttachmentAnalysisReport = {
     hypotheses: Array<{ priority: string; item: string; evidence: string }>;
     triageSteps: Array<{ step: string; expectedSignal: string; fallback: string }>;
     rollbackSuggestion: string;
+  };
+  businessConfirmation: {
+    coreIntent: string;
+    successCriteria: string[];
+    interactionInsights: {
+      primaryFlow: string[];
+      keyInteractions: string[];
+      exceptionPaths: string[];
+      usabilityRisks: string[];
+    };
+    necessityAssessment: {
+      mustDo: string[];
+      shouldDo: string[];
+      canDefer: string[];
+      outOfScope: string[];
+      rationale: string;
+    };
+    evidenceRefs: string[];
+    boundarySummary: string;
+    functionalPoints: string[];
+    confirmationChecklist: Array<{
+      order: number;
+      impactLevel: "高" | "中" | "低";
+      item: string;
+      rationale: string;
+    }>;
+    versionDiffSummary: string;
+    diffNarratives: string[];
+    diffConfirmationOrder: Array<{
+      order: number;
+      impactLevel: "高" | "中" | "低";
+      item: string;
+      rationale: string;
+    }>;
+  };
+  deepInsights: {
+    coverage: {
+      consideredFiles: number;
+      analyzedFiles: number;
+      partialFiles: number;
+      failedFiles: number;
+      coveragePercent: number;
+    };
+    fileInsights: Array<{
+      path: string;
+      fileName: string;
+      mimeType: string;
+      size: number;
+      kind: "document" | "code" | "image" | "prototype" | "binary";
+      status: "analyzed" | "partial" | "failed";
+      mainContent: string;
+      requiredWork: string;
+      iterationValue: string;
+      summary: string;
+      keyPoints: string[];
+      risks: string[];
+      optimizeItems: string[];
+      keepItems: string[];
+      recommendedActions: string[];
+      openQuestions: string[];
+      citations: string[];
+      confidence: "high" | "medium" | "low";
+    }>;
+    crossFileInsights: {
+      themes: string[];
+      conflicts: string[];
+      gaps: string[];
+      recommendations: string[];
+      conflictChains: string[];
+      rootCauses: string[];
+      impactScope: string[];
+      decisionSuggestions: string[];
+    };
+  };
+  reportQuality: {
+    publishable: boolean;
+    score: number;
+    summary: string;
+    missingItems: string[];
+    actionRequired: string[];
   };
 };
 
@@ -225,7 +318,7 @@ export type AttachmentUploadInput = {
   autoTransition?: boolean;
 };
 
-export type AttachmentAnalysisJobStatus = "queued" | "running" | "succeeded" | "failed";
+export type AttachmentAnalysisJobStatus = "queued" | "running" | "succeeded" | "partial_succeeded" | "failed";
 
 export type AttachmentAnalysisJob = {
   jobId: string;
@@ -248,16 +341,125 @@ export type AttachmentAnalysisJob = {
     completedBatches: number;
     failedBatches: number;
     retriedBatches: number;
+    llmCallCount?: number;
+    llmSuccessCount?: number;
+    llmFailureCount?: number;
+    llmInFlightCount?: number;
+    currentBatch?: number;
+    currentAttempt?: number;
+    stageHint?: string;
+    lastLlmCallAt?: string;
   };
   warnings: string[];
   error: string;
   result: AttachmentAnalysisReport | null;
 };
 
+export type AttachmentUploadManifestFile = {
+  path: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  chunkCount: number;
+};
+
+export type AttachmentUploadChunkMeta = {
+  chunkIndex: number;
+  chunkSize: number;
+  chunkSha256: string;
+  storagePath: string;
+  receivedAt: string;
+};
+
+export type AttachmentUploadFileRecord = {
+  fileId: string;
+  uploadId: string;
+  path: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  chunkCount: number;
+  uploadedChunks: number;
+  status: "uploading" | "uploaded" | "failed";
+  chunkBitmap: boolean[];
+  chunks: AttachmentUploadChunkMeta[];
+  createdAt: string;
+  updatedAt: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type AttachmentUploadRecord = {
+  uploadId: string;
+  iterationId: number;
+  sourceType: "single-file" | "folder";
+  folderName: string;
+  idempotencyKey: string;
+  status: "uploading" | "uploaded" | "failed";
+  totalFiles: number;
+  totalBytes: number;
+  files: AttachmentUploadFileRecord[];
+  createdAt: string;
+  updatedAt: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type AttachmentIngestJob = {
+  ingestJobId: string;
+  uploadId: string;
+  status: "queued" | "running" | "completed" | "failed" | "partial";
+  totalFiles: number;
+  processedFiles: number;
+  createdAt: string;
+  startedAt: string;
+  finishedAt: string;
+  heartbeatAt: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type AttachmentReportSectionStatus = "ready" | "failed" | "empty";
+
+export type AttachmentReportSection = {
+  sectionId: string;
+  reportId: string;
+  sectionKey: "overview" | "projectDetection" | "findings" | "risks" | "traceability" | "appendix";
+  sectionOrder: number;
+  status: AttachmentReportSectionStatus;
+  itemCount: number;
+  updatedAt: string;
+  content: Record<string, unknown>;
+};
+
+export type AttachmentReportIndex = {
+  reportId: string;
+  analysisJobId: string;
+  iterationId: number;
+  schemaVersion: string;
+  status: "completed" | "partial" | "failed";
+  analyzedAt: string;
+  summary: Record<string, unknown>;
+  sections: Array<{
+    sectionId: string;
+    sectionKey: AttachmentReportSection["sectionKey"];
+    status: AttachmentReportSectionStatus;
+    itemCount: number;
+    updatedAt: string;
+  }>;
+};
+
 export type IterationCoachChatResponse = {
   iterationId: number;
-  intent: "collect-attachment" | "clarify" | "confirm-boundary" | "plan" | "qa" | "release" | "general";
+  intent: "collect-attachment" | "clarify" | "confirm-boundary" | "plan" | "qa" | "release" | "full-cycle" | "general";
   reply: string;
+  execution?: {
+    action: "none" | "rewrite" | "confirm-accurate" | "confirm-inaccurate" | "enter-clarify-mode" | "run-full-cycle";
+    instruction?: string;
+    apply?: boolean;
+  };
   guidance: {
     uploadRecommended: boolean;
     suggestedUploadTypes: string[];
@@ -338,6 +540,70 @@ export type IterationCodeRewriteResponse = {
     beforePreview: string;
     afterPreview: string;
   }>;
+};
+
+export type IterationFullCycleRunInput = {
+  analysisInput?: AttachmentUploadInput;
+  runAnalysis?: boolean;
+  autoConfirmAnalysis?: boolean;
+  autoResolveClarifications?: boolean;
+  rewriteInstruction?: string;
+  rewriteDryRun?: boolean;
+  rewriteMaxFiles?: number;
+  generateTestArtifacts?: boolean;
+  testArtifactsDryRun?: boolean;
+  refreshReleaseReview?: boolean;
+  generateDeliveryPackage?: boolean;
+  deliveryPackageDryRun?: boolean;
+  publish?: {
+    enabled?: boolean;
+    dryRun?: boolean;
+    openPr?: boolean;
+    commitMessage?: string;
+    prTitle?: string;
+    prBody?: string;
+  };
+};
+
+export type IterationFullCycleRunResponse = {
+  iterationId: number;
+  startedAt: string;
+  finishedAt: string;
+  status: "completed" | "partial" | "blocked" | "failed";
+  steps: {
+    analysis: { status: "completed" | "skipped" | "failed"; note: string };
+    confirmation: { status: "completed" | "skipped" | "blocked" | "failed"; note: string };
+    frontendRewrite: { status: "completed" | "skipped" | "blocked" | "failed"; note: string };
+    backendRewrite: { status: "completed" | "skipped" | "blocked" | "failed"; note: string };
+    rewrite: { status: "completed" | "skipped" | "blocked" | "failed"; note: string };
+    testArtifacts: { status: "completed" | "skipped" | "failed"; note: string };
+    releaseReview: { status: "completed" | "skipped" | "failed"; note: string };
+    deliveryPackage: { status: "completed" | "skipped" | "failed"; note: string };
+    publish: { status: "completed" | "skipped" | "blocked" | "failed"; note: string };
+  };
+  blockers: string[];
+  warnings: string[];
+  analysisReport: AttachmentAnalysisReport | null;
+  rewriteResult: IterationCodeRewriteResponse | null;
+  testArtifactsResult: IterationTestArtifactsGenerationResponse | null;
+  releaseReview: IterationReleaseReviewResponse | null;
+  deliveryPackageResult: IterationDeliveryPackageResult | null;
+  publishResult: {
+    ok: boolean;
+    reason?: string;
+    message?: string;
+    blockers?: string[];
+    data?: Record<string, unknown>;
+  } | null;
+};
+
+export type IterationDeliveryPackageResult = {
+  iterationId: number;
+  dryRun: boolean;
+  summary: string;
+  reviewReportFiles: string[];
+  packageFiles: string[];
+  warnings: string[];
 };
 
 export type OpsAlertTriageResponse = {

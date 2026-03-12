@@ -9,6 +9,12 @@ import type {
   IterationMessage,
   IterationTransition,
   OpsTriageTemplateRecord,
+  ProjectPolicyRecord,
+  ProjectWorkspaceBindingRecord,
+  PolicyExecutionLogRecord,
+  PlatformRoleBindingRecord,
+  GovernanceCustomRoleRecord,
+  ProjectRoleBindingRecord,
   ProjectShare,
   Project,
   TemplateRunRecord,
@@ -16,6 +22,7 @@ import type {
   WorkspaceStore
 } from "../../domain/workspace/types";
 import { nextThreePartVersion } from "../../domain/workspace/versioning";
+import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
 
 const seedStore: WorkspaceStore = {
   projects: [
@@ -38,19 +45,17 @@ const seedStore: WorkspaceStore = {
   projectShares: [],
   deployments: [],
   templateRuns: [],
-  opsTriageTemplates: []
+  opsTriageTemplates: [],
+  projectPolicies: [],
+  projectWorkspaceBindings: [],
+  policyExecutionLogs: [],
+  projectRoleBindings: [],
+  platformRoleBindings: [],
+  governanceCustomRoles: []
 };
 
 function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
-}
-
-function toRepoSlug(value: string, fallback: string) {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || fallback;
 }
 
 export class JsonWorkspaceRepository implements WorkspaceRepository {
@@ -74,7 +79,13 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       projectShares: toArray<ProjectShare>(parsed.projectShares),
       deployments: toArray<DeploymentRecord>(parsed.deployments),
       templateRuns: toArray<TemplateRunRecord>(parsed.templateRuns),
-      opsTriageTemplates: toArray<OpsTriageTemplateRecord>(parsed.opsTriageTemplates)
+      opsTriageTemplates: toArray<OpsTriageTemplateRecord>(parsed.opsTriageTemplates),
+      projectPolicies: toArray<ProjectPolicyRecord>(parsed.projectPolicies),
+      projectWorkspaceBindings: toArray<ProjectWorkspaceBindingRecord>(parsed.projectWorkspaceBindings),
+      policyExecutionLogs: toArray<PolicyExecutionLogRecord>(parsed.policyExecutionLogs),
+      projectRoleBindings: toArray<ProjectRoleBindingRecord>(parsed.projectRoleBindings),
+      platformRoleBindings: toArray<PlatformRoleBindingRecord>(parsed.platformRoleBindings),
+      governanceCustomRoles: toArray<GovernanceCustomRoleRecord>(parsed.governanceCustomRoles)
     };
   }
 
@@ -341,6 +352,134 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     const data = this.read();
     data.templateRuns.push(record);
     this.write(data);
+  }
+
+  listProjectPolicies(projectId: number) {
+    return this.read().projectPolicies.filter((item) => item.projectId === projectId);
+  }
+
+  appendProjectPolicy(record: ProjectPolicyRecord) {
+    const data = this.read();
+    data.projectPolicies.push(record);
+    this.write(data);
+  }
+
+  updateProjectPolicy(record: ProjectPolicyRecord) {
+    const data = this.read();
+    const idx = data.projectPolicies.findIndex((item) => item.id === record.id && item.projectId === record.projectId);
+    if (idx >= 0) {
+      data.projectPolicies[idx] = record;
+      this.write(data);
+    }
+  }
+
+  listProjectWorkspaceBindings(projectId: number) {
+    return this.read().projectWorkspaceBindings.filter((item) => item.projectId === projectId);
+  }
+
+  upsertProjectWorkspaceBinding(record: ProjectWorkspaceBindingRecord) {
+    const data = this.read();
+    const idx = data.projectWorkspaceBindings.findIndex((item) => item.id === record.id || item.projectId === record.projectId);
+    if (idx >= 0) {
+      data.projectWorkspaceBindings[idx] = record;
+    } else {
+      data.projectWorkspaceBindings.push(record);
+    }
+    this.write(data);
+    return record;
+  }
+
+  listPolicyExecutionLogs(iterationId: number) {
+    return this.read().policyExecutionLogs.filter((item) => item.iterationId === iterationId);
+  }
+
+  appendPolicyExecutionLog(record: PolicyExecutionLogRecord) {
+    const data = this.read();
+    data.policyExecutionLogs.push(record);
+    this.write(data);
+  }
+
+  listProjectRoleBindings(projectId: number) {
+    return this.read().projectRoleBindings.filter((item) => item.projectId === projectId);
+  }
+
+  upsertProjectRoleBinding(record: ProjectRoleBindingRecord) {
+    const data = this.read();
+    const idx = data.projectRoleBindings.findIndex((item) => item.projectId === record.projectId && item.userId === record.userId);
+    if (idx >= 0) {
+      data.projectRoleBindings[idx] = record;
+    } else {
+      data.projectRoleBindings.push(record);
+    }
+    this.write(data);
+    return record;
+  }
+
+  removeProjectRoleBinding(projectId: number, userId: string) {
+    const data = this.read();
+    const before = data.projectRoleBindings.length;
+    data.projectRoleBindings = data.projectRoleBindings.filter(
+      (item) => !(item.projectId === projectId && item.userId === userId)
+    );
+    if (data.projectRoleBindings.length === before) {
+      return false;
+    }
+    this.write(data);
+    return true;
+  }
+
+  listPlatformRoleBindings() {
+    return this.read().platformRoleBindings;
+  }
+
+  upsertPlatformRoleBinding(record: PlatformRoleBindingRecord) {
+    const data = this.read();
+    const idx = data.platformRoleBindings.findIndex((item) => item.userId === record.userId);
+    if (idx >= 0) {
+      data.platformRoleBindings[idx] = record;
+    } else {
+      data.platformRoleBindings.push(record);
+    }
+    this.write(data);
+    return record;
+  }
+
+  removePlatformRoleBinding(userId: string) {
+    const data = this.read();
+    const before = data.platformRoleBindings.length;
+    data.platformRoleBindings = data.platformRoleBindings.filter((item) => item.userId !== userId);
+    if (data.platformRoleBindings.length === before) {
+      return false;
+    }
+    this.write(data);
+    return true;
+  }
+
+  listGovernanceCustomRoles() {
+    return this.read().governanceCustomRoles;
+  }
+
+  upsertGovernanceCustomRole(record: GovernanceCustomRoleRecord) {
+    const data = this.read();
+    const idx = data.governanceCustomRoles.findIndex((item) => item.roleKey === record.roleKey);
+    if (idx >= 0) {
+      data.governanceCustomRoles[idx] = record;
+    } else {
+      data.governanceCustomRoles.push(record);
+    }
+    this.write(data);
+    return record;
+  }
+
+  removeGovernanceCustomRole(roleKey: string) {
+    const data = this.read();
+    const before = data.governanceCustomRoles.length;
+    data.governanceCustomRoles = data.governanceCustomRoles.filter((item) => item.roleKey !== roleKey);
+    if (data.governanceCustomRoles.length === before) {
+      return false;
+    }
+    this.write(data);
+    return true;
   }
 
   updateProject(project: Project) {

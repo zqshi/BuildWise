@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BuildWiseSkillResult",
+  "type": "object",
+  "required": ["status", "summary", "artifacts", "questions", "risks", "next_actions", "evidence"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "need_user_input", "blocked", "error"]
+    },
+    "summary": { "type": "string", "minLength": 1 },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "state"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "state": { "type": "string", "enum": ["draft", "committed", "confirmed"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "questions": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "next_actions": { "type": "array", "items": { "type": "string" } },
+    "evidence": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0066ff",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1723",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-project {
+            background-color: rgba(0, 102, 255, 0.08);
+            border-right: 3px solid #0066ff;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased overflow-hidden h-screen flex">
+<!-- Left Dock -->
+<aside class="w-16 flex flex-col items-center py-6 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0">
+<div class="mb-8">
+<div class="size-10 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">architecture</span>
+</div>
+</div>
+<nav class="flex flex-col gap-6">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">dashboard</span>
+</button>
+<button class="p-2 text-primary bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined">account_tree</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">check_box</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">group</span>
+</button>
+</nav>
+<div class="mt-auto flex flex-col gap-6">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="size-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border border-slate-300 dark:border-slate-600">
+<img alt="User Profile" data-alt="User profile avatar icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_yR2j4mX2LvrDG04MYZ8dYEvb5aUnjf8EYXcGdZVH3PiSikjerqQg1W5_hePwd7ZeRQ-2ZZDkPP3pMuklqPA2zMUBQlqyXuuSFbsxW5KxYVpNj9l5jUIhhlrUWb8jlIpt4JpPJ5VgnMfGyzGcKfLxKIFn5GR-Y7w-PJbQ2njdmz1eeZq47STwT1SkNGnV9VgNE1kK2-IZ4wOJTggEJENhDQOVEXegJmW3EKIY0vGLoqid9RtDzgiosD9w33UuHFa4VlH2G9jB-R29"/>
+</div>
+</div>
+</aside>
+<!-- Project List (Secondary Nav) -->
+<section class="w-80 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<h2 class="text-xl font-bold mb-4">项目列表</h2>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400" placeholder="搜索项目..." type="text"/>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<div class="flex flex-col">
+<div class="p-4 active-project cursor-pointer group">
+<div class="flex items-center justify-between mb-1">
+<span class="font-semibold text-slate-900 dark:text-white">Apollo Digital Twin</span>
+<span class="size-2 rounded-full bg-emerald-500"></span>
+</div>
+<p class="text-xs text-slate-500 line-clamp-1">城市三维建模与仿真分析系统</p>
+<div class="mt-3 flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider font-medium">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                        2小时前更新
+                    </div>
+</div>
+<div class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-medium text-slate-700 dark:text-slate-300">Zeus Infrastructure</span>
+<span class="size-2 rounded-full bg-amber-500"></span>
+</div>
+<p class="text-xs text-slate-500 line-clamp-1">跨区域电力网络拓扑优化项目</p>
+<div class="mt-3 flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                        昨天更新
+                    </div>
+</div>
+<div class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-medium text-slate-700 dark:text-slate-300">Hermes Logistics Hub</span>
+<span class="size-2 rounded-full bg-slate-300"></span>
+</div>
+<p class="text-xs text-slate-500 line-clamp-1">自动化仓储系统数字孪生底座</p>
+<div class="mt-3 flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                        3天前更新
+                    </div>
+</div>
+<div class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50">
+<div class="flex items-center justify-between mb-1">
+<span class="font-medium text-slate-700 dark:text-slate-300">Poseidon Smart Port</span>
+<span class="size-2 rounded-full bg-emerald-500"></span>
+</div>
+<p class="text-xs text-slate-500 line-clamp-1">智慧港口吞吐量预测模型</p>
+<div class="mt-3 flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                        1周前更新
+                    </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-y-auto custom-scrollbar bg-background-light dark:bg-background-dark">
+<!-- Top Bar -->
+<header class="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+<div class="flex items-center gap-3">
+<h1 class="text-lg font-bold">Apollo Digital Twin</h1>
+<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] font-bold rounded uppercase">Active</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800">
+<span class="material-symbols-outlined text-lg">history</span>
+                    历史版本
+                </button>
+<button class="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90">
+<span class="material-symbols-outlined text-lg">add</span>
+                    新建任务
+                </button>
+</div>
+</header>
+<div class="p-8 space-y-8 max-w-7xl mx-auto w-full">
+<!-- Core Data Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Iteration Progress -->
+<div class="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center">
+<div class="flex items-center justify-between w-full mb-6">
+<h3 class="font-bold text-slate-800 dark:text-slate-200">当前迭代进度</h3>
+<span class="material-symbols-outlined text-slate-400">info</span>
+</div>
+<div class="relative size-48">
+<svg class="size-full" viewbox="0 0 36 36">
+<circle class="stroke-slate-100 dark:stroke-slate-800" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+<circle class="stroke-primary" cx="18" cy="18" fill="none" r="16" stroke-dasharray="72, 100" stroke-linecap="round" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-4xl font-bold">72%</span>
+<span class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Sprinting</span>
+</div>
+</div>
+<div class="mt-6 flex justify-between w-full text-xs text-slate-500">
+<span>Q4-Iteration-02</span>
+<span class="font-medium text-slate-900 dark:text-slate-100">剩 4 天</span>
+</div>
+</div>
+<!-- Modeling Summary -->
+<div class="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-bold text-slate-800 dark:text-slate-200">建模摘要</h3>
+<button class="text-primary text-sm font-medium">编辑说明</button>
+</div>
+<div class="prose dark:prose-invert max-w-none">
+<p class="text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Apollo Digital Twin 项目旨在构建覆盖全市 450 平方公里的高精度数字底座。目前已完成核心商务区（CBD）的 LOD3 级别精细建模，涵盖 12,400 栋建筑实体及地下管网系统。
+                        </p>
+<p class="mt-4 text-slate-600 dark:text-slate-400 leading-relaxed">
+                            本周重点关注“实时交通流数据”的接入与渲染性能优化。当前模型加载速度提升了 15%，整体 GPU 资源占用控制在 60% 以下。后续迭代将引入动态阴影与气象仿真模块。
+                        </p>
+</div>
+<div class="mt-8 flex gap-4">
+<div class="flex-1 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+<div class="text-slate-400 text-[10px] uppercase font-bold mb-1">模型总数</div>
+<div class="text-2xl font-bold">14,802</div>
+</div>
+<div class="flex-1 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+<div class="text-slate-400 text-[10px] uppercase font-bold mb-1">数据吞吐量</div>
+<div class="text-2xl font-bold">1.2 GB/s</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Version Table -->
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+<div class="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+<h3 class="font-bold text-slate-800 dark:text-slate-200">版本记录</h3>
+<div class="flex gap-2">
+<button class="size-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+</button>
+<button class="size-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+</div>
+</div>
+<table class="w-full text-left">
+<thead class="bg-slate-50 dark:bg-slate-800/50">
+<tr>
+<th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">版本号</th>
+<th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">发布日期</th>
+<th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">核心变更</th>
+<th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">状态</th>
+<th class="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50 dark:divide-slate-800">
+<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-8 py-5 font-medium text-primary">v2.4.0-release</td>
+<td class="px-8 py-5 text-sm text-slate-500">2023-11-24</td>
+<td class="px-8 py-5 text-sm text-slate-600 dark:text-slate-400">接入 CBD 实时交通探头数据</td>
+<td class="px-8 py-5">
+<span class="px-2 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] font-bold rounded">稳定版</span>
+</td>
+<td class="px-8 py-5">
+<button class="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">more_horiz</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-8 py-5 font-medium text-primary">v2.3.5-patch</td>
+<td class="px-8 py-5 text-sm text-slate-500">2023-11-18</td>
+<td class="px-8 py-5 text-sm text-slate-600 dark:text-slate-400">修复地下管网 LOD 加载错误问题</td>
+<td class="px-8 py-5">
+<span class="px-2 py-1 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 text-[10px] font-bold rounded">已归档</span>
+</td>
+<td class="px-8 py-5">
+<button class="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">more_horiz</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-8 py-5 font-medium text-primary">v2.3.0-release</td>
+<td class="px-8 py-5 text-sm text-slate-500">2023-11-05</td>
+<td class="px-8 py-5 text-sm text-slate-600 dark:text-slate-400">完成全市范围 50cm 分辨率底图更新</td>
+<td class="px-8 py-5">
+<span class="px-2 py-1 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 text-[10px] font-bold rounded">已归档</span>
+</td>
+<td class="px-8 py-5">
+<button class="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">more_horiz</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Bottom Actions -->
+<div class="flex justify-end gap-4 pb-12">
+<button class="flex items-center gap-2 px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">database</span>
+                    仓库设置
+                </button>
+<button class="flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined">rocket_launch</span>
+                    进入开发环境
+                </button>
+</div>
+</div>
+</main>
+</body></html>

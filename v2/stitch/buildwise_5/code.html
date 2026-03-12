@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BuildWise - Iteration Workbench</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0066ff",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1723",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
+<div class="flex h-screen overflow-hidden">
+<!-- Left Dock / Sidebar -->
+<aside class="w-16 flex flex-col items-center py-6 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50">
+<div class="mb-8">
+<div class="size-10 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">architecture</span>
+</div>
+</div>
+<nav class="flex flex-col gap-6 flex-1">
+<button class="p-2 rounded-lg bg-primary/10 text-primary transition-colors">
+<span class="material-symbols-outlined">dashboard</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">terminal</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">account_tree</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">forum</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</nav>
+<div class="mt-auto flex flex-col gap-4">
+<button class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="size-8 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center" data-alt="User profile avatar circle" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCIaCL96Lvjpjxnpp_nZ2FbIOIVa0i6mYa1M5zjz3OZTLVhWp2OBn1-LfmBQ5aN0OUNI8kumkDN26GErXbAx0t53aj8Mfe5Tnk3ldnB70Xz3raQvpnul9GpZE9QVDAtaZbOfdMuYC8-PT76i_AUWb37g8PV-7smL_739h8n9g7fWmAgNc6u_UEIXZxoAMcPpgGuw7N7lXCubJMSPGsh8OH7Iw5IxX44ELF_KXqWTX1FDLkGB1r6GQlkI-MSPg64W8hsZyCpVtEfJoaO')"></div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col min-w-0">
+<!-- Top Status Bar -->
+<header class="h-14 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0">
+<div class="flex items-center gap-4">
+<h1 class="text-sm font-semibold flex items-center gap-2">
+<span class="text-slate-400">Iteration</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+                        V2.4.0 Build Pipeline
+                    </h1>
+<div class="h-4 w-[1px] bg-slate-200 dark:border-slate-700"></div>
+<div class="flex items-center gap-2 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
+<span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        COMPLETED
+                    </div>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined text-sm">undo</span>
+                        Reject
+                    </button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+                        Approve
+                    </button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-blue-600 shadow-sm">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+                        Deploy
+                    </button>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<!-- AI IM Area (Left) -->
+<section class="flex-[3] flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
+<div class="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<span class="text-sm font-semibold">AI Assistant</span>
+</div>
+<span class="text-[10px] text-slate-400 uppercase tracking-widest">Model: BuildWise-X</span>
+</div>
+<div class="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+<!-- Message AI -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-lg">smart_toy</span>
+</div>
+<div class="space-y-2">
+<div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl rounded-tl-none border border-slate-100 dark:border-slate-700/50">
+<p class="text-sm leading-relaxed">I've analyzed the latest build #4502. The unit test coverage has increased by 4.2%. Would you like me to generate the updated test matrix for the new API endpoints?</p>
+</div>
+<span class="text-[10px] text-slate-400 px-1">10:24 AM</span>
+</div>
+</div>
+<!-- Message User -->
+<div class="flex flex-row-reverse gap-3 max-w-[85%] ml-auto">
+<div class="size-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile photo avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAprRnXTwEnyXsqD3FUeM_ViXA0CpprCIfo6FFdSP8jjv-zwbbCRrBN4DG4qvFDG1pXMmqhh4u6je8Qr_A3ah6IehoOzS6sT30D3cZJCGWyGVXIEuPrBd2oSFNbohY0hbWBum5xxRi2myrmxnzYZRqJWSn8B6JcfR566A4fEdKAYYlDyi-Usxcbz2S_h-ASIKBs38LP50Eo__hgSZlU1ZeZRExuh6ncpI2jR_vDWHntlXNHl6AAeKwT8L16eJ_CE2Q3W3D1i8Tg78Ny"/>
+</div>
+<div class="flex flex-col items-end gap-2">
+<div class="p-3 bg-primary text-white rounded-xl rounded-tr-none shadow-sm shadow-primary/20">
+<p class="text-sm leading-relaxed">Yes, please. Also include the edge cases for the rate-limiting middleware we just added.</p>
+</div>
+<div class="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+<span class="material-symbols-outlined text-sm text-slate-400">description</span>
+<span class="text-xs font-medium">rate_limit_spec.yaml</span>
+<span class="material-symbols-outlined text-sm text-emerald-500">check_circle</span>
+</div>
+<span class="text-[10px] text-slate-400 px-1 text-right">10:25 AM</span>
+</div>
+</div>
+<!-- Message AI with artifact -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-lg">smart_toy</span>
+</div>
+<div class="space-y-3">
+<div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl rounded-tl-none border border-slate-100 dark:border-slate-700/50">
+<p class="text-sm leading-relaxed">Generated the test matrix with 12 new edge cases for rate-limiting. You can review the details in the quick panel or download the report.</p>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div class="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center gap-3">
+<div class="size-8 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-base">grid_view</span>
+</div>
+<div class="min-w-0">
+<p class="text-[11px] font-bold truncate">TestMatrix_v2.csv</p>
+<p class="text-[10px] text-slate-400">2.4MB • Ready</p>
+</div>
+</div>
+<div class="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center gap-3 opacity-60">
+<div class="size-8 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-base">analytics</span>
+</div>
+<div class="min-w-0">
+<p class="text-[11px] font-bold truncate">CoverageReport.pdf</p>
+<p class="text-[10px] text-slate-400">Generating...</p>
+</div>
+</div>
+</div>
+<span class="text-[10px] text-slate-400 px-1">10:26 AM</span>
+</div>
+</div>
+</div>
+<!-- Input Area -->
+<div class="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+<div class="bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-2 focus-within:border-primary transition-colors">
+<textarea class="w-full bg-transparent border-none focus:ring-0 resize-none text-sm placeholder:text-slate-400 min-h-[80px]" placeholder="Message BuildWise AI..."></textarea>
+<div class="flex items-center justify-between mt-2 border-t border-slate-200 dark:border-slate-700 pt-2">
+<div class="flex items-center gap-1">
+<button class="p-1.5 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Upload Files">
+<span class="material-symbols-outlined text-lg">attach_file</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Select Folder">
+<span class="material-symbols-outlined text-lg">folder_open</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Insert Snippet">
+<span class="material-symbols-outlined text-lg">code</span>
+</button>
+</div>
+<button class="size-8 bg-primary text-white rounded-lg flex items-center justify-center hover:bg-blue-600">
+<span class="material-symbols-outlined text-base">send</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Shortcut/Artifact Panel (Right) -->
+<aside class="flex-[1] flex flex-col bg-background-light dark:bg-slate-950 p-6 overflow-y-auto no-scrollbar border-l border-slate-200 dark:border-slate-800">
+<div class="mb-8">
+<h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Core Deliverables</h2>
+<div class="space-y-3">
+<button class="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all group">
+<div class="size-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">fact_check</span>
+</div>
+<div class="flex-1 text-left min-w-0">
+<p class="text-sm font-semibold truncate">Test Matrix</p>
+<p class="text-[10px] text-slate-400">12 tests identified</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary text-sm">chevron_right</span>
+</button>
+<button class="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all group">
+<div class="size-9 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">rule</span>
+</div>
+<div class="flex-1 text-left min-w-0">
+<p class="text-sm font-semibold truncate">Boundary Sync</p>
+<p class="text-[10px] text-slate-400">8 constraints updated</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary text-sm">chevron_right</span>
+</button>
+<button class="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all group">
+<div class="size-9 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+</div>
+<div class="flex-1 text-left min-w-0">
+<p class="text-sm font-semibold truncate">Release Review</p>
+<p class="text-[10px] text-slate-400">Pending final check</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+<div class="mb-8">
+<h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Pipeline Metrics</h2>
+<div class="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+<div>
+<div class="flex justify-between items-center text-[10px] mb-1.5">
+<span class="text-slate-500">Code Coverage</span>
+<span class="font-bold text-slate-700 dark:text-slate-300">88.4%</span>
+</div>
+<div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-emerald-500 rounded-full w-[88%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-center text-[10px] mb-1.5">
+<span class="text-slate-500">Security Scans</span>
+<span class="font-bold text-slate-700 dark:text-slate-300 text-amber-500">3 Low Risks</span>
+</div>
+<div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-amber-500 rounded-full w-[45%]"></div>
+</div>
+</div>
+</div>
+</div>
+<div>
+<h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Recent Changes</h2>
+<div class="space-y-4">
+<div class="flex gap-3">
+<div class="size-2 rounded-full bg-blue-500 mt-1.5"></div>
+<div>
+<p class="text-xs font-medium">Refactored API endpoint routing</p>
+<p class="text-[10px] text-slate-400 mt-0.5">24 mins ago • PR #128</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="size-2 rounded-full bg-emerald-500 mt-1.5"></div>
+<div>
+<p class="text-xs font-medium">Test suite execution completed</p>
+<p class="text-[10px] text-slate-400 mt-0.5">1 hour ago • Build #4502</p>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</main>
+</div>
+</body></html>

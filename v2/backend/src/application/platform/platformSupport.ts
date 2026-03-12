@@ -1,11 +1,12 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 
 export const rolePermissions: Record<string, string[]> = {
+  admin: ["*"],
   owner: ["*"],
-  pm: ["collab:write", "collab:read", "template:run", "deploy:read"],
-  developer: ["collab:read", "template:run", "deploy:write", "deploy:read"],
-  qa: ["collab:read", "deploy:read", "deploy:transition"],
-  viewer: ["collab:read", "deploy:read"]
+  pm: ["collab:write", "collab:read", "template:run", "deploy:read", "iteration:transition", "iteration:transition:complete", "policy:read"],
+  developer: ["collab:read", "template:run", "deploy:write", "deploy:read", "iteration:transition"],
+  qa: ["collab:read", "deploy:read", "deploy:transition", "iteration:transition"],
+  viewer: ["collab:read", "deploy:read", "policy:read"]
 };
 
 export function hasPermission(role: string, permission: string) {

@@ -1,0 +1,108 @@
+{
+  "version": "1.0.0",
+  "updatedAt": "2026-02-23T00:00:00.000Z",
+  "governance": {
+    "flowOwner": "project-manager",
+    "handoffRule": "每个阶段必须输出结构化交付物并由下一角色验收"
+  },
+  "agents": [
+    {
+      "role": "iteration-coach",
+      "type": "interaction",
+      "responsibility": "引导用户补齐输入并推进迭代对话",
+      "inputs": ["用户消息", "迭代状态"],
+      "outputs": ["intent", "guidance", "nextActions"]
+    },
+    {
+      "role": "project-manager",
+      "type": "orchestration",
+      "responsibility": "驱动全流程、分配责任、控制里程碑和风险升级",
+      "inputs": ["需求差异", "边界约束", "风险列表"],
+      "outputs": ["phasePlan", "handoffProtocol", "escalationRules"]
+    },
+    {
+      "role": "context-integrator",
+      "type": "analysis",
+      "responsibility": "融合文档、原型与历史上下文，输出信息完整度与缺口修复动作",
+      "inputs": ["需求文档", "原型输入", "迭代上下文"],
+      "outputs": ["normalizedSpec", "missingInputs", "completionActions"]
+    },
+    {
+      "role": "prototype-analyst",
+      "type": "analysis",
+      "responsibility": "提炼原型主流程、状态切换与异常路径，补全交互细节",
+      "inputs": ["原型截图或文件", "交互描述"],
+      "outputs": ["userFlows", "uiStates", "interactionRisks"]
+    },
+    {
+      "role": "solution-architect",
+      "type": "planning",
+      "responsibility": "输出架构决策、系统约束、集成路线和技术门禁",
+      "inputs": ["normalizedSpec", "边界约束", "现有架构"],
+      "outputs": ["architectureDecisions", "constraints", "integrationPlan"]
+    },
+    {
+      "role": "requirements-analyst",
+      "type": "analysis",
+      "responsibility": "完成需求提炼、差异识别和澄清问题输出",
+      "inputs": ["附件文本", "历史迭代上下文"],
+      "outputs": ["diff", "clarificationQuestions", "risks"]
+    },
+    {
+      "role": "task-planner",
+      "type": "planning",
+      "responsibility": "把需求差异拆解为工作包并给出依赖路径",
+      "inputs": ["diff", "边界约束"],
+      "outputs": ["workPackages", "criticalPath"]
+    },
+    {
+      "role": "frontend-developer",
+      "type": "delivery",
+      "responsibility": "负责前端实现任务、组件变更和 UI 验收项",
+      "inputs": ["workPackages", "设计上下文"],
+      "outputs": ["frontendTasks", "componentChanges", "testFocus"]
+    },
+    {
+      "role": "backend-developer",
+      "type": "delivery",
+      "responsibility": "负责后端接口、服务、数据模型和迁移方案",
+      "inputs": ["workPackages", "架构边界"],
+      "outputs": ["backendTasks", "apiChanges", "migrationPlan"]
+    },
+    {
+      "role": "delivery-engineer",
+      "type": "delivery",
+      "responsibility": "整合实现步骤、代码路径和回滚策略",
+      "inputs": ["frontend/backend 计划", "边界白名单"],
+      "outputs": ["implementationSteps", "codeChangePlan", "rollbackPlan"]
+    },
+    {
+      "role": "qa-reviewer",
+      "type": "quality",
+      "responsibility": "输出测试矩阵、发布判定和阻断项",
+      "inputs": ["实现计划", "风险清单"],
+      "outputs": ["testMatrix", "releaseDecision"]
+    },
+    {
+      "role": "boundary-guardian",
+      "type": "governance",
+      "responsibility": "输出边界白名单并识别越界风险",
+      "inputs": ["需求映射", "代码路径"],
+      "outputs": ["boundary", "violations"]
+    },
+    {
+      "role": "release-ops-advisor",
+      "type": "operations",
+      "responsibility": "提供发布、运维归因和回滚建议",
+      "inputs": ["测试/发布信号", "历史故障"],
+      "outputs": ["triageSteps", "rollbackDecision"]
+    },
+    {
+      "role": "orchestrator",
+      "type": "runtime",
+      "responsibility": "为系统内部编排决策提供策略输出（兼容保留）",
+      "inputs": ["执行上下文", "资源约束"],
+      "outputs": ["strategy", "nextAction", "fallbackPlan"]
+    }
+  ]
+}

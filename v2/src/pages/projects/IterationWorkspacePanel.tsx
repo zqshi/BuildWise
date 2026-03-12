@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import type {
   AttachmentAnalysisReport,
+  ChatSendStatus,
   Iteration,
   IterationContextPayload,
   IterationStateMachinePayload,
@@ -10,6 +11,7 @@ import type {
 } from "../../domain/workspace/types";
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
+import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
 import { deleteOpsTriageTemplate, fetchOpsTriageTemplates, upsertOpsTriageTemplate } from "../../app/workspaceApi";
 
 type PrototypeElement = {
@@ -65,6 +67,17 @@ type HtmlPreviewHistoryItem = {
   text: string;
   styles: Partial<Record<"color" | "backgroundColor" | "fontSize" | "fontWeight" | "width" | "height" | "display", string>>;
 };
+
+type ArtifactPreviewKind = "document" | "html-prototype" | "code" | "test-cases" | "release-review" | "delivery-package";
+
+function resolveArtifactPreviewKind(artifactId: string): ArtifactPreviewKind {
+  if (artifactId === "prototype-preview") return "html-prototype";
+  if (artifactId === "code-delivery") return "code";
+  if (artifactId === "test-matrix" || artifactId === "acceptance-checklist") return "test-cases";
+  if (artifactId === "release-review") return "release-review";
+  if (artifactId === "delivery-package") return "delivery-package";
+  return "document";
+}
 
 const getInteractionDrawerWidthBounds = (viewportWidth: number) => {
   const max = Math.max(360, Math.round(viewportWidth * 0.96));
@@ -338,18 +351,23 @@ type IterationWorkspacePanelProps = {
   contextData: IterationContextPayload | null;
   stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
+  chatSendStatus: ChatSendStatus;
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
   uploadedFile: UploadedAttachmentMeta | null;
   analysisReport: AttachmentAnalysisReport | null;
   showAnalysisPanel: boolean;
   isAnalyzingAttachment: boolean;
+  lastUploadFailed: boolean;
   uploadAnalysisProgress: UploadAnalysisProgress | null;
+  uploadToastMessage: string | null;
   onUploadClick: () => void;
   onOpenAnalysisPanel: () => void;
   onCloseAnalysisPanel: () => void;
+  onClearUploadToast: () => void;
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onUploadFiles: (files: File[]) => void | Promise<void>;
+  onRetryUpload: () => void | Promise<void>;
   onChatInputChange: (value: string) => void;
   onChatSend: (options?: {
     overrideText?: string;
@@ -371,6 +389,7 @@ type IterationWorkspacePanelProps = {
   onConfirmIterationAnalysis: (payload: {
     accurate: boolean;
     note?: string;
+    decisionEvent?: "understanding-accurate" | "understanding-inaccurate";
     resolvedClarificationQuestions?: string[];
     boundary?: {
       requirementRefs?: string[];
@@ -390,6 +409,14 @@ type IterationWorkspacePanelProps = {
   ) => void | Promise<void>;
   onGenerateTestArtifacts: (dryRun?: boolean) => void | Promise<void>;
   onRefreshReleaseReview: () => void | Promise<void>;
+  onSaveArtifactDraft: (artifactId: string, payload: { content: string; media?: string[]; actor?: string }) => void | Promise<void>;
+  onCommitArtifact: (
+    artifactId: string,
+    payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }
+  ) => void | Promise<void>;
+  onConfirmArtifact: (artifactId: string, payload: { actor?: string; passed?: boolean; note?: string }) => void | Promise<void>;
+  onAppendArtifactToChat: (artifactId: string, payload?: { actor?: string; prompt?: string }) => void | Promise<void>;
+  onTransitionArtifactStage: (payload: { toStage: IterationArtifactStage; actor?: string; note?: string }) => void | Promise<void>;
   onTransitionState: (toStatus: IterationStatus) => void;
   onSwitchToProjectPanel: () => void;
   onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
@@ -401,18 +428,23 @@ export function IterationWorkspacePanel({
   contextData,
   stateMachine,
   chatMessages,
+  chatSendStatus,
   chatInput,
   fileInputRef,
   uploadedFile,
   analysisReport,
   showAnalysisPanel,
   isAnalyzingAttachment,
+  lastUploadFailed,
   uploadAnalysisProgress,
+  uploadToastMessage,
   onUploadClick,
   onOpenAnalysisPanel,
   onCloseAnalysisPanel,
+  onClearUploadToast,
   onUpload,
   onUploadFiles,
+  onRetryUpload,
   onChatInputChange,
   onChatSend,
   onUpdateClarificationDraft,
@@ -421,6 +453,11 @@ export function IterationWorkspacePanel({
   onUpdateTestMatrixExecution,
   onGenerateTestArtifacts,
   onRefreshReleaseReview,
+  onSaveArtifactDraft,
+  onCommitArtifact,
+  onConfirmArtifact,
+  onAppendArtifactToChat,
+  onTransitionArtifactStage,
   onTransitionState,
   onSwitchToProjectPanel,
   onPatchUploadedHtmlPreview
@@ -588,15 +625,7 @@ export function IterationWorkspacePanel({
     acc[item.page][item.component].push(item);
     return acc;
   }, {});
-  const showInteractionEntry = Boolean(
-    currentIteration?.interactionState?.hasPrototypeAssets ||
-      uploadedFile?.hasPrototypeAssets ||
-      chatMessages.some(
-        (msg) =>
-          msg.role === "assistant" &&
-          (msg.content.includes("交互界面") || msg.content.includes("可交互原型") || msg.content.includes("HTML 原型附件"))
-      )
-  );
+  const showInteractionEntry = true;
   const htmlPrototypePreviews = uploadedFile?.htmlPreviews ?? [];
   const htmlPreviewPathsKey = htmlPrototypePreviews.map((item) => item.path).join("|");
   const imagePrototypePreviews = uploadedFile?.imagePreviews ?? [];
@@ -621,6 +650,18 @@ export function IterationWorkspacePanel({
   const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
   const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
   const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
+  const artifactItems = currentIteration?.changeControl?.artifactWorkflow?.items || [];
+  const activeArtifactStage = currentIteration?.changeControl?.artifactWorkflow?.activeStage || "clarification";
+  const visibleArtifactItems = artifactItems.filter((item) => item.stage === activeArtifactStage);
+  const [analysisDrawerArtifactId, setAnalysisDrawerArtifactId] = useState<string | null>(null);
+  const artifactMap = useMemo(() => new Map(artifactItems.map((item) => [item.id, item])), [artifactItems]);
+  const selectedDrawerArtifact = analysisDrawerArtifactId ? artifactMap.get(analysisDrawerArtifactId) || null : null;
+  const selectedArtifactKind = selectedDrawerArtifact ? resolveArtifactPreviewKind(selectedDrawerArtifact.id) : null;
+  const [artifactDraftContent, setArtifactDraftContent] = useState("");
+  const [artifactSummaryText, setArtifactSummaryText] = useState("");
+  const [artifactEvidenceText, setArtifactEvidenceText] = useState("");
+  const [artifactConfirmNote, setArtifactConfirmNote] = useState("");
+  const recentHistoryItems = transitionHistory.slice(0, 3);
 
   useEffect(() => {
     const boundary = currentIteration?.changeControl?.boundary;
@@ -631,6 +672,24 @@ export function IterationWorkspacePanel({
     setBoundaryNote(boundary?.note ?? "");
     setConfirmNote(currentIteration?.changeControl?.lastClarificationNote ?? "");
   }, [currentIteration?.id, currentIteration?.changeControl?.boundary?.updatedAt, currentIteration?.changeControl?.clarificationDraftUpdatedAt]);
+
+  useEffect(() => {
+    setAnalysisDrawerArtifactId(null);
+  }, [currentIteration?.id]);
+
+  useEffect(() => {
+    if (!selectedDrawerArtifact) {
+      setArtifactDraftContent("");
+      setArtifactSummaryText("");
+      setArtifactEvidenceText("");
+      setArtifactConfirmNote("");
+      return;
+    }
+    setArtifactDraftContent(selectedDrawerArtifact.draft?.content || "");
+    setArtifactSummaryText(selectedDrawerArtifact.summary || "");
+    setArtifactEvidenceText((selectedDrawerArtifact.evidence || []).join("\n"));
+    setArtifactConfirmNote("");
+  }, [selectedDrawerArtifact?.id, selectedDrawerArtifact?.updatedAt]);
 
   useEffect(() => {
     const matrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
@@ -938,16 +997,155 @@ export function IterationWorkspacePanel({
     }
   };
 
+  const resolveDeliverableReference = (content: string) => {
+    if (!content.startsWith("【交付物引用】")) {
+      return null;
+    }
+    const lines = content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) {
+      return null;
+    }
+    const title = lines[0].replace(/^【交付物引用】/, "").trim() || "交付物";
+    const findValue = (prefix: string) => {
+      const line = lines.find((item) => item.startsWith(prefix));
+      return line ? line.replace(prefix, "").trim() : "";
+    };
+    const stage = findValue("阶段：");
+    const type = findValue("类型：");
+    const status = findValue("状态：");
+    const summary = findValue("摘要：");
+    const evidenceRaw = findValue("证据：");
+    const promptLine =
+      lines.find((item) => item.startsWith("请基于")) || `请基于「${title}」继续推进下一阶段。`;
+    const evidence = evidenceRaw
+      ? evidenceRaw
+          .split(/[；;]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    return {
+      title,
+      type,
+      stage,
+      status,
+      summary,
+      evidence,
+      prompt: promptLine
+    };
+  };
+
   const handleQuickAction = (action: string) => {
     if (/上传|附件|文件夹/.test(action)) {
       onUploadClick();
       return;
     }
     if (/查看分析报告|分析报告|确认边界|锁定边界|测试矩阵|验收/.test(action)) {
+      setAnalysisDrawerArtifactId(null);
       onOpenAnalysisPanel();
       return;
     }
     onChatInputChange(action);
+  };
+
+  const openAnalysisDrawer = () => {
+    setAnalysisDrawerArtifactId(null);
+    onOpenAnalysisPanel();
+  };
+
+  const openArtifactPreviewById = (artifactId: string) => {
+    setAnalysisDrawerArtifactId(artifactId);
+    onOpenAnalysisPanel();
+  };
+
+  const openArtifactPreviewByTitle = (title: string) => {
+    const matched = artifactItems.find((item) => item.title === title);
+    if (!matched) {
+      openAnalysisDrawer();
+      return;
+    }
+    openArtifactPreviewById(matched.id);
+  };
+
+  const parseArtifactEvidence = (raw: string) =>
+    raw
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+
+  const handleSaveCurrentArtifactDraft = async () => {
+    if (!selectedDrawerArtifact) return;
+    const content = artifactDraftContent.trim();
+    if (!content) {
+      setChangeControlNotice("请先填写交付物草稿内容。");
+      return;
+    }
+    setChangeControlBusy(true);
+    try {
+      await onSaveArtifactDraft(selectedDrawerArtifact.id, { content, actor: "human" });
+      setChangeControlNotice(`已保存草稿：${selectedDrawerArtifact.title}`);
+    } finally {
+      setChangeControlBusy(false);
+    }
+  };
+
+  const handleCommitCurrentArtifact = async () => {
+    if (!selectedDrawerArtifact) return;
+    setChangeControlBusy(true);
+    try {
+      await onCommitArtifact(selectedDrawerArtifact.id, {
+        actor: "human",
+        summary: artifactSummaryText.trim(),
+        source: selectedDrawerArtifact.source,
+        evidence: parseArtifactEvidence(artifactEvidenceText)
+      });
+      setChangeControlNotice(`已提交交付物：${selectedDrawerArtifact.title}`);
+    } finally {
+      setChangeControlBusy(false);
+    }
+  };
+
+  const handleConfirmCurrentArtifact = async (passed: boolean) => {
+    if (!selectedDrawerArtifact) return;
+    setChangeControlBusy(true);
+    try {
+      await onConfirmArtifact(selectedDrawerArtifact.id, {
+        actor: "human",
+        passed,
+        note: artifactConfirmNote.trim()
+      });
+      if (!passed) {
+        setChangeControlNotice("已标记阻断，并通知管理员在对话窗口确认。");
+        return;
+      }
+      setChangeControlNotice(`已确认通过：${selectedDrawerArtifact.title}`);
+    } finally {
+      setChangeControlBusy(false);
+    }
+  };
+
+  const handleAppendCurrentArtifactToChat = async () => {
+    if (!selectedDrawerArtifact) return;
+    setChangeControlBusy(true);
+    try {
+      await onAppendArtifactToChat(selectedDrawerArtifact.id, {
+        actor: "human",
+        prompt: "请基于该交付物继续执行下一步，并反馈当前门禁状态。"
+      });
+      setChangeControlNotice("已将交付物引用卡发送到对话。");
+    } finally {
+      setChangeControlBusy(false);
+    }
+  };
+
+  const handleContinueFromArtifact = async () => {
+    if (!selectedDrawerArtifact) return;
+    await onChatSend({
+      overrideText: `继续执行：基于交付物「${selectedDrawerArtifact.title}」推进下一步，并给出当前门禁通过条件。`
+    });
   };
 
   const renderIntentLabel = (intent: string) => {
@@ -1349,6 +1547,11 @@ export function IterationWorkspacePanel({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
+  const openInteractionPanel = () => {
+    onCloseAnalysisPanel();
+    setShowInteractionPanel(true);
+  };
+
   return (
     <>
       <article
@@ -1367,266 +1570,356 @@ export function IterationWorkspacePanel({
               {currentIteration ? `当前迭代：${currentIteration.name}` : "请先在右侧选择迭代版本"}
             </p>
           </div>
-          <div className="chat-tools" />
         </div>
         {error ? (
           <div className="inline-error-banner" role="alert" aria-live="assertive">
             {error}
           </div>
         ) : null}
-        <div className="iteration-meta-grid">
-          <div className="info-box">
-            <p className="hint">继承来源</p>
-            <p>{contextData?.previous ? contextData.previous.name : "无（首个版本）"}</p>
-          </div>
-          <div className="info-box">
-            <p className="hint">范围项</p>
-            <p>in: {scopeInCount} / out: {scopeOutCount}</p>
-          </div>
-          <div className="info-box">
-            <p className="hint">验收标准</p>
-            <p>{acceptanceCount} 项</p>
-          </div>
-        </div>
-        <div className={`info-box state-machine-box ${!hasStateMachineActions && !hasStateMachineHistory ? "compact" : ""}`}>
-          <div className="state-machine-head">
-            <p className="hint">迭代状态</p>
-            <span className={`status-pill ${stateMachine?.currentStatus || currentIteration?.status || "planned"}`}>
-              {renderStatusLabel(stateMachine?.currentStatus || currentIteration?.status || "planned")}
-            </span>
-          </div>
+        <div className="iteration-status-strip">
+          <span className={`status-pill ${stateMachine?.currentStatus || currentIteration?.status || "planned"}`}>
+            {renderStatusLabel(stateMachine?.currentStatus || currentIteration?.status || "planned")}
+          </span>
+          <span>继承：{contextData?.previous ? contextData.previous.name : "首个版本"}</span>
+          <span>范围 in/out：{scopeInCount}/{scopeOutCount}</span>
+          <span>验收：{acceptanceCount} 项</span>
           {hasStateMachineActions ? (
-            <div className="state-machine-actions">
-              {allowedTransitions.map((status) => (
+            <div className="chat-tools">
+              {allowedTransitions.slice(0, 2).map((status) => (
                 <button key={status} type="button" className="btn ghost mini" onClick={() => onTransitionState(status)}>
                   流转到 {renderStatusLabel(status)}
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="hint state-machine-inline-hint">当前状态暂无可执行流转。</p>
-          )}
-          {hasStateMachineHistory ? (
-            <ul className="state-transition-list">
-              {transitionHistory.slice(0, 5).map((item) => (
-                <li key={`${item.id}-${item.createdAt}`}>
-                  <strong>
-                    {renderStatusLabel(item.fromStatus)} → {renderStatusLabel(item.toStatus)}
-                  </strong>
-                  <span>{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
-                </li>
-              ))}
-            </ul>
           ) : null}
         </div>
-        <div
-          className={`chat-body ${dragOver ? "drop-active" : ""}`}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragOver(false);
-            const files = Array.from(event.dataTransfer.files || []);
-            if (files.length > 0) {
-              void onUploadFiles(files);
-            }
-          }}
-        >
-          {chatMessages.length === 0 ? (
-            <div className="empty-state">暂无消息，输入需求后开始沟通。</div>
-          ) : (
-            chatMessages.map((msg) => (
-              <div key={`${msg.id}-${msg.createdAt}`} className={`msg-row msg-row-${msg.role}`}>
-                {msg.role !== "user" ? (
-                  <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
-                    {getRoleAvatar(msg.role)}
-                  </div>
-                ) : null}
-                <div className={`msg msg-${msg.role} ${getMsgKind(msg)} ${getMsgTheme(msg)}`}>
-                  <div className="msg-meta">
-                    <span>{getRoleLabel(msg.role)}</span>
-                    <time dateTime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
-                  </div>
-                  {msg.role === "system" && resolveActionCard(msg.content) ? (
-                    (() => {
-                      const card = resolveActionCard(msg.content);
-                      if (!card) return null;
-                      return (
-                        <div className="action-card">
-                          <p className="action-card-title">
-                            Agent 引导卡 · {renderIntentLabel(card.intent)}
-                            {card.uploadRecommended ? " · 建议先上传材料" : ""}
-                          </p>
-                          <p className={`action-priority ${card.priority === "P0" ? "p0" : card.priority === "P1" ? "p1" : "p2"}`}>
-                            优先级：{card.priority}
-                          </p>
-                          {card.prerequisites.length > 0 ? (
-                            <ul className="action-card-list">
-                              {card.prerequisites.map((item) => (
-                                <li key={`prereq-${item}`}>前置条件：{item}</li>
-                              ))}
-                            </ul>
-                          ) : null}
-                          {card.actions.length > 0 ? (
-                            <div className="msg-inline-actions">
-                              {card.actions.map((action) => (
-                                <button key={action} type="button" className="btn ghost mini" onClick={() => handleQuickAction(action)}>
-                                  {action}
+        <div className="iteration-workbench-grid">
+          <div className="iteration-chat-main">
+            <div
+              className={`chat-body ${dragOver ? "drop-active" : ""}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragOver(false);
+                const files = Array.from(event.dataTransfer.files || []);
+                if (files.length > 0) {
+                  void onUploadFiles(files);
+                }
+              }}
+            >
+              {chatMessages.length === 0 ? (
+                <div className="empty-state">暂无消息，输入需求后开始沟通。</div>
+              ) : (
+                chatMessages.map((msg) => (
+                  <div key={`${msg.id}-${msg.createdAt}`} className={`msg-row msg-row-${msg.role}`}>
+                    {msg.role !== "user" ? (
+                      <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
+                        {getRoleAvatar(msg.role)}
+                      </div>
+                    ) : null}
+                    <div className={`msg msg-${msg.role} ${getMsgKind(msg)} ${getMsgTheme(msg)}`}>
+                      <div className="msg-meta">
+                        <span>{getRoleLabel(msg.role)}</span>
+                        <time dateTime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
+                      </div>
+                      {resolveDeliverableReference(msg.content) ? (
+                        (() => {
+                          const deliverable = resolveDeliverableReference(msg.content);
+                          if (!deliverable) return null;
+                          return (
+                            <div className="deliverable-msg-card">
+                              <div className="deliverable-msg-head">
+                                <strong>{deliverable.title}</strong>
+                                <span className="hint">{deliverable.status || "状态待确认"}</span>
+                              </div>
+                              {deliverable.type ? <p className="hint">类型：{deliverable.type}</p> : null}
+                              {deliverable.stage ? <p className="hint">阶段：{deliverable.stage}</p> : null}
+                              {deliverable.summary ? <p>{deliverable.summary}</p> : null}
+                              {deliverable.evidence.length > 0 ? (
+                                <ul className="deliverable-plain-list">
+                                  {deliverable.evidence.map((item) => (
+                                    <li key={item}>{item}</li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                              <div className="msg-inline-actions">
+                                <button type="button" className="btn ghost mini" onClick={() => openArtifactPreviewByTitle(deliverable.title)}>
+                                  查看预览
                                 </button>
-                              ))}
+                                <button type="button" className="btn ghost mini" onClick={() => onChatInputChange(deliverable.prompt)}>
+                                  继续推进
+                                </button>
+                              </div>
                             </div>
+                          );
+                        })()
+                      ) : msg.role === "system" && resolveActionCard(msg.content) ? (
+                        (() => {
+                          const card = resolveActionCard(msg.content);
+                          if (!card) return null;
+                          return (
+                            <div className="action-card">
+                              <p className="action-card-title">
+                                Agent 引导卡 · {renderIntentLabel(card.intent)}
+                                {card.uploadRecommended ? " · 建议先上传材料" : ""}
+                              </p>
+                              <p className={`action-priority ${card.priority === "P0" ? "p0" : card.priority === "P1" ? "p1" : "p2"}`}>
+                                优先级：{card.priority}
+                              </p>
+                              {card.prerequisites.length > 0 ? (
+                                <ul className="action-card-list">
+                                  {card.prerequisites.map((item) => (
+                                    <li key={`prereq-${item}`}>前置条件：{item}</li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                              {card.actions.length > 0 ? (
+                                <div className="msg-inline-actions">
+                                  {card.actions.map((action) => (
+                                    <button key={action} type="button" className="btn ghost mini" onClick={() => handleQuickAction(action)}>
+                                      {action}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {card.checklist.length > 0 ? (
+                                <ul className="action-card-list">
+                                  {card.checklist.map((item) => (
+                                    <li key={item}>{item}</li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <p>{msg.content}</p>
+                      )}
+                      {msg.role === "system" && !resolveActionCard(msg.content) && resolveActionButtons(msg.content).length > 0 ? (
+                        <div className="msg-inline-actions">
+                          {resolveActionButtons(msg.content).map((action) => (
+                            <button key={action} type="button" className="btn ghost mini" onClick={() => handleQuickAction(action)}>
+                              {action}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {getMsgKind(msg) === "event-upload" && msg.id === lastUploadMessageId ? (
+                        <div className="msg-inline-actions">
+                          {canOpenAnalysisPanel ? (
+                            <button type="button" className="btn ghost mini attachment-report-entry" onClick={openAnalysisDrawer}>
+                              查看分析报告
+                            </button>
                           ) : null}
-                          {card.checklist.length > 0 ? (
-                            <ul className="action-card-list">
-                              {card.checklist.map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
+                          {showInteractionEntry ? (
+                            <button type="button" className="btn ghost mini" onClick={openInteractionPanel}>
+                              交互界面
+                            </button>
                           ) : null}
                         </div>
-                      );
-                    })()
-                  ) : (
-                    <p>{msg.content}</p>
-                  )}
-                  {msg.role === "system" && !resolveActionCard(msg.content) && resolveActionButtons(msg.content).length > 0 ? (
-                    <div className="msg-inline-actions">
-                      {resolveActionButtons(msg.content).map((action) => (
-                        <button key={action} type="button" className="btn ghost mini" onClick={() => handleQuickAction(action)}>
-                          {action}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {getMsgKind(msg) === "event-upload" && msg.id === lastUploadMessageId ? (
-                    <div className="msg-inline-actions">
-                      {canOpenAnalysisPanel ? (
-                        <button type="button" className="btn ghost mini attachment-report-entry" onClick={onOpenAnalysisPanel}>
-                          查看分析报告
-                        </button>
-                      ) : null}
-                      {showInteractionEntry ? (
-                        <button type="button" className="btn ghost mini" onClick={() => setShowInteractionPanel(true)}>
-                          交互界面
-                        </button>
                       ) : null}
                     </div>
-                  ) : null}
-                </div>
-                {msg.role === "user" ? (
-                  <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
-                    {getRoleAvatar(msg.role)}
+                    {msg.role === "user" ? (
+                      <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
+                        {getRoleAvatar(msg.role)}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                ))
+              )}
+            </div>
+            {uploadAnalysisProgress ? (
+              <div className={`upload-analysis-status stage-${uploadAnalysisProgress.stage}`} role="status" aria-live="polite">
+                <div className="upload-analysis-status-head">
+                  <strong>{uploadAnalysisProgress.label}</strong>
+                  <span>{Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%</span>
+                </div>
+                <p>{uploadAnalysisProgress.detail}</p>
+                <div className="progress-bar">
+                  <div className="progress-value" style={{ width: `${Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%` }} />
+                </div>
               </div>
-            ))
-          )}
-        </div>
-        {uploadAnalysisProgress ? (
-          <div className={`upload-analysis-status stage-${uploadAnalysisProgress.stage}`} role="status" aria-live="polite">
-            <div className="upload-analysis-status-head">
-              <strong>{uploadAnalysisProgress.label}</strong>
-              <span>{Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%</span>
-            </div>
-            <p>{uploadAnalysisProgress.detail}</p>
-            <div className="progress-bar">
-              <div className="progress-value" style={{ width: `${Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%` }} />
-            </div>
-          </div>
-        ) : null}
-        <div className="chat-input-row">
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden-input"
-            onChange={onUpload}
-            multiple
-          />
-          <input
-            ref={folderInputRef}
-            type="file"
-            className="hidden-input"
-            multiple
-            {...folderPickerAttrs}
-            onChange={(event) => {
-              const files = Array.from(event.target.files || []);
-              void onUploadFiles(files);
-              event.target.value = "";
-            }}
-          />
-          <div className="upload-trigger" ref={uploadTriggerRef}>
-            <button
-              type="button"
-              className="icon-btn upload-icon-btn"
-              onClick={() => setShowUploadMenu((prev) => !prev)}
-              disabled={!currentIteration || isAnalyzingAttachment}
-              aria-label={isAnalyzingAttachment ? "附件分析中" : "发送附件"}
-              title={isAnalyzingAttachment ? "分析中..." : "发送附件/文件夹（支持拖拽）"}
-            >
-              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M6.2 8.6L3.9 10.9C3 11.8 3 13.2 3.9 14.1C4.8 15 6.2 15 7.1 14.1L11.9 9.3C13.1 8.1 13.1 6.2 11.9 5C10.7 3.8 8.8 3.8 7.6 5L2.8 9.8"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            {showUploadMenu ? (
-              <div className="upload-menu" role="menu">
-                <button
-                  type="button"
-                  className="btn ghost mini"
-                  onClick={() => {
-                    setShowUploadMenu(false);
-                    onUploadClick();
-                  }}
-                >
-                  选择文件
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost mini"
-                  onClick={() => {
-                    setShowUploadMenu(false);
-                    folderInputRef.current?.click();
-                  }}
-                >
-                  选择文件夹
+            ) : null}
+            {lastUploadFailed ? (
+              <div className="chat-tools upload-tip">
+                <button type="button" className="btn ghost mini" onClick={() => void onRetryUpload()}>
+                  重新尝试上传
                 </button>
               </div>
             ) : null}
+            <div className="chat-input-row">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden-input"
+                onChange={onUpload}
+                multiple
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                className="hidden-input"
+                multiple
+                {...folderPickerAttrs}
+                onChange={(event) => {
+                  const files = Array.from(event.target.files || []);
+                  void onUploadFiles(files);
+                  event.target.value = "";
+                }}
+              />
+              <div className="upload-trigger" ref={uploadTriggerRef}>
+                <button
+                  type="button"
+                  className="icon-btn upload-icon-btn"
+                  onClick={() => setShowUploadMenu((prev) => !prev)}
+                  disabled={!currentIteration || isAnalyzingAttachment}
+                  aria-label={isAnalyzingAttachment ? "附件分析中" : "发送附件"}
+                  title={isAnalyzingAttachment ? "分析中..." : "发送附件/文件夹（支持拖拽）"}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path
+                      d="M6.2 8.6L3.9 10.9C3 11.8 3 13.2 3.9 14.1C4.8 15 6.2 15 7.1 14.1L11.9 9.3C13.1 8.1 13.1 6.2 11.9 5C10.7 3.8 8.8 3.8 7.6 5L2.8 9.8"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                {showUploadMenu ? (
+                  <div className="upload-menu" role="menu">
+                    <button
+                      type="button"
+                      className="btn ghost mini"
+                      onClick={() => {
+                        setShowUploadMenu(false);
+                        onUploadClick();
+                      }}
+                    >
+                      选择文件
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost mini"
+                      onClick={() => {
+                        setShowUploadMenu(false);
+                        folderInputRef.current?.click();
+                      }}
+                    >
+                      选择文件夹
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <input
+                value={chatInput}
+                onChange={(event) => onChatInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    handleComposedSend();
+                  }
+                }}
+                onFocus={() => setShowUploadMenu(false)}
+                placeholder="输入需求或指令，例如：完成: 接口联调"
+                aria-label="需求输入框"
+              />
+              <button type="button" className="btn primary" onClick={handleComposedSend} disabled={!chatInput.trim()}>
+                发送
+              </button>
+            </div>
+            {chatSendStatus !== "idle" ? (
+              <p className={`chat-send-status status-${chatSendStatus}`}>
+                {chatSendStatus === "sending" ? "发送中..." : chatSendStatus === "sent" ? "已发送" : "发送失败，请重试"}
+              </p>
+            ) : null}
           </div>
-          <input
-            value={chatInput}
-            onChange={(event) => onChatInputChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                handleComposedSend();
-              }
-            }}
-            onFocus={() => setShowUploadMenu(false)}
-            placeholder="输入需求或指令，例如：完成: 接口联调"
-            aria-label="需求输入框"
-          />
-          <button type="button" className="btn primary" onClick={handleComposedSend} disabled={!chatInput.trim()}>
-            发送
-          </button>
+          <aside className="iteration-side-rail" aria-label="交付与指标">
+            <section className="iteration-side-section">
+              <h3>核心交付物</h3>
+              <ul className="iteration-side-list">
+                {visibleArtifactItems.length > 0 ? (
+                  visibleArtifactItems.slice(0, 3).map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="iteration-side-deliverable-btn"
+                        onClick={() => openArtifactPreviewById(item.id)}
+                        aria-label={`查看交付物预览：${item.title}`}
+                      >
+                        <strong>{item.title}</strong>
+                        <span>{item.status} / {item.gateStatus}</span>
+                        <em>查看预览</em>
+                      </button>
+                    </li>
+                  ))
+                ) : (
+                  <li className="empty">暂无交付物</li>
+                )}
+              </ul>
+            </section>
+            <section className="iteration-side-section">
+              <h3>Pipeline 指标</h3>
+              <ul className="iteration-side-list compact">
+                <li>
+                  <strong>测试覆盖率</strong>
+                  <span>{matrixSummary.coverage}%</span>
+                </li>
+                <li>
+                  <strong>测试通过率</strong>
+                  <span>{matrixSummary.passRate}%</span>
+                </li>
+                <li>
+                  <strong>风险项</strong>
+                  <span>{materialRisks.length} 条</span>
+                </li>
+              </ul>
+            </section>
+            <section className="iteration-side-section">
+              <h3>最近变更</h3>
+              <ul className="iteration-side-list compact">
+                {recentHistoryItems.length > 0 ? (
+                  recentHistoryItems.map((item) => (
+                    <li key={`${item.id}-${item.createdAt}`}>
+                      <strong>{renderStatusLabel(item.fromStatus)} → {renderStatusLabel(item.toStatus)}</strong>
+                      <span>{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="empty">暂无状态变更记录</li>
+                )}
+              </ul>
+            </section>
+          </aside>
         </div>
       </article>
+      {uploadToastMessage ? (
+        <div className="upload-toast" role="status" aria-live="polite">
+          <span>{uploadToastMessage}</span>
+          <button type="button" className="btn ghost mini upload-toast-close" onClick={onClearUploadToast}>
+            关闭
+          </button>
+        </div>
+      ) : null}
 
       <div className={`analysis-drawer-mask ${showAnalysisPanel ? "open" : ""}`} onClick={onCloseAnalysisPanel} aria-hidden={!showAnalysisPanel} />
       <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showAnalysisPanel ? "open" : ""}`}>
         <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
-          <div className="panel-head">
-            <h2>分析报告</h2>
+          <div className="panel-head analysis-drawer-head">
+            <div>
+              <h2>{selectedDrawerArtifact ? "交付物预览抽屉" : "分析报告抽屉"}</h2>
+              <p className="hint">当前迭代：{currentIteration?.name || "-"}</p>
+              {selectedDrawerArtifact ? <p className="hint">预览对象：{selectedDrawerArtifact.title}</p> : null}
+            </div>
             <div className="chat-tools">
-              <button type="button" className="btn ghost mini" onClick={onCloseAnalysisPanel}>
-                收起报告
+              <button type="button" className="visual-align-hidden-trigger" onClick={openInteractionPanel}>
+                交互界面
+              </button>
+              <button type="button" className="icon-btn" aria-label="关闭报告抽屉" onClick={onCloseAnalysisPanel}>
+                ✕
               </button>
             </div>
           </div>
@@ -1634,11 +1927,219 @@ export function IterationWorkspacePanel({
             ref={analysisScrollRef}
             className="preview-scroll"
           >
-            {!analysisReport ? (
-              <div className="info-box">
-                <p className="hint">暂无分析结果，请先上传附件。</p>
+            {selectedDrawerArtifact ? (
+              <div className="info-box deliverable-preview-focus">
+                <div className="panel-head tight">
+                  <strong>{selectedDrawerArtifact.title}</strong>
+                  <span className="health-pill">{selectedDrawerArtifact.status}</span>
+                </div>
+                <p>类型：{selectedArtifactKind}</p>
+                <p>阶段：{selectedDrawerArtifact.stage}</p>
+                <p>Gate：{selectedDrawerArtifact.gateStatus}</p>
+                <p>版本：v{selectedDrawerArtifact.outputVersion}</p>
+                <p>摘要：{selectedDrawerArtifact.summary || "-"}</p>
+                {(selectedDrawerArtifact.evidence?.length ?? 0) > 0 ? (
+                  <p className="hint">证据：{selectedDrawerArtifact.evidence.join("；")}</p>
+                ) : null}
+                {selectedArtifactKind === "html-prototype" ? (
+                  <div className="info-box">
+                    <h3>HTML 原型预览</h3>
+                    {artifactDraftContent.trim() ? (
+                      <iframe
+                        title={`${selectedDrawerArtifact.title}-preview`}
+                        sandbox="allow-scripts allow-same-origin"
+                        srcDoc={patchHtmlRuntimeForPreview(artifactDraftContent)}
+                        style={{ width: "100%", minHeight: 380, border: "1px solid #d8dee6", borderRadius: 10, background: "#fff" }}
+                      />
+                    ) : (
+                      <p className="hint">暂无原型内容，请先在下方编辑区输入 HTML 内容后保存。</p>
+                    )}
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "code" ? (
+                  <div className="info-box">
+                    <h3>代码预览</h3>
+                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                      <code>{artifactDraftContent || selectedDrawerArtifact.summary || "暂无代码内容"}</code>
+                    </pre>
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "test-cases" ? (
+                  <div className="info-box">
+                    <h3>测试用例视图</h3>
+                    {generatedTestMatrix.length > 0 ? (
+                      <ul className="history-list">
+                        {generatedTestMatrix.slice(0, 10).map((item) => (
+                          <li key={`${item.caseId}-drawer`} className="history-item">
+                            <strong>
+                              [{item.type}] {item.caseId}
+                            </strong>
+                            <p>expected：{item.expected || "-"}</p>
+                            <p className="hint">状态：{item.executionStatus}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="hint">当前无测试矩阵数据。</p>
+                    )}
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "release-review" ? (
+                  <div className="info-box">
+                    <h3>发布评审视图</h3>
+                    <p>最近结论：{currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
+                    <p className="hint">说明：{currentIteration?.changeControl?.lastReleaseReviewReason || "-"}</p>
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "delivery-package" ? (
+                  <div className="info-box">
+                    <h3>交付归档视图</h3>
+                    <p className="hint">
+                      已落盘文件：{currentIteration?.changeControl?.qualityArtifacts?.materializedFiles?.join("；") || "暂无"}
+                    </p>
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "document" ? (
+                  <div className="info-box">
+                    <h3>文档视图</h3>
+                    {artifactDraftContent.trim().startsWith("<") ? (
+                      <div dangerouslySetInnerHTML={{ __html: artifactDraftContent }} />
+                    ) : (
+                      <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        <code>{artifactDraftContent || selectedDrawerArtifact.summary || "暂无文档内容"}</code>
+                      </pre>
+                    )}
+                  </div>
+                ) : null}
+                {selectedDrawerArtifact.editCapability !== "none" ? (
+                  <div className="info-box">
+                    <h3>交付物编辑</h3>
+                    <label className="hint">
+                      草稿内容
+                      <textarea rows={8} value={artifactDraftContent} onChange={(event) => setArtifactDraftContent(event.target.value)} />
+                    </label>
+                    <label className="hint">
+                      摘要
+                      <textarea rows={3} value={artifactSummaryText} onChange={(event) => setArtifactSummaryText(event.target.value)} />
+                    </label>
+                    <label className="hint">
+                      证据（每行一条）
+                      <textarea rows={4} value={artifactEvidenceText} onChange={(event) => setArtifactEvidenceText(event.target.value)} />
+                    </label>
+                    <label className="hint">
+                      确认备注（阻断时建议填写原因）
+                      <textarea rows={3} value={artifactConfirmNote} onChange={(event) => setArtifactConfirmNote(event.target.value)} />
+                    </label>
+                    <div className="chat-tools">
+                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={handleSaveCurrentArtifactDraft}>
+                        保存草稿
+                      </button>
+                      <button type="button" className="btn secondary" disabled={changeControlBusy} onClick={handleCommitCurrentArtifact}>
+                        提交交付物
+                      </button>
+                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={() => void handleConfirmCurrentArtifact(true)}>
+                        确认通过
+                      </button>
+                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={() => void handleConfirmCurrentArtifact(false)}>
+                        标记阻断
+                      </button>
+                    </div>
+                    <div className="chat-tools">
+                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={handleAppendCurrentArtifactToChat}>
+                        发送引用卡到对话
+                      </button>
+                      <button type="button" className="btn primary" disabled={changeControlBusy} onClick={handleContinueFromArtifact}>
+                        继续执行
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="chat-tools">
+                  <button type="button" className="btn ghost mini" onClick={() => setAnalysisDrawerArtifactId(null)}>
+                    查看完整分析报告
+                  </button>
+                </div>
               </div>
-            ) : (
+            ) : null}
+            {!selectedDrawerArtifact ? (
+              !analysisReport ? (
+              <div className="analysis-fallback-shell">
+                <section className="analysis-fallback-section">
+                  <h3>1. 项目理解确认 (AI 总结)</h3>
+                  <div className="analysis-fallback-emphasis">
+                    <p>
+                      基于最新 PR 描述，本项目旨在重构图表组件库，提升大数据量下的渲染性能，并统一主题变量调用逻辑。AI 确认核心变更点为：
+                      <strong>D3.js 升级至 V7.0 与 Context API 状态同步优化。</strong>
+                    </p>
+                  </div>
+                </section>
+                <section className="analysis-fallback-section">
+                  <h3>2. 关键发现与优先级</h3>
+                  <ul className="analysis-fallback-priority-list">
+                    <li>
+                      <span className="priority-chip p0">P0</span>
+                      <div>
+                        <strong>内存泄漏隐患</strong>
+                        <p>在多次销毁/重建 Chart 实例时，DOM 监听器未完全释放。</p>
+                      </div>
+                    </li>
+                    <li>
+                      <span className="priority-chip p1">P1</span>
+                      <div>
+                        <strong>主题适配缺失</strong>
+                        <p>Dark Mode 下轴线颜色对比度不足 (仅 2.1:1)。</p>
+                      </div>
+                    </li>
+                    <li>
+                      <span className="priority-chip p2">P2</span>
+                      <div>
+                        <strong>导出逻辑冗余</strong>
+                        <p>SVG 到 Canvas 的转换逻辑可提取至通用 Utils。</p>
+                      </div>
+                    </li>
+                  </ul>
+                </section>
+                <section className="analysis-fallback-section">
+                  <h3>3. 测试矩阵执行详情</h3>
+                  <div className="analysis-fallback-kpi">
+                    <div>
+                      <span>单元测试通过率</span>
+                      <strong>98.2%</strong>
+                    </div>
+                    <div>
+                      <span>覆盖率变更</span>
+                      <strong className="delta">+4.5%</strong>
+                    </div>
+                  </div>
+                  <div className="analysis-fallback-bars">
+                    <p>
+                      <span>边缘数据压力测试</span>
+                      <strong className="pass">Pass</strong>
+                    </p>
+                    <div className="bar"><i style={{ width: "100%" }} /></div>
+                    <p>
+                      <span>旧版本兼容性 (IE11)</span>
+                      <strong className="partial">Partial</strong>
+                    </p>
+                    <div className="bar warn"><i style={{ width: "65%" }} /></div>
+                  </div>
+                </section>
+                <section className="analysis-fallback-section">
+                  <h3>4. 需求-组件-代码映射图示</h3>
+                  <div className="info-box">
+                    <p className="hint">暂无分析结果，请先上传附件。</p>
+                  </div>
+                </section>
+                <div className="analysis-fallback-actions">
+                  <button type="button" className="btn ghost">
+                    查看 2 条关键风险提示
+                  </button>
+                  <button type="button" className="btn primary">
+                    执行建议修复动作
+                  </button>
+                </div>
+              </div>
+              ) : (
               <>
                 <div className="info-box">
                   <h3>项目概要确认（避免理解偏差）</h3>
@@ -2193,7 +2694,8 @@ export function IterationWorkspacePanel({
                   </div>
                 ) : null}
               </>
-            )}
+              )
+            ) : null}
           </div>
         </article>
       </aside>

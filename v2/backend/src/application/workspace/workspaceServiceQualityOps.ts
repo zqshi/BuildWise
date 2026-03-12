@@ -1,9 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-import type { IterationReleaseReviewResponse, IterationTestArtifactsGenerationResponse } from "../../domain/workspace/types";
+import type {
+  IterationDeliveryPackageResult,
+  IterationReleaseReviewResponse,
+  IterationTestArtifactsGenerationResponse
+} from "../../domain/workspace/types";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
-import { writeAuditLog } from "./workspaceServiceCommon";
+import { listUncoveredAcceptanceCriteria, writeAuditLog } from "./workspaceServiceCommon";
 
 function normalizeRelPath(input: string) {
   return input.replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\/+/g, "/").trim();
@@ -168,6 +172,11 @@ export function buildIterationReleaseReviewOp(repo: WorkspaceRepository, iterati
       boundary.codePaths.length > 0
   );
   const acceptanceChecklistCount = changeControl?.qualityArtifacts?.acceptanceChecklist?.length ?? 0;
+  const uncoveredAcceptanceCriteria = listUncoveredAcceptanceCriteria(
+    normalized.scope.acceptanceCriteria,
+    changeControl?.qualityArtifacts?.acceptanceChecklist ?? [],
+    []
+  );
   const traceabilityCoverage = Number(changeControl?.lastTraceabilityCoverageScore || 0);
   const blockers: string[] = [];
   const warnings: string[] = [];
@@ -176,6 +185,9 @@ export function buildIterationReleaseReviewOp(repo: WorkspaceRepository, iterati
   if (changeControl?.pendingHumanConfirmation) blockers.push("需求分析尚未人工确认。");
   if (!boundaryReady) blockers.push("边界未收敛（requirement/component/codePaths 需同时具备）。");
   if (acceptanceChecklistCount === 0) blockers.push("缺少验收清单。");
+  if (uncoveredAcceptanceCriteria.length > 0) {
+    blockers.push(`验收标准未完全覆盖（未覆盖 ${uncoveredAcceptanceCriteria.length} 项）。`);
+  }
   if (summary.failed > 0 || summary.blocked > 0) blockers.push(`测试矩阵存在失败/阻断用例（failed=${summary.failed}, blocked=${summary.blocked}）。`);
   if (summary.total > 0 && summary.coverage < 80) blockers.push(`测试矩阵执行覆盖率不足（${summary.coverage}%）。`);
   if (traceabilityCoverage < 40) blockers.push(`需求映射覆盖率过低（${traceabilityCoverage}%）。`);
@@ -188,6 +200,9 @@ export function buildIterationReleaseReviewOp(repo: WorkspaceRepository, iterati
 
   if (!boundaryReady) recommendations.push("先补齐 requirementRefs/componentRefs/codePaths 三向边界。");
   if (acceptanceChecklistCount === 0) recommendations.push("根据需求补全 acceptanceChecklist 并关联验收责任人。");
+  if (uncoveredAcceptanceCriteria.length > 0) {
+    recommendations.push(`补齐未覆盖的验收标准：${uncoveredAcceptanceCriteria.slice(0, 3).join("；")}`);
+  }
   if (summary.total > 0 && summary.coverage < 100) recommendations.push("将 pending 用例全部执行完成，再申请发布。");
   if (traceabilityCoverage < 70) recommendations.push("补齐需求-组件-代码映射，确保关键需求有代码落点。");
   if (summary.passRate < 90) recommendations.push("优先修复 failed/blocked 用例，再进行回归验证。");
@@ -223,5 +238,40 @@ export function buildIterationReleaseReviewOp(repo: WorkspaceRepository, iterati
       acceptanceChecklistCount
     },
     generatedAt: new Date().toISOString()
+  };
+}
+
+export function generateIterationDeliveryPackageOp(
+  repo: WorkspaceRepository,
+  iterationId: number,
+  input: { dryRun?: boolean; releaseReview?: IterationReleaseReviewResponse | null } = {}
+): IterationDeliveryPackageResult | null {
+  const iteration = repo.findIteration(iterationId);
+  if (!iteration) {
+    return null;
+  }
+  const dryRun = input.dryRun !== false;
+  const releaseReview = input.releaseReview || buildIterationReleaseReviewOp(repo, iterationId);
+  const warnings: string[] = [];
+  if (!releaseReview) {
+    warnings.push("release review unavailable; package uses fallback metadata.");
+  } else if (releaseReview.decision === "block") {
+    warnings.push("release review decision is block; package generated for diagnosis only.");
+  }
+
+  const basePath = `deliverables/iteration-${iterationId}`;
+  return {
+    iterationId,
+    dryRun,
+    summary: dryRun ? "已生成交付包计划（dry-run）。" : "已生成交付包清单。",
+    reviewReportFiles: [
+      `${basePath}/release-review.md`,
+      `${basePath}/risk-summary.md`
+    ],
+    packageFiles: [
+      `${basePath}/delivery-manifest.json`,
+      `${basePath}/handover-checklist.md`
+    ],
+    warnings
   };
 }

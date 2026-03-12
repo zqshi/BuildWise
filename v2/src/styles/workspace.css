@@ -1,2 +1,4 @@
 @import "./workspace-core.css";
+@import "./workspace-history.css";
+@import "./workspace-analysis.css";
 @import "./workspace-interactions.css";

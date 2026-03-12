@@ -1,6 +1,6 @@
 # LLM 调用链路与 Prompt 体系（BuildWise）
 
-更新时间：2026-02-18
+更新时间：2026-03-06
 
 ## 1. 目标定义
 
@@ -16,7 +16,7 @@
 ### 阶段 A：输入理解与差异识别
 
 - 触发：上传附件 / 自然语言变更请求。
-- Agent：`requirements-analyst`。
+- Agent：`orchestrator`（调用 `requirements-analyst` 技能语义）。
 - 输入：
   - 当前迭代上下文
   - 上一迭代基线
@@ -41,7 +41,7 @@
 
 ### 阶段 C：任务拆解与边界内计划
 
-- Agent：`task-planner`。
+- Agent：`orchestrator`（调用 `task-planner` 技能语义）。
 - 输入：已确认差异 + 边界。
 - 输出：
   - 工作包（owner/priority/dependsOn）
@@ -51,7 +51,7 @@
 
 ### 阶段 D：交付执行设计（不越界）
 
-- Agent：`delivery-engineer`。
+- Agent：`orchestrator`（调用 `delivery-engineer` 技能语义）。
 - 输入：任务计划 + 边界。
 - 输出：
   - 实施步骤
@@ -62,7 +62,7 @@
 
 ### 阶段 E：测试评审与状态流转建议
 
-- Agent：`qa-reviewer`。
+- Agent：`orchestrator`（调用 `qa-reviewer` 技能语义）。
 - 输入：交付计划 + 风险。
 - 输出：
   - 测试矩阵
@@ -88,8 +88,7 @@
 ### 阶段 G：发布前质量评审 + 运维辅助
 
 - Agent：
-  - `qa-reviewer`（releaseDecision/blockers）
-  - `release-ops-advisor`（归因假设/排障步骤/回滚建议）
+  - `orchestrator`（调用 `qa-reviewer`/`release-ops-advisor` 技能语义）
 - 输入：
   - 代码改动计划、测试矩阵、风险优先级、边界覆盖
 - 输出：
@@ -109,12 +108,11 @@
 - 绑定：
   - 绑定目标包含页面/API/实体/代码路径（当前优先绑定路径，页面/API/实体为空时标记待补齐）。
 
-## 3. 多 Agent 与单 Agent策略
+## 3. Agent+Skills 执行策略
 
-- 单 Agent：低复杂度、低风险场景（小改动、无跨模块影响）。
-- 多 Agent：默认推荐，适用于附件驱动、多模块变更、发布风险较高场景。
-
-当前策略：当差异项 >= 2 或 scope=`full-cycle` 时，自动走多 Agent。
+- 固定单编排 Agent：所有场景统一由 `orchestrator` 承载编排与输出。
+- 角色语义技能化：`requirements-analyst`、`task-planner`、`delivery-engineer`、`qa-reviewer` 等仅作为技能语义，不作为独立运行时 Agent。
+- 风险控制不变：人工确认、边界门禁、发布阻断规则维持原强度。
 
 ## 4. Prompt 结构规范
 
@@ -158,7 +156,7 @@
    - 缺少证据时只能要求澄清，不能直接推进执行
 5. 降级策略：
    - LLM 不可用时直接失败（`/api/iterations/:id/analysis` 返回 `503`），避免 mock/fallback 误导
-   - 上下文预算超阈值时自动降级到单 Agent 保守模式（并输出降级原因）
+   - 上下文预算超阈值时进入保守输出模式（并输出降级原因）
 6. 自动澄清：
    - 当触发降级或 unknown 信号过多时，自动生成 `clarificationQuestions` 供人工确认
    - 问题会同步写入迭代 `change-control`，确认通过后自动清空
@@ -170,7 +168,7 @@
 
 1. `strategy` / `digest`：本次附件切片策略与摘要签名
 2. `excerptLength` / `chunkCount`：输入规模
-3. `promptContextLength` / `agentCount`：发送到 LLM 的上下文体量与并发 Agent 数
+3. `promptContextLength` / `agentCount`：发送到 LLM 的上下文体量与本轮编排产物计数（运行态固定单 Agent）
 4. `unknownSignalCount`：模型输出中 unknown 信号数量（用于判断是否需要更多澄清）
 5. `degraded` / `degradeReason`：是否触发上下文预算降级与原因
 6. `clarificationQuestions`：自动生成的澄清问题列表
@@ -186,17 +184,8 @@
 
 - 目录：`v2/backend/prompts`
 - 文件：
-  - `agent.orchestrator.v1.md`
-  - `agent.requirements-analyst.v1.md`
-  - `agent.task-planner.v1.md`
-  - `agent.delivery-engineer.v1.md`
-  - `agent.qa-reviewer.v1.md`
   - `agent.iteration-coach.v2.md`
   - `agent.orchestrator.v2.md`
-  - `agent.requirements-analyst.v2.md`
-  - `agent.task-planner.v2.md`
-  - `agent.delivery-engineer.v2.md`
-  - `agent.qa-reviewer.v2.md`
   - `agent.boundary-guardian.v2.md`
   - `agent.release-ops-advisor.v2.md`
 
@@ -210,9 +199,9 @@
 
 建议每次升级只改一类行为：
 
-1. 提升差异识别精度（requirements-analyst）
-2. 强化边界约束（task-planner / delivery-engineer）
-3. 强化发布阻断标准（qa-reviewer）
+1. 提升差异识别精度（requirements-analyst 技能语义）
+2. 强化边界约束（task-planner / delivery-engineer 技能语义）
+3. 强化发布阻断标准（qa-reviewer 技能语义）
 
 升级流程：
 

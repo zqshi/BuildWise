@@ -1,5 +1,7 @@
 import type { Project, StatusPayload } from "../../domain/workspace/types";
+import { useEffect, useMemo, useState } from "react";
 import { useDashboardInsights, type ProgressBucket, type TrendPoint } from "./useDashboardInsights";
+import { DashboardInsightFilterSection, RecentProjectsPagination } from "./dashboardViewSections";
 
 type DashboardViewProps = {
   projects: Project[];
@@ -12,7 +14,15 @@ type DashboardViewProps = {
   currentProjectId: number | null;
   currentProjectIterations: number;
   onViewProjects: () => void;
-  onSelectProject: (projectId: number) => void;
+};
+
+type DashboardStatCard = {
+  key: string;
+  label: string;
+  value: string;
+  icon: string;
+  meta: string;
+  status?: "ok" | "warn";
 };
 
 export function DashboardView({
@@ -25,14 +35,38 @@ export function DashboardView({
   monthlyTrend,
   currentProjectId,
   currentProjectIterations,
-  onViewProjects,
-  onSelectProject
+  onViewProjects
 }: DashboardViewProps) {
   const normalizedStatus = (status?.status || "").toLowerCase();
   const serviceHealthy = normalizedStatus === "ok";
   const statusLabelMap: Record<string, string> = { ok: "正常", offline: "离线", degraded: "降级" };
   const displayStatus = statusLabelMap[normalizedStatus] || "未获取";
   const displayHealthHint = normalizedStatus ? (serviceHealthy ? "运行正常" : "待关注") : "未检测";
+  const pageSizeStorageKey = "dashboard.recentProjects.pageSize";
+  const [recentPageSize, setRecentPageSize] = useState<number>(() => {
+    if (typeof window === "undefined") {
+      return 5;
+    }
+    const cached = Number.parseInt(window.localStorage.getItem(pageSizeStorageKey) || "", 10);
+    return Number.isFinite(cached) && cached > 0 ? cached : 5;
+  });
+  const [recentPage, setRecentPage] = useState(1);
+  const recentTotalPages = Math.max(1, Math.ceil(projects.length / Math.max(recentPageSize, 1)));
+  const recentVisibleProjects = useMemo(() => {
+    const start = (recentPage - 1) * recentPageSize;
+    return projects.slice(start, start + recentPageSize);
+  }, [projects, recentPage, recentPageSize]);
+
+  useEffect(() => {
+    setRecentPage((current) => Math.min(Math.max(current, 1), recentTotalPages));
+  }, [recentTotalPages]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(pageSizeStorageKey, String(recentPageSize));
+    }
+  }, [recentPageSize]);
+
   const insight = useDashboardInsights({
     projects,
     currentProjectId,
@@ -44,71 +78,110 @@ export function DashboardView({
     serviceHealthy,
     displayStatus
   });
+  const statCards: DashboardStatCard[] = [
+    { key: "projects", label: "项目总数", value: String(projects.length), icon: "▣", meta: "全量" },
+    { key: "progress", label: "进行中 / 已完成", value: `${insight.scopeInProgress} / ${insight.scopeCompleted}`, icon: "↻", meta: "本期" },
+    { key: "service", label: "服务状态", value: displayStatus, icon: "●", meta: displayHealthHint, status: serviceHealthy ? "ok" : "warn" },
+    {
+      key: "health",
+      label: "健康分",
+      value: String(insight.insightModel.healthScore),
+      icon: "♥",
+      meta: insight.insightModel.healthLevel,
+      status: insight.insightModel.healthScore >= 80 ? "ok" : "warn"
+    }
+  ] as const;
+  const weekLabels = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+  const weeklyBars = useMemo(() => {
+    const total = Math.max(insight.scopeIterationCount, 1);
+    const base = [0, 0, 0, 0, 0, 0, 0].map((_, index) => {
+      const source = insight.scopeProgressBuckets[index % Math.max(insight.scopeProgressBuckets.length, 1)];
+      const ratio = source ? source.count / total : 0;
+      return Math.max(16, Math.round(ratio * 100));
+    });
+    return weekLabels.map((label, index) => ({
+      label,
+      value: base[index],
+      ghost: Math.min(96, base[index] + (index % 3) * 14 + 10)
+    }));
+  }, [insight.scopeIterationCount, insight.scopeProgressBuckets]);
+  const trendPoints = useMemo(() => {
+    const source = insight.scopeMonthlyTrend.length > 0 ? insight.scopeMonthlyTrend : [{ label: "M1", count: 1 }];
+    const max = Math.max(...source.map((item) => item.count), 1);
+    return source.map((item, index) => {
+      const x = source.length === 1 ? 0 : (index / (source.length - 1)) * 100;
+      const y = 100 - Math.round((item.count / max) * 72 + 14);
+      return { x, y, label: item.label.slice(5) };
+    });
+  }, [insight.scopeMonthlyTrend]);
+  const trendPolyline = trendPoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const trendArea = `0,100 ${trendPolyline} 100,100`;
+  const selectedInsightProjectName = useMemo(() => {
+    if (insight.selectedInsightProjectId === null) {
+      return "";
+    }
+    return projects.find((item) => item.id === insight.selectedInsightProjectId)?.name || "";
+  }, [insight.selectedInsightProjectId, projects]);
+  const scopeSummary =
+    insight.insightScope === "project"
+      ? `已选项目：${selectedInsightProjectName || "未选择"}，共 ${insight.scopeIterationCount} 个迭代。`
+      : `跨项目聚合视角：覆盖 ${projects.length} 个项目、${insight.scopeIterationCount} 个迭代。`;
+  const windowSummary = insight.insightWindowDays === 30 ? "近30天" : "近90天";
 
   return (
     <section className="dashboard-view">
-      <header className="hero-panel">
-        <div>
-          <p className="hero-kicker">构想智造 / AI驱动构建平台</p>
-          <h1>仪表盘</h1>
-          <p className="hero-sub">系统概览、趋势洞察与升级建议</p>
-        </div>
-        <div className="hero-actions">
-          <button className="btn ghost" onClick={onViewProjects}>
-            查看项目工作台
-          </button>
-        </div>
-      </header>
-
       <section className="stats-grid">
-        <article className="stat-card">
-          <p>总项目数</p>
-          <strong>{projects.length}</strong>
-        </article>
-        <article className="stat-card">
-          <p>进行中迭代</p>
-          <strong>{insight.scopeInProgress}</strong>
-        </article>
-        <article className="stat-card">
-          <p>已完成迭代</p>
-          <strong>{insight.scopeCompleted}</strong>
-        </article>
-        <article className="stat-card">
-          <p>服务状态</p>
-          <strong>{displayStatus}</strong>
-          <span className={`status-chip ${serviceHealthy ? "ok" : "warn"}`}>{displayHealthHint}</span>
-        </article>
-        <article className="stat-card">
-          <p>交付健康度</p>
-          <strong>{insight.insightModel.healthScore}</strong>
-          <span className={`status-chip ${insight.insightModel.healthScore >= 80 ? "ok" : "warn"}`}>{insight.insightModel.healthLevel}</span>
-        </article>
+        {statCards.map((item) => (
+          <article key={item.key} className="stat-card">
+            <div className="stat-card-head">
+              <span className="stat-card-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span className="stat-card-meta">{item.meta}</span>
+            </div>
+            <p>{item.label}</p>
+            <strong>{item.value}</strong>
+            {item.status ? <span className={`status-chip ${item.status}`}>{item.meta}</span> : null}
+          </article>
+        ))}
       </section>
 
       <section className="dashboard-grid">
         <article className="panel chart-panel">
           <h2>项目进度分布</h2>
-          <div className="bar-chart">
-            {insight.scopeProgressBuckets.map((item) => (
-              <div key={item.label} className="bar-row">
-                <span>{item.label}</span>
-                <div className="bar-track">
-                  <div className="bar-fill" style={{ width: `${Math.max(10, Math.round((item.count / Math.max(insight.scopeIterationCount, 1)) * 100))}%` }} />
+          <div className="weekday-chart">
+            {weeklyBars.map((item) => (
+              <div key={item.label} className="weekday-col">
+                <div className="weekday-bars">
+                  <div className="weekday-ghost" style={{ height: `${item.ghost}%` }} />
+                  <div className="weekday-fill" style={{ height: `${item.value}%` }} />
                 </div>
-                <strong>{item.count}</strong>
+                <span>{item.label}</span>
               </div>
             ))}
           </div>
         </article>
         <article className="panel chart-panel">
           <h2>月度代码生成趋势</h2>
-          <div className="trend-chart">
-            {insight.scopeMonthlyTrend.map((item) => (
-              <div key={item.label} className="trend-col">
-                <div className="trend-fill" style={{ height: `${Math.max(8, Math.round((item.count / Math.max(...insight.scopeMonthlyTrend.map((point) => point.count), 1)) * 100))}%` }} />
-                <span>{item.label.slice(5)}</span>
-              </div>
-            ))}
+          <div className="line-trend-chart">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="rgba(59,130,246,.32)" />
+                  <stop offset="100%" stopColor="rgba(59,130,246,.08)" />
+                </linearGradient>
+              </defs>
+              <polygon points={trendArea} fill="url(#trendFill)" />
+              <polyline points={trendPolyline} fill="none" stroke="#1d4ed8" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              {trendPoints.map((point) => (
+                <circle key={`${point.x}-${point.y}`} cx={point.x} cy={point.y} r="1.7" fill="#2563eb" stroke="#fff" strokeWidth=".7" />
+              ))}
+            </svg>
+            <div className="line-trend-labels">
+              {trendPoints.map((point) => (
+                <span key={`label-${point.label}-${point.x}`}>{point.label || "--"}</span>
+              ))}
+            </div>
           </div>
         </article>
       </section>
@@ -138,7 +211,7 @@ export function DashboardView({
                   </td>
                 </tr>
               ) : (
-                projects.map((item) => (
+                recentVisibleProjects.map((item) => (
                   <tr key={item.id}>
                     <td>{item.name}</td>
                     <td>{item.status}</td>
@@ -150,46 +223,36 @@ export function DashboardView({
             </tbody>
           </table>
         </div>
+        <RecentProjectsPagination
+          hasProjects={projects.length > 0}
+          recentPageSize={recentPageSize}
+          recentPage={recentPage}
+          recentTotalPages={recentTotalPages}
+          onChangeRecentPageSize={(value) => {
+            setRecentPageSize(value);
+            setRecentPage(1);
+          }}
+          onPrevPage={() => setRecentPage((prev) => Math.max(1, prev - 1))}
+          onNextPage={() => setRecentPage((prev) => Math.min(recentTotalPages, prev + 1))}
+        />
       </section>
 
-      <section className="panel insight-panel">
-        <div className="panel-head">
-          <h2>洞察维度</h2>
-          <div className="hero-actions">
-            <button type="button" className={`btn mini ${insight.insightScope === "project" ? "primary" : "ghost"}`} onClick={() => insight.setInsightScope("project")}>
-              项目维度
-            </button>
-            <button type="button" className={`btn mini ${insight.insightScope === "portfolio" ? "primary" : "ghost"}`} onClick={() => insight.setInsightScope("portfolio")}>
-              跨项目维度
-            </button>
-          </div>
-        </div>
-        <div className="insight-kpis">
-          <span>当前模式：{insight.insightScope === "project" ? "单项目" : "跨项目聚合"}</span>
-          <span>数据状态：{insight.loadingIterations ? "加载中" : "已就绪"}</span>
-          {insight.insightScope === "project" ? (
-            <label>
-              项目选择：
-              <select value={insight.selectedProjectId ?? ""} onChange={(event) => onSelectProject(Number(event.target.value))} disabled={projects.length === 0}>
-                {projects.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </div>
-      </section>
+      <DashboardInsightFilterSection
+        projects={projects}
+        insightScope={insight.insightScope}
+        insightWindowDays={insight.insightWindowDays}
+        selectedInsightProjectId={insight.selectedInsightProjectId}
+        loadingIterations={insight.loadingIterations}
+        onChangeInsightScope={insight.setInsightScope}
+        onChangeInsightWindowDays={insight.setInsightWindowDays}
+        onChangeSelectedProjectId={insight.setSelectedInsightProjectId}
+      />
 
       <section className="panel insight-panel">
         <div className="panel-head">
           <h2>项目进展深度洞察</h2>
           <p className="hint">
-            当前聚焦：
-            {insight.insightScope === "project"
-              ? `已选项目（ID: ${insight.selectedProjectId ?? "未选择"}）迭代视角，共 ${insight.scopeIterationCount || currentProjectIterations} 个迭代。`
-              : `跨项目聚合视角，覆盖 ${projects.length} 个项目、${insight.scopeIterationCount} 个迭代。`}
+            当前聚焦：{scopeSummary} 统计窗口：{windowSummary}。
           </p>
         </div>
         <div className="insight-kpis">
@@ -206,23 +269,24 @@ export function DashboardView({
             </article>
           ))}
         </div>
-      </section>
-
-      <section className="panel recent-panel">
-        <div className="panel-head">
-          <h2>升级优化建议</h2>
-        </div>
-        <div className="insight-list">
-          {insight.insightModel.recommendations.map((item) => (
-            <article key={item.title} className="insight-item watch">
-              <h3>
-                [{item.priority}] {item.title}
-              </h3>
-              <p>{item.action}</p>
-              <p className="hint">升级方式：{item.upgrade}</p>
-            </article>
-          ))}
-        </div>
+        <section className="insight-actions-panel" aria-label="行动建议看板">
+          <div className="panel-head">
+            <h2>行动建议看板</h2>
+            <p className="hint">将诊断结果映射为可执行动作，避免与“深度洞察”重复叙述。</p>
+          </div>
+          <div className="insight-actions-list">
+            {insight.insightModel.recommendations.slice(0, 4).map((item) => (
+              <article key={item.title} className="insight-action-item">
+                <h3>
+                  [{item.priority}] {item.title}
+                </h3>
+                <p className="insight-side-tag">适用范围：{item.scopeLabel}</p>
+                <p>{item.action}</p>
+                <p className="hint">升级方式：{item.upgrade}</p>
+              </article>
+            ))}
+          </div>
+        </section>
       </section>
     </section>
   );

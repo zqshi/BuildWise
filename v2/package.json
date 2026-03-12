@@ -7,16 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\"",
     "preview": "vite preview",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
+    "check:skills": "npm --prefix backend run check:skills",
+    "seed:deliverable:demo": "node scripts/reset-and-seed-deliverable-demo.mjs",
     "clean:workspace": "bash scripts/clean-workspace.sh",
     "report:readiness": "node scripts/report-readiness.mjs",
     "dev:stack:start": "bash scripts/start-dev-stack.sh",
     "dev:stack:stop": "bash scripts/stop-dev-stack.sh",
     "install:all": "npm install && npm --prefix backend install",
     "build:all": "npm run build && npm --prefix backend run build",
-    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run typecheck && npm run build && npm run report:readiness && npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract"
+    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run check:skills && npm run typecheck && npm run build && npm run report:readiness && npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract"
   },
   "dependencies": {
     "react": "^18.3.1",

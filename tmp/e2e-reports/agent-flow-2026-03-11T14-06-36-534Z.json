@@ -1,0 +1,117 @@
+{
+  "startedAt": "2026-03-11T14:06:36.536Z",
+  "baseUrl": "http://127.0.0.1:5068",
+  "testPort": 5068,
+  "status": "passed",
+  "projectId": 6,
+  "iterationId": 6,
+  "blockedDeployBlockers": [
+    "远端 Git 仓库当前不可达，请检查网络或仓库权限。",
+    "缺少验收清单（acceptanceChecklist）",
+    "验收标准未完全覆盖（未覆盖 2 项）"
+  ],
+  "steps": [
+    {
+      "name": "health",
+      "status": 200,
+      "detail": "backend healthy",
+      "at": "2026-03-11T14:06:37.013Z"
+    },
+    {
+      "name": "runtime_llm_probe",
+      "status": "passed",
+      "detail": "llm runtime readiness",
+      "at": "2026-03-11T14:06:37.023Z",
+      "required": false,
+      "llm": {
+        "configured": false,
+        "reachable": false,
+        "baseUrl": "",
+        "model": "",
+        "error": ""
+      }
+    },
+    {
+      "name": "create_project",
+      "status": "passed",
+      "detail": "projectId=6",
+      "at": "2026-03-11T14:06:37.038Z"
+    },
+    {
+      "name": "create_iteration",
+      "status": "passed",
+      "detail": "iterationId=6",
+      "at": "2026-03-11T14:06:37.064Z"
+    },
+    {
+      "name": "analysis",
+      "status": 502,
+      "detail": "llm unavailable, fallback boundary used",
+      "at": "2026-03-11T14:06:37.111Z",
+      "payload": {
+        "message": "llm_http_403: {\"error\":{\"type\":\"Forbidden\",\"message\":\"Your account 2000182254 has not activated the model mco-4alias. Please activate the model in the KSP Console\"},\"type\":\"e"
+      }
+    },
+    {
+      "name": "confirm",
+      "status": "passed",
+      "detail": "analysis confirmed",
+      "at": "2026-03-11T14:06:37.124Z"
+    },
+    {
+      "name": "rewrite_dry_run",
+      "status": 500,
+      "detail": "llm unavailable",
+      "at": "2026-03-11T14:06:37.134Z",
+      "payload": {
+        "error": "internal_error",
+        "message": "Internal server error",
+        "requestId": "req-8"
+      }
+    },
+    {
+      "name": "generate_test_artifacts",
+      "status": "passed",
+      "detail": "matrix=0;acceptance=0",
+      "at": "2026-03-11T14:06:37.167Z"
+    },
+    {
+      "name": "quality_artifacts",
+      "status": "passed",
+      "detail": "change-control quality artifacts fetched",
+      "at": "2026-03-11T14:06:37.168Z",
+      "matrixCases": 0,
+      "artifacts": {
+        "unitTests": 0,
+        "contractTests": 0,
+        "acceptanceChecklist": 0,
+        "regressionPoints": 0
+      }
+    },
+    {
+      "name": "matrix_update_initial",
+      "status": "skipped",
+      "detail": "no generated matrix",
+      "at": "2026-03-11T14:06:37.168Z"
+    },
+    {
+      "name": "deploy_block_check",
+      "status": "passed",
+      "detail": "production deploy blocked as expected",
+      "at": "2026-03-11T14:06:37.177Z",
+      "blockers": [
+        "远端 Git 仓库当前不可达，请检查网络或仓库权限。",
+        "缺少验收清单（acceptanceChecklist）",
+        "验收标准未完全覆盖（未覆盖 2 项）"
+      ]
+    },
+    {
+      "name": "deploy_allow_check",
+      "status": "skipped",
+      "detail": "acceptance checklist unavailable in no-llm fallback",
+      "at": "2026-03-11T14:06:37.177Z"
+    }
+  ],
+  "error": "",
+  "finishedAt": "2026-03-11T14:06:37.177Z"
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Exception Recovery"
+  short_description: "Handle runtime failures with safe recovery paths"
+  default_prompt: "Use $05-exception-recovery to propose recovery options and request user choice."
+policy:
+  allow_implicit_invocation: true

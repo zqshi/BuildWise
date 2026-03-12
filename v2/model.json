@@ -1085,18 +1085,21 @@
           "required": false
         }
       ]
-    }
-  ],
-  "relations": [
+    },
     {
-      "id": "relation_entity_project_one_to_many_entity_iteration",
-      "projectId": 1,
-      "fromEntityId": "entity_project",
-      "toEntityId": "entity_iteration",
-      "type": "one_to_many",
-      "name": "x"
+      "id": "entity_contractentity",
+      "name": "ContractEntity",
+      "businessLabel": "契约实体",
+      "fields": []
+    },
+    {
+      "id": "entity_contractentity",
+      "name": "ContractEntity",
+      "businessLabel": "契约实体",
+      "fields": []
     }
   ],
+  "relations": [],
   "rules": [
     {
       "id": "rule_price_gt_0",

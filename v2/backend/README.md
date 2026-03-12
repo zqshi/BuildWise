@@ -18,7 +18,8 @@ npm run dev
 环境变量加载：
 
 - 服务启动会自动读取当前目录的 `.env`（路径：`v2/backend/.env`）。
-- 若同时存在 shell 环境变量和 `.env`，以 shell 环境变量优先。
+- 默认会优先采用 `.env` 中的 LLM/Anthropic 相关配置，避免旧 shell 环境变量污染。
+- 若需保持 shell 环境变量优先，可设置 `BUILDWISE_PREFER_PROCESS_ENV=1`。
 - 可从模板复制：
 
 ```bash
@@ -71,6 +72,8 @@ npm run e2e:agent-flow
 - `POST /api/iterations/:id/publish`
 - `GET /api/projects/:id/iterations`
 - `POST /api/projects/:id/iterations`
+- `POST /api/projects/:id/policies/restore-initial`（恢复项目级 OpenClaw 初始化编排模式）
+- `POST /api/governance/orchestration/policies/restore-initial`（恢复全局初始化编排模式）
 - `GET /api/iterations/:id/code-link`
 - `POST /api/iterations/:id/code-link`
 - `GET /api/projects/:id/code-trace?ref=<branch|tag|commit|path>`
@@ -80,6 +83,7 @@ npm run e2e:agent-flow
 - `POST /api/iterations/:id/change-control/test-matrix/execution`
 - `POST /api/iterations/:id/change-control/test-artifacts/generate`
 - `GET /api/iterations/:id/release-review`
+- `POST /api/iterations/:id/full-cycle`（分析→确认→边界内改写→测试产物→发布评审→可选发布）
 - `GET /api/model`
 - `GET /api/model/entities`
 - `POST /api/model/entities`
@@ -102,6 +106,7 @@ npm run e2e:agent-flow
 - `LLM_API_BASE`：OpenAI 兼容接口地址（必填，用于附件分析真实调用）
 - `LLM_MODEL`：模型名称（默认 `gpt-4o-mini`）
 - `LLM_API_KEY`：模型 API Key（按服务端要求配置）
+- `BUILDWISE_PREFER_PROCESS_ENV`：默认 `0`。为 `1` 时，进程已有环境变量优先于 `.env`；默认情况下 `.env` 会覆盖已有的 LLM/Anthropic 相关环境变量，避免旧 shell 环境污染导致鉴权误判
 - `LLM_REQUIRED`：`true|false`（默认 `false`）。为 `true` 时，`/ready` 需要 LLM 可达才返回 ready
 - `DEPENDENCY_REQUIRED`：`true|false`（默认 `production=true`，其他环境 `false`）。为 `true` 时，`/ready` 需要模型文件和存储依赖探针通过
 - `LLM_FOLDER_MAX_FILES`：文件夹分析纳入文件上限（默认 `120`）
@@ -124,6 +129,8 @@ npm run e2e:agent-flow
 - `ALERT_MIN_HIGH_VALUE_FINDINGS_COVERAGE`：高价值发现覆盖率阈值（`ops:preflight`，默认 `90`）
 - `ALERT_MAX_P0_FINDINGS_TOTAL`：P0 发现总量上限（`ops:preflight`，默认 `5`）
 - `ALERT_MAX_IGNORED_FILES_RATIO`：分析被忽略文件比例上限（`ops:preflight`，默认 `70`）
+- `BUILDWISE_EDITABLE_RICH_ARTIFACT_IDS`：可富文本编辑的交付物 ID 列表（逗号分隔），默认 `boundary-confirmation,test-matrix,acceptance-checklist`
+- `BUILDWISE_EDITABLE_PROTOTYPE_ARTIFACT_IDS`：可原型元素选择编辑的交付物 ID 列表（逗号分隔），默认 `prototype-preview`
 
 说明：
 
@@ -157,7 +164,7 @@ npm run e2e:agent-flow
   `POST /api/projects/:id/repository/provision`，传 `{ "dryRun": true }`
 - 生成本地工程骨架并初始化 git：
   `POST /api/projects/:id/repository/scaffold`，可传 `{ "rootDir": "/tmp/repos", "initializeGit": true, "createInitialCommit": true }`
-- 发布迭代分支并创建 PR（dry-run 默认 true）：
+- 发布迭代分支并创建 PR（dry-run 默认 false，显式传 `{"dryRun": true}` 才演练）：
   `POST /api/iterations/:id/publish`
 - 绑定迭代到代码锚点：
   `POST /api/iterations/:id/code-link`
@@ -182,19 +189,14 @@ SQLite 模式下已提供分集合表存储与索引（`projects`、`iterations`
 
 ## Agent Prompt 维护
 
-- Prompt 模板目录：`v2/backend/prompts`
-- 命名约定：`agent.<role>.v1.md`
-- 目前支持角色：
-  - `orchestrator`
-  - `requirements-analyst`
-  - `task-planner`
-  - `delivery-engineer`
-  - `qa-reviewer`
+- Prompt 模板目录：`v2/backend/agents/prompts`
+- 命名约定：`agent.<role>.v2.md`
+- 当前角色清单来源：`v2/backend/agents/catalog/agents.v1.json`
 - 模板格式要求：
   - 必须包含 `# system` 与 `# user` 两段
   - 可用变量：`{{role}}` `{{scope}}` `{{goal}}` `{{context}}` `{{expectedOutput}}`
 - 运行时加载逻辑：
-  - 代码位置：`src/application/workspace/workspaceSupport.ts`
+  - 代码位置：`src/application/workspace/agentAssetRegistry.ts`
   - 若模板缺失或格式不合法，将自动回退到内置默认模板。
 - LLM 调用链路与 Prompt 体系说明：
   - `v2/backend/docs/llm-chain-and-prompts.md`

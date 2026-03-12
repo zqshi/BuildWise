@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0066ff",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1723",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<title>BuildWise - 新建迭代</title>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
+<!-- Background Project Workspace Container -->
+<div class="relative flex h-screen w-full flex-col overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-8 py-3 z-10">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<div class="bg-primary p-1.5 rounded-lg text-white">
+<span class="material-symbols-outlined text-xl">architecture</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold tracking-tight">BuildWise</h2>
+</div>
+<div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-1.5 w-64 border border-transparent focus-within:border-primary">
+<span class="material-symbols-outlined text-slate-400 text-lg">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-slate-400" placeholder="搜索项目、文档或任务" type="text"/>
+</div>
+</div>
+<nav class="flex items-center gap-8">
+<div class="flex items-center gap-6">
+<a class="text-primary text-sm font-semibold" href="#">工作台</a>
+<a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">项目</a>
+<a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">交付</a>
+<a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">报表</a>
+</div>
+<div class="flex items-center gap-3 border-l border-slate-200 dark:border-slate-800 pl-6">
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+<div class="size-8 rounded-full bg-slate-200 overflow-hidden ml-2 ring-2 ring-slate-100">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="User avatar placeholder" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPtYJ-r2znDS-7P3qjZktBjauRsfHJUUniAbz5ttwW0ijf33YwN-05VmYoTGK7ZKlTFQL8oFgkqY6VhlRjvUeftyO5OtvMg-7jVLcInh4xC36aMlmm4XpWmoPqSdUYxoxchaEQt_uLF3cK87W3G-rMgLH-ORLo8D1eh3_97oHaFERkgQgghQukBrPhdgvGo4-k7jo7qgdPm4uORnaBu0gs61plzQufrxjMH3jUobcwGd76RYAwtCpI6J2R_81VwZqUXPj8RsrIoiz-"/>
+</div>
+</div>
+</nav>
+</header>
+<!-- Sidebar and Content -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Left Sidebar -->
+<aside class="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col p-4 gap-2">
+<div class="mb-4 px-2">
+<h1 class="text-slate-900 dark:text-white text-base font-bold">项目工作台</h1>
+<p class="text-slate-500 text-xs mt-0.5">BuildWise 系统 / V2.4</p>
+</div>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">概览</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">format_list_bulleted</span>
+<span class="text-sm font-medium">任务</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">refresh</span>
+<span class="text-sm font-bold">迭代</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">code</span>
+<span class="text-sm font-medium">代码仓库</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-sm font-medium">文档库</span>
+</a>
+</aside>
+<!-- Main Content Area Area (Background) -->
+<main class="flex-1 bg-slate-50 dark:bg-slate-950 p-8 overflow-y-auto">
+<div class="max-w-5xl mx-auto opacity-40 select-none pointer-events-none">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h2 class="text-2xl font-bold text-slate-900 dark:text-white">交付迭代管理</h2>
+<p class="text-slate-500 mt-1">管理项目生命周期中的所有交付版本</p>
+</div>
+<button class="bg-primary text-white px-5 py-2 rounded-lg font-medium flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">add</span>
+                            新建迭代
+                        </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-slate-500 text-sm mb-1">活跃迭代</p>
+<h3 class="text-3xl font-bold">3 <span class="text-sm font-normal text-slate-400">个</span></h3>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-slate-500 text-sm mb-1">本周发布</p>
+<h3 class="text-3xl font-bold">12 <span class="text-sm font-normal text-slate-400">次</span></h3>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-slate-500 text-sm mb-1">验收通过率</p>
+<h3 class="text-3xl font-bold">98.4<span class="text-sm font-normal text-slate-400">%</span></h3>
+</div>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<h4 class="font-bold">迭代列表</h4>
+<div class="flex gap-2">
+<div class="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-medium text-slate-600 dark:text-slate-400">进行中</div>
+<div class="px-3 py-1 bg-slate-50 dark:bg-slate-800/50 rounded text-xs font-medium text-slate-400">已规划</div>
+</div>
+</div>
+<table class="w-full text-left text-sm">
+<thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 uppercase tracking-wider font-semibold">
+<tr>
+<th class="px-6 py-3">迭代名称</th>
+<th class="px-6 py-3">状态</th>
+<th class="px-6 py-3">负责人</th>
+<th class="px-6 py-3">截止日期</th>
+<th class="px-6 py-3">进度</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr>
+<td class="px-6 py-4 font-medium">V1.2 财务对账模块优化</td>
+<td class="px-6 py-4"><span class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 text-xs rounded-full">进行中</span></td>
+<td class="px-6 py-4">张三</td>
+<td class="px-6 py-4 text-slate-500">2023-11-20</td>
+<td class="px-6 py-4">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="bg-primary w-3/4 h-full"></div>
+</div>
+</td>
+</tr>
+<tr>
+<td class="px-6 py-4 font-medium">V1.3 移动端 3.0 UI 升级</td>
+<td class="px-6 py-4"><span class="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 text-xs rounded-full">进行中</span></td>
+<td class="px-6 py-4">李四</td>
+<td class="px-6 py-4 text-slate-500">2023-11-28</td>
+<td class="px-6 py-4">
+<div class="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="bg-primary w-1/4 h-full"></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+</div>
+<!-- Modal Overlay -->
+<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+<!-- New Iteration Modal -->
+<div class="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+<!-- Header -->
+<div class="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-3">
+<div class="size-10 bg-primary/10 flex items-center justify-center rounded-lg text-primary">
+<span class="material-symbols-outlined font-bold">rocket_launch</span>
+</div>
+<h3 class="text-lg font-bold text-slate-900 dark:text-white">新建交付迭代</h3>
+</div>
+<button class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Form Content -->
+<div class="flex-1 overflow-y-auto px-8 py-6">
+<form class="space-y-6">
+<!-- Iteration Name -->
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">迭代名称 <span class="text-red-500">*</span></label>
+<input class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="例如：V1.0 核心功能迭代" type="text"/>
+</div>
+<!-- Version Type -->
+<div class="space-y-3">
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">版本类型</label>
+<div class="flex gap-6">
+<label class="flex items-center gap-3 cursor-pointer group">
+<div class="relative flex items-center justify-center">
+<input checked="" class="peer h-5 w-5 border-slate-300 text-primary focus:ring-primary" name="version_type" type="radio"/>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-medium text-slate-900 dark:text-slate-200 group-hover:text-primary transition-colors">Major (重大更新)</span>
+<span class="text-xs text-slate-500">涉及架构变动或大规模功能更新</span>
+</div>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="h-5 w-5 border-slate-300 text-primary focus:ring-primary" name="version_type" type="radio"/>
+<div class="flex flex-col">
+<span class="text-sm font-medium text-slate-900 dark:text-slate-200 group-hover:text-primary transition-colors">Minor (次要更新)</span>
+<span class="text-xs text-slate-500">功能优化或业务功能增强</span>
+</div>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="h-5 w-5 border-slate-300 text-primary focus:ring-primary" name="version_type" type="radio"/>
+<div class="flex flex-col">
+<span class="text-sm font-medium text-slate-900 dark:text-slate-200 group-hover:text-primary transition-colors">Patch (补丁修复)</span>
+<span class="text-xs text-slate-500">线上缺陷修复或小范围改动</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Description -->
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">目标描述</label>
+<textarea class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="描述此迭代的核心目标及预期成果..." rows="3"></textarea>
+</div>
+<!-- Feature Lists Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">范围内功能列表</label>
+<div class="relative">
+<textarea class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="输入本期涵盖的功能点，按行分隔" rows="3"></textarea>
+<div class="absolute right-3 bottom-3 text-xs text-slate-400">0/500</div>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">范围外说明</label>
+<textarea class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" placeholder="输入本期不涉及的功能或明确排除的项" rows="3"></textarea>
+</div>
+</div>
+<!-- Acceptance Criteria -->
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">验收标准</label>
+<div class="p-4 border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 rounded-lg space-y-3">
+<div class="flex items-center gap-3">
+<div class="size-5 rounded border border-slate-300 dark:border-slate-600 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+<span class="text-sm text-slate-600 dark:text-slate-400 flex-1">通过自动化冒烟测试（用例通过率 100%）</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="size-5 rounded border border-slate-300 dark:border-slate-600 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+<span class="text-sm text-slate-600 dark:text-slate-400 flex-1">P0/P1 缺陷全部关闭</span>
+</div>
+<button class="text-primary text-sm font-medium flex items-center gap-1 hover:underline" type="button">
+<span class="material-symbols-outlined text-base">add</span>
+                                添加自定义标准
+                            </button>
+</div>
+</div>
+</form>
+</div>
+<!-- Footer Buttons -->
+<div class="px-8 py-5 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-b-xl">
+<button class="px-6 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    取消
+                </button>
+<button class="px-8 py-2.5 rounded-lg bg-gradient-to-r from-primary to-blue-500 text-white font-bold shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-95 transition-all">
+                    确认创建
+                </button>
+</div>
+</div>
+</div>
+</body></html>

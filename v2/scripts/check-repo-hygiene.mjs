@@ -21,7 +21,14 @@ function listTrackedFiles(prefix) {
 }
 
 function read(relPath) {
-  return readFileSync(path.join(ROOT, relPath), "utf-8");
+  try {
+    return readFileSync(path.join(ROOT, relPath), "utf-8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  }
 }
 
 const errors = [];

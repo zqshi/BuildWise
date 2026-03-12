@@ -12,7 +12,8 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error(`API error: request timeout (${timeoutMs}ms)`);
     }
-    throw new Error("API error: network unavailable");
+    const detail = error instanceof Error && error.message ? ` (${error.message})` : "";
+    throw new Error(`API error: network unavailable${detail}`);
   } finally {
     clearTimeout(timeout);
   }

@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { useAppController } from "./app/useAppController";
+import { resolveSidebarViewState } from "./app/openclawNavigation";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { DashboardView } from "./pages/dashboard/DashboardView";
+import { PermissionSettingsPage } from "./pages/governance/PermissionSettingsPage";
 import { DockSidebar } from "./pages/layout/DockSidebar";
+import { OpenclawWorkspacePanel } from "./pages/layout/OpenclawWorkspacePanel";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
 import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
@@ -9,26 +13,44 @@ import model from "../model.json";
 
 export default function App() {
   const controller = useAppController();
-  const backendOffline =
-    controller.status?.status === "offline" ||
-    (controller.error ? controller.error.includes("后端服务不可用") : false);
-
+  const backendOffline = controller.status?.status === "offline";
+  const [showOpenclawWorkspace, setShowOpenclawWorkspace] = useState(false);
+  const openViewFromSidebar = (nextView: "dashboard" | "projects" | "permissions") => {
+    const next = resolveSidebarViewState(nextView);
+    setShowOpenclawWorkspace(next.showOpenclawWorkspace);
+    controller.setActiveView(next.activeView);
+  };
+  const jumpToGovernance = (entry: "policy" | "openclaw") => {
+    controller.setShowUserMenu(false);
+    if (entry === "policy") {
+      openViewFromSidebar("permissions");
+      return;
+    }
+    setShowOpenclawWorkspace(true);
+  };
   if (controller.route === "login" || !controller.isAuthenticated) {
     return (
       <LoginPage
-        loginAccount={controller.loginAccount}
-        loginPassword={controller.loginPassword}
-        showAccountError={controller.showAccountError}
-        showPasswordError={controller.showPasswordError}
-        accountError={controller.accountError}
-        passwordError={controller.passwordError}
-        accountRef={controller.loginAccountRef}
-        passwordRef={controller.loginPasswordRef}
+        loginMode={controller.loginMode}
+        loginPhone={controller.loginPhone}
+        loginCode={controller.loginCode}
+        showPhoneError={controller.showPhoneError}
+        showCodeError={controller.showCodeError}
+        phoneError={controller.phoneError}
+        codeError={controller.codeError}
+        loginError={controller.loginError}
+        debugCodeHint={controller.debugCodeHint}
+        sendingCode={controller.sendingCode}
+        countdown={controller.countdown}
+        phoneRef={controller.loginPhoneRef}
+        codeRef={controller.loginCodeRef}
         onSubmit={controller.handleLogin}
-        onAccountChange={controller.setLoginAccount}
-        onPasswordChange={controller.setLoginPassword}
-        onAccountBlur={() => controller.setLoginTouched((prev) => ({ ...prev, account: true }))}
-        onPasswordBlur={() => controller.setLoginTouched((prev) => ({ ...prev, password: true }))}
+        onSwitchMode={controller.setLoginMode}
+        onRequestCode={controller.handleRequestCode}
+        onPhoneChange={controller.setLoginPhone}
+        onCodeChange={controller.setLoginCode}
+        onPhoneBlur={() => controller.setLoginTouched((prev) => ({ ...prev, phone: true }))}
+        onCodeBlur={() => controller.setLoginTouched((prev) => ({ ...prev, code: true }))}
       />
     );
   }
@@ -37,23 +59,39 @@ export default function App() {
     <div className="workspace">
       <DockSidebar
         activeView={controller.activeView}
+        currentRole={controller.currentRole}
         dockUserLabel={controller.dockUserLabel}
         dockUserAvatar={controller.dockUserAvatar}
         showUserMenu={controller.showUserMenu}
         userMenuRef={controller.userMenuRef}
-        onShowDashboard={() => controller.setActiveView("dashboard")}
-        onShowProjects={() => controller.setActiveView("projects")}
+        onShowDashboard={() => openViewFromSidebar("dashboard")}
+        onShowProjects={() => openViewFromSidebar("projects")}
         onToggleUserMenu={() => controller.setShowUserMenu((prev) => !prev)}
+        onOpenPolicyManager={() => jumpToGovernance("policy")}
+        onOpenOpenclawDialog={() => jumpToGovernance("openclaw")}
         onLogout={controller.handleLogout}
       />
 
-      <main className={`board ${controller.activeView === "dashboard" ? "dashboard-mode" : "projects-mode"}`}>
+      <main
+        className={`board ${
+          controller.activeView === "dashboard"
+            ? "dashboard-mode"
+            : controller.activeView === "permissions"
+              ? "permissions-mode"
+              : "projects-mode"
+        }`}
+      >
         {backendOffline ? (
           <section className="backend-offline-banner" role="status" aria-live="polite">
             后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run dev`
           </section>
         ) : null}
-        {controller.activeView === "dashboard" ? (
+        {showOpenclawWorkspace ? (
+          <OpenclawWorkspacePanel
+            isAdmin={controller.currentRole === "owner"}
+            onBack={() => setShowOpenclawWorkspace(false)}
+          />
+        ) : controller.activeView === "dashboard" ? (
           <DashboardView
             projects={controller.projects}
             inProgressIterations={controller.inProgressIterations}
@@ -64,13 +102,15 @@ export default function App() {
             monthlyTrend={controller.monthlyTrend}
             currentProjectId={controller.currentProjectId}
             currentProjectIterations={controller.iterations.length}
-            onViewProjects={() => controller.setActiveView("projects")}
-            onSelectProject={controller.handleSelectProject}
+            onViewProjects={() => openViewFromSidebar("projects")}
           />
+        ) : controller.activeView === "permissions" ? (
+          <PermissionSettingsPage currentRole={controller.currentRole} />
         ) : (
           <ProjectsWorkspace
             projects={controller.projects}
             currentProjectId={controller.currentProjectId}
+            currentRole={controller.currentRole}
             currentProject={controller.currentProject}
             currentIteration={controller.currentIteration}
             iterations={controller.iterations}
@@ -90,23 +130,31 @@ export default function App() {
             contextData={controller.contextData}
             stateMachine={controller.stateMachine}
             chatMessages={controller.chatMessages}
+            chatSendStatus={controller.chatSendStatus}
             chatInput={controller.chatInput}
             fileInputRef={controller.fileInputRef}
             analysisReport={controller.analysisReport}
             showAnalysisPanel={controller.showAnalysisPanel}
             isAnalyzingAttachment={controller.isAnalyzingAttachment}
+            lastUploadFailed={controller.lastUploadFailed}
             uploadAnalysisProgress={controller.uploadAnalysisProgress}
+            uploadToastMessage={controller.uploadToastMessage}
             onShowCreateProject={() => controller.setShowCreateProject(true)}
             onShowCreateIteration={() => controller.setShowCreateIteration(true)}
             onDeleteProject={controller.handleDeleteProject}
             onUploadClick={controller.handleUploadClick}
             onOpenAnalysisPanel={() => controller.setShowAnalysisPanel(true)}
             onCloseAnalysisPanel={() => controller.setShowAnalysisPanel(false)}
+            onClearUploadToast={() => controller.setUploadToastMessage(null)}
             onSelectProject={controller.handleSelectProject}
             onEnterIteration={controller.handleEnterIteration}
-            onSwitchToProjectPanel={() => controller.setProjectPanelMode("project")}
+            onSwitchToProjectPanel={() => {
+              controller.setShowAnalysisPanel(false);
+              controller.setProjectPanelMode("project");
+            }}
             onUpload={controller.handleUpload}
             onUploadFiles={controller.uploadFiles}
+            onRetryUpload={controller.handleRetryUpload}
             onChatInputChange={controller.setChatInput}
             onChatSend={controller.handleSend}
             onUpdateClarificationDraft={controller.handleUpdateClarificationDraft}
@@ -115,6 +163,11 @@ export default function App() {
             onUpdateTestMatrixExecution={controller.handleUpdateTestMatrixExecution}
             onGenerateTestArtifacts={controller.handleGenerateTestArtifacts}
             onRefreshReleaseReview={controller.handleRefreshReleaseReview}
+            onSaveArtifactDraft={controller.handleSaveArtifactDraft}
+            onCommitArtifact={controller.handleCommitArtifact}
+            onConfirmArtifact={controller.handleConfirmArtifact}
+            onAppendArtifactToChat={controller.handleAppendArtifactToChat}
+            onTransitionArtifactStage={controller.handleTransitionArtifactStage}
             onTransitionState={controller.handleTransitionState}
             onCreateDeployment={controller.handleCreateDeployment}
             onTransitionDeployment={controller.handleTransitionDeployment}
