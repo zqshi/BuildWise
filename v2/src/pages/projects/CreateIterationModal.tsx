@@ -51,73 +51,125 @@ export function CreateIterationModal({
     <div className="modal-mask">
       <div className="modal-card iteration-modal-card">
         <div className="modal-head">
-          <div>
-            <h3>新增迭代版本</h3>
-            <p className="hint">先明确本轮目标、范围与验收标准，减少后续理解偏差。</p>
+          <div className="iteration-modal-title-wrap">
+            <div className="iteration-modal-title">
+              <span className="iteration-modal-title-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M9.5 14.5c-1.3-.1-2.4.1-3.4.6.5-1 1.3-1.8 2.2-2.5L13.8 7c1.8-1.8 4.5-2.5 7-2-.2 2.5-1 5.2-2.8 7l-5.5 5.5c-.7 1-1.6 1.7-2.5 2.2.5-1 .7-2.1.6-3.4Z" fill="currentColor" />
+                  <circle cx="15.8" cy="8.2" r="1.2" fill="#fff" />
+                </svg>
+              </span>
+              <h3>新建交付迭代</h3>
+            </div>
           </div>
-          <button type="button" className="btn ghost" onClick={onClose}>
-            关闭
+          <button type="button" className="icon-btn iteration-modal-close" aria-label="关闭" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 7l10 10M17 7 7 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
-        <form onSubmit={onSubmit} className="modal-form">
-          <section className="modal-section">
-            <h4>基础信息</h4>
-            <div className="modal-grid-two">
+        <form id="create-iteration-form" onSubmit={onSubmit} className="modal-form iteration-modal-form">
+          <section className="iteration-modal-block">
+            <label>
+              <span className="modal-label-inline">
+                迭代名称 <span className="form-required">*</span>
+              </span>
+              <input value={iterName} onChange={(event) => onIterNameChange(event.target.value)} required placeholder="例如：V1.0 核心功能迭代" />
+            </label>
+            <label>
+              版本类型
+              <div className="iteration-type-radio-group compact">
+                <label className={`iteration-type-radio ${iterVersionType === "major" ? "active" : ""}`}>
+                  <input
+                    type="radio"
+                    name="iteration-version-type"
+                    checked={iterVersionType === "major"}
+                    onChange={() => onIterVersionTypeChange("major")}
+                  />
+                  <span>
+                    <strong>Major</strong>
+                    <em>涉及架构变动或大规模功能更新</em>
+                  </span>
+                </label>
+                <label className={`iteration-type-radio ${iterVersionType === "minor" ? "active" : ""}`}>
+                  <input
+                    type="radio"
+                    name="iteration-version-type"
+                    checked={iterVersionType === "minor"}
+                    onChange={() => onIterVersionTypeChange("minor")}
+                  />
+                  <span>
+                    <strong>Minor</strong>
+                    <em>功能优化或业务扩展增强</em>
+                  </span>
+                </label>
+                <label className={`iteration-type-radio ${iterVersionType === "patch" ? "active" : ""}`}>
+                  <input
+                    type="radio"
+                    name="iteration-version-type"
+                    checked={iterVersionType === "patch"}
+                    onChange={() => onIterVersionTypeChange("patch")}
+                  />
+                  <span>
+                    <strong>Patch</strong>
+                    <em>线上缺陷修复或小范围改动</em>
+                  </span>
+                </label>
+              </div>
+            </label>
+            <label>
+              目标描述
+              <textarea value={iterDesc} onChange={(event) => onIterDescChange(event.target.value)} required placeholder="描述此迭代的核心目标及预期成果..." />
+            </label>
+          </section>
+
+          <section className="iteration-modal-block">
+            <div className="modal-grid-two compact">
               <label>
-                迭代名称
-                <input value={iterName} onChange={(event) => onIterNameChange(event.target.value)} required placeholder="例如：v1.3 结算链路优化" />
+                范围内功能列表
+                <textarea value={iterInScope} onChange={(event) => onIterInScopeChange(event.target.value)} rows={3} placeholder="输入本期涵盖的功能点，按行分隔" />
               </label>
               <label>
-                版本类型
-                <select
-                  value={iterVersionType}
-                  onChange={(event) => onIterVersionTypeChange(event.target.value as IterationVersionType)}
-                >
-                  <option value="patch">修订版本（patch）</option>
-                  <option value="minor">小版本（minor）</option>
-                  <option value="major">主版本（major）</option>
-                </select>
+                范围外说明
+                <textarea value={iterOutScope} onChange={(event) => onIterOutScopeChange(event.target.value)} rows={3} placeholder="输入本期不涉及的功能或明确排除的项" />
               </label>
             </div>
-            <label>
-              迭代描述
-              <textarea value={iterDesc} onChange={(event) => onIterDescChange(event.target.value)} required placeholder="描述本轮希望解决的问题和业务价值" />
-            </label>
           </section>
-          <section className="modal-section">
-            <h4>目标与范围</h4>
-            <label>
-              迭代目标（每行一个）
-              <textarea value={iterGoals} onChange={(event) => onIterGoalsChange(event.target.value)} placeholder="例如：提升支付成功率至 99.5%" />
-            </label>
-            <div className="modal-grid-two">
+
+          <section className="iteration-modal-block">
+            <div className="iteration-acceptance-checklist">
               <label>
-                范围内（每行一个）
-                <textarea value={iterInScope} onChange={(event) => onIterInScopeChange(event.target.value)} placeholder="本轮必须交付" />
+                <input type="checkbox" checked readOnly />
+                <span>通过自动化冒烟测试（用例通过率 100%）</span>
               </label>
               <label>
-                范围外（每行一个）
-                <textarea value={iterOutScope} onChange={(event) => onIterOutScopeChange(event.target.value)} placeholder="明确不在本轮实现" />
+                <input type="checkbox" checked readOnly />
+                <span>P0/P1 缺陷全部关闭</span>
               </label>
+              <button type="button" className="auth-link-btn">+ 添加自定义标准</button>
             </div>
+            <textarea
+              className="modal-hidden-field-control"
+              value={iterAcceptance}
+              onChange={(event) => onIterAcceptanceChange(event.target.value)}
+              rows={1}
+            />
           </section>
-          <section className="modal-section">
-            <h4>验收标准</h4>
-            <label>
-              验收标准（每行一个）
-              <textarea value={iterAcceptance} onChange={(event) => onIterAcceptanceChange(event.target.value)} placeholder="可衡量、可验证的验收条件" />
-            </label>
-          </section>
-          <div className="modal-actions">
-            {backendUnavailable ? <p className="hint">后端未连接，暂不可创建迭代。请先启动后端服务。</p> : null}
-            <button type="button" className="btn ghost" onClick={onClose}>
-              取消
-            </button>
-            <button type="submit" className="btn primary" disabled={busy || backendUnavailable}>
-              {busy ? "创建中..." : "创建迭代"}
-            </button>
-          </div>
+
+          <label className="modal-hidden-field" aria-hidden="true">
+            迭代目标
+            <textarea value={iterGoals} onChange={(event) => onIterGoalsChange(event.target.value)} rows={1} />
+          </label>
         </form>
+        <div className="modal-actions iteration-modal-actions">
+          {backendUnavailable ? <p className="hint">后端未连接，暂不可创建迭代。请先启动后端服务。</p> : null}
+          <button type="button" className="btn ghost" onClick={onClose}>
+            取消
+          </button>
+          <button type="submit" form="create-iteration-form" className="btn primary" disabled={busy || backendUnavailable}>
+            {busy ? "创建中..." : "确认创建"}
+          </button>
+        </div>
       </div>
     </div>
   );

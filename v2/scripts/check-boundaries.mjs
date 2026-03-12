@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.join(path.dirname(__filename), ".."));
 const exceptionFile = path.join(ROOT, "scripts", "boundary-exceptions.json");
+const HARD_LINE_LIMIT = 1000;
 
 function loadLineLimitExceptions() {
   if (!existsSync(exceptionFile)) {
@@ -13,6 +14,19 @@ function loadLineLimitExceptions() {
   try {
     const payload = JSON.parse(readFileSync(exceptionFile, "utf-8"));
     const files = Array.isArray(payload?.lineLimitExceptions) ? payload.lineLimitExceptions : [];
+    return new Set(files.map((item) => String(item).trim()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function loadHardLineLimitExceptions() {
+  if (!existsSync(exceptionFile)) {
+    return new Set();
+  }
+  try {
+    const payload = JSON.parse(readFileSync(exceptionFile, "utf-8"));
+    const files = Array.isArray(payload?.hardLineLimitExceptions) ? payload.hardLineLimitExceptions : [];
     return new Set(files.map((item) => String(item).trim()).filter(Boolean));
   } catch {
     return new Set();
@@ -97,15 +111,21 @@ function importViolations(relPath, content) {
 const files = [
   ...walkFiles(path.join(ROOT, "src")),
   ...walkFiles(path.join(ROOT, "backend", "src")),
+  ...walkFiles(path.join(ROOT, "scripts")),
+  ...walkFiles(path.join(ROOT, "backend", "scripts")),
   ...walkFiles(path.join(ROOT, "..", "docs"))
 ];
 
 const errors = [];
 const lineLimitExceptions = loadLineLimitExceptions();
+const hardLineLimitExceptions = loadHardLineLimitExceptions();
 for (const file of files) {
   const rel = toRel(file);
   const content = readFileSync(file, "utf-8");
   const lines = content.split("\n").length;
+  if (lines > HARD_LINE_LIMIT && !hardLineLimitExceptions.has(rel)) {
+    errors.push(`${rel}: ${lines} lines exceeds hard limit ${HARD_LINE_LIMIT}`);
+  }
   const max = findLimit(rel);
   if (max !== null && lines > max && !lineLimitExceptions.has(rel)) {
     errors.push(`${rel}: ${lines} lines exceeds limit ${max}`);

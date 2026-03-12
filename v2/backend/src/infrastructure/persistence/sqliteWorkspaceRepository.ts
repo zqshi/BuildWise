@@ -7,14 +7,21 @@ import type {
   Iteration,
   IterationMessage,
   IterationTransition,
+  GovernanceCustomRoleRecord,
+  PlatformRoleBindingRecord,
+  PolicyExecutionLogRecord,
   Project,
+  ProjectPolicyRecord,
+  ProjectRoleBindingRecord,
   ProjectShare,
+  ProjectWorkspaceBindingRecord,
   TemplateRunRecord,
   VersionSnapshot,
   WorkspaceStore
 } from "../../domain/workspace/types";
 import { nextThreePartVersion } from "../../domain/workspace/versioning";
-import { SqliteWorkspaceCore, toRepoSlug } from "./sqliteWorkspaceCore";
+import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
+import { SqliteWorkspaceCore } from "./sqliteWorkspaceCore";
 
 export class SqliteWorkspaceRepository implements WorkspaceRepository {
   private readonly core: SqliteWorkspaceCore;
@@ -328,6 +335,129 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     const items = this.core.readCollection<TemplateRunRecord>("templateRuns");
     items.push(record);
     this.core.writeCollection("templateRuns", items);
+  }
+
+  listProjectPolicies(projectId: number) {
+    return this.core.readCollection<ProjectPolicyRecord>("projectPolicies").filter((item) => item.projectId === projectId);
+  }
+
+  appendProjectPolicy(record: ProjectPolicyRecord) {
+    const items = this.core.readCollection<ProjectPolicyRecord>("projectPolicies");
+    items.push(record);
+    this.core.writeCollection("projectPolicies", items);
+  }
+
+  updateProjectPolicy(record: ProjectPolicyRecord) {
+    const items = this.core.readCollection<ProjectPolicyRecord>("projectPolicies");
+    const idx = items.findIndex((item) => item.id === record.id && item.projectId === record.projectId);
+    if (idx >= 0) {
+      items[idx] = record;
+      this.core.writeCollection("projectPolicies", items);
+    }
+  }
+
+  listProjectWorkspaceBindings(projectId: number) {
+    return this.core.readCollection<ProjectWorkspaceBindingRecord>("projectWorkspaceBindings").filter((item) => item.projectId === projectId);
+  }
+
+  upsertProjectWorkspaceBinding(record: ProjectWorkspaceBindingRecord) {
+    const items = this.core.readCollection<ProjectWorkspaceBindingRecord>("projectWorkspaceBindings");
+    const idx = items.findIndex((item) => item.id === record.id || item.projectId === record.projectId);
+    if (idx >= 0) {
+      items[idx] = record;
+    } else {
+      items.push(record);
+    }
+    this.core.writeCollection("projectWorkspaceBindings", items);
+    return record;
+  }
+
+  listPolicyExecutionLogs(iterationId: number) {
+    return this.core.readCollection<PolicyExecutionLogRecord>("policyExecutionLogs").filter((item) => item.iterationId === iterationId);
+  }
+
+  appendPolicyExecutionLog(record: PolicyExecutionLogRecord) {
+    const items = this.core.readCollection<PolicyExecutionLogRecord>("policyExecutionLogs");
+    items.push(record);
+    this.core.writeCollection("policyExecutionLogs", items);
+  }
+
+  listProjectRoleBindings(projectId: number) {
+    return this.core.readCollection<ProjectRoleBindingRecord>("projectRoleBindings").filter((item) => item.projectId === projectId);
+  }
+
+  upsertProjectRoleBinding(record: ProjectRoleBindingRecord) {
+    const items = this.core.readCollection<ProjectRoleBindingRecord>("projectRoleBindings");
+    const idx = items.findIndex((item) => item.projectId === record.projectId && item.userId === record.userId);
+    if (idx >= 0) {
+      items[idx] = record;
+    } else {
+      items.push(record);
+    }
+    this.core.writeCollection("projectRoleBindings", items);
+    return record;
+  }
+
+  removeProjectRoleBinding(projectId: number, userId: string) {
+    const items = this.core.readCollection<ProjectRoleBindingRecord>("projectRoleBindings");
+    const nextItems = items.filter((item) => !(item.projectId === projectId && item.userId === userId));
+    if (nextItems.length === items.length) {
+      return false;
+    }
+    this.core.writeCollection("projectRoleBindings", nextItems);
+    return true;
+  }
+
+  listPlatformRoleBindings() {
+    return this.core.readCollection<PlatformRoleBindingRecord>("platformRoleBindings");
+  }
+
+  upsertPlatformRoleBinding(record: PlatformRoleBindingRecord) {
+    const items = this.core.readCollection<PlatformRoleBindingRecord>("platformRoleBindings");
+    const idx = items.findIndex((item) => item.userId === record.userId);
+    if (idx >= 0) {
+      items[idx] = record;
+    } else {
+      items.push(record);
+    }
+    this.core.writeCollection("platformRoleBindings", items);
+    return record;
+  }
+
+  removePlatformRoleBinding(userId: string) {
+    const items = this.core.readCollection<PlatformRoleBindingRecord>("platformRoleBindings");
+    const nextItems = items.filter((item) => item.userId !== userId);
+    if (nextItems.length === items.length) {
+      return false;
+    }
+    this.core.writeCollection("platformRoleBindings", nextItems);
+    return true;
+  }
+
+  listGovernanceCustomRoles() {
+    return this.core.readCollection<GovernanceCustomRoleRecord>("governanceCustomRoles");
+  }
+
+  upsertGovernanceCustomRole(record: GovernanceCustomRoleRecord) {
+    const items = this.core.readCollection<GovernanceCustomRoleRecord>("governanceCustomRoles");
+    const idx = items.findIndex((item) => item.roleKey === record.roleKey);
+    if (idx >= 0) {
+      items[idx] = record;
+    } else {
+      items.push(record);
+    }
+    this.core.writeCollection("governanceCustomRoles", items);
+    return record;
+  }
+
+  removeGovernanceCustomRole(roleKey: string) {
+    const items = this.core.readCollection<GovernanceCustomRoleRecord>("governanceCustomRoles");
+    const nextItems = items.filter((item) => item.roleKey !== roleKey);
+    if (nextItems.length === items.length) {
+      return false;
+    }
+    this.core.writeCollection("governanceCustomRoles", nextItems);
+    return true;
   }
 
   updateProject(project: Project) {

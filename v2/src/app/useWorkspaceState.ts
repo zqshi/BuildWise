@@ -8,6 +8,7 @@ import type {
   IterationContextPayload,
   IterationStateMachinePayload,
   IterationMessage,
+  ChatSendStatus,
   ModelRelationPayload,
   ModelSummaryPayload,
   RoadmapPayload,
@@ -51,17 +52,30 @@ function readStorageNumber(key: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readStorageRole(key: string): "owner" | "pm" | "developer" | "qa" | "viewer" {
+  const raw = readStorageString(key);
+  if (raw === "owner" || raw === "pm" || raw === "developer" || raw === "qa" || raw === "viewer") {
+    return raw;
+  }
+  return "viewer";
+}
+
 export function useWorkspaceState() {
-  const [activeView, setActiveView] = useState<"dashboard" | "projects">(() => {
+  const [activeView, setActiveView] = useState<"dashboard" | "projects" | "permissions">(() => {
     const cached = readStorageString("buildwise:active-view");
-    return cached === "projects" ? "projects" : "dashboard";
+    if (cached === "projects" || cached === "permissions") {
+      return cached;
+    }
+    return "dashboard";
   });
   const [projectPanelMode, setProjectPanelMode] = useState<"project" | "iteration">(() => {
     const cached = readStorageString("buildwise:project-panel-mode");
     return cached === "iteration" ? "iteration" : "project";
   });
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [currentRole, setCurrentRole] = useState<"owner" | "pm" | "developer" | "qa" | "viewer">("owner");
+  const [currentRole, setCurrentRole] = useState<"owner" | "pm" | "developer" | "qa" | "viewer">(
+    () => readStorageRole("buildwise:auth-role")
+  );
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -84,6 +98,7 @@ export function useWorkspaceState() {
 
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<IterationMessage[]>([]);
+  const [chatSendStatus, setChatSendStatus] = useState<ChatSendStatus>("idle");
   const [uploadedFile, setUploadedFile] = useState<UploadedAttachmentMeta | null>(null);
   const [contextData, setContextData] = useState<IterationContextPayload | null>(null);
   const [assessmentData, setAssessmentData] = useState<AssessmentPayload | null>(null);
@@ -93,6 +108,7 @@ export function useWorkspaceState() {
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
   const [isAnalyzingAttachment, setIsAnalyzingAttachment] = useState(false);
   const [uploadAnalysisProgress, setUploadAnalysisProgress] = useState<UploadAnalysisProgress | null>(null);
+  const [uploadToastMessage, setUploadToastMessage] = useState<string | null>(null);
   const [modelSummary, setModelSummary] = useState<ModelSummaryPayload | null>(null);
   const [modelRelations, setModelRelations] = useState<ModelRelationPayload[]>([]);
   const [ruleCompile, setRuleCompile] = useState<RuleCompilePayload | null>(null);
@@ -164,6 +180,8 @@ export function useWorkspaceState() {
     setChatInput,
     chatMessages,
     setChatMessages,
+    chatSendStatus,
+    setChatSendStatus,
     uploadedFile,
     setUploadedFile,
     contextData,
@@ -182,6 +200,8 @@ export function useWorkspaceState() {
     setIsAnalyzingAttachment,
     uploadAnalysisProgress,
     setUploadAnalysisProgress,
+    uploadToastMessage,
+    setUploadToastMessage,
     modelSummary,
     setModelSummary,
     modelRelations,

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Impact Analysis"
+  short_description: "Compute change impact scope and risk grading"
+  default_prompt: "Use $02-impact-analysis to evaluate impact spread, risks, and minimal repair actions."
+policy:
+  allow_implicit_invocation: true

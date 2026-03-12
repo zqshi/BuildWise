@@ -5,11 +5,30 @@
     "backend/src/application/platform/platformService.ts",
     "backend/src/application/workspace/workspaceService.ts",
     "backend/src/application/workspace/workspaceServiceAnalysisOps.ts",
+    "backend/src/application/modeling/modelingService.ts",
+    "backend/src/application/workspace/workspaceServiceChangeControlCoreOps.ts",
     "backend/src/application/workspace/workspaceServiceCoachOps.ts",
+    "backend/src/application/workspace/workspaceServiceFullCycleOps.ts",
+    "backend/src/application/workspace/workspaceServiceOpenclawOps.ts",
+    "backend/src/application/workspace/workspaceServicePolicyOps.ts",
     "backend/src/application/workspace/workspaceSupportCore.ts",
     "backend/src/domain/workspace/analysisTypes.ts",
+    "backend/src/domain/workspace/iterationTypes.ts",
     "backend/src/infrastructure/persistence/sqliteWorkspaceCore.ts",
+    "backend/src/infrastructure/persistence/sqliteWorkspaceRepository.ts",
+    "backend/src/infrastructure/persistence/jsonWorkspaceRepository.ts",
+    "backend/src/interfaces/http/routes/repositoryTraceRoutes.ts",
     "backend/src/interfaces/http/routes/platformRoutes.ts",
-    "backend/src/interfaces/http/routes/workspaceIterationCoreRoutes.ts"
+    "backend/src/interfaces/http/routes/workspaceIterationCoreRoutes.ts",
+    "backend/src/interfaces/http/routes/workspaceProjectRoutes.ts",
+    "src/domain/workspace/iterationTypes.ts",
+    "src/pages/projects/ProjectOverviewPanel.tsx",
+    "src/styles/base.css",
+    "src/styles/responsive.css"
+  ],
+  "hardLineLimitExceptions": [
+    "src/pages/projects/IterationWorkspacePanel.tsx",
+    "src/styles/workspace-interactions.css",
+    "src/app/useIterationActions.ts"
   ]
 }

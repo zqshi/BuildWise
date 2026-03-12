@@ -29,6 +29,7 @@ export type IterationModule = {
 };
 
 export type IterationStatus = "planned" | "in-progress" | "review" | "blocked" | "completed";
+export type IterationTransitionSource = "manual" | "auto";
 export type IterationVersionType = "major" | "minor" | "patch";
 
 export type IterationCodeLink = {
@@ -71,11 +72,74 @@ export type IterationQualityArtifacts = {
   updatedAt: string;
 };
 
+export type IterationUxArtifacts = {
+  informationArchitecture: string[];
+  interactionFlows: string[];
+  uiStates: string[];
+  uxConstraints: string[];
+  updatedAt: string;
+};
+
+export type IterationArtifactStage =
+  | "clarification"
+  | "scope"
+  | "interaction"
+  | "development"
+  | "testing"
+  | "release"
+  | "archive";
+
+export type IterationArtifactGateStatus = "pending" | "passed" | "blocked";
+export type IterationArtifactStatus = "pending" | "partial" | "ready";
+export type IterationArtifactEditCapability = "none" | "rich-text" | "prototype-select";
+
+export type IterationArtifactWorkflowItem = {
+  id: string;
+  stage: IterationArtifactStage;
+  title: string;
+  category: string;
+  description: string;
+  status: IterationArtifactStatus;
+  gateStatus: IterationArtifactGateStatus;
+  inputVersionRef: number;
+  outputVersion: number;
+  stale: boolean;
+  downstreamImpacts: IterationArtifactStage[];
+  source: string;
+  editCapability: IterationArtifactEditCapability;
+  summary: string;
+  evidence: string[];
+  draft: {
+    content: string;
+    media: string[];
+    updatedAt: string;
+    updatedBy: string;
+  };
+  lastConfirmedBy: string;
+  lastConfirmedAt: string;
+  updatedAt: string;
+};
+
+export type IterationArtifactWorkflow = {
+  activeStage: IterationArtifactStage;
+  items: IterationArtifactWorkflowItem[];
+  updatedAt: string;
+};
+
 export type IterationChangeControl = {
   pendingHumanConfirmation: boolean;
   lastAnalysisAt: string;
   lastAnalysisFileName: string;
   lastAnalysisDigest: string;
+  lastUploadedInputFingerprint: string;
+  lastUploadedAt: string;
+  lastFailedAnalysisInput: string;
+  lastFailedAnalysisAt: string;
+  lastFailedAnalysisError: string;
+  lastAttachmentUploadId: string;
+  lastAttachmentIngestJobId: string;
+  lastAttachmentAnalysisJobId: string;
+  lastAttachmentReportId: string;
   clarificationRounds: number;
   clarificationQuestions: string[];
   clarificationDraftResolvedQuestions: string[];
@@ -92,6 +156,7 @@ export type IterationChangeControl = {
   generatedTestMatrixUpdatedAt: string;
   testMatrixExecutionUpdatedAt: string;
   qualityArtifacts: IterationQualityArtifacts;
+  uxArtifacts: IterationUxArtifacts;
   executableConstraints: {
     componentWhitelist: string[];
     codePathWhitelist: string[];
@@ -127,6 +192,11 @@ export type IterationChangeControl = {
   lastReleaseReviewUpdatedAt: string;
   lastTraceabilityCoverageScore: number;
   lastOpsRollbackSuggested: boolean;
+  lastReportPublishable: boolean;
+  lastReportQualityScore: number;
+  lastReportQualitySummary: string;
+  lastReportQualityUpdatedAt: string;
+  artifactWorkflow: IterationArtifactWorkflow;
   boundary: IterationChangeBoundary;
 };
 
@@ -154,6 +224,15 @@ export type Iteration = {
     uploadKind: "documents" | "prototype" | "mixed" | "other";
     lastUpdatedAt: string;
     lastAttachmentName: string;
+    gitRequirementIntake?: {
+      status: "idle" | "pending-confirmation" | "accepted-read" | "declined" | "read-failed";
+      askedAt: string;
+      decidedAt: string;
+      branch: string;
+      repoUrl: string;
+      summary: string;
+      error: string;
+    };
   };
 };
 
@@ -190,6 +269,10 @@ export type IterationTransition = {
   fromStatus: IterationStatus;
   toStatus: IterationStatus;
   note: string;
+  reason: string;
+  source: IterationTransitionSource;
+  operator: string;
+  operatorRole: string;
   createdAt: string;
 };
 

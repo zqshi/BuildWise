@@ -80,4 +80,18 @@ export type ModelRelationPayload = {
   toEntityId: string;
   type: "one_to_one" | "one_to_many" | "many_to_many";
   name?: string;
+  businessDescription?: string;
+  ontologyBasis?: string;
+  dataBasis?: string[];
+};
+
+export type ProjectModelBusinessSummaryPayload = {
+  generatedAt: string;
+  source: "llm";
+  model: string;
+  projectId: number;
+  iterationId: number | null;
+  summary: string;
+  focus: string[];
+  risks: string[];
 };

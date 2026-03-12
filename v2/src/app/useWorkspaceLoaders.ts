@@ -38,12 +38,23 @@ import {
 } from "./workspaceApi";
 import { nowIsoString } from "./workspaceHelpers";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
+const rawApiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
+const API_BASE = rawApiBase.endsWith("/api") ? rawApiBase.slice(0, -4) : rawApiBase;
 const BOOT_RETRY_DELAYS_MS = [0, 500, 1200, 2500];
 const STATUS_POLL_INTERVAL_MS = 15000;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+function apiBaseLabel() {
+  if (API_BASE) {
+    return API_BASE;
+  }
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "current-origin";
 }
 
 async function fetchStatusWithRetry() {
@@ -124,7 +135,7 @@ export function useWorkspaceLoaders({
 }: UseWorkspaceLoadersParams) {
   const toOfflineMessage = (raw: string) =>
     raw.includes("network unavailable") || raw.includes("request timeout")
-      ? "后端服务不可用（127.0.0.1:5055）。请先启动：npm --prefix v2/backend run dev"
+      ? `后端服务不可用（${apiBaseLabel()}）。请先启动：npm --prefix v2/backend run dev`
       : raw;
 
   const probeStatus = async () => {
@@ -240,7 +251,6 @@ export function useWorkspaceLoaders({
         }
         setStatus(statusData);
         setError(null);
-        await Promise.all([loadProjects(), loadGovernance()]);
       } catch (err) {
         if (stopped) {
           return;
@@ -248,6 +258,17 @@ export function useWorkspaceLoaders({
         setStatus({ status: "offline", service: "buildwise-v2-backend" });
         const raw = err instanceof Error ? err.message : "Unknown error";
         setError(toOfflineMessage(raw));
+        return;
+      }
+
+      try {
+        await Promise.all([loadProjects(), loadGovernance()]);
+      } catch (err) {
+        if (stopped) {
+          return;
+        }
+        const raw = err instanceof Error ? err.message : "Unknown error";
+        setError(raw);
       }
     };
     bootstrap();

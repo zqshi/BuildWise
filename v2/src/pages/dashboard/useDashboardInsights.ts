@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchProjectIterations } from "../../app/workspaceApi";
 import type { Iteration, Project } from "../../domain/workspace/types";
+import { filterIterationsByWindow, getScopeIterations, sortInsightsByLevel, type InsightScope, type InsightWindowDays } from "./dashboardInsightScopeModel";
 
 export type ProgressBucket = { label: string; count: number };
 export type TrendPoint = { label: string; count: number };
-type InsightLevel = "good" | "watch" | "risk";
-type InsightItem = { level: InsightLevel; title: string; finding: string; impact: string };
-type RecommendationItem = { priority: "P0" | "P1" | "P2"; title: string; action: string; upgrade: string };
+type InsightItem = { level: "good" | "watch" | "risk"; title: string; finding: string; impact: string };
+type RecommendationItem = {
+  priority: "P0" | "P1" | "P2";
+  title: string;
+  action: string;
+  upgrade: string;
+  scope: "project" | "portfolio" | "both";
+  scopeLabel: string;
+};
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
+const hasOwn = (record: Record<number, Iteration[]>, key: number) => Object.prototype.hasOwnProperty.call(record, key);
 
 function buildProgressBuckets(iterations: Iteration[]) {
   const buckets = [
@@ -60,10 +68,27 @@ export function useDashboardInsights({
   serviceHealthy: boolean;
   displayStatus: string;
 }) {
-  const [insightScope, setInsightScope] = useState<"project" | "portfolio">("project");
+  const [insightScope, setInsightScope] = useState<InsightScope>("project");
+  const [insightWindowDays, setInsightWindowDays] = useState<InsightWindowDays>(90);
+  const [selectedInsightProjectId, setSelectedInsightProjectId] = useState<number | null>(currentProjectId ?? projects[0]?.id ?? null);
   const [iterationsByProject, setIterationsByProject] = useState<Record<number, Iteration[]>>({});
   const [loadingIterations, setLoadingIterations] = useState(false);
-  const selectedProjectId = currentProjectId ?? projects[0]?.id ?? null;
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      setSelectedInsightProjectId(null);
+      return;
+    }
+    setSelectedInsightProjectId((prev) => {
+      if (prev && projects.some((item) => item.id === prev)) {
+        return prev;
+      }
+      if (currentProjectId && projects.some((item) => item.id === currentProjectId)) {
+        return currentProjectId;
+      }
+      return projects[0]?.id ?? null;
+    });
+  }, [currentProjectId, projects]);
 
   useEffect(() => {
     if (!serviceHealthy || projects.length === 0) {
@@ -94,18 +119,31 @@ export function useDashboardInsights({
     };
   }, [projects, serviceHealthy]);
 
-  const scopeIterations = useMemo(() => {
-    if (insightScope === "portfolio") {
-      return Object.values(iterationsByProject).flat();
-    }
-    return selectedProjectId ? (iterationsByProject[selectedProjectId] ?? []) : [];
-  }, [insightScope, iterationsByProject, selectedProjectId]);
+  const scopeIterations = useMemo(
+    () => getScopeIterations(insightScope, iterationsByProject, selectedInsightProjectId),
+    [insightScope, iterationsByProject, selectedInsightProjectId]
+  );
+  const windowedScopeIterations = useMemo(
+    () => filterIterationsByWindow(scopeIterations, insightWindowDays),
+    [insightWindowDays, scopeIterations]
+  );
 
-  const scopeIterationCount = scopeIterations.length || fallbackIterationCount;
-  const scopeCompleted = scopeIterations.filter((item) => item.status === "completed").length || fallbackCompleted;
-  const scopeInProgress = scopeIterations.filter((item) => item.status !== "completed").length || fallbackInProgress;
-  const scopeProgressBuckets = scopeIterations.length > 0 ? buildProgressBuckets(scopeIterations) : fallbackProgressBuckets;
-  const scopeMonthlyTrend = scopeIterations.length > 0 ? buildMonthlyTrend(scopeIterations) : fallbackMonthlyTrend;
+  const scopeDataReady = useMemo(() => {
+    if (!serviceHealthy || projects.length === 0) {
+      return false;
+    }
+    if (insightScope === "portfolio") {
+      return projects.every((item) => hasOwn(iterationsByProject, item.id));
+    }
+    return selectedInsightProjectId !== null ? hasOwn(iterationsByProject, selectedInsightProjectId) : false;
+  }, [insightScope, iterationsByProject, projects, selectedInsightProjectId, serviceHealthy]);
+
+  const scopedIterations = scopeDataReady ? windowedScopeIterations : [];
+  const scopeIterationCount = scopeDataReady ? scopedIterations.length : fallbackIterationCount;
+  const scopeCompleted = scopeDataReady ? scopedIterations.filter((item) => item.status === "completed").length : fallbackCompleted;
+  const scopeInProgress = scopeDataReady ? scopedIterations.filter((item) => item.status !== "completed").length : fallbackInProgress;
+  const scopeProgressBuckets = scopeDataReady ? buildProgressBuckets(scopedIterations) : fallbackProgressBuckets;
+  const scopeMonthlyTrend = scopeDataReady ? buildMonthlyTrend(scopedIterations) : fallbackMonthlyTrend;
 
   const insightModel = useMemo(() => {
     const lowProgressCount = scopeProgressBuckets
@@ -129,7 +167,7 @@ export function useDashboardInsights({
     const healthScore = clamp(Math.round(100 - healthPenalty), 0, 100);
     const healthLevel = healthScore >= 80 ? "健康" : healthScore >= 60 ? "预警" : "高风险";
 
-    const insights: InsightItem[] = [
+    const insights: InsightItem[] = sortInsightsByLevel([
       lowProgressRatio >= 0.45
         ? { level: "risk", title: "前段积压偏高", finding: `低进度迭代占比 ${formatPercent(lowProgressRatio)}，需求被切小但关单速度不足。`, impact: "会持续推高上下文切换成本，拖慢中后段交付。" }
         : { level: "good", title: "阶段推进结构可控", finding: `低进度迭代占比 ${formatPercent(lowProgressRatio)}，未出现明显“只开工不收敛”现象。`, impact: "可把治理重心放在质量门禁和复盘机制，而非盲目加人。" },
@@ -137,24 +175,64 @@ export function useDashboardInsights({
         ? { level: throughputDelta < -0.15 ? "risk" : throughputDelta < 0 ? "watch" : "good", title: "交付吞吐趋势", finding: `近3个月迭代产出较前3个月${throughputDelta >= 0 ? "提升" : "下降"}${Math.abs(Math.round(throughputDelta * 100))}%。`, impact: throughputDelta < 0 ? "如果不做流程升级，后续版本节奏会继续下滑。" : "当前节奏可支撑更高密度版本发布。" }
         : { level: "watch", title: "趋势样本偏少", finding: "月度数据不足 4 个样本点，趋势判断可信度有限。", impact: "建议先补齐关键阶段数据，再做容量规划。" },
       { level: scopeInProgress - highProgressCount > 2 ? "watch" : "good", title: "收尾效率", finding: `进行中迭代 ${scopeInProgress} 个，其中高进度待收口 ${highProgressCount} 个。`, impact: scopeInProgress - highProgressCount > 2 ? "说明执行中项目多于可收尾项目，容易形成长期尾项。" : "收口压力可控，可继续推进连续交付。" }
-    ];
+    ]);
     if (!serviceHealthy) {
       insights.push({ level: "risk", title: "平台依赖风险", finding: `服务状态为${displayStatus}，工程面板存在基础依赖不稳定。`, impact: "会放大发布窗口不确定性，影响迭代验收节奏。" });
     }
 
     const recommendations: RecommendationItem[] = [];
-    if (lowProgressRatio >= 0.45) recommendations.push({ priority: "P0", title: "建立 WIP 上限与关单门禁", action: "按项目设置进行中迭代上限，超限后仅允许处理阻塞和收尾任务。", upgrade: "从任务越多越忙升级为单位周期稳定关单率驱动。" });
-    if (throughputDelta < 0) recommendations.push({ priority: "P1", title: "引入双周吞吐复盘", action: "把吞吐下降拆到需求质量、评审时延、返工率三个维度，形成责任闭环。", upgrade: "从被动看报表升级为原因-动作-结果的持续优化机制。" });
-    if (!serviceHealthy) recommendations.push({ priority: "P0", title: "设置发布前基础服务健康门", action: "将服务状态检查纳入发布 Checklist，不通过时自动阻断发版。", upgrade: "把运维稳定性从人工经验升级为系统门禁。" });
-    if (recommendations.length === 0) recommendations.push({ priority: "P2", title: "推进迭代后评估标准化", action: "每个完成迭代产出复盘纪要，沉淀可复用模板与失败案例。", upgrade: "提升组织学习效率，减少同类问题重复出现。" });
+    if (lowProgressRatio >= 0.45) {
+      recommendations.push({
+        priority: "P0",
+        title: "建立 WIP 上限与关单门禁",
+        action: "按项目设置进行中迭代上限，超限后仅允许处理阻塞和收尾任务。",
+        upgrade: "从任务越多越忙升级为单位周期稳定关单率驱动。",
+        scope: "project",
+        scopeLabel: "项目维度"
+      });
+    }
+    if (throughputDelta < 0) {
+      recommendations.push({
+        priority: "P1",
+        title: "引入双周吞吐复盘",
+        action: "把吞吐下降拆到需求质量、评审时延、返工率三个维度，形成责任闭环。",
+        upgrade: "从被动看报表升级为原因-动作-结果的持续优化机制。",
+        scope: "both",
+        scopeLabel: "项目/跨项目"
+      });
+    }
+    if (!serviceHealthy) {
+      recommendations.push({
+        priority: "P0",
+        title: "设置发布前基础服务健康门",
+        action: "将服务状态检查纳入发布 Checklist，不通过时自动阻断发版。",
+        upgrade: "把运维稳定性从人工经验升级为系统门禁。",
+        scope: "portfolio",
+        scopeLabel: "跨项目维度"
+      });
+    }
+    if (recommendations.length === 0) {
+      recommendations.push({
+        priority: "P2",
+        title: "推进迭代后评估标准化",
+        action: "每个完成迭代产出复盘纪要，沉淀可复用模板与失败案例。",
+        upgrade: "提升组织学习效率，减少同类问题重复出现。",
+        scope: "both",
+        scopeLabel: "项目/跨项目"
+      });
+    }
+    const visibleRecommendations = recommendations.filter((item) => item.scope === "both" || item.scope === insightScope);
 
-    return { healthScore, healthLevel, completionRate, lowProgressRatio, throughputDelta, insights, recommendations };
-  }, [displayStatus, scopeCompleted, scopeInProgress, scopeIterationCount, scopeMonthlyTrend, scopeProgressBuckets, serviceHealthy]);
+    return { healthScore, healthLevel, completionRate, lowProgressRatio, throughputDelta, insights: sortInsightsByLevel(insights), recommendations: visibleRecommendations };
+  }, [displayStatus, insightScope, scopeCompleted, scopeInProgress, scopeIterationCount, scopeMonthlyTrend, scopeProgressBuckets, serviceHealthy]);
 
   return {
     insightScope,
     setInsightScope,
-    selectedProjectId,
+    insightWindowDays,
+    setInsightWindowDays,
+    selectedInsightProjectId,
+    setSelectedInsightProjectId,
     loadingIterations,
     scopeIterationCount,
     scopeCompleted,

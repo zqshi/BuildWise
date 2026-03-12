@@ -1,7 +1,9 @@
+import { useRef, useState } from "react";
 import type { ChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
 import type {
   AttachmentAnalysisJob,
   AttachmentAnalysisReport,
+  ChatSendStatus,
   ChatRole,
   Iteration,
   IterationContextPayload,
@@ -14,13 +16,21 @@ import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../domain/w
 import {
   analyzeIterationAttachment,
   analyzeIterationAttachmentFolder,
+  retryIterationAttachmentAnalysis,
   confirmIterationAnalysis,
   coachIterationMessage,
   createIterationMessage,
   executeIterationVisualEdit,
   fetchIterationReleaseReview,
   generateIterationTestArtifacts,
+  fetchIterationArtifactWorkflow,
+  runIterationFullCycle,
   rewriteIterationCode,
+  saveIterationArtifactDraft,
+  commitIterationArtifact,
+  confirmIterationArtifact,
+  appendIterationArtifactToChat,
+  transitionIterationArtifactStage,
   recomputeAssessment,
   restoreAssessment,
   updateIterationInteractionState,
@@ -35,9 +45,12 @@ type UseIterationActionsParams = {
   currentProjectId: number | null;
   currentRole: string;
   contextData: IterationContextPayload | null;
+  analysisReport: AttachmentAnalysisReport | null;
+  uploadedFile: UploadedAttachmentMeta | null;
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
   setChatInput: Dispatch<SetStateAction<string>>;
+  setChatSendStatus: Dispatch<SetStateAction<ChatSendStatus>>;
   setBusy: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setUploadedFile: Dispatch<SetStateAction<UploadedAttachmentMeta | null>>;
@@ -47,6 +60,7 @@ type UseIterationActionsParams = {
   setShowAnalysisPanel: Dispatch<SetStateAction<boolean>>;
   setIsAnalyzingAttachment: Dispatch<SetStateAction<boolean>>;
   setUploadAnalysisProgress: Dispatch<SetStateAction<UploadAnalysisProgress | null>>;
+  setUploadToastMessage: Dispatch<SetStateAction<string | null>>;
   loadIterationDetail: (iterationId: number) => Promise<void>;
   loadIterations: (projectId: number) => Promise<void>;
   loadGovernance: () => Promise<void>;
@@ -57,9 +71,12 @@ export function useIterationActions({
   currentProjectId,
   currentRole,
   contextData,
+  analysisReport,
+  uploadedFile,
   chatInput,
   fileInputRef,
   setChatInput,
+  setChatSendStatus,
   setBusy,
   setError,
   setUploadedFile,
@@ -69,10 +86,48 @@ export function useIterationActions({
   setShowAnalysisPanel,
   setIsAnalyzingAttachment,
   setUploadAnalysisProgress,
+  setUploadToastMessage,
   loadIterationDetail,
   loadIterations,
   loadGovernance
 }: UseIterationActionsParams) {
+  const lastUploadAttemptRef = useRef<{ iterationId: number; files: File[] } | null>(null);
+  const [lastUploadFailed, setLastUploadFailed] = useState(false);
+
+  const buildAutoFullCycleAnalysisInput = () => {
+    if (!currentIteration) {
+      return undefined;
+    }
+    const hasCachedAnalysis = Boolean(analysisReport?.iterationId === currentIteration.id);
+    const canAutoAnalyzeFromUpload =
+      !hasCachedAnalysis &&
+      Boolean(uploadedFile) &&
+      ((uploadedFile?.htmlPreviews?.length || 0) > 0 || (uploadedFile?.imagePreviews?.length || 0) > 0);
+    if (!canAutoAnalyzeFromUpload) {
+      return undefined;
+    }
+    const firstHtmlPreview = uploadedFile?.htmlPreviews?.[0];
+    const firstImagePreview = uploadedFile?.imagePreviews?.[0];
+    return {
+      fileName: uploadedFile?.name || "uploaded-asset",
+      mimeType: firstHtmlPreview ? "text/html" : "image/*",
+      size: firstHtmlPreview?.content?.length || firstImagePreview?.dataUrl?.length || 0,
+      excerpt: (firstHtmlPreview?.content || "").slice(0, 4000),
+      sourceType: "single-file" as const,
+      visionPayloads: firstImagePreview?.dataUrl
+        ? [
+            {
+              path: firstImagePreview.path || firstImagePreview.name || uploadedFile?.name || "uploaded-image",
+              mimeType: "image/*",
+              dataUrl: firstImagePreview.dataUrl
+            }
+          ]
+        : [],
+      agentScope: "full-cycle" as const,
+      forceMultiAgent: true
+    };
+  };
+
   const resolveUploadErrorMessage = (error: unknown) => {
     const raw = error instanceof Error ? error.message : "Unknown error";
     if (raw.includes("llm_preflight_not_configured")) {
@@ -90,8 +145,20 @@ export function useIterationActions({
     if (raw.includes("analysis job failed")) {
       return "附件分析失败：异步任务执行失败。请重试，若持续失败请检查后端日志。";
     }
+    if (raw.includes("report_not_llm_quality")) {
+      return "附件分析失败：大模型输出质量不足（已禁止兜底文案）。请补充更清晰的业务文档后重试。";
+    }
+    if (raw.includes("analysis job stalled")) {
+      return "附件分析失败：任务长时间无进展，已自动终止以避免卡住。请拆分文件夹或稍后重试。";
+    }
+    if (raw.includes("analysis job polling failed")) {
+      return `附件分析失败：任务状态轮询异常，已自动停止等待。请检查后端服务后重试。详情：${raw}`;
+    }
     if (raw.includes("API error: 503")) {
       return "附件分析失败：当前未配置大模型服务（LLM_API_BASE）。请联系管理员先完成模型配置。";
+    }
+    if (raw.includes("API error: 409") || raw.includes("duplicate_upload")) {
+      return "检测到重复上传：当前迭代已存在相同文档内容，请仅上传增量文档。";
     }
     if (raw.includes("aborted")) {
       return "附件分析失败：大模型响应超时（后端已中断本次调用）。请重试，或调大 LLM_REQUEST_TIMEOUT_MS。";
@@ -146,10 +213,17 @@ export function useIterationActions({
       };
     }
     if (job.status === "running") {
+      const llmCallCount = Math.max(0, job.progress.llmCallCount || 0);
+      const llmInFlightCount = Math.max(0, job.progress.llmInFlightCount || 0);
+      const llmFailureCount = Math.max(0, job.progress.llmFailureCount || 0);
+      const llmLastCallTime = job.progress.lastLlmCallAt
+        ? new Date(job.progress.lastLlmCallAt).toLocaleTimeString("zh-CN", { hour12: false })
+        : "无";
+      const stageHint = (job.progress.stageHint || "").trim();
       return {
         stage: "running",
         label: "正在调用大模型分析",
-        detail: `批次 ${Math.min(effectiveDoneBatches + 1, totalBatches)}/${totalBatches} · 已处理 ${processedFiles}/${totalFiles} 文件`,
+        detail: `批次 ${Math.min(effectiveDoneBatches + 1, totalBatches)}/${totalBatches} · 已处理 ${processedFiles}/${totalFiles} 文件 · LLM调用 ${llmCallCount} 次（进行中 ${llmInFlightCount} / 失败 ${llmFailureCount}）· 最近调用 ${llmLastCallTime}${stageHint ? ` · 阶段 ${stageHint}` : ""}`,
         percent: Math.max(12, Math.min(96, basePercent)),
         jobId: job.jobId
       };
@@ -159,6 +233,18 @@ export function useIterationActions({
         stage: "succeeded",
         label: "大模型分析完成",
         detail: `共处理 ${processedFiles}/${totalFiles} 文件，可查看分析报告。`,
+        percent: 100,
+        jobId: job.jobId
+      };
+    }
+    if (job.status === "partial_succeeded") {
+      return {
+        stage: "succeeded",
+        label: "分析部分完成",
+        detail:
+          job.warnings.length > 0
+            ? `已处理 ${processedFiles}/${totalFiles} 文件，部分批次失败：${job.warnings[0]}`
+            : `已处理 ${processedFiles}/${totalFiles} 文件，存在部分未完成项。`,
         percent: 100,
         jobId: job.jobId
       };
@@ -187,6 +273,31 @@ export function useIterationActions({
       return firstPath.split("/")[0];
     }
     return "attachments";
+  };
+
+  const hashFingerprint = (raw: string) => {
+    let hash = 2166136261;
+    for (let i = 0; i < raw.length; i += 1) {
+      hash ^= raw.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  };
+
+  const buildUploadFingerprint = (files: File[]) => {
+    const hasFolderPath = files.some((item) => Boolean((item as File & { webkitRelativePath?: string }).webkitRelativePath));
+    const sourceType = hasFolderPath || files.length > 1 ? "folder" : "single-file";
+    const normalizedFiles = files
+      .map((item) => ({
+        path: ((item as File & { webkitRelativePath?: string }).webkitRelativePath || item.name || "").trim(),
+        name: (item.name || "").trim(),
+        size: Number.isFinite(item.size) ? item.size : 0,
+        type: (item.type || "").trim().toLowerCase(),
+        lastModified: Number.isFinite(item.lastModified) ? item.lastModified : 0
+      }))
+      .sort((a, b) => `${a.path}|${a.name}`.localeCompare(`${b.path}|${b.name}`));
+    const raw = JSON.stringify({ sourceType, files: normalizedFiles });
+    return `afp-${hashFingerprint(raw)}`;
   };
 
   const isDocumentAsset = (file: File) => {
@@ -229,9 +340,23 @@ export function useIterationActions({
     if (!currentIteration) {
       return;
     }
+    setLastUploadFailed(false);
+    lastUploadAttemptRef.current = {
+      iterationId: currentIteration.id,
+      files: [...files]
+    };
     const hasFolderPath = files.some((item) => Boolean((item as File & { webkitRelativePath?: string }).webkitRelativePath));
     const isBatch = hasFolderPath || files.length > 1;
     const folderName = resolveFolderName(files);
+    const uploadFingerprint = buildUploadFingerprint(files);
+    const latestIterationFingerprint = currentIteration.changeControl?.lastUploadedInputFingerprint?.trim() || "";
+    if (latestIterationFingerprint && latestIterationFingerprint === uploadFingerprint) {
+      const duplicateMessage = "检测到重复上传：当前迭代已存在相同文档内容，请仅上传增量文档。";
+      setUploadToastMessage(duplicateMessage);
+      setError(null);
+      setUploadAnalysisProgress(null);
+      return;
+    }
     const hasDocumentAssets = files.some(isDocumentAsset);
     const hasPrototypeAssets = files.some(isPrototypeAsset);
     const uploadKind = hasDocumentAssets && hasPrototypeAssets ? "mixed" : hasDocumentAssets ? "documents" : hasPrototypeAssets ? "prototype" : "other";
@@ -291,6 +416,7 @@ export function useIterationActions({
     setUploadedFile({
       name: isBatch ? `${folderName} (${files.length} files)` : files[0].name,
       iterationId: currentIteration.id,
+      uploadFingerprint,
       hasDocumentAssets,
       hasPrototypeAssets,
       uploadKind,
@@ -309,6 +435,7 @@ export function useIterationActions({
       // keep upload flow usable even if state persistence fails
     }
     try {
+      setUploadToastMessage(null);
       setIsAnalyzingAttachment(true);
       setUploadAnalysisProgress({
         stage: "preparing",
@@ -317,11 +444,22 @@ export function useIterationActions({
         percent: 5
       });
       try {
-        await createMessage(currentIteration.id, "system", isBatch ? `已上传附件：${folderName}（${files.length} 个文件）` : `已上传附件：${files[0].name}`);
+        const uploadLabel =
+          hasDocumentAssets && !hasPrototypeAssets
+            ? "文档"
+            : hasPrototypeAssets && !hasDocumentAssets
+              ? "原型"
+              : "附件";
+        await createMessage(
+          currentIteration.id,
+          "system",
+          isBatch ? `已上传${uploadLabel}：${folderName}（${files.length} 个文件）` : `已上传${uploadLabel}：${files[0].name}`
+        );
       } catch {
         // ignore upload event message failure
       }
       if (hasPrototypeAssets && !hasDocumentAssets) {
+        setLastUploadFailed(false);
         setAnalysisReport(null);
         setShowAnalysisPanel(false);
         setUploadAnalysisProgress({
@@ -354,6 +492,7 @@ export function useIterationActions({
             onJobUpdate: (job) => setUploadAnalysisProgress(toUploadProgress(job))
           });
       setAnalysisReport(report);
+      setLastUploadFailed(false);
       setShowAnalysisPanel(false);
       setUploadAnalysisProgress((prev) =>
         prev?.stage === "succeeded"
@@ -370,16 +509,31 @@ export function useIterationActions({
         "assistant",
         "附件已完成大模型分析，点击“查看分析报告”查看项目识别、产品识别与关键发现。"
       );
-      if ((report.clarificationQuestions?.length ?? 0) > 0) {
+      const clarificationQueue = (report.clarificationQuestions || []).map((item) => item.trim()).filter(Boolean);
+      if (clarificationQueue.length === 0) {
+        const qualityClarifications = [
+          ...(report.reportQuality?.missingItems || []).map((item) => `请补充并确认：${item}`),
+          ...(report.reportQuality?.actionRequired || []).map((item) => `请确认是否执行：${item}`)
+        ]
+          .map((item) => item.trim())
+          .filter(Boolean);
+        clarificationQueue.push(...qualityClarifications.slice(0, 3));
+      }
+      if (clarificationQueue.length > 0) {
+        const firstQuestion = clarificationQueue[0];
         await createMessage(
           currentIteration.id,
           "assistant",
-          `我先发起澄清：${report.clarificationQuestions[0]}。请直接在对话中回复，我会持续收敛问题；当全部澄清完成后，回复“确认分析”即可完成确认。`
+          `我先发起澄清：${firstQuestion}。请直接在 IM 对话中回复，我会像数字员工一样结合你的反馈持续追问、归纳并收敛边界与功能范围；当你认为理解一致时，回复“确认分析”即可完成最终确认。`
         );
       }
       await loadGovernance();
     } catch (err) {
+      setLastUploadFailed(true);
       const message = resolveUploadErrorMessage(err);
+      if (message.includes("重复上传")) {
+        setUploadToastMessage(message);
+      }
       setError(message);
       setUploadAnalysisProgress({
         stage: "failed",
@@ -403,6 +557,66 @@ export function useIterationActions({
     event.target.value = "";
   };
 
+  const handleRetryUpload = async () => {
+    if (!currentIteration) {
+      return;
+    }
+    try {
+      setUploadToastMessage(null);
+      setError(null);
+      setLastUploadFailed(false);
+      setIsAnalyzingAttachment(true);
+      setUploadAnalysisProgress({
+        stage: "preparing",
+        label: "正在重试分析",
+        detail: "正在重新提交上一次失败任务...",
+        percent: 5
+      });
+      const report = await retryIterationAttachmentAnalysis(currentIteration.id, {
+        onJobUpdate: (job) => setUploadAnalysisProgress(toUploadProgress(job))
+      });
+      setAnalysisReport(report);
+      setLastUploadFailed(false);
+      setShowAnalysisPanel(false);
+      setUploadAnalysisProgress((prev) =>
+        prev?.stage === "succeeded"
+          ? prev
+          : {
+              stage: "succeeded",
+              label: "大模型分析完成",
+              detail: "分析报告已生成，可点击“查看分析报告”。",
+              percent: 100
+            }
+      );
+      await createMessage(
+        currentIteration.id,
+        "assistant",
+        "附件重试分析已完成，点击“查看分析报告”查看项目识别、产品识别与关键发现。"
+      );
+      await loadGovernance();
+    } catch (err) {
+      setLastUploadFailed(true);
+      const message = resolveUploadErrorMessage(err);
+      if (message.includes("重复上传")) {
+        setUploadToastMessage(message);
+      }
+      setError(message);
+      setUploadAnalysisProgress({
+        stage: "failed",
+        label: "大模型分析失败",
+        detail: message,
+        percent: 15
+      });
+      try {
+        await createMessage(currentIteration.id, "system", message);
+      } catch {
+        // ignore secondary message failure
+      }
+    } finally {
+      setIsAnalyzingAttachment(false);
+    }
+  };
+
   const handleSend = async (options?: {
     overrideText?: string;
     prototypeTarget?: string | null;
@@ -423,9 +637,13 @@ export function useIterationActions({
     if (!text || !currentIteration) {
       return null;
     }
+    setChatSendStatus("sending");
     setChatInput("");
+    let userMessagePersisted = false;
     try {
       await createMessage(currentIteration.id, "user", text);
+      userMessagePersisted = true;
+      setChatSendStatus("sent");
       if (options?.prototypeTarget) {
         const visualEditResult = await executeIterationVisualEdit(currentIteration.id, {
           message: text,
@@ -446,17 +664,27 @@ export function useIterationActions({
         }
         return visualEditResult;
       }
-      const rewriteMatch = text.match(/^(代码改写|增量改写|rewrite)\s*[:：]\s*(.+)$/i);
-      const applyMatch = text.match(/^(执行代码改写|apply rewrite)\s*[:：]\s*(.+)$/i);
-      if (rewriteMatch || applyMatch) {
-        const instruction = (rewriteMatch?.[2] || applyMatch?.[2] || "").trim();
+      const resolvedQuestions = currentIteration.changeControl?.clarificationDraftResolvedQuestions ?? [];
+      const coachPrompt =
+        currentIteration.changeControl?.pendingHumanConfirmation
+          ? [
+              "请以数字员工方式执行澄清引导，避免机械式逐题队列展示。",
+              "要求：先复述你对用户输入的理解，再给出1-2个最关键追问，并明确这些追问如何影响本次迭代的边界、功能范围或验收标准。",
+              "若信息仍不足，请继续引导；若已充分且用户表达确认意图，再提醒可输入“确认分析”。",
+              `用户输入：${text}`
+            ].join("\n")
+          : text;
+      const coach = await coachIterationMessage(currentIteration.id, coachPrompt);
+      await createMessage(currentIteration.id, "assistant", coach.reply);
+      if (coach.execution?.action === "rewrite") {
+        const instruction = (coach.execution.instruction || text).trim();
         if (!instruction) {
-          await createMessage(currentIteration.id, "assistant", "请在“代码改写: ...”后补充具体改写指令。");
+          await createMessage(currentIteration.id, "assistant", "请补充具体改写目标（例如：更新 KPI 卡片标题与数据源）。");
           return null;
         }
         const rewrite = await rewriteIterationCode(currentIteration.id, {
           instruction,
-          dryRun: !applyMatch,
+          dryRun: coach.execution.apply === false,
           maxFiles: 6
         });
         const header = rewrite.dryRun ? "边界内改写预览（dry-run）" : "边界内改写已执行";
@@ -468,73 +696,84 @@ export function useIterationActions({
         await loadIterationDetail(currentIteration.id);
         return null;
       }
-      const clarificationQuestions = currentIteration.changeControl?.clarificationQuestions ?? [];
-      const resolvedQuestions = currentIteration.changeControl?.clarificationDraftResolvedQuestions ?? [];
-      const unresolvedQuestions = clarificationQuestions.filter((item) => !resolvedQuestions.includes(item));
-      const shouldConfirm =
-        /确认分析|确认无误|可以确认|确认吧|确认通过|全部澄清完成|确认一致|理解一致|按此执行/.test(text) &&
-        currentIteration.changeControl?.pendingHumanConfirmation;
-      if (currentIteration.changeControl?.pendingHumanConfirmation) {
-        if (/偏差点|不一致|理解偏差|有偏差/.test(text)) {
-          await confirmIterationAnalysis(currentIteration.id, {
-            accurate: false,
-            note: text,
-            actor: currentRole,
-            resolvedClarificationQuestions: resolvedQuestions
-          });
+      if (coach.execution?.action === "confirm-inaccurate") {
+        await confirmIterationAnalysis(currentIteration.id, {
+          accurate: false,
+          note: text,
+          actor: currentRole,
+          resolvedClarificationQuestions: resolvedQuestions
+        });
+        await createMessage(
+          currentIteration.id,
+          "assistant",
+          "已记录为“理解存在偏差”。我会继续收敛关键分歧，请补充你预期的范围、边界和验收结果。"
+        );
+        await loadIterationDetail(currentIteration.id);
+        if (currentProjectId) {
+          await loadIterations(currentProjectId);
+        }
+        await loadGovernance();
+        return null;
+      }
+      if (coach.execution?.action === "confirm-accurate") {
+        if (analysisReport?.reportQuality && !analysisReport.reportQuality.publishable) {
           await createMessage(
             currentIteration.id,
             "assistant",
-            "已收到偏差反馈。我会按你指出的偏差点继续收敛理解，请继续补充你期望的目标、边界和成功标准。"
+            `当前分析报告未达到发布门禁（${analysisReport.reportQuality.score}分）：${analysisReport.reportQuality.summary || "请先补齐缺失项后再确认。"}`
           );
-          await loadIterationDetail(currentIteration.id);
-          if (currentProjectId) {
-            await loadIterations(currentProjectId);
-          }
-          await loadGovernance();
           return null;
         }
-        if (unresolvedQuestions.length > 0) {
-          const currentQuestion = unresolvedQuestions[0];
-          const nextResolved = Array.from(new Set([...resolvedQuestions, currentQuestion]));
-          await updateClarificationDraft(currentIteration.id, nextResolved);
-          await loadIterationDetail(currentIteration.id);
-          const remaining = unresolvedQuestions.slice(1);
-          if (remaining.length > 0) {
-            await createMessage(
-              currentIteration.id,
-              "assistant",
-              `收到，已记录本轮澄清。下一项请确认：${remaining[0]}`
-            );
-          } else {
-            await createMessage(
-              currentIteration.id,
-              "assistant",
-              "澄清问题已收敛。请回复“确认分析”或“确认分析并锁定边界”，我将完成最终确认。"
-            );
-          }
-          return null;
+        await confirmIterationAnalysis(currentIteration.id, {
+          accurate: true,
+          note: text,
+          actor: currentRole,
+          resolvedClarificationQuestions: resolvedQuestions
+        });
+        await createMessage(currentIteration.id, "assistant", "已完成分析确认。后续可继续推进任务拆解、测试与发布动作。");
+        await loadIterationDetail(currentIteration.id);
+        if (currentProjectId) {
+          await loadIterations(currentProjectId);
         }
-        if (shouldConfirm) {
-          await confirmIterationAnalysis(currentIteration.id, {
-            accurate: true,
-            note: text,
-            actor: currentRole,
-            resolvedClarificationQuestions: resolvedQuestions
-          });
-          await createMessage(currentIteration.id, "assistant", "已完成分析确认。后续可继续在 IM 中沟通任务拆解、测试与发布动作。");
-          await loadIterationDetail(currentIteration.id);
-          if (currentProjectId) {
-            await loadIterations(currentProjectId);
-          }
-          await loadGovernance();
-          return null;
-        }
+        await loadGovernance();
+        return null;
       }
-      const coach = await coachIterationMessage(currentIteration.id, text);
-      await createMessage(currentIteration.id, "assistant", coach.reply);
+      if (coach.execution?.action === "enter-clarify-mode") {
+        await createMessage(currentIteration.id, "system", "已切换为澄清推进模式：将优先收敛关键待确认项。");
+      }
+      if (coach.execution?.action === "run-full-cycle" || coach.intent === "full-cycle") {
+        const autoAnalysisInput = buildAutoFullCycleAnalysisInput();
+        const fullCycle = await runIterationFullCycle(currentIteration.id, {
+          analysisInput: autoAnalysisInput,
+          runAnalysis: Boolean(autoAnalysisInput),
+          autoConfirmAnalysis: true,
+          autoResolveClarifications: true,
+          rewriteInstruction: text.trim() || undefined,
+          rewriteDryRun: false,
+          generateTestArtifacts: true,
+          testArtifactsDryRun: false,
+          refreshReleaseReview: true,
+          generateDeliveryPackage: true,
+          deliveryPackageDryRun: false,
+          publish: { enabled: true, dryRun: false }
+        });
+        const reviewReportFiles = fullCycle.deliveryPackageResult?.reviewReportFiles || [];
+        const deliveryPackageFiles = fullCycle.deliveryPackageResult?.packageFiles || [];
+        const frontendLane = fullCycle.steps?.frontendRewrite;
+        const backendLane = fullCycle.steps?.backendRewrite;
+        await createMessage(
+          currentIteration.id,
+          "assistant",
+          `全量闭环执行完成：status=${fullCycle.status}。阻断=${fullCycle.blockers.length}，告警=${fullCycle.warnings.length}。\n` +
+            `前端泳道：${frontendLane?.status || "-"}（${frontendLane?.note || "无"}）\n` +
+            `后端泳道：${backendLane?.status || "-"}（${backendLane?.note || "无"}）\n` +
+            `发布评审报告：${reviewReportFiles.join("；") || "未生成"}\n` +
+            `可部署交付包：${deliveryPackageFiles.join("；") || "未生成"}`
+        );
+      }
       const intentPriorityMap: Record<string, "P0" | "P1" | "P2"> = {
         release: "P0",
+        "full-cycle": "P0",
         qa: "P1",
         "confirm-boundary": "P1",
         clarify: "P1",
@@ -560,7 +799,11 @@ export function useIterationActions({
       await loadIterationDetail(currentIteration.id);
       return null;
     } catch (err) {
-      setError(resolveCoachErrorMessage(err));
+      const message = resolveCoachErrorMessage(err);
+      setError(userMessagePersisted ? `消息已发送，但后续处理失败：${message}` : message);
+      if (!userMessagePersisted) {
+        setChatSendStatus("failed");
+      }
       return null;
     }
   };
@@ -646,6 +889,7 @@ export function useIterationActions({
   const handleConfirmIterationAnalysis = async (payload: {
     accurate: boolean;
     note?: string;
+    decisionEvent?: "understanding-accurate" | "understanding-inaccurate";
     resolvedClarificationQuestions?: string[];
     boundary?: {
       requirementRefs?: string[];
@@ -663,6 +907,19 @@ export function useIterationActions({
         ...payload,
         actor: currentRole
       });
+      if (payload.decisionEvent === "understanding-accurate") {
+        await createMessage(
+          currentIteration.id,
+          "system",
+          `分析理解确认：理解准确。${payload.note?.trim() ? `备注：${payload.note.trim()}` : ""}`
+        );
+      } else if (payload.decisionEvent === "understanding-inaccurate") {
+        await createMessage(
+          currentIteration.id,
+          "system",
+          `分析理解确认：理解不准确，已进入澄清流程。${payload.note?.trim() ? `备注：${payload.note.trim()}` : ""}`
+        );
+      }
       await loadIterationDetail(currentIteration.id);
       if (currentProjectId) {
         await loadIterations(currentProjectId);
@@ -714,13 +971,13 @@ export function useIterationActions({
     }
   };
 
-  const handleGenerateTestArtifacts = async (dryRun = true) => {
+  const handleGenerateTestArtifacts = async () => {
     if (!currentIteration) {
       return;
     }
     try {
       setBusy(true);
-      const result = await generateIterationTestArtifacts(currentIteration.id, { dryRun });
+      const result = await generateIterationTestArtifacts(currentIteration.id);
       setAnalysisReport((prev) =>
         prev
           ? {
@@ -787,10 +1044,95 @@ export function useIterationActions({
     }
   };
 
+  const handleSaveArtifactDraft = async (artifactId: string, payload: { content: string; media?: string[]; actor?: string }) => {
+    if (!currentIteration) return;
+    try {
+      setBusy(true);
+      await saveIterationArtifactDraft(currentIteration.id, artifactId, payload);
+      await loadIterationDetail(currentIteration.id);
+      if (currentProjectId) {
+        await loadIterations(currentProjectId);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCommitArtifact = async (
+    artifactId: string,
+    payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }
+  ) => {
+    if (!currentIteration) return;
+    try {
+      setBusy(true);
+      await commitIterationArtifact(currentIteration.id, artifactId, payload);
+      await loadIterationDetail(currentIteration.id);
+      if (currentProjectId) {
+        await loadIterations(currentProjectId);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmArtifact = async (artifactId: string, payload: { actor?: string; passed?: boolean; note?: string }) => {
+    if (!currentIteration) return;
+    try {
+      setBusy(true);
+      await confirmIterationArtifact(currentIteration.id, artifactId, payload);
+      await loadIterationDetail(currentIteration.id);
+      if (currentProjectId) {
+        await loadIterations(currentProjectId);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAppendArtifactToChat = async (artifactId: string, payload?: { actor?: string; prompt?: string }) => {
+    if (!currentIteration) return;
+    try {
+      setBusy(true);
+      const result = await appendIterationArtifactToChat(currentIteration.id, artifactId, payload);
+      setChatMessages((prev) => [...prev, result.message]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleTransitionArtifactStage = async (
+    payload: { toStage: "clarification" | "scope" | "interaction" | "development" | "testing" | "release" | "archive"; actor?: string; note?: string }
+  ) => {
+    if (!currentIteration) return;
+    try {
+      setBusy(true);
+      await transitionIterationArtifactStage(currentIteration.id, payload);
+      await loadIterationDetail(currentIteration.id);
+      await fetchIterationArtifactWorkflow(currentIteration.id);
+      if (currentProjectId) {
+        await loadIterations(currentProjectId);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return {
     handleUploadClick,
     handleUpload,
     uploadFiles,
+    handleRetryUpload,
+    lastUploadFailed,
     handleSend,
     handleRecomputeAssessment,
     handleRestoreSnapshot,
@@ -800,6 +1142,11 @@ export function useIterationActions({
     handleUpdateIterationBoundary,
     handleUpdateTestMatrixExecution,
     handleGenerateTestArtifacts,
-    handleRefreshReleaseReview
+    handleRefreshReleaseReview,
+    handleSaveArtifactDraft,
+    handleCommitArtifact,
+    handleConfirmArtifact,
+    handleAppendArtifactToChat,
+    handleTransitionArtifactStage
   };
 }

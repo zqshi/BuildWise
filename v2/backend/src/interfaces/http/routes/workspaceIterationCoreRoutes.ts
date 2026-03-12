@@ -1,8 +1,29 @@
 import type { FastifyInstance } from "fastify";
 import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
-import type { AttachmentUploadInput } from "../../../domain/workspace/types";
+import { DuplicateAttachmentUploadError } from "../../../application/workspace/workspaceService";
+import { hasPermission } from "../../../application/platform/platformSupport";
+import { isIterationStatus } from "../../../application/workspace/workspaceSupport";
+import type { AttachmentReportSection, AttachmentUploadInput } from "../../../domain/workspace/types";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { parsePositiveInt } from "./workspaceRouteUtils";
+
+function currentRole(authRole: string | undefined) {
+  return authRole?.trim().toLowerCase() || "viewer";
+}
+
+function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
+  if (error instanceof LlmUnavailableError) {
+    return 503;
+  }
+  if (error instanceof LlmInvocationError) {
+    return 502;
+  }
+  const message = error instanceof Error ? error.message : "";
+  if (/^llm_http_\d+/i.test(message) || /^llm_/i.test(message)) {
+    return 502;
+  }
+  return null;
+}
 
 function parseAttachmentUploadInput(body: {
   fileName?: string;
@@ -69,6 +90,43 @@ function parseAttachmentUploadInput(body: {
       agentScope: body?.agentScope,
       forceMultiAgent: Boolean(body?.forceMultiAgent),
       autoTransition: Boolean(body?.autoTransition)
+    },
+    error: ""
+  };
+}
+
+function parseUploadInitBody(body: {
+  sourceType?: "single-file" | "folder";
+  folderName?: string;
+  idempotencyKey?: string;
+  files?: Array<{ path?: string; fileName?: string; mimeType?: string; size?: number; sha256?: string; chunkCount?: number }>;
+} | null) {
+  const idempotencyKey = body?.idempotencyKey?.trim() || "";
+  if (!idempotencyKey) {
+    return { input: null as null, error: "idempotencyKey is required" };
+  }
+  const files = Array.isArray(body?.files)
+    ? body.files
+        .map((item) => ({
+          path: typeof item?.path === "string" ? item.path.slice(0, 260) : "",
+          fileName: typeof item?.fileName === "string" ? item.fileName.slice(0, 120) : "",
+          mimeType: typeof item?.mimeType === "string" ? item.mimeType.slice(0, 120) : "application/octet-stream",
+          size: typeof item?.size === "number" && Number.isFinite(item.size) ? item.size : 0,
+          sha256: typeof item?.sha256 === "string" ? item.sha256.slice(0, 128) : "",
+          chunkCount: typeof item?.chunkCount === "number" && Number.isFinite(item.chunkCount) ? Math.max(1, Math.floor(item.chunkCount)) : 1
+        }))
+        .filter((item) => item.fileName.trim().length > 0)
+    : [];
+  if (files.length === 0) {
+    return { input: null as null, error: "files[] is required" };
+  }
+  const sourceType: "single-file" | "folder" = body?.sourceType === "folder" ? "folder" : "single-file";
+  return {
+    input: {
+      sourceType,
+      folderName: body?.folderName?.trim() || "",
+      idempotencyKey,
+      files
     },
     error: ""
   };
@@ -147,13 +205,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.coachIterationConversation(iterationId, message);
     } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        reply.code(503);
-        return { message: error.message };
-      }
-      if (error instanceof LlmInvocationError) {
-        reply.code(502);
-        return { message: error.message };
+      const status = resolveLlmErrorStatus(error);
+      if (status) {
+        reply.code(status);
+        return { message: error instanceof Error ? error.message : "llm_error" };
       }
       throw error;
     }
@@ -194,13 +249,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.executeVisualEditInstruction(iterationId, message, body?.target);
     } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        reply.code(503);
-        return { message: error.message };
-      }
-      if (error instanceof LlmInvocationError) {
-        reply.code(502);
-        return { message: error.message };
+      const status = resolveLlmErrorStatus(error);
+      if (status) {
+        reply.code(status);
+        return { message: error instanceof Error ? error.message : "llm_error" };
       }
       throw error;
     }
@@ -228,17 +280,14 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.rewriteCodeInBoundary(iterationId, {
         instruction,
-        dryRun: body?.dryRun !== false,
+        dryRun: body?.dryRun === true,
         maxFiles: typeof body?.maxFiles === "number" ? body.maxFiles : undefined
       });
     } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        reply.code(503);
-        return { message: error.message };
-      }
-      if (error instanceof LlmInvocationError) {
-        reply.code(502);
-        return { message: error.message };
+      const status = resolveLlmErrorStatus(error);
+      if (status) {
+        reply.code(status);
+        return { message: error instanceof Error ? error.message : "llm_error" };
       }
       throw error;
     }
@@ -266,13 +315,14 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.analyzeAttachment(iterationId, parsed.input);
     } catch (error) {
-      if (error instanceof LlmUnavailableError) {
-        reply.code(503);
-        return { message: error.message };
+      if (error instanceof DuplicateAttachmentUploadError) {
+        reply.code(409);
+        return { message: "duplicate_upload" };
       }
-      if (error instanceof LlmInvocationError) {
-        reply.code(502);
-        return { message: error.message };
+      const status = resolveLlmErrorStatus(error);
+      if (status) {
+        reply.code(status);
+        return { message: error instanceof Error ? error.message : "llm_error" };
       }
       throw error;
     }
@@ -281,6 +331,161 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       return { message: "iteration not found" };
     }
     return result;
+  });
+
+  app.post("/api/iterations/:id/full-cycle", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as {
+      analysisInput?: Parameters<typeof parseAttachmentUploadInput>[0];
+      runAnalysis?: boolean;
+      autoConfirmAnalysis?: boolean;
+      autoResolveClarifications?: boolean;
+      rewriteInstruction?: string;
+      rewriteDryRun?: boolean;
+      rewriteMaxFiles?: number;
+      generateTestArtifacts?: boolean;
+      testArtifactsDryRun?: boolean;
+      refreshReleaseReview?: boolean;
+      generateDeliveryPackage?: boolean;
+      deliveryPackageDryRun?: boolean;
+      publish?: {
+        enabled?: boolean;
+        dryRun?: boolean;
+        openPr?: boolean;
+        commitMessage?: string;
+        prTitle?: string;
+        prBody?: string;
+      };
+    } | null;
+    const runAnalysis = body?.runAnalysis !== false;
+    let parsedAnalysisInput: AttachmentUploadInput | undefined = undefined;
+    if (runAnalysis) {
+      const parsed = parseAttachmentUploadInput(body?.analysisInput || null);
+      if (!parsed.input) {
+        reply.code(400);
+        return { message: `analysisInput invalid: ${parsed.error}` };
+      }
+      parsedAnalysisInput = parsed.input;
+    }
+    let result;
+    try {
+      result = await service.runIterationFullCycle(iterationId, {
+        analysisInput: parsedAnalysisInput,
+        runAnalysis,
+        autoConfirmAnalysis: body?.autoConfirmAnalysis,
+        autoResolveClarifications: body?.autoResolveClarifications,
+        rewriteInstruction: body?.rewriteInstruction,
+        rewriteDryRun: body?.rewriteDryRun,
+        rewriteMaxFiles: typeof body?.rewriteMaxFiles === "number" ? body.rewriteMaxFiles : undefined,
+        generateTestArtifacts: body?.generateTestArtifacts,
+        testArtifactsDryRun: body?.testArtifactsDryRun,
+        refreshReleaseReview: body?.refreshReleaseReview,
+        generateDeliveryPackage: body?.generateDeliveryPackage,
+        deliveryPackageDryRun: body?.deliveryPackageDryRun,
+        publish: body?.publish
+      });
+    } catch (error) {
+      if (error instanceof DuplicateAttachmentUploadError) {
+        reply.code(409);
+        return { message: "duplicate_upload" };
+      }
+      const status = resolveLlmErrorStatus(error);
+      if (status) {
+        reply.code(status);
+        return { message: error instanceof Error ? error.message : "llm_error" };
+      }
+      throw error;
+    }
+    if (!result) {
+      reply.code(404);
+      return { message: "iteration not found" };
+    }
+    return result;
+  });
+
+  app.post("/api/iterations/:id/uploads/init", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as Parameters<typeof parseUploadInitBody>[0];
+    const parsed = parseUploadInitBody(body);
+    if (!parsed.input) {
+      reply.code(400);
+      return { message: parsed.error };
+    }
+    const created = service.initAttachmentUpload(iterationId, parsed.input);
+    if (!created) {
+      reply.code(404);
+      return { message: "iteration not found" };
+    }
+    return {
+      uploadId: created.uploadId,
+      status: created.status,
+      sourceType: created.sourceType,
+      files: created.files.map((item) => ({
+        fileId: item.fileId,
+        fileName: item.fileName,
+        path: item.path,
+        missingChunkIndexes: item.chunkBitmap.map((ok, idx) => (!ok ? idx : -1)).filter((idx) => idx >= 0)
+      }))
+    };
+  });
+
+  app.put("/api/iterations/:id/uploads/:uploadId/files/:fileId/chunks/:chunkIndex", async (request, reply) => {
+    const params = request.params as { id: string; uploadId: string; fileId: string; chunkIndex: string };
+    const iterationId = parsePositiveInt(params.id);
+    const chunkIndex = parsePositiveInt(params.chunkIndex);
+    if (iterationId === null || chunkIndex === null) {
+      reply.code(400);
+      return { message: "invalid path params" };
+    }
+    const body = request.body as { dataBase64?: string } | null;
+    const dataBase64 = body?.dataBase64?.trim() || "";
+    if (!dataBase64) {
+      reply.code(400);
+      return { message: "dataBase64 is required" };
+    }
+    let chunk: Uint8Array;
+    try {
+      chunk = Buffer.from(dataBase64, "base64");
+    } catch {
+      reply.code(400);
+      return { message: "invalid base64 chunk payload" };
+    }
+    const ok = service.putAttachmentUploadChunk(iterationId, params.uploadId, params.fileId, chunkIndex - 1, chunk);
+    if (!ok) {
+      reply.code(404);
+      return { message: "upload/file/chunk target not found" };
+    }
+    reply.code(204);
+    return null;
+  });
+
+  app.post("/api/iterations/:id/uploads/:uploadId/complete", async (request, reply) => {
+    const params = request.params as { id: string; uploadId: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const completed = service.completeAttachmentUpload(iterationId, params.uploadId);
+    if (!completed) {
+      reply.code(404);
+      return { message: "upload not found or incomplete" };
+    }
+    return {
+      uploadId: completed.upload.uploadId,
+      status: completed.upload.status,
+      ingestJobId: completed.ingestJob.ingestJobId
+    };
   });
 
   app.post("/api/iterations/:id/analysis/jobs", async (request, reply) => {
@@ -296,10 +501,104 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: parsed.error };
     }
-    const created = service.submitAttachmentAnalysisJob(iterationId, parsed.input);
+    let created;
+    try {
+      created = service.submitAttachmentAnalysisJob(iterationId, parsed.input);
+    } catch (error) {
+      if (error instanceof DuplicateAttachmentUploadError) {
+        reply.code(409);
+        return { message: "duplicate_upload" };
+      }
+      throw error;
+    }
     if (!created) {
       reply.code(404);
       return { message: "iteration not found" };
+    }
+    reply.code(202);
+    return created;
+  });
+
+  app.post("/api/iterations/:id/analysis/jobs/by-upload", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as { uploadId?: string; schemaVersion?: string } | null;
+    const uploadId = body?.uploadId?.trim() || "";
+    if (!uploadId) {
+      reply.code(400);
+      return { message: "uploadId is required" };
+    }
+    let created;
+    try {
+      created = service.submitAttachmentAnalysisJobFromUpload(iterationId, uploadId, body?.schemaVersion || "v2");
+    } catch (error) {
+      if (error instanceof DuplicateAttachmentUploadError) {
+        reply.code(409);
+        return { message: "duplicate_upload" };
+      }
+      throw error;
+    }
+    if (!created) {
+      reply.code(404);
+      return { message: "upload not found or not ready" };
+    }
+    reply.code(202);
+    return created;
+  });
+
+  app.post("/api/iterations/:id/analysis/jobs/retry-latest", async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    let created;
+    try {
+      created = service.retryLatestFailedAttachmentAnalysisJob(iterationId);
+    } catch (error) {
+      if (error instanceof DuplicateAttachmentUploadError) {
+        reply.code(409);
+        return { message: "duplicate_upload" };
+      }
+      throw error;
+    }
+    if (!created) {
+      reply.code(404);
+      return { message: "failed analysis job not found" };
+    }
+    reply.code(202);
+    return created;
+  });
+
+  app.post("/api/iterations/:id/analysis/jobs/:jobId/retry", async (request, reply) => {
+    const params = request.params as { id: string; jobId: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const body = request.body as { scope?: "job" | "batch" } | null;
+    let created;
+    try {
+      created = service.retryAttachmentAnalysisJob(iterationId, {
+        jobId: params.jobId,
+        scope: body?.scope === "batch" ? "batch" : "job"
+      });
+    } catch (error) {
+      if (error instanceof DuplicateAttachmentUploadError) {
+        reply.code(409);
+        return { message: "duplicate_upload" };
+      }
+      throw error;
+    }
+    if (!created) {
+      reply.code(404);
+      return { message: "analysis job not found" };
     }
     reply.code(202);
     return created;
@@ -323,6 +622,39 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       return { message: "analysis job not found" };
     }
     return job;
+  });
+
+  app.get("/api/iterations/:id/analysis/jobs/:jobId/report-index", async (request, reply) => {
+    const params = request.params as { id: string; jobId: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const report = service.getAttachmentReportIndexByJob(iterationId, params.jobId);
+    if (!report) {
+      reply.code(404);
+      return { message: "report not found" };
+    }
+    return report;
+  });
+
+  app.get("/api/reports/:reportId/sections/:sectionKey", async (request, reply) => {
+    const params = request.params as { reportId: string; sectionKey: AttachmentReportSection["sectionKey"] };
+    const query = request.query as { cursor?: string; limit?: string };
+    const cursor = Number.parseInt((query?.cursor || "").trim(), 10);
+    const limit = Number.parseInt((query?.limit || "").trim(), 10);
+    const section = service.getAttachmentReportSection(
+      params.reportId,
+      params.sectionKey,
+      Number.isFinite(cursor) ? cursor : 0,
+      Number.isFinite(limit) ? limit : 20
+    );
+    if (!section) {
+      reply.code(404);
+      return { message: "section not found" };
+    }
+    return section;
   });
 
   app.get("/api/iterations/:id/context", async (request, reply) => {
@@ -356,27 +688,54 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/state/transition", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!hasPermission(role, "iteration:transition")) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
     }
-    const body = request.body as { toStatus?: string; note?: string } | null;
+    const body = request.body as { toStatus?: string; reason?: string } | null;
     const toStatus = body?.toStatus?.trim();
     if (!toStatus) {
       reply.code(400);
       return { message: "toStatus is required" };
     }
+    if (!isIterationStatus(toStatus)) {
+      reply.code(400);
+      return { message: "invalid toStatus" };
+    }
+    if (toStatus === "completed" && !hasPermission(role, "iteration:transition:complete")) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
+    const reason = body?.reason?.trim() || "";
+    if (!reason) {
+      reply.code(400);
+      return { message: "reason is required" };
+    }
     const transition = service.transitionIteration(
       iterationId,
-      toStatus as "planned" | "in-progress" | "review" | "blocked" | "completed",
-      body?.note?.trim() || ""
+      toStatus,
+      {
+        source: "manual",
+        reason,
+        operator: `user:${role}`,
+        operatorRole: role
+      }
     );
     if (!transition.ok) {
       if (transition.reason === "iteration_not_found") {
         reply.code(404);
         return { message: "iteration not found" };
+      }
+      if (transition.reason === "reason_required" || transition.reason === "reason_too_short") {
+        reply.code(400);
+        return { message: transition.reason === "reason_required" ? "reason is required" : "reason must be at least 10 characters for manual transition" };
       }
       if (transition.reason === "invalid_transition") {
         reply.code(409);

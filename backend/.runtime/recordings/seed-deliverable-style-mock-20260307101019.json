@@ -1,0 +1,175 @@
+{
+  "ok": true,
+  "apiBase": "http://127.0.0.1:5055",
+  "planVersion": "v2-agent-skills-business-flow",
+  "projectId": 35,
+  "iterationId": 62,
+  "initialStage": "clarification",
+  "stopStage": "archive",
+  "activeStage": "archive",
+  "businessBoard": [
+    {
+      "id": "analysis-report",
+      "stage": "clarification",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "分析报告确认通过：按对话驱动推进范围定义。"
+    },
+    {
+      "id": "boundary-confirmation",
+      "stage": "scope",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "边界确认通过：进入交互方案设计。"
+    },
+    {
+      "id": "prototype-preview",
+      "stage": "interaction",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "交互方案确认通过，进入开发实现。"
+    },
+    {
+      "id": "code-delivery",
+      "stage": "development",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "代码交付确认通过，进入测试矩阵执行。"
+    },
+    {
+      "id": "test-matrix",
+      "stage": "testing",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "测试问题已澄清并修复，允许进入发布评审。"
+    },
+    {
+      "id": "acceptance-checklist",
+      "stage": "testing",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "验收确认通过：进入发布评审。"
+    },
+    {
+      "id": "release-review",
+      "stage": "release",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "发布评审通过，进入交付归档。"
+    },
+    {
+      "id": "delivery-package",
+      "stage": "archive",
+      "progress": "已完成",
+      "decision": "可继续推进",
+      "summary": "归档完成：本迭代闭环结束并可跨版本继承。"
+    }
+  ],
+  "skillBoard": [
+    {
+      "id": "analysis-report",
+      "stage": "clarification",
+      "goal": "确认业务理解是否正确，识别关键风险与假设。",
+      "depth": "high",
+      "decision": "需补充后推进",
+      "gapCount": 2,
+      "ask": "请确认分析策略：A.全面展示分析结果并逐项确认；B.仅保留摘要后按需追问。",
+      "executedSkills": [
+        "需求解读技能：完成业务目标拆解与假设识别",
+        "风险梳理技能：输出关键风险链路与影响说明",
+        "澄清提问技能：生成待确认问题与确认话术"
+      ]
+    },
+    {
+      "id": "boundary-confirmation",
+      "stage": "scope",
+      "goal": "锁定本版本要做与不做的范围，并形成后续执行输入。",
+      "depth": "medium-high",
+      "decision": "需补充后推进",
+      "gapCount": 1,
+      "ask": "请确认本版本不做项是否包含：固定侧栏展示完整交付物详情。",
+      "executedSkills": [
+        "范围收敛技能：完成要做/不做项划分",
+        "影响评估技能：标注业务环节影响面"
+      ]
+    },
+    {
+      "id": "prototype-preview",
+      "stage": "interaction",
+      "goal": "验证关键流程可用性与澄清交互可达性。",
+      "depth": "medium",
+      "decision": "可继续推进",
+      "gapCount": 0,
+      "ask": "若无新增约束，请确认进入开发实现。",
+      "executedSkills": [
+        "流程设计技能：梳理主流程与异常流程",
+        "对话交互技能：将操作转成会话动作"
+      ]
+    },
+    {
+      "id": "code-delivery",
+      "stage": "development",
+      "goal": "证明实现覆盖边界且具备追溯能力。",
+      "depth": "medium",
+      "decision": "需补充后推进",
+      "gapCount": 1,
+      "ask": "请确认是否将‘回退开关冒烟验证’作为测试门禁必选项。",
+      "executedSkills": [
+        "任务拆解技能：产出可执行开发任务",
+        "实现核验技能：检查范围与实现一致性"
+      ]
+    },
+    {
+      "id": "test-matrix",
+      "stage": "testing",
+      "goal": "判定是否满足发布门禁。",
+      "depth": "medium",
+      "decision": "需补充后推进",
+      "gapCount": 1,
+      "ask": "请确认发布策略：先修复两项问题再进入发布评审。",
+      "executedSkills": [
+        "测试设计技能：生成关键验证场景",
+        "问题归因技能：输出失败原因与修复建议"
+      ]
+    },
+    {
+      "id": "acceptance-checklist",
+      "stage": "testing",
+      "goal": "确认业务验收口径与证据完整。",
+      "depth": "medium",
+      "decision": "可继续推进",
+      "gapCount": 0,
+      "ask": "请确认进入发布评审。",
+      "executedSkills": [
+        "验收核对技能：对齐验收口径与证据",
+        "回归治理技能：确认遗留风险可控"
+      ]
+    },
+    {
+      "id": "release-review",
+      "stage": "release",
+      "goal": "形成“可发布/谨慎发布/暂停发布”决策与回滚策略。",
+      "depth": "medium",
+      "decision": "可继续推进",
+      "gapCount": 0,
+      "ask": "请确认按 GO 结论归档，并作为下迭代基线。",
+      "executedSkills": [
+        "发布门禁技能：形成发布结论",
+        "应急预案技能：确认回退触发条件与动作"
+      ]
+    },
+    {
+      "id": "delivery-package",
+      "stage": "archive",
+      "goal": "形成可继承的跨迭代输入。",
+      "depth": "low-medium",
+      "decision": "可继续推进",
+      "gapCount": 0,
+      "ask": "请确认将本归档作为下一版本 baseline。",
+      "executedSkills": [
+        "归档整理技能：沉淀版本关键结论",
+        "跨版继承技能：生成下版本输入清单"
+      ]
+    }
+  ]
+}

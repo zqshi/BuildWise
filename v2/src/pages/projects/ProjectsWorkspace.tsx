@@ -1,7 +1,8 @@
-import type { ChangeEvent, RefObject } from "react";
+import { useMemo, useState, type ChangeEvent, type RefObject } from "react";
 import type { DeploymentRecord, OpsMetricsPayload, TemplateRunHistory, VersionSnapshot } from "../../domain/workspace/platformTypes";
 import type {
   AttachmentAnalysisReport,
+  ChatSendStatus,
   Iteration,
   IterationContextPayload,
   IterationMessage,
@@ -13,12 +14,14 @@ import type {
   StatusPayload
 } from "../../domain/workspace/types";
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
+import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
 import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
 
 type ProjectsWorkspaceProps = {
   projects: Project[];
   currentProjectId: number | null;
+  currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
   currentProject: Project | null;
   currentIteration: Iteration | null;
   iterations: Iteration[];
@@ -38,10 +41,13 @@ type ProjectsWorkspaceProps = {
   analysisReport: AttachmentAnalysisReport | null;
   showAnalysisPanel: boolean;
   isAnalyzingAttachment: boolean;
+  lastUploadFailed: boolean;
   uploadAnalysisProgress: UploadAnalysisProgress | null;
+  uploadToastMessage: string | null;
   contextData: IterationContextPayload | null;
   stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
+  chatSendStatus: ChatSendStatus;
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
   onShowCreateProject: () => void;
@@ -50,11 +56,13 @@ type ProjectsWorkspaceProps = {
   onUploadClick: () => void;
   onOpenAnalysisPanel: () => void;
   onCloseAnalysisPanel: () => void;
+  onClearUploadToast: () => void;
   onSelectProject: (projectId: number) => void;
   onEnterIteration: (iterationId: number) => void;
   onSwitchToProjectPanel: () => void;
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onUploadFiles: (files: File[]) => void;
+  onRetryUpload: () => void | Promise<void>;
   onChatInputChange: (value: string) => void;
   onChatSend: (options?: {
     overrideText?: string;
@@ -76,6 +84,7 @@ type ProjectsWorkspaceProps = {
   onConfirmIterationAnalysis: (payload: {
     accurate: boolean;
     note?: string;
+    decisionEvent?: "understanding-accurate" | "understanding-inaccurate";
     resolvedClarificationQuestions?: string[];
     boundary?: {
       requirementRefs?: string[];
@@ -93,8 +102,13 @@ type ProjectsWorkspaceProps = {
   onUpdateTestMatrixExecution: (
     updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
   ) => Promise<void> | void;
-  onGenerateTestArtifacts: (dryRun?: boolean) => Promise<void> | void;
+  onGenerateTestArtifacts: () => Promise<void> | void;
   onRefreshReleaseReview: () => Promise<void> | void;
+  onSaveArtifactDraft: (artifactId: string, payload: { content: string; media?: string[]; actor?: string }) => Promise<void> | void;
+  onCommitArtifact: (artifactId: string, payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }) => Promise<void> | void;
+  onConfirmArtifact: (artifactId: string, payload: { actor?: string; passed?: boolean; note?: string }) => Promise<void> | void;
+  onAppendArtifactToChat: (artifactId: string, payload?: { actor?: string; prompt?: string }) => Promise<void> | void;
+  onTransitionArtifactStage: (payload: { toStage: IterationArtifactStage; actor?: string; note?: string }) => Promise<void> | void;
   onTransitionState: (toStatus: IterationStatus) => void;
   onCreateDeployment: (environment: "staging" | "production") => Promise<void>;
   onTransitionDeployment: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
@@ -104,6 +118,7 @@ type ProjectsWorkspaceProps = {
 export function ProjectsWorkspace({
   projects,
   currentProjectId,
+  currentRole,
   currentProject,
   currentIteration,
   iterations,
@@ -123,10 +138,13 @@ export function ProjectsWorkspace({
   analysisReport,
   showAnalysisPanel,
   isAnalyzingAttachment,
+  lastUploadFailed,
   uploadAnalysisProgress,
+  uploadToastMessage,
   contextData,
   stateMachine,
   chatMessages,
+  chatSendStatus,
   chatInput,
   fileInputRef,
   onShowCreateProject,
@@ -135,11 +153,13 @@ export function ProjectsWorkspace({
   onUploadClick,
   onOpenAnalysisPanel,
   onCloseAnalysisPanel,
+  onClearUploadToast,
   onSelectProject,
   onEnterIteration,
   onSwitchToProjectPanel,
   onUpload,
   onUploadFiles,
+  onRetryUpload,
   onChatInputChange,
   onChatSend,
   onUpdateClarificationDraft,
@@ -148,21 +168,33 @@ export function ProjectsWorkspace({
   onUpdateTestMatrixExecution,
   onGenerateTestArtifacts,
   onRefreshReleaseReview,
+  onSaveArtifactDraft,
+  onCommitArtifact,
+  onConfirmArtifact,
+  onAppendArtifactToChat,
+  onTransitionArtifactStage,
   onTransitionState,
   onCreateDeployment,
   onTransitionDeployment,
   onPatchUploadedHtmlPreview
 }: ProjectsWorkspaceProps) {
   const hasProjects = projects.length > 0;
-  const showWorkspaceHero = projectPanelMode !== "iteration";
+  const [projectSearch, setProjectSearch] = useState("");
+  const showWorkspaceHero = false;
+  const filteredProjects = useMemo(() => {
+    const keyword = projectSearch.trim().toLowerCase();
+    if (!keyword) {
+      return projects;
+    }
+    return projects.filter((item) => `${item.name} ${item.description || ""}`.toLowerCase().includes(keyword));
+  }, [projects, projectSearch]);
   const backendUnavailable =
     status?.status === "offline" ||
     Boolean(error && (error.includes("后端服务不可达") || error.includes("后端服务不可用") || error.includes("network unavailable")));
-
   return (
     <section className="projects-view">
       {showWorkspaceHero ? (
-        <header className="hero-panel compact">
+        <header className="hero-panel">
           <div>
             <p className="hero-kicker">项目工作台</p>
             <h1>{currentProject?.name || "项目管理"}</h1>
@@ -199,8 +231,17 @@ export function ProjectsWorkspace({
               <div className="panel-head">
                 <h2>项目列表</h2>
               </div>
+              <label className="project-search-field" aria-label="搜索项目">
+                <span aria-hidden="true">⌕</span>
+                <input
+                  type="search"
+                  value={projectSearch}
+                  onChange={(event) => setProjectSearch(event.target.value)}
+                  placeholder="搜索项目..."
+                />
+              </label>
               <ul className="project-list">
-                {projects.map((item) => (
+                {filteredProjects.map((item) => (
                   <li key={item.id} className={item.id === currentProjectId ? "active" : ""}>
                     <button
                       type="button"
@@ -213,6 +254,11 @@ export function ProjectsWorkspace({
                     </button>
                   </li>
                 ))}
+                {filteredProjects.length === 0 ? (
+                  <li>
+                    <div className="empty-state">没有匹配到项目，请调整搜索关键词。</div>
+                  </li>
+                ) : null}
               </ul>
               <div className="project-list-foot sticky">
                 <button
@@ -228,6 +274,7 @@ export function ProjectsWorkspace({
             <ProjectOverviewPanel
               currentProject={currentProject}
               currentIteration={currentIteration}
+              currentRole={currentRole}
               iterations={iterations}
               projectProgress={projectProgress}
               modelPageCount={modelPageCount}
@@ -250,6 +297,7 @@ export function ProjectsWorkspace({
               contextData={contextData}
               stateMachine={stateMachine}
               chatMessages={chatMessages}
+              chatSendStatus={chatSendStatus}
               chatInput={chatInput}
               fileInputRef={fileInputRef}
               uploadedFile={uploadedFile}
@@ -257,12 +305,16 @@ export function ProjectsWorkspace({
               analysisReport={analysisReport}
               showAnalysisPanel={showAnalysisPanel}
               isAnalyzingAttachment={isAnalyzingAttachment}
+              lastUploadFailed={lastUploadFailed}
               uploadAnalysisProgress={uploadAnalysisProgress}
+              uploadToastMessage={uploadToastMessage}
               onUploadClick={onUploadClick}
               onOpenAnalysisPanel={onOpenAnalysisPanel}
               onCloseAnalysisPanel={onCloseAnalysisPanel}
+              onClearUploadToast={onClearUploadToast}
               onUpload={onUpload}
               onUploadFiles={onUploadFiles}
+              onRetryUpload={onRetryUpload}
               onChatInputChange={onChatInputChange}
               onChatSend={onChatSend}
               onUpdateClarificationDraft={onUpdateClarificationDraft}
@@ -271,6 +323,11 @@ export function ProjectsWorkspace({
               onUpdateTestMatrixExecution={onUpdateTestMatrixExecution}
               onGenerateTestArtifacts={onGenerateTestArtifacts}
               onRefreshReleaseReview={onRefreshReleaseReview}
+              onSaveArtifactDraft={onSaveArtifactDraft}
+              onCommitArtifact={onCommitArtifact}
+              onConfirmArtifact={onConfirmArtifact}
+              onAppendArtifactToChat={onAppendArtifactToChat}
+              onTransitionArtifactStage={onTransitionArtifactStage}
               onTransitionState={onTransitionState}
               onSwitchToProjectPanel={onSwitchToProjectPanel}
               onPatchUploadedHtmlPreview={onPatchUploadedHtmlPreview}

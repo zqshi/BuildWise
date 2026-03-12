@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "runtime": "openclaw+bridge",
+  "orchestrator": "00-orchestrator-sop",
+  "sequence": [
+    "01-ontology-mapping",
+    "02-impact-analysis",
+    "03-deliverable-governance",
+    "04-cross-iteration",
+    "05-exception-recovery",
+    "06-quality-release-gate",
+    "07-audit-trace"
+  ],
+  "contracts": {
+    "schema": "contract.schema.json",
+    "requiredFields": ["status", "summary", "artifacts", "questions", "risks", "next_actions", "evidence"]
+  }
+}

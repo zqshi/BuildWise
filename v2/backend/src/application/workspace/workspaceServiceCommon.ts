@@ -1,6 +1,7 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Iteration, IterationChangeControl, IterationCodeLink, Project } from "../../domain/workspace/types";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
+import { buildDefaultArtifactWorkflow } from "./workspaceServiceDefaultArtifactWorkflow";
 
 export function writeAuditLog(repo: WorkspaceRepository, action: string, resource: string, detail: string) {
   const data = repo.read();
@@ -42,12 +43,56 @@ export function buildDefaultIterationCodeLink(repo: WorkspaceRepository, iterati
   };
 }
 
+function normalizeTextSet(items: string[] | undefined) {
+  const set = new Set<string>();
+  if (!Array.isArray(items)) {
+    return set;
+  }
+  for (const raw of items) {
+    const item = raw.trim();
+    if (item) {
+      set.add(item);
+    }
+  }
+  return set;
+}
+
+export function listUncoveredAcceptanceCriteria(
+  acceptanceCriteria: string[] | undefined,
+  acceptanceChecklist: string[] | undefined,
+  acceptanceChecks: string[] | undefined
+) {
+  const required = normalizeTextSet(acceptanceCriteria);
+  if (required.size === 0) {
+    return [];
+  }
+  const covered = normalizeTextSet([...(acceptanceChecklist || []), ...(acceptanceChecks || [])]);
+  const uncovered: string[] = [];
+  for (const item of required) {
+    if (!covered.has(item)) {
+      uncovered.push(item);
+    }
+  }
+  return uncovered;
+}
+
 export function defaultIterationChangeControl(): IterationChangeControl {
+  const now = new Date().toISOString();
+  const defaultArtifactWorkflow = buildDefaultArtifactWorkflow(now);
   return {
     pendingHumanConfirmation: false,
     lastAnalysisAt: "",
     lastAnalysisFileName: "",
     lastAnalysisDigest: "",
+    lastUploadedInputFingerprint: "",
+    lastUploadedAt: "",
+    lastFailedAnalysisInput: "",
+    lastFailedAnalysisAt: "",
+    lastFailedAnalysisError: "",
+    lastAttachmentUploadId: "",
+    lastAttachmentIngestJobId: "",
+    lastAttachmentAnalysisJobId: "",
+    lastAttachmentReportId: "",
     clarificationRounds: 0,
     clarificationQuestions: [],
     clarificationDraftResolvedQuestions: [],
@@ -69,6 +114,13 @@ export function defaultIterationChangeControl(): IterationChangeControl {
       acceptanceChecklist: [],
       regressionPoints: [],
       materializedFiles: [],
+      updatedAt: ""
+    },
+    uxArtifacts: {
+      informationArchitecture: [],
+      interactionFlows: [],
+      uiStates: [],
+      uxConstraints: [],
       updatedAt: ""
     },
     executableConstraints: {
@@ -98,6 +150,11 @@ export function defaultIterationChangeControl(): IterationChangeControl {
     lastReleaseReviewUpdatedAt: "",
     lastTraceabilityCoverageScore: 0,
     lastOpsRollbackSuggested: false,
+    lastReportPublishable: false,
+    lastReportQualityScore: 0,
+    lastReportQualitySummary: "",
+    lastReportQualityUpdatedAt: "",
+    artifactWorkflow: defaultArtifactWorkflow,
     boundary: {
       requirementRefs: [],
       componentRefs: [],

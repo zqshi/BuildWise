@@ -7,6 +7,12 @@ import type {
   IterationMessage,
   IterationTransition,
   ProjectShare,
+  ProjectPolicyRecord,
+  ProjectWorkspaceBindingRecord,
+  PolicyExecutionLogRecord,
+  PlatformRoleBindingRecord,
+  GovernanceCustomRoleRecord,
+  ProjectRoleBindingRecord,
   Project,
   TemplateRunRecord,
   VersionSnapshot,
@@ -47,6 +53,22 @@ export interface WorkspaceRepository {
   updateDeployment(record: DeploymentRecord): void;
   listTemplateRuns(projectId?: number): TemplateRunRecord[];
   appendTemplateRun(record: TemplateRunRecord): void;
+  listProjectPolicies(projectId: number): ProjectPolicyRecord[];
+  appendProjectPolicy(record: ProjectPolicyRecord): void;
+  updateProjectPolicy(record: ProjectPolicyRecord): void;
+  listProjectWorkspaceBindings(projectId: number): ProjectWorkspaceBindingRecord[];
+  upsertProjectWorkspaceBinding(record: ProjectWorkspaceBindingRecord): ProjectWorkspaceBindingRecord;
+  listPolicyExecutionLogs(iterationId: number): PolicyExecutionLogRecord[];
+  appendPolicyExecutionLog(record: PolicyExecutionLogRecord): void;
+  listProjectRoleBindings(projectId: number): ProjectRoleBindingRecord[];
+  upsertProjectRoleBinding(record: ProjectRoleBindingRecord): ProjectRoleBindingRecord;
+  removeProjectRoleBinding(projectId: number, userId: string): boolean;
+  listPlatformRoleBindings(): PlatformRoleBindingRecord[];
+  upsertPlatformRoleBinding(record: PlatformRoleBindingRecord): PlatformRoleBindingRecord;
+  removePlatformRoleBinding(userId: string): boolean;
+  listGovernanceCustomRoles(): GovernanceCustomRoleRecord[];
+  upsertGovernanceCustomRole(record: GovernanceCustomRoleRecord): GovernanceCustomRoleRecord;
+  removeGovernanceCustomRole(roleKey: string): boolean;
   updateProject(project: Project): void;
   updateIteration(iteration: Iteration): void;
 }

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Ontology Mapping"
+  short_description: "Build requirement-to-code traceability map"
+  default_prompt: "Use $01-ontology-mapping to map requirements to components, code paths, and tests."
+policy:
+  allow_implicit_invocation: true

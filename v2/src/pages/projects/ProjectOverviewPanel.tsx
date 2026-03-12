@@ -1,16 +1,47 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { Iteration, ModelRelationPayload, Project, StatusPayload } from "../../domain/workspace/types";
 import type { OpsMetricsPayload } from "../../domain/workspace/platformTypes";
 import {
+  activateProjectPolicy,
   bootstrapProjectRepository,
+  bindProjectWorkspace,
+  createProjectPolicyDraft,
+  executePolicyStep,
+  fetchIterationPolicyLogs,
+  fetchProjectPolicies,
   configureProjectRepositoryMode,
+  fetchProjectRoleBindings,
+  fetchProjectModelBusinessSummary,
   fetchProjectRepositoryMigrationPlan,
-  fetchProjectRepositoryStatus
+  fetchProjectRepositoryStatus,
+  removeProjectRoleBinding,
+  restoreProjectPolicyToInitialMode,
+  sendOpenclawProjectChat,
+  upsertProjectRoleBinding,
+  type PolicyExecutionLogPayload,
+  type ProjectPolicyPayload,
+  type ProjectRoleBindingPayload
 } from "../../app/workspaceApi";
+import type { ProjectModelBusinessSummaryPayload } from "../../domain/workspace/modelOpsTypes";
+import { buildModelRelationGraph } from "./projectModelGraphModel";
+import { composeOpenclawProjectMessage, type OpenclawDialogMode } from "../layout/openclawPromptComposer";
+import {
+  MOCK_MODEL_RELATIONS,
+  guessRepoName,
+  inferProviderFromRepoUrl,
+  looksLikeGitUrl,
+  normalizeInlineMarkdownText,
+  toBusinessSummaryErrorMessage,
+  toFriendlyName,
+  toFriendlyRelationType
+} from "./projectOverviewPanelHelpers";
+import { ProjectOverviewPanelModelDetails } from "./ProjectOverviewPanelModelDetails";
+import { ProjectOverviewPanelDrawers } from "./ProjectOverviewPanelDrawers";
 
 type ProjectOverviewPanelProps = {
   currentProject: Project | null;
   currentIteration: Iteration | null;
+  currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
   iterations: Iteration[];
   projectProgress: number;
   modelPageCount: number;
@@ -26,43 +57,11 @@ type ProjectOverviewPanelProps = {
   onDeleteProject: (projectId: number) => Promise<void>;
 };
 
-function toFriendlyName(raw: string) {
-  return raw.replace(/^entity_/i, "").replace(/[_-]+/g, " ").trim() || raw;
-}
-
-function toFriendlyRelationType(type: string) {
-  if (type === "one_to_many") return "一对多";
-  if (type === "many_to_one") return "多对一";
-  if (type === "one_to_one") return "一对一";
-  if (type === "many_to_many") return "多对多";
-  return type;
-}
-
-function inferProviderFromRepoUrl(url: string): "github" | "gitlab" | "gitea" | "bitbucket" | "custom" {
-  const normalized = url.toLowerCase();
-  if (normalized.includes("github.com")) return "github";
-  if (normalized.includes("gitlab")) return "gitlab";
-  if (normalized.includes("bitbucket")) return "bitbucket";
-  if (normalized.includes("gitea")) return "gitea";
-  return "custom";
-}
-
-function guessRepoName(url: string) {
-  const trimmed = url.trim().replace(/\/+$/, "");
-  const parts = trimmed.split("/");
-  const last = parts[parts.length - 1] || "";
-  return last.replace(/\.git$/i, "").trim();
-}
-
-function looksLikeGitUrl(url: string) {
-  const normalized = url.trim();
-  if (!normalized) return false;
-  return /^(https?:\/\/|ssh:\/\/|git@)/i.test(normalized);
-}
 
 export function ProjectOverviewPanel({
   currentProject,
   currentIteration,
+  currentRole,
   iterations,
   projectProgress,
   modelPageCount,
@@ -78,7 +77,6 @@ export function ProjectOverviewPanel({
   onDeleteProject
 }: ProjectOverviewPanelProps) {
   const [showModelDetails, setShowModelDetails] = useState(false);
-  const [useMockModelData, setUseMockModelData] = useState(false);
   const [showRepoConfigDrawer, setShowRepoConfigDrawer] = useState(false);
   const [repoConfigStep, setRepoConfigStep] = useState<1 | 2 | 3>(1);
   const [repoUrlDraft, setRepoUrlDraft] = useState(currentProject?.repository?.url || "");
@@ -111,6 +109,35 @@ export function ProjectOverviewPanel({
       action: string;
     }>;
   } | null>(null);
+  const [businessSummary, setBusinessSummary] = useState<ProjectModelBusinessSummaryPayload | null>(null);
+  const [businessSummaryLoading, setBusinessSummaryLoading] = useState(false);
+  const [businessSummaryError, setBusinessSummaryError] = useState("");
+  const [businessSummaryVersion, setBusinessSummaryVersion] = useState(0);
+  const [modelDetailsView, setModelDetailsView] = useState<"summary" | "graph">("summary");
+  const [relationTypeFilter, setRelationTypeFilter] = useState<"all" | "one_to_one" | "one_to_many" | "many_to_many">("all");
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [highlightedEdgeId, setHighlightedEdgeId] = useState<string | null>(null);
+  const [graphViewportOffset, setGraphViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [useMockGraphData, setUseMockGraphData] = useState(false);
+  const [showPolicyDrawer, setShowPolicyDrawer] = useState(false);
+  const [showOpenclawDrawer, setShowOpenclawDrawer] = useState(false);
+  const [activePolicy, setActivePolicy] = useState<ProjectPolicyPayload | null>(null);
+  const [policyItems, setPolicyItems] = useState<ProjectPolicyPayload[]>([]);
+  const [roleBindings, setRoleBindings] = useState<ProjectRoleBindingPayload[]>([]);
+  const [policyLogs, setPolicyLogs] = useState<PolicyExecutionLogPayload[]>([]);
+  const [policyBusy, setPolicyBusy] = useState(false);
+  const [policyNotice, setPolicyNotice] = useState("");
+  const [bindingProfile, setBindingProfile] = useState("buildwise-local");
+  const [bindingAgentId, setBindingAgentId] = useState("main");
+  const [bindingWorkspacePath, setBindingWorkspacePath] = useState("/Users/zqs/.openclaw/workspace-buildwise-local");
+  const [bindingRuntimeMode, setBindingRuntimeMode] = useState<"openclaw-native" | "bridge">("openclaw-native");
+  const [newRoleUserId, setNewRoleUserId] = useState("user-1");
+  const [newRoleValue, setNewRoleValue] = useState<"admin" | "member" | "viewer">("member");
+  const [openclawChatInput, setOpenclawChatInput] = useState("");
+  const [openclawChatBusy, setOpenclawChatBusy] = useState(false);
+  const [openclawDialogMode, setOpenclawDialogMode] = useState<OpenclawDialogMode>("native");
+  const [openclawChatLines, setOpenclawChatLines] = useState<Array<{ role: "admin" | "openclaw"; content: string; at: string }>>([]);
 
   useEffect(() => {
     setRepoUrlDraft(currentProject?.repository?.url || "");
@@ -119,6 +146,9 @@ export function ProjectOverviewPanel({
     setRepoHealth(currentProject?.repository?.health || null);
     setRepoMigrationPlan(null);
     setRepoConfigNotice("");
+    setBusinessSummary(null);
+    setBusinessSummaryError("");
+    setBusinessSummaryLoading(false);
   }, [currentProject?.id, currentProject?.repository?.url, currentProject?.repository?.governance?.requireRemoteForProduction, currentProject?.repository?.governance?.requireRemoteForStaging]);
 
   useEffect(() => {
@@ -154,25 +184,11 @@ export function ProjectOverviewPanel({
     return "跨迭代沉淀趋势平稳";
   }, [recentIterations]);
 
-  const mockModelRelations = useMemo<ModelRelationPayload[]>(
-    () => [
-      { id: "mock-9001", fromEntityId: "entity_project", toEntityId: "entity_iteration", type: "one_to_many" },
-      { id: "mock-9002", fromEntityId: "entity_iteration", toEntityId: "entity_requirement", type: "one_to_many" },
-      { id: "mock-9003", fromEntityId: "entity_requirement", toEntityId: "entity_domain_rule", type: "many_to_many" },
-      { id: "mock-9004", fromEntityId: "entity_domain_rule", toEntityId: "entity_data_entity", type: "many_to_many" },
-      { id: "mock-9005", fromEntityId: "entity_data_entity", toEntityId: "entity_field_rule", type: "one_to_many" },
-      { id: "mock-9006", fromEntityId: "entity_iteration", toEntityId: "entity_test_case", type: "one_to_many" },
-      { id: "mock-9007", fromEntityId: "entity_release_gate", toEntityId: "entity_test_case", type: "one_to_many" },
-      { id: "mock-9008", fromEntityId: "entity_release_gate", toEntityId: "entity_risk_item", type: "one_to_many" }
-    ],
-    []
-  );
-  const canAutoEnableMock = modelRelations.length === 0 || modelRuleCount === 0 || modelEntityCount === 0;
-  const displayedModelRelations = useMockModelData || canAutoEnableMock ? mockModelRelations : modelRelations;
-  const displayedModelRuleCount = useMockModelData || canAutoEnableMock ? Math.max(modelRuleCount, 18) : modelRuleCount;
-  const displayedModelEntityCount = useMockModelData || canAutoEnableMock ? Math.max(modelEntityCount, 12) : modelEntityCount;
-  const displayedModelPageCount = useMockModelData || canAutoEnableMock ? Math.max(modelPageCount, 9) : modelPageCount;
-  const isUsingMockData = useMockModelData || canAutoEnableMock;
+  const displayedModelRelations = modelRelations;
+  const displayedModelRuleCount = modelRuleCount;
+  const displayedModelEntityCount = modelEntityCount;
+  const displayedModelPageCount = modelPageCount;
+  const isUsingMockData = false;
   const relationTypeStats = useMemo(() => {
     const stats = new Map<string, number>();
     for (const item of displayedModelRelations) {
@@ -185,6 +201,18 @@ export function ProjectOverviewPanel({
     const relationBrief = relationTypeStats.length > 0 ? relationTypeStats.map((item) => `${item.name}${item.count}条`).join("，") : "暂无关系类型沉淀";
     return `当前已沉淀领域规则 ${displayedModelRuleCount} 条、数据实体 ${displayedModelEntityCount} 个、实体关系 ${displayedModelRelations.length} 条；关系结构以${relationBrief}为主。`;
   }, [displayedModelEntityCount, displayedModelRelations.length, displayedModelRuleCount, relationTypeStats]);
+  const relationFocusEntities = useMemo(() => {
+    const entityCounter = new Map<string, number>();
+    for (const relation of displayedModelRelations) {
+      entityCounter.set(relation.fromEntityId, (entityCounter.get(relation.fromEntityId) ?? 0) + 1);
+      entityCounter.set(relation.toEntityId, (entityCounter.get(relation.toEntityId) ?? 0) + 1);
+    }
+    return Array.from(entityCounter.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([entityId, count]) => `${toFriendlyName(entityId)}(${count})`);
+  }, [displayedModelRelations]);
+  const summaryGeneratedAtText = businessSummary?.generatedAt ? new Date(businessSummary.generatedAt).toLocaleString("zh-CN") : "";
   const domainRuleDescriptions = useMemo(() => {
     const lines: string[] = [];
     for (const item of displayedModelRelations.slice(0, 8)) {
@@ -202,9 +230,168 @@ export function ProjectOverviewPanel({
     if (displayedModelRelations.length === 0) issues.push("尚未沉淀实体关系");
     return issues;
   }, [displayedModelEntityCount, displayedModelRuleCount, displayedModelRelations.length]);
+  const summaryHeadline = businessSummary?.summary?.trim() || modelSummaryText;
+  const graphSourceRelations = useMockGraphData ? MOCK_MODEL_RELATIONS : displayedModelRelations;
+  const mockEntitySet = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of MOCK_MODEL_RELATIONS) {
+      ids.add(item.fromEntityId);
+      ids.add(item.toEntityId);
+    }
+    return ids;
+  }, []);
+  const relationGraph = useMemo(
+    () => buildModelRelationGraph(graphSourceRelations, useMockGraphData ? mockEntitySet.size : displayedModelEntityCount),
+    [displayedModelEntityCount, graphSourceRelations, mockEntitySet.size, useMockGraphData]
+  );
+  const relationGraphNodeById = useMemo(
+    () => new Map(relationGraph.nodes.map((node) => [node.id, node])),
+    [relationGraph.nodes]
+  );
+  const filteredRelationGraphEdges = useMemo(
+    () =>
+      relationGraph.edges.filter((edge) => {
+        if (relationTypeFilter === "all") return true;
+        return edge.type === relationTypeFilter;
+      }),
+    [relationGraph.edges, relationTypeFilter]
+  );
+  const filteredRelationGraphEdgeById = useMemo(
+    () => new Map(filteredRelationGraphEdges.map((edge) => [edge.id, edge])),
+    [filteredRelationGraphEdges]
+  );
+  const highlightedEdge = highlightedEdgeId ? filteredRelationGraphEdgeById.get(highlightedEdgeId) ?? null : null;
+  const activeFocusNodeId = hoveredNodeId ?? selectedNodeId;
+  const selectedNode = selectedNodeId ? relationGraphNodeById.get(selectedNodeId) ?? null : null;
+  const selectedNodeOutgoingEdges = useMemo(
+    () => (selectedNodeId ? filteredRelationGraphEdges.filter((edge) => edge.fromEntityId === selectedNodeId) : []),
+    [filteredRelationGraphEdges, selectedNodeId]
+  );
+  const selectedNodeIncomingEdges = useMemo(
+    () => (selectedNodeId ? filteredRelationGraphEdges.filter((edge) => edge.toEntityId === selectedNodeId) : []),
+    [filteredRelationGraphEdges, selectedNodeId]
+  );
+  const hoveredConnectedNodeIds = useMemo(() => {
+    if (!activeFocusNodeId) return null;
+    const ids = new Set<string>([activeFocusNodeId]);
+    for (const edge of filteredRelationGraphEdges) {
+      if (edge.fromEntityId === activeFocusNodeId) ids.add(edge.toEntityId);
+      if (edge.toEntityId === activeFocusNodeId) ids.add(edge.fromEntityId);
+    }
+    return ids;
+  }, [activeFocusNodeId, filteredRelationGraphEdges]);
+  const showNodeLabels = relationGraph.nodes.length <= 20;
+  const centerGraphOnPoint = (x: number, y: number) => {
+    const clampOffset = (value: number) => Math.max(-18, Math.min(18, value));
+    setGraphViewportOffset({
+      x: clampOffset(50 - x),
+      y: clampOffset(50 - y)
+    });
+  };
+  const summaryHighlights = useMemo(() => {
+    const items: string[] = [];
+    if (businessSummary?.focus?.length) {
+      items.push(...businessSummary.focus.slice(0, 2).map((item) => normalizeInlineMarkdownText(item)));
+    } else if (relationTypeStats.length > 0) {
+      items.push(`关系结构：${relationTypeStats.slice(0, 3).map((item) => `${item.name}${item.count}条`).join("、")}`);
+    }
+    if (relationFocusEntities.length > 0) {
+      items.push(`关键实体：${relationFocusEntities.join("、")}`);
+    }
+    if (businessSummary?.risks?.length) {
+      items.push(`风险提示：${normalizeInlineMarkdownText(businessSummary.risks[0])}`);
+    } else if (modelHighlights.length > 0) {
+      items.push(modelHighlights[0]);
+    }
+    items.push(`迭代趋势：${trendText}`);
+    return items.slice(0, 4);
+  }, [businessSummary?.focus, businessSummary?.risks, modelHighlights, relationFocusEntities, relationTypeStats, trendText]);
   const repoUrlValid = looksLikeGitUrl(repoUrlDraft);
   const repoLastCheckedText = repoHealth?.lastCheckedAt ? new Date(repoHealth.lastCheckedAt).toLocaleString("zh-CN") : "";
   const canMoveToNextStep = repoConfigStep === 1 ? repoUrlValid : true;
+  const isAdmin = currentRole === "owner";
+  const targetIterationId = currentIteration?.id || iterations[iterations.length - 1]?.id || null;
+
+  useEffect(() => {
+    const consumeEntry = () => {
+      if (!currentProject) return;
+      let pendingEntry: string | null = null;
+      try {
+        pendingEntry = localStorage.getItem("buildwise:project-governance-entry");
+        if (pendingEntry) {
+          localStorage.removeItem("buildwise:project-governance-entry");
+        }
+      } catch {
+        pendingEntry = null;
+      }
+      if (pendingEntry === "policy") {
+        setShowPolicyDrawer(true);
+        return;
+      }
+      if (pendingEntry === "openclaw") {
+        setShowOpenclawDrawer(true);
+      }
+    };
+    consumeEntry();
+    const onOpenRequest = () => consumeEntry();
+    window.addEventListener("buildwise:open-governance", onOpenRequest);
+    return () => window.removeEventListener("buildwise:open-governance", onOpenRequest);
+  }, [currentProject?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentProject || isUsingMockData) {
+      setBusinessSummary(null);
+      setBusinessSummaryError("");
+      setBusinessSummaryLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setBusinessSummaryLoading(true);
+    setBusinessSummaryError("");
+    fetchProjectModelBusinessSummary(currentProject.id, currentIteration?.id)
+      .then((payload) => {
+        if (cancelled) return;
+        setBusinessSummary(payload);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setBusinessSummary(null);
+        setBusinessSummaryError(toBusinessSummaryErrorMessage(error));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setBusinessSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentProject?.id,
+    currentIteration?.id,
+    modelRuleCount,
+    modelEntityCount,
+    modelPageCount,
+    modelRelations.length,
+    isUsingMockData,
+    businessSummaryVersion
+  ]);
+
+  useEffect(() => {
+    setHoveredNodeId(null);
+    setSelectedNodeId(null);
+    setHighlightedEdgeId(null);
+    setGraphViewportOffset({ x: 0, y: 0 });
+  }, [relationTypeFilter, useMockGraphData]);
+
+  useEffect(() => {
+    if (!highlightedEdgeId) return;
+    const timer = window.setTimeout(() => {
+      setHighlightedEdgeId((current) => (current === highlightedEdgeId ? null : current));
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [highlightedEdgeId]);
 
   const handleDeleteProject = async () => {
     if (!currentProject) {
@@ -281,136 +468,344 @@ export function ProjectOverviewPanel({
     }
   };
 
+  const loadPolicyData = async () => {
+    if (!currentProject) return;
+    try {
+      const [policies, roles] = await Promise.all([fetchProjectPolicies(currentProject.id), fetchProjectRoleBindings(currentProject.id)]);
+      setActivePolicy(policies.active || null);
+      setPolicyItems(policies.items || []);
+      setRoleBindings(roles);
+      if (targetIterationId) {
+        const logs = await fetchIterationPolicyLogs(targetIterationId);
+        setPolicyLogs(logs.slice(-20).reverse());
+      } else {
+        setPolicyLogs([]);
+      }
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "策略数据加载失败");
+    }
+  };
+
+  const handleCreatePolicyDraft = async () => {
+    if (!currentProject || !isAdmin) return;
+    try {
+      setPolicyBusy(true);
+      await createProjectPolicyDraft(currentProject.id, undefined, "owner", "admin-1");
+      await loadPolicyData();
+      setPolicyNotice("已创建策略草案。");
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "创建策略草案失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleActivateLatestDraft = async () => {
+    if (!currentProject || !isAdmin) return;
+    const draft = policyItems.find((item) => item.status === "draft");
+    if (!draft) {
+      setPolicyNotice("没有可激活的草案。");
+      return;
+    }
+    try {
+      setPolicyBusy(true);
+      await activateProjectPolicy(currentProject.id, draft.version, "owner", "admin-1");
+      await loadPolicyData();
+      setPolicyNotice(`策略 v${draft.version} 已激活。`);
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "激活策略失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleRestoreInitialPolicyMode = async () => {
+    if (!currentProject || !isAdmin) return;
+    try {
+      setPolicyBusy(true);
+      const restored = await restoreProjectPolicyToInitialMode(currentProject.id, "owner", "admin-1");
+      await loadPolicyData();
+      setPolicyNotice(`已恢复到初始化编排模式（v${restored.version}）。`);
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "恢复初始化编排模式失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleBindWorkspace = async () => {
+    if (!currentProject || !isAdmin) return;
+    try {
+      setPolicyBusy(true);
+      await bindProjectWorkspace(
+        currentProject.id,
+        {
+          openclawProfile: bindingProfile.trim(),
+          agentId: bindingAgentId.trim() || "main",
+          workspacePath: bindingWorkspacePath.trim(),
+          runtimeMode: bindingRuntimeMode,
+          locked: true
+        },
+        "owner",
+        "admin-1"
+      );
+      setPolicyNotice("OpenClaw 工作区绑定已更新。");
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "绑定工作区失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleAddRoleBinding = async () => {
+    if (!currentProject || !isAdmin || !newRoleUserId.trim()) return;
+    try {
+      setPolicyBusy(true);
+      await upsertProjectRoleBinding(currentProject.id, { userId: newRoleUserId.trim(), role: newRoleValue }, "owner");
+      await loadPolicyData();
+      setPolicyNotice(`已更新用户 ${newRoleUserId.trim()} 的项目角色。`);
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "更新角色失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleRemoveRoleBinding = async (userId: string) => {
+    if (!currentProject || !isAdmin || !userId.trim()) return;
+    try {
+      setPolicyBusy(true);
+      await removeProjectRoleBinding(currentProject.id, userId.trim(), "owner");
+      await loadPolicyData();
+      setPolicyNotice(`已移除用户 ${userId.trim()} 的项目角色。`);
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "移除角色失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleRunPolicyStep = async () => {
+    if (!targetIterationId) {
+      setPolicyNotice("当前项目暂无可执行迭代。");
+      return;
+    }
+    try {
+      setPolicyBusy(true);
+      const result = await executePolicyStep(targetIterationId, {
+        action: "admin-policy-check",
+        message: "管理员发起策略执行检查"
+      });
+      await loadPolicyData();
+      setPolicyNotice(result.ok ? "策略执行检查通过。" : `策略阻断：${result.gate.reason}`);
+    } catch (error) {
+      setPolicyNotice(error instanceof Error ? error.message : "策略执行失败");
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
+
+  const handleOpenclawSend = async () => {
+    if (!currentProject || !openclawChatInput.trim()) return;
+    const text = openclawChatInput.trim();
+    setOpenclawChatLines((prev) => [...prev, { role: "admin", content: text, at: new Date().toISOString() }]);
+    setOpenclawChatInput("");
+    try {
+      setOpenclawChatBusy(true);
+      const payload = composeOpenclawProjectMessage(text, openclawDialogMode);
+      const result = await sendOpenclawProjectChat(currentProject.id, payload, "owner");
+      setOpenclawChatLines((prev) => [...prev, { role: "openclaw", content: result.reply, at: new Date().toISOString() }]);
+      await loadPolicyData();
+    } catch (error) {
+      setOpenclawChatLines((prev) => [
+        ...prev,
+        { role: "openclaw", content: error instanceof Error ? error.message : "OpenClaw 对话失败", at: new Date().toISOString() }
+      ]);
+    } finally {
+      setOpenclawChatBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showPolicyDrawer && !showOpenclawDrawer) return;
+    void loadPolicyData();
+  }, [showPolicyDrawer, showOpenclawDrawer, currentProject?.id, targetIterationId]);
+
   return (
     <>
       <article className="panel preview-panel context-panel project-overview-panel">
       <div className="panel-head">
         <h2>项目面板</h2>
       </div>
-      <div className="preview-scroll">
-        <div className="info-box">
-          <h3>项目沉淀总览</h3>
-          <p>项目：{currentProject?.name || "未选择项目"}</p>
-          <p>{`总迭代 ${iterations.length}（已完成 ${completedIterations} / 进行中 ${activeIterations}）`}</p>
-          <p>{`沉淀健康分：${healthScore}`}</p>
-          <p>{trendText}</p>
-          <div className="iteration-meta-grid">
-            <div className="doc-item">领域规则沉淀：{displayedModelRuleCount}</div>
-            <div className="doc-item">数据实体沉淀：{displayedModelEntityCount}</div>
-            <div className="doc-item">实体关系沉淀：{displayedModelRelations.length}</div>
-            <div className="doc-item">页面资产沉淀：{displayedModelPageCount}</div>
-          </div>
-          <div className="progress-bar">
-            <div className="progress-value" style={{ width: `${projectProgress}%` }} />
-          </div>
-          {modelHighlights.length > 0 ? (
-            <ul>
-              {modelHighlights.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="hint">当前项目已形成基础建模沉淀。</p>
-          )}
-        </div>
+      <div className="preview-scroll project-overview-scroll">
+        <section className="project-overview-hero">
+          <article className="project-progress-card">
+            <div className="project-card-head">
+              <h3>当前迭代进度</h3>
+              <span className={`status-pill ${currentIteration?.status || "planned"}`}>{currentIteration?.status || "planned"}</span>
+            </div>
+            <div className="project-progress-ring" style={{ "--progress": `${Math.max(0, Math.min(100, projectProgress))}%` } as CSSProperties}>
+              <div className="project-progress-ring-inner">
+                <strong>{projectProgress}%</strong>
+                <span>{currentIteration?.version || currentIteration?.name || "未选择迭代"}</span>
+              </div>
+            </div>
+            <p className="project-progress-meta">
+              总迭代 {iterations.length}（已完成 {completedIterations} / 进行中 {activeIterations}）
+            </p>
+          </article>
 
-        <div className="info-box">
+          <article className="project-summary-card">
+            <div className="project-card-head">
+              <h3>建模摘要</h3>
+              <span className="linkish">健康分 {healthScore}</span>
+            </div>
+            <p className="project-summary-text">{summaryHeadline}</p>
+            <div className="project-summary-kpis">
+              <div className="doc-item">
+                <span>领域规则</span>
+                <strong>{displayedModelRuleCount}</strong>
+              </div>
+              <div className="doc-item">
+                <span>数据实体</span>
+                <strong>{displayedModelEntityCount}</strong>
+              </div>
+              <div className="doc-item">
+                <span>实体关系</span>
+                <strong>{displayedModelRelations.length}</strong>
+              </div>
+              <div className="doc-item">
+                <span>页面资产</span>
+                <strong>{displayedModelPageCount}</strong>
+              </div>
+            </div>
+            {summaryHighlights.length > 0 ? (
+              <ul className="project-highlight-list">
+                {summaryHighlights.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint">当前项目已形成基础建模沉淀。</p>
+            )}
+          </article>
+        </section>
+
+        <section className="project-versions-card">
           <div className="panel-head tight">
-            <h3>版本列表（迭代版本）</h3>
-            <button
-              className="btn ghost mini"
-              onClick={onShowCreateIteration}
-              disabled={!currentProject || backendUnavailable}
-              title={backendUnavailable ? "后端服务未连接，暂不可创建迭代" : undefined}
-            >
-              新增迭代
-            </button>
+            <h3>版本记录</h3>
+            <div className="chat-tools">
+              <button type="button" className="icon-btn" title="筛选（即将上线）" disabled>
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M2.5 3h11M5 7.5h6M6.5 12h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button type="button" className="icon-btn" title="导出（即将上线）" disabled>
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 2.5v7M5.5 7 8 9.5 10.5 7M3 12.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                className="btn ghost mini"
+                onClick={onShowCreateIteration}
+                disabled={!currentProject || backendUnavailable}
+                title={backendUnavailable ? "后端服务未连接，暂不可创建迭代" : undefined}
+              >
+                新增迭代
+              </button>
+            </div>
           </div>
           {iterations.length === 0 ? (
             <p className="hint">暂无迭代版本</p>
           ) : (
-            <ul className="iteration-list">
+            <div className="project-version-table" role="table" aria-label="迭代版本列表">
+              <div className="project-version-head" role="row">
+                <span>版本</span>
+                <span>描述</span>
+                <span>状态</span>
+                <span>操作</span>
+              </div>
               {iterations.map((item) => (
-                <li key={item.id} className={item.id === currentIteration?.id ? "active" : ""}>
-                  <button type="button" onClick={() => onEnterIteration(item.id)}>
-                    <strong>{item.name}</strong>
-                    <span>{`版本: ${item.version || "未生成"}`}</span>
-                    <span>{item.description}</span>
-                    <span>{`状态: ${item.status} · 进度: ${item.progress}%`}</span>
-                    <span className="linkish">进入版本</span>
-                  </button>
-                </li>
+                <div key={item.id} className={`project-version-row ${item.id === currentIteration?.id ? "active" : ""}`} role="row">
+                  <span className="project-version-name">{item.version || item.name}</span>
+                  <span className="project-version-desc">{item.description || "暂无描述"}</span>
+                  <span className="project-version-status">{item.status} · {item.progress}%</span>
+                  <span>
+                    <button type="button" className="btn ghost mini" onClick={() => onEnterIteration(item.id)}>
+                      进入版本
+                    </button>
+                  </span>
+                </div>
               ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="info-box">
-          <div className="panel-head tight">
-            <h3>项目建模与领域建模</h3>
-            <div className="chat-tools">
-              <button type="button" className="btn ghost mini" onClick={() => setUseMockModelData((prev) => !prev)}>
-                {isUsingMockData ? "切回真实数据" : "使用演示数据"}
-              </button>
-              <button type="button" className="btn ghost mini" onClick={() => setShowModelDetails((prev) => !prev)}>
-                {showModelDetails ? "收起详情" : "查看详情"}
-              </button>
             </div>
-          </div>
-          {isUsingMockData ? <p className="hint">当前展示为演示数据，用于预览完整建模呈现效果。</p> : null}
-          <div className="iteration-meta-grid">
-            <div className="doc-item">领域规则：{displayedModelRuleCount}</div>
-            <div className="doc-item">数据实体：{displayedModelEntityCount}</div>
-            <div className="doc-item">实体关系：{displayedModelRelations.length}</div>
-          </div>
-          {!showModelDetails ? (
-            <p className="hint">点击“查看详情”可查看业务摘要与领域规则说明（可升级为大模型自动总结）。</p>
-          ) : (
-            <>
-              <div className="info-box">
-                <h3>建模业务摘要</h3>
-                <p>{modelSummaryText}</p>
-                <p className="hint">注：当前为结构化自动摘要。后续可接入大模型生成更贴近业务语义的总结。</p>
-              </div>
-              <div className="info-box">
-                <h3>领域规则说明（沉淀清单）</h3>
-                {domainRuleDescriptions.length === 0 ? (
-                  <p className="hint">暂无可读规则说明。</p>
-                ) : (
-                  <ul>
-                    {domainRuleDescriptions.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </>
           )}
-        </div>
+        </section>
 
-        <div className="info-box">
-          <div className="panel-head tight">
-            <h3>代码仓设置</h3>
-            <div className="chat-tools">
-              <button type="button" className="btn ghost mini" disabled={!currentProject} onClick={() => setShowRepoConfigDrawer(true)}>
-                打开设置面板
-              </button>
+        <ProjectOverviewPanelModelDetails
+          showModelDetails={showModelDetails}
+          setShowModelDetails={setShowModelDetails}
+          isUsingMockData={isUsingMockData}
+          setBusinessSummaryVersion={setBusinessSummaryVersion}
+          businessSummaryLoading={businessSummaryLoading}
+          modelDetailsView={modelDetailsView}
+          setModelDetailsView={setModelDetailsView}
+          relationTypeFilter={relationTypeFilter}
+          setRelationTypeFilter={setRelationTypeFilter}
+          useMockGraphData={useMockGraphData}
+          setUseMockGraphData={setUseMockGraphData}
+          relationTypeStats={relationTypeStats}
+          relationFocusEntities={relationFocusEntities}
+          businessSummary={businessSummary}
+          summaryGeneratedAtText={summaryGeneratedAtText}
+          businessSummaryError={businessSummaryError}
+          domainRuleDescriptions={domainRuleDescriptions}
+          relationGraph={relationGraph}
+          relationGraphNodeById={relationGraphNodeById}
+          filteredRelationGraphEdges={filteredRelationGraphEdges}
+          highlightedEdgeId={highlightedEdgeId}
+          setHighlightedEdgeId={setHighlightedEdgeId}
+          activeFocusNodeId={activeFocusNodeId}
+          hoveredConnectedNodeIds={hoveredConnectedNodeIds}
+          selectedNodeId={selectedNodeId}
+          setSelectedNodeId={setSelectedNodeId}
+          setHoveredNodeId={setHoveredNodeId}
+          graphViewportOffset={graphViewportOffset}
+          showNodeLabels={showNodeLabels}
+          centerGraphOnPoint={centerGraphOnPoint}
+          highlightedEdge={highlightedEdge}
+          hoveredNodeId={hoveredNodeId}
+          selectedNode={selectedNode}
+          selectedNodeOutgoingEdges={selectedNodeOutgoingEdges}
+          selectedNodeIncomingEdges={selectedNodeIncomingEdges}
+          displayedModelEntityCount={displayedModelEntityCount}
+          displayedModelRelations={displayedModelRelations}
+          displayedModelRuleCount={displayedModelRuleCount}
+        />
+        <section className="project-overview-bottom-grid">
+          <div className="info-box">
+            <div className="panel-head tight">
+              <h3>代码仓设置</h3>
+              <div className="chat-tools">
+                <button type="button" className="btn ghost mini" disabled={!currentProject} onClick={() => setShowRepoConfigDrawer(true)}>
+                  打开设置面板
+                </button>
+              </div>
             </div>
+            <p className="hint">采用统一右侧滑入面板配置。业务人员只需填写一个 Git 仓库地址。</p>
+            <p className="hint">
+              地址已配置：{repoHealth ? (repoHealth.remoteConfigured ? "是" : "否") : "-"}；连接可用：
+              {repoHealth ? (repoHealth.remoteReachable ? "是" : "否") : "-"}；同步状态：
+              {repoHealth ? (repoHealth.remoteSynced ? "正常" : "待同步") : "-"}
+            </p>
+            {repoConfigNotice ? <p className="hint">{repoConfigNotice}</p> : null}
           </div>
-          <p className="hint">采用统一右侧滑入面板配置。业务人员只需填写一个 Git 仓库地址。</p>
-          <p className="hint">
-            地址已配置：{repoHealth ? (repoHealth.remoteConfigured ? "是" : "否") : "-"}；连接可用：
-            {repoHealth ? (repoHealth.remoteReachable ? "是" : "否") : "-"}；同步状态：
-            {repoHealth ? (repoHealth.remoteSynced ? "正常" : "待同步") : "-"}
-          </p>
-          {repoConfigNotice ? <p className="hint">{repoConfigNotice}</p> : null}
-        </div>
 
-        <div className="info-box">
-          <h3>运行状态</h3>
-          {status ? <p>{`服务：${status.service} · 状态：${status.status}`}</p> : <p className="hint">暂无服务状态。</p>}
-          {error && <p className="error-inline">{error}</p>}
-        </div>
+          <div className="info-box">
+            <h3>运行状态</h3>
+            {status ? <p>{`服务：${status.service} · 状态：${status.status}`}</p> : <p className="hint">暂无服务状态。</p>}
+            {error && <p className="error-inline">{error}</p>}
+          </div>
+        </section>
 
         <div className="info-box project-delete-box">
           <h3>项目操作</h3>
@@ -422,172 +817,68 @@ export function ProjectOverviewPanel({
       </div>
       </article>
 
-      <div className={`analysis-drawer-mask ${showRepoConfigDrawer ? "open" : ""}`} onClick={() => setShowRepoConfigDrawer(false)} aria-hidden={!showRepoConfigDrawer} />
-      <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showRepoConfigDrawer ? "open" : ""}`}>
-        <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
-          <div className="panel-head">
-            <h2>代码仓设置（业务版）</h2>
-            <div className="chat-tools">
-              <button type="button" className="btn ghost mini" onClick={() => setShowRepoConfigDrawer(false)}>
-                关闭
-              </button>
-            </div>
-          </div>
-          <div className="preview-scroll">
-            <div className="repo-stepper">
-              {[1, 2, 3].map((step) => (
-                <div
-                  key={step}
-                  className={`repo-step-item ${repoConfigStep === step ? "active" : ""} ${repoConfigStep > step ? "done" : ""}`}
-                >
-                  <span>{step}</span>
-                  <em>{step === 1 ? "填写仓库地址" : step === 2 ? "设置发布规则" : "确认并连接"}</em>
-                </div>
-              ))}
-            </div>
-
-            {repoConfigStep === 1 ? (
-              <div className="info-box">
-                <h3>第一步：填写仓库地址</h3>
-                <p className="hint">输入一个 Git 仓库地址，系统会自动识别平台。</p>
-                <div className="repo-url-card">
-                  <label className="repo-url-label">
-                    <span>Git 仓库地址</span>
-                    <span className="repo-url-label-tip">支持 `https://`、`ssh://`、`git@`</span>
-                    <input
-                      className="repo-url-input"
-                      type="text"
-                      value={repoUrlDraft}
-                      onChange={(event) => setRepoUrlDraft(event.target.value)}
-                      placeholder="例如：https://github.com/your-org/your-repo.git"
-                      disabled={!currentProject || repoConfigBusy}
-                    />
-                  </label>
-                  <p className="repo-url-example">
-                    示例：`https://github.com/acme/buildwise.git` 或 `git@github.com:acme/buildwise.git`
-                  </p>
-                </div>
-                {!repoUrlDraft.trim() ? <p className="hint">请先粘贴代码仓地址。</p> : null}
-                {repoUrlDraft.trim() && !repoUrlValid ? <p className="error-inline">地址格式看起来不正确，请使用 https://、ssh:// 或 git@ 开头。</p> : null}
-              </div>
-            ) : null}
-
-            {repoConfigStep === 2 ? (
-              <div className="info-box">
-                <h3>第二步：设置发布规则</h3>
-                <p className="hint">确定哪些发布阶段必须先连上代码仓。</p>
-                <div className="iteration-meta-grid">
-                  <label className="doc-item">
-                    <input
-                      type="checkbox"
-                      checked={requireRemoteForProduction}
-                      onChange={(event) => setRequireRemoteForProduction(event.target.checked)}
-                      disabled={!currentProject || repoConfigBusy}
-                    />
-                    正式发布前必须连接代码仓（推荐）
-                  </label>
-                  <label className="doc-item">
-                    <input
-                      type="checkbox"
-                      checked={requireRemoteForStaging}
-                      onChange={(event) => setRequireRemoteForStaging(event.target.checked)}
-                      disabled={!currentProject || repoConfigBusy}
-                    />
-                    预发演示前必须连接代码仓
-                  </label>
-                </div>
-              </div>
-            ) : null}
-
-            {repoConfigStep === 3 ? (
-              <>
-                <div className="info-box">
-                  <h3>第三步：确认并连接</h3>
-                  <p className="hint">确认地址与规则后，执行连接并检查状态。</p>
-                  <div className="repo-status-grid">
-                    <div className={`repo-status-card ${repoHealth?.remoteConfigured ? "is-ok" : "is-warn"}`}>
-                      <p className="repo-status-label">地址已配置</p>
-                      <strong>{repoHealth ? (repoHealth.remoteConfigured ? "已完成" : "未完成") : "-"}</strong>
-                    </div>
-                    <div className={`repo-status-card ${repoHealth?.remoteReachable ? "is-ok" : "is-warn"}`}>
-                      <p className="repo-status-label">连接可用</p>
-                      <strong>{repoHealth ? (repoHealth.remoteReachable ? "可连接" : "不可连接") : "-"}</strong>
-                    </div>
-                    <div className={`repo-status-card ${repoHealth?.remoteSynced ? "is-ok" : "is-warn"}`}>
-                      <p className="repo-status-label">同步状态</p>
-                      <strong>{repoHealth ? (repoHealth.remoteSynced ? "正常" : "待同步") : "-"}</strong>
-                    </div>
-                  </div>
-                  {repoLastCheckedText ? <p className="hint">最近检查：{repoLastCheckedText}</p> : null}
-                  {repoHealth?.lastError ? <p className="hint">最近连接提示：{repoHealth.lastError}</p> : null}
-                  {repoConfigNotice ? <p className="hint">{repoConfigNotice}</p> : null}
-                </div>
-
-                <div className="info-box">
-                  <div className="panel-head tight">
-                    <h3>高级信息</h3>
-                    <button type="button" className="btn ghost mini" onClick={() => setShowRepoAdvanced((prev) => !prev)}>
-                      {showRepoAdvanced ? "隐藏" : "查看"}
-                    </button>
-                  </div>
-                  {showRepoAdvanced && repoMigrationPlan ? (
-                    <div className="info-box">
-                      <h3>迁移建议（{repoMigrationPlan.currentMode} {"->"} {repoMigrationPlan.targetMode}）</h3>
-                      <p className="hint">系统建议下一步：{repoMigrationPlan.nextAction}</p>
-                      {repoMigrationPlan.blockers.length > 0 ? <p className="hint">当前阻碍项：{repoMigrationPlan.blockers.join("；")}</p> : null}
-                      <ul className="history-list">
-                        {repoMigrationPlan.steps.map((item) => (
-                          <li key={item.id} className="history-item">
-                            <strong>{item.title}</strong>
-                            <p>{item.description}</p>
-                            <p className="hint">状态：{item.status.toUpperCase()} · 系统动作：{item.action}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="hint">高级信息默认收起，避免干扰业务操作。</p>
-                  )}
-                </div>
-              </>
-            ) : null}
-
-            <div className="repo-config-actions">
-              <button type="button" className="btn ghost mini" disabled={repoConfigStep === 1} onClick={() => setRepoConfigStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))}>
-                上一步
-              </button>
-              {repoConfigStep < 3 ? (
-                <button
-                  type="button"
-                  className="btn ghost mini"
-                  disabled={!canMoveToNextStep}
-                  onClick={() => setRepoConfigStep((prev) => (prev < 3 ? ((prev + 1) as 1 | 2 | 3) : prev))}
-                >
-                  下一步
-                </button>
-              ) : null}
-              {repoConfigStep === 2 ? (
-                <button type="button" className="btn ghost mini" disabled={!currentProject || repoConfigBusy} onClick={handleSaveRepositoryPolicy}>
-                  保存发布前规则
-                </button>
-              ) : null}
-              {repoConfigStep === 3 ? (
-                <button type="button" className="btn ghost mini" disabled={!currentProject || repoConfigBusy} onClick={handleRefreshRepositoryStatus}>
-                  刷新连接状态
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="btn primary mini"
-                disabled={!currentProject || repoConfigBusy || !repoUrlValid || repoConfigStep !== 3}
-                onClick={handleConnectRepository}
-              >
-                保存并连接仓库
-              </button>
-            </div>
-          </div>
-        </article>
-      </aside>
+      <ProjectOverviewPanelDrawers
+        showPolicyDrawer={showPolicyDrawer}
+        setShowPolicyDrawer={setShowPolicyDrawer}
+        showOpenclawDrawer={showOpenclawDrawer}
+        setShowOpenclawDrawer={setShowOpenclawDrawer}
+        showRepoConfigDrawer={showRepoConfigDrawer}
+        setShowRepoConfigDrawer={setShowRepoConfigDrawer}
+        activePolicy={activePolicy}
+        policyItems={policyItems}
+        isAdmin={isAdmin}
+        policyBusy={policyBusy}
+        handleCreatePolicyDraft={handleCreatePolicyDraft}
+        handleActivateLatestDraft={handleActivateLatestDraft}
+        handleRestoreInitialPolicyMode={handleRestoreInitialPolicyMode}
+        handleRunPolicyStep={handleRunPolicyStep}
+        bindingProfile={bindingProfile}
+        setBindingProfile={setBindingProfile}
+        bindingAgentId={bindingAgentId}
+        setBindingAgentId={setBindingAgentId}
+        bindingWorkspacePath={bindingWorkspacePath}
+        setBindingWorkspacePath={setBindingWorkspacePath}
+        bindingRuntimeMode={bindingRuntimeMode}
+        setBindingRuntimeMode={setBindingRuntimeMode}
+        handleBindWorkspace={handleBindWorkspace}
+        newRoleUserId={newRoleUserId}
+        setNewRoleUserId={setNewRoleUserId}
+        newRoleValue={newRoleValue}
+        setNewRoleValue={setNewRoleValue}
+        handleAddRoleBinding={handleAddRoleBinding}
+        roleBindings={roleBindings}
+        handleRemoveRoleBinding={handleRemoveRoleBinding}
+        targetIterationId={targetIterationId}
+        openclawChatLines={openclawChatLines}
+        openclawDialogMode={openclawDialogMode}
+        setOpenclawDialogMode={setOpenclawDialogMode}
+        openclawChatInput={openclawChatInput}
+        setOpenclawChatInput={setOpenclawChatInput}
+        openclawChatBusy={openclawChatBusy}
+        handleOpenclawSend={handleOpenclawSend}
+        policyLogs={policyLogs}
+        repoConfigStep={repoConfigStep}
+        setRepoConfigStep={setRepoConfigStep}
+        repoUrlDraft={repoUrlDraft}
+        setRepoUrlDraft={setRepoUrlDraft}
+        currentProjectExists={Boolean(currentProject)}
+        repoConfigBusy={repoConfigBusy}
+        repoUrlValid={repoUrlValid}
+        requireRemoteForProduction={requireRemoteForProduction}
+        setRequireRemoteForProduction={setRequireRemoteForProduction}
+        requireRemoteForStaging={requireRemoteForStaging}
+        setRequireRemoteForStaging={setRequireRemoteForStaging}
+        repoHealth={repoHealth}
+        repoLastCheckedText={repoLastCheckedText}
+        repoConfigNotice={repoConfigNotice}
+        showRepoAdvanced={showRepoAdvanced}
+        setShowRepoAdvanced={setShowRepoAdvanced}
+        repoMigrationPlan={repoMigrationPlan}
+        canMoveToNextStep={canMoveToNextStep}
+        handleSaveRepositoryPolicy={handleSaveRepositoryPolicy}
+        handleRefreshRepositoryStatus={handleRefreshRepositoryStatus}
+        handleConnectRepository={handleConnectRepository}
+      />
     </>
   );
 }

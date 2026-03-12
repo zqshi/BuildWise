@@ -102,6 +102,7 @@ npm run start
 - `LLM_API_BASE`：OpenAI 兼容接口地址（例如 `https://api.openai.com/v1`）
 - `LLM_API_KEY`：大模型 API Key
 - `LLM_MODEL`：模型名（默认 `gpt-4o-mini`）
+- `BUILDWISE_PREFER_PROCESS_ENV`：默认 `0`。设置为 `1` 时，后端保留进程已有环境变量优先；默认会优先采用 `.env` 中的 LLM/Anthropic 配置，减少旧环境变量导致的鉴权异常
 
 ## 6. 交付产物
 
@@ -122,3 +123,37 @@ npm run check:hygiene
 cd v2
 npm run clean:workspace
 ```
+
+## 8. 前端设计风格基线
+
+- 设计稿目录：`v2/stitch/buildwise_*`
+- 视觉基线：品牌蓝 `#0066ff`、背景 `#f5f7f8`、高对比文本 `#0f1723`、圆角卡片与轻阴影
+- 令牌入口：`v2/src/styles/base.css`（仅允许通过 token 调整全局风格）
+- 页面样式分层：
+  - 基础层：`base.css`
+  - 布局层：`layout.css`
+  - 仪表盘层：`dashboard.css`
+  - 工作台层：`workspace-core.css` / `workspace-interactions.css`
+
+视觉验收清单（本轮升级）：
+
+- `v2/docs/ui-style-upgrade-acceptance-2026-03-09.md`
+
+项目建模可视化补充：
+
+- 项目总览「项目建模与领域建模」详情区支持 `结构化摘要 / 节点关系图` 视图切换
+- 当实体关系为 `0` 时显示空态提示；关系节点过多时自动隐藏标签并截断展示高关联节点
+- 节点关系图支持 `加载演示数据`（mock）开关，便于在空数据项目中预览视觉效果与交互
+- 节点关系业务说明严格读取关系数据字段（如 `businessDescription / ontologyBasis / dataBasis`），不做模板兜底推断
+
+## 9. 演示数据（交付物真实流程）
+
+清理旧 mock 项目并重建一套“真实流程导向”的交付物演示数据：
+
+```bash
+cd v2
+npm run seed:deliverable:demo
+```
+
+默认会清理项目名包含 `mock|演示|demo|示例|临时|tmp` 的项目，并创建 `真实流程演示项目`。
+可通过 `BUILDWISE_API_BASE` 指定后端地址（默认 `http://127.0.0.1:5055`）。

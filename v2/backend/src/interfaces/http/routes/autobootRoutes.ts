@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { ModelingService } from "../../../application/modeling/modelingService";
+import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
 
 type ModelApi = {
   method?: string;
@@ -73,6 +74,38 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
       return { message: "invalid project id" };
     }
     return service.listRelations(projectId);
+  });
+
+  app.get("/api/projects/:id/model/business-summary", async (request, reply) => {
+    const params = request.params as { id?: string };
+    const query = request.query as { iterationId?: string } | null;
+    const projectId = parsePositiveInt(params.id);
+    const iterationId = parsePositiveInt(query?.iterationId);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    try {
+      const summary = await service.generateProjectBusinessSummary({
+        projectId,
+        iterationId: iterationId || undefined
+      });
+      if (!summary) {
+        reply.code(404);
+        return { message: "project not found" };
+      }
+      return summary;
+    } catch (error) {
+      if (error instanceof LlmUnavailableError) {
+        reply.code(503);
+        return { message: error.message };
+      }
+      if (error instanceof LlmInvocationError) {
+        reply.code(502);
+        return { message: error.message };
+      }
+      throw error;
+    }
   });
 
   app.post("/api/model/relations", async (request, reply) => {

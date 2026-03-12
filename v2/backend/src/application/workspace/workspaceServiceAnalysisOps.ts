@@ -1,20 +1,54 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
-import type { AttachmentAnalysisReport, AttachmentUploadInput, IterationAgentOutput, IterationStatus, VisionPayload } from "../../domain/workspace/types";
+import { LlmInvocationError, LlmUnavailableError, type AgentRunOptions, type AgentRunner } from "./agentRunner";
+import type {
+  AttachmentAnalysisReport,
+  AttachmentUploadInput,
+  IterationAgentOutput,
+  IterationAgentPrompt,
+  IterationStatus,
+  IterationTransitionSource,
+  VisionPayload
+} from "../../domain/workspace/types";
 import {
-  buildAttachmentInsights,
-  buildNextActions,
-  buildMeaningfulFindings,
   buildDiffLocations,
   buildIterationAgentPlan,
-  detectProjectAndProduct,
   inferCyclePhase,
-  inferRisksFromExcerpt,
-  normalizeIteration,
-  prioritizeFindings,
-  summarizeFromExcerpt
+  normalizeIteration
 } from "./workspaceSupport";
+import {
+  collectLlmBackedReportPayloadIssues,
+  extractBoundarySuggestion,
+  extractGeneratedQualityArtifacts,
+  extractGeneratedTestMatrix,
+  extractReleaseOpsActions,
+  extractReleaseOpsStructured,
+  extractReleaseReview,
+  extractUxArtifacts,
+  isLowSignalText,
+  pickString
+} from "./workspaceAnalysisExtractors";
+import { listAttachmentInsightsMissingReasons, parseAttachmentInsightsCandidate } from "./workspaceServiceAnalysisAttachmentInsightsOps";
+import { executeAgentPlanPromptsOp, resolvePlanParallelismFromEnv } from "./workspaceServiceAnalysisAgentPlanOps";
+import { listDeepInsightsMissingReasons, parseDeepInsightsCandidate } from "./workspaceServiceAnalysisDeepInsightsOps";
+import { buildDeepInsightsFileManifest } from "./workspaceServiceAnalysisDeepInsightsPromptOps";
+import {
+  listExecutionPolicyMissingReasons,
+  listFolderSelectionMissingReasons,
+  parseExecutionPolicyCandidate,
+  parseFolderSelectionCandidate
+} from "./workspaceServiceAnalysisPreflightOps";
+import { buildDomainKnowledge, buildTraceabilityMap, buildVersionDiffDetailed } from "./workspaceAnalysisTraceability";
+import { buildClarificationQuestionsOp, mergeSynthesisResultsOp } from "./workspaceServiceAnalysisSynthesisOps";
+import { readPositiveInt, readStringList } from "./workspaceEnvParsers";
 import { defaultIterationChangeControl, writeAuditLog } from "./workspaceServiceCommon";
+import { composeAttachmentExcerpt, resolveVisionPayloads, type FolderSelectionDecision } from "./workspaceServiceAnalysisInputOps";
+import {
+  synthesizeBusinessConfirmationOp,
+  synthesizeGovernanceInsightsOp,
+  synthesizeReleaseReviewOp,
+  synthesizeReportQualityGateOp
+} from "./workspaceServiceAnalysisGovernanceRunnerOps";
+import { synthesizeProjectProfileOp } from "./workspaceServiceAnalysisProjectProfileRunnerOps";
 
 type ContextGuardrails = {
   maxExcerptLength: number;
@@ -26,10 +60,13 @@ type ContextGuardrails = {
   maxFolderExcerptFiles: number;
 };
 
-function readPositiveInt(value: string | undefined, fallback: number) {
-  const parsed = Number.parseInt((value || "").trim(), 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
+type SynthesisLlmConfig = {
+  fallbackModels: string[];
+  repairAttemptsSingleFile: number;
+  repairAttemptsBatch: number;
+  findingsRepairAttempts: number;
+  projectDetectionRepairAttempts: number;
+};
 
 function loadContextGuardrailsFromEnv(): ContextGuardrails {
   const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
@@ -44,708 +81,261 @@ function loadContextGuardrailsFromEnv(): ContextGuardrails {
   };
 }
 
+function loadSynthesisLlmConfigFromEnv(): SynthesisLlmConfig {
+  const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  const explicitFallbackModels = readStringList(processEnv.LLM_SYNTHESIS_FALLBACK_MODELS);
+  const sharedFallbackModels = readStringList(processEnv.LLM_FALLBACK_MODELS);
+  const fallbackModels = explicitFallbackModels.length > 0 ? explicitFallbackModels : sharedFallbackModels;
+  return {
+    fallbackModels,
+    repairAttemptsSingleFile: readPositiveInt(processEnv.LLM_SYNTHESIS_REPAIR_ATTEMPTS_SINGLE, 2),
+    repairAttemptsBatch: readPositiveInt(processEnv.LLM_SYNTHESIS_REPAIR_ATTEMPTS_BATCH, 4),
+    findingsRepairAttempts: readPositiveInt(processEnv.LLM_SYNTHESIS_FINDINGS_REPAIR_ATTEMPTS, 3),
+    projectDetectionRepairAttempts: readPositiveInt(processEnv.LLM_SYNTHESIS_PROJECT_REPAIR_ATTEMPTS, 3)
+  };
+}
+
 const CONTEXT_GUARDRAILS = loadContextGuardrailsFromEnv();
+const SYNTHESIS_LLM_CONFIG = loadSynthesisLlmConfigFromEnv();
 
-function isNoiseFile(pathOrName: string) {
-  const value = pathOrName.toLowerCase();
-  return (
-    value.includes("/node_modules/") ||
-    value.includes("/.git/") ||
-    value.includes("/dist/") ||
-    value.includes("/build/") ||
-    value.includes("/coverage/") ||
-    value.includes("/.next/") ||
-    value.endsWith(".lock") ||
-    value.endsWith("package-lock.json") ||
-    value.endsWith("pnpm-lock.yaml") ||
-    value.endsWith("yarn.lock") ||
-    value.endsWith(".min.js") ||
-    value.endsWith(".map")
-  );
+const ANALYSIS_METHOD_GUIDELINE = [
+  "分析方法要求（必须遵守）：",
+  "1) 5W1H澄清：说明对象、目标、边界、约束、时序与责任主体。",
+  "2) MECE分解：将结论拆成互斥且完整的结构，不得重复堆砌。",
+  "3) 证据链：每个关键结论至少给出一个附件证据或路径证据。",
+  "4) 风险与反证：识别假设、风险、未知项，并给出验证动作。",
+  "5) 可执行输出：结论必须可直接用于任务拆解、开发、测试或发布决策。"
+].join("\n");
+
+function withAnalysisMethodology(prompt: IterationAgentPrompt): IterationAgentPrompt {
+  const methodBlock = `\n\n${ANALYSIS_METHOD_GUIDELINE}`;
+  return {
+    ...prompt,
+    systemPrompt: `${prompt.systemPrompt}${methodBlock}`,
+    userPrompt: `${prompt.userPrompt}${methodBlock}`
+  };
 }
 
-function prioritizeFolderFiles(
-  files: Array<{ path: string; fileName: string; mimeType: string; size: number; excerpt: string }>
+async function runAnalysisPrompt(
+  agentRunner: AgentRunner,
+  prompt: IterationAgentPrompt,
+  options?: AgentRunOptions
 ) {
-  const score = (item: { path: string; fileName: string; excerpt: string }) => {
-    const p = `${item.path} ${item.fileName}`.toLowerCase();
-    let s = Math.min(item.excerpt.length, 1200);
-    if (/(readme|prd|需求|design|spec|api|openapi|schema|model|domain|router|service|controller)/.test(p)) {
-      s += 800;
-    }
-    if (/(test|spec|mock|snapshot|fixture)/.test(p)) {
-      s -= 200;
-    }
-    return s;
-  };
-  return [...files].sort((a, b) => score(b) - score(a));
+  return agentRunner.run(withAnalysisMethodology(prompt), options);
 }
 
-function composeAttachmentExcerpt(input: AttachmentUploadInput) {
-  const inlineVisionPayloads = Array.isArray(input.visionPayloads)
-    ? input.visionPayloads
-        .map((item) => ({
-          path: (item.path || "").trim(),
-          mimeType: (item.mimeType || "").trim(),
-          dataUrl: (item.dataUrl || "").trim()
-        }))
-        .filter((item) => item.dataUrl.startsWith("data:image/"))
-        .slice(0, 2)
-    : [];
-  const rawFiles = Array.isArray(input.files)
-    ? input.files
-        .map((item) => ({
-          path: (item.path || item.fileName || "").trim(),
-          fileName: (item.fileName || "").trim(),
-          mimeType: (item.mimeType || "application/octet-stream").trim(),
-          size: Number.isFinite(item.size) ? item.size : 0,
-          excerpt: (item.excerpt || "").trim()
-        }))
-        .filter((item) => item.fileName.length > 0)
-    : [];
-  if (rawFiles.length > 0 || input.sourceType === "folder") {
-    const consideredFiles = rawFiles.length;
-    const ignoredFiles: Array<{ path: string; reason: string }> = [];
-    const noiseFiltered = rawFiles.filter((item) => {
-      const path = item.path || item.fileName;
-      if (isNoiseFile(path)) {
-        ignoredFiles.push({ path, reason: "noise" });
-        return false;
-      }
-      return true;
-    });
-    const skippedNoiseFiles = Math.max(consideredFiles - noiseFiltered.length, 0);
-    const nonEmptyFiles = noiseFiltered.filter((item) => {
-      const keep = item.excerpt.length > 0 || !item.mimeType.startsWith("text/");
-      if (!keep) {
-        ignoredFiles.push({ path: item.path || item.fileName, reason: "empty-text" });
-      }
-      return keep;
-    });
-    const skippedEmptyFiles = Math.max(noiseFiltered.length - nonEmptyFiles.length, 0);
-    const prioritized = prioritizeFolderFiles(nonEmptyFiles);
-    const limitedFiles = prioritized.slice(0, CONTEXT_GUARDRAILS.maxFolderFiles);
-    const sampled = prioritized.length > limitedFiles.length;
-    const sampleReason = sampled ? `over-limit(${prioritized.length}>${CONTEXT_GUARDRAILS.maxFolderFiles})` : "";
-    const textFiles = limitedFiles.filter((item) => item.excerpt.length > 0).length;
-    const binaryFiles = Math.max(limitedFiles.length - textFiles, 0);
-    const manifest = limitedFiles
-      .slice(0, CONTEXT_GUARDRAILS.maxFolderManifestFiles)
-      .map((item, index) => `[${index + 1}] ${item.path || item.fileName} (${item.mimeType}, ${item.size}B)`)
-      .join("\n");
-    const excerpts = limitedFiles
-      .filter((item) => item.excerpt)
-      .slice(0, CONTEXT_GUARDRAILS.maxFolderExcerptFiles)
-      .map((item, index) => `[file ${index + 1}] ${item.path || item.fileName}\n${item.excerpt.slice(0, 800)}`)
-      .join("\n\n---\n\n");
-    const folderLabel = (input.folderName || input.fileName || "folder").trim();
-    const batchSize = 30;
-    const batchContexts = Array.from({ length: Math.ceil(limitedFiles.length / batchSize) }, (_, index) => {
-      const batch = limitedFiles.slice(index * batchSize, index * batchSize + batchSize);
-      const manifestPart = batch
-        .map((item, i) => `[${index * batchSize + i + 1}] ${item.path || item.fileName} (${item.mimeType})`)
-        .join("\n");
-      const excerptPart = batch
-        .filter((item) => item.excerpt)
-        .slice(0, 8)
-        .map((item, i) => `[${i + 1}] ${item.path || item.fileName}\n${item.excerpt.slice(0, 400)}`)
-        .join("\n\n");
-      return [`batch=${index + 1}`, `manifest:\n${manifestPart}`, excerptPart ? `excerpt:\n${excerptPart}` : ""].filter(Boolean).join("\n\n");
-    }).slice(0, 4);
-    const text = [
-      `folder=${folderLabel}`,
-      `manifest:\n${manifest}`,
-      excerpts ? `excerpt:\n${excerpts}` : "",
-      inlineVisionPayloads.length > 0
-        ? `vision:\n${inlineVisionPayloads.map((item, index) => `[image ${index + 1}] ${item.path || "attachment"} (${item.mimeType || "image"})`).join("\n")}`
-        : ""
-    ]
-      .filter(Boolean)
-      .join("\n\n")
-      .slice(0, 14000);
-    return {
-      text,
-      digest:
-        (input.excerptDigest || "").trim() ||
-        `strategy=folder-batch;considered=${consideredFiles};included=${limitedFiles.length};textFiles=${textFiles};binaryFiles=${binaryFiles};noiseSkipped=${skippedNoiseFiles};emptySkipped=${skippedEmptyFiles};sampled=${sampled ? "yes" : "no"}`,
-      strategy: "folder-batch",
-      fileStats: {
-        totalFiles: limitedFiles.length,
-        textFiles,
-        binaryFiles
-      },
-      fileSelection: {
-        consideredFiles,
-        includedFiles: limitedFiles.length,
-        skippedNoiseFiles,
-        skippedEmptyFiles,
-        sampled,
-        sampleReason,
-        includedPaths: limitedFiles.map((item) => item.path || item.fileName).slice(0, 12),
-        ignoredFiles: ignoredFiles.slice(0, 20)
-      },
-      batchContexts
-    };
-  }
-  const baseExcerpt = (input.excerpt || "").trim();
-  const chunks = Array.isArray(input.excerptChunks) ? input.excerptChunks.map((item) => item.trim()).filter(Boolean).slice(0, 8) : [];
-  const digest = (input.excerptDigest || "").trim();
-  const strategy = input.excerptStrategy || "direct";
-  if (chunks.length === 0) {
-    const baseText =
-      baseExcerpt.slice(0, 6000) ||
-      (inlineVisionPayloads.length > 0
-        ? inlineVisionPayloads
-            .map((item, index) => `[image ${index + 1}] ${item.path || input.fileName || "attachment"} (${item.mimeType || "image"})`)
-            .join("\n")
-        : "");
-    return {
-      text: baseText,
-      digest: digest || `strategy=${strategy};chunks=0`,
-      strategy,
-      fileStats: {
-        totalFiles: 1,
-        textFiles: baseExcerpt.length > 0 ? 1 : 0,
-        binaryFiles: baseExcerpt.length > 0 ? 0 : 1
-      },
-      fileSelection: {
-        consideredFiles: 1,
-        includedFiles: 1,
-        skippedNoiseFiles: 0,
-        skippedEmptyFiles: 0,
-        sampled: false,
-        sampleReason: "",
-        includedPaths: [input.fileName || "attachment"],
-        ignoredFiles: []
-      },
-      batchContexts: []
-    };
-  }
-  const stitched = chunks.map((chunk, index) => `[chunk ${index + 1}/${chunks.length}]\n${chunk}`).join("\n\n---\n\n").slice(0, 12000);
-  const combined = [
-    baseExcerpt.slice(0, 3000),
-    stitched,
-    inlineVisionPayloads.length > 0
-      ? inlineVisionPayloads
-          .map((item, index) => `[image ${index + 1}] ${item.path || input.fileName || "attachment"} (${item.mimeType || "image"})`)
-          .join("\n")
-      : ""
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+// Backward-compat shim:
+// some historical runtime paths referenced `evaluateContextGuardrail`.
+// Keep this symbol available to avoid hard failures when old call sites are still in memory.
+function evaluateContextGuardrail(input: {
+  excerptLength?: number;
+  chunkCount?: number;
+  sourceType?: "single-file" | "folder";
+}) {
+  const excerptLength = Number.isFinite(input?.excerptLength) ? Number(input.excerptLength) : 0;
+  const chunkCount = Number.isFinite(input?.chunkCount) ? Number(input.chunkCount) : 0;
+  const sourceType = input?.sourceType === "folder" ? "folder" : "single-file";
+  const overExcerpt = excerptLength > CONTEXT_GUARDRAILS.maxExcerptLength;
+  const overChunks = chunkCount > CONTEXT_GUARDRAILS.maxChunkCount;
+  const degraded = overExcerpt || overChunks;
+  const reason = degraded
+    ? `context_guardrail:source=${sourceType};excerpt=${excerptLength};chunks=${chunkCount};limits=${CONTEXT_GUARDRAILS.maxExcerptLength}/${CONTEXT_GUARDRAILS.maxChunkCount}`
+    : "";
   return {
-    text: combined.slice(0, 12000),
-    digest: digest || `strategy=${strategy};chunks=${chunks.length}`,
-    strategy,
-    fileStats: {
-      totalFiles: 1,
-      textFiles: combined.length > 0 ? 1 : 0,
-      binaryFiles: combined.length > 0 ? 0 : 1
-    },
-    fileSelection: {
-      consideredFiles: 1,
-      includedFiles: 1,
-      skippedNoiseFiles: 0,
-      skippedEmptyFiles: 0,
-      sampled: false,
-      sampleReason: "",
-      includedPaths: [input.fileName || "attachment"],
-      ignoredFiles: []
-    },
-    batchContexts: []
+    degraded,
+    reason,
+    enforceSingleAgent: degraded,
+    forceMultiAgent: sourceType === "folder" && !degraded,
+    promptBudgetRisk: degraded ? "high" as const : "low" as const
   };
 }
 
-function resolveVisionPayloads(input: AttachmentUploadInput): VisionPayload[] {
-  const fromTopLevel = Array.isArray(input.visionPayloads) ? input.visionPayloads : [];
-  const fromFiles = Array.isArray(input.files)
-    ? input.files
-        .map((item) => ({
-          path: item.path || item.fileName || input.fileName,
-          mimeType: item.mimeType || "image/*",
-          dataUrl: item.imageDataUrl || ""
-        }))
-        .filter((item) => item.dataUrl.trim().startsWith("data:image/"))
-    : [];
-  const merged = [...fromTopLevel, ...fromFiles]
-    .map((item) => ({
-      path: (item.path || "").trim().slice(0, 260),
-      mimeType: (item.mimeType || "").trim().slice(0, 120),
-      dataUrl: (item.dataUrl || "").trim()
-    }))
-    .filter((item) => item.dataUrl.startsWith("data:image/"))
-    .slice(0, 2);
-  return merged;
-}
-
-function evaluateContextGuardrail(excerptPayload: ReturnType<typeof composeAttachmentExcerpt>, input: AttachmentUploadInput) {
-  const chunkCount = Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0;
-  const hasVisionPayload =
-    (Array.isArray(input.visionPayloads) && input.visionPayloads.some((item) => (item?.dataUrl || "").startsWith("data:image/"))) ||
-    (Array.isArray(input.files) && input.files.some((item) => (item?.imageDataUrl || "").startsWith("data:image/")));
-  if (excerptPayload.strategy === "binary-no-text" && !hasVisionPayload) {
-    return { degraded: true, reason: "binary-no-text-requires-clarification" };
+async function synthesizeExecutionPolicyOp(
+  agentRunner: AgentRunner | null,
+  params: {
+    iterationName: string;
+    fileName: string;
+    sourceType: "single-file" | "folder";
+    excerptPayload: ReturnType<typeof composeAttachmentExcerpt>;
+    chunkCount: number;
+    forceMultiAgentHint?: boolean;
   }
-  if (
-    (input.sourceType === "folder" || excerptPayload.strategy === "folder-batch") &&
-    excerptPayload.fileSelection.consideredFiles > CONTEXT_GUARDRAILS.maxFolderFiles * 2
-  ) {
-    return {
-      degraded: true,
-      reason: `folder-too-large(${excerptPayload.fileSelection.consideredFiles}>${CONTEXT_GUARDRAILS.maxFolderFiles * 2})`
-    };
-  }
-  if (excerptPayload.text.length > CONTEXT_GUARDRAILS.maxExcerptLength) {
-    return { degraded: true, reason: `excerpt-too-long(${excerptPayload.text.length}>${CONTEXT_GUARDRAILS.maxExcerptLength})` };
-  }
-  if (chunkCount > CONTEXT_GUARDRAILS.maxChunkCount) {
-    return { degraded: true, reason: `chunk-count-too-large(${chunkCount}>${CONTEXT_GUARDRAILS.maxChunkCount})` };
-  }
-  return { degraded: false, reason: "" };
-}
-
-function shouldUseSingleAgentFastPath(
-  input: AttachmentUploadInput,
-  excerptPayload: ReturnType<typeof composeAttachmentExcerpt>
 ) {
-  if (input.sourceType === "folder" || excerptPayload.fileStats.totalFiles > 1) {
-    return false;
+  if (!agentRunner) {
+    throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
-  if (excerptPayload.text.length > 1800) {
-    return false;
-  }
-  return true;
-}
-
-function buildClarificationQuestions(params: {
-  guardrail: { degraded: boolean; reason: string };
-  unknownSignalCount: number;
-  unknownSignalThreshold: number;
-  strategy: string;
-  diffLocations: AttachmentAnalysisReport["diffLocations"];
-}) {
-  const questions: string[] = [];
-  if (params.guardrail.degraded) {
-    questions.push(`当前分析触发上下文降级（${params.guardrail.reason}），请确认本次迭代边界是否仅包含已列出的差异项。`);
-  }
-  if (params.strategy === "binary-no-text") {
-    questions.push("附件无法直接抽取文本。请补充该附件对应的核心需求、受影响页面/接口和验收标准。");
-  }
-  if (params.unknownSignalCount >= params.unknownSignalThreshold) {
-    questions.push(`模型输出存在较多 unknown 信号（${params.unknownSignalCount}）。请确认关键事实：需求范围、数据口径、上线门禁。`);
-  }
-  if (params.diffLocations.length === 0) {
-    questions.push("未识别到明确差异，请确认是否属于文案优化、布局微调或跨模块需求。");
-  }
-  return Array.from(new Set(questions));
-}
-
-function parseJsonObjectFromText(text: string) {
-  const content = (text || "").trim();
-  if (!content) {
-    return null;
-  }
-  try {
-    return JSON.parse(content) as Record<string, unknown>;
-  } catch {
-    const start = content.indexOf("{");
-    const end = content.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-}
-
-function pickString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function pickStringList(value: unknown, max = 8) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0)
-    .slice(0, max);
-}
-
-function extractGeneratedTestMatrix(agentOutputs: IterationAgentOutput[]) {
-  for (const output of agentOutputs) {
-    if (output.role !== "qa-reviewer" || output.status !== "success") {
-      continue;
-    }
-    const parsed = parseJsonObjectFromText(output.content);
-    const matrix = parsed?.testMatrix;
-    if (!Array.isArray(matrix)) {
-      continue;
-    }
-    const normalized = matrix
-      .map((item, index) => {
-        const row = item as Record<string, unknown>;
-        const type = typeof row.type === "string" ? row.type.trim() : "";
-        const caseId = typeof row.caseId === "string" ? row.caseId.trim() : `auto-case-${index + 1}`;
-        const focus = typeof row.focus === "string" ? row.focus.trim() : "";
-        const expected = typeof row.expected === "string" ? row.expected.trim() : "";
-        const evidence = typeof row.evidence === "string" ? row.evidence.trim() : "";
-        return {
-          type,
-          caseId,
-          focus,
-          expected,
-          evidence,
-          executionStatus: "pending" as const,
-          executionUpdatedAt: "",
-          executionBy: "",
-          executionNote: ""
-        };
-      })
-      .filter((item) => item.type || item.caseId || item.focus || item.expected || item.evidence)
-      .slice(0, 50);
-    if (normalized.length > 0) {
-      return normalized;
-    }
-  }
-  return [];
-}
-
-function extractBoundarySuggestion(agentOutputs: IterationAgentOutput[]) {
-  for (const output of agentOutputs) {
-    if (output.role !== "boundary-guardian" || output.status !== "success") {
-      continue;
-    }
-    const parsed = parseJsonObjectFromText(output.content);
-    const boundaryRaw = (parsed?.boundary ?? {}) as Record<string, unknown>;
-    const requirementRefs = pickStringList(boundaryRaw.requirementRefs, 12);
-    const componentRefs = pickStringList(boundaryRaw.componentRefs, 12);
-    const codePaths = pickStringList(boundaryRaw.codePaths, 12);
-    const note = pickString(boundaryRaw.note);
-    const hasAny = requirementRefs.length > 0 || componentRefs.length > 0 || codePaths.length > 0 || note.length > 0;
-    if (hasAny) {
-      return { requirementRefs, componentRefs, codePaths, note };
-    }
-  }
-  return null;
-}
-
-function extractReleaseOpsActions(agentOutputs: IterationAgentOutput[]) {
-  for (const output of agentOutputs) {
-    if (output.role !== "release-ops-advisor" || output.status !== "success") {
-      continue;
-    }
-    const parsed = parseJsonObjectFromText(output.content);
-    const hypotheses = Array.isArray(parsed?.hypotheses) ? (parsed?.hypotheses as Array<Record<string, unknown>>) : [];
-    const triageSteps = Array.isArray(parsed?.triageSteps) ? (parsed?.triageSteps as Array<Record<string, unknown>>) : [];
-    const rollbackDecision = (parsed?.rollbackDecision ?? {}) as Record<string, unknown>;
-    const actions: string[] = [];
-    for (const item of hypotheses.slice(0, 3)) {
-      const priority = pickString(item.priority) || "P1";
-      const content = pickString(item.item);
-      if (content) {
-        actions.push(`运维假设(${priority})：${content}`);
-      }
-    }
-    for (const step of triageSteps.slice(0, 3)) {
-      const detail = pickString(step.step);
-      if (detail) {
-        actions.push(`排障步骤：${detail}`);
-      }
-    }
-    const shouldRollback = Boolean(rollbackDecision.shouldRollback);
-    const reason = pickString(rollbackDecision.reason);
-    if (shouldRollback || reason) {
-      actions.push(`回滚建议：${shouldRollback ? "建议回滚" : "暂不回滚"}${reason ? `（${reason}）` : ""}`);
-    }
-    if (actions.length > 0) {
-      return actions.slice(0, 6);
-    }
-  }
-  return [];
-}
-
-function listParsedRoleOutputs(agentOutputs: IterationAgentOutput[], role: IterationAgentOutput["role"]) {
-  return agentOutputs
-    .filter((item) => item.role === role && item.status === "success")
-    .map((item) => parseJsonObjectFromText(item.content))
-    .filter((item): item is Record<string, unknown> => Boolean(item));
-}
-
-function extractReleaseOpsStructured(agentOutputs: IterationAgentOutput[]) {
-  const parsed = listParsedRoleOutputs(agentOutputs, "release-ops-advisor")[0] ?? null;
-  const hypotheses = Array.isArray(parsed?.hypotheses) ? (parsed?.hypotheses as Array<Record<string, unknown>>) : [];
-  const triageSteps = Array.isArray(parsed?.triageSteps) ? (parsed?.triageSteps as Array<Record<string, unknown>>) : [];
-  const rollbackDecision = (parsed?.rollbackDecision ?? {}) as Record<string, unknown>;
-  return {
-    hypotheses: hypotheses
-      .slice(0, 5)
-      .map((item) => ({
-        priority: pickString(item.priority) || "P1",
-        item: pickString(item.item),
-        evidence: pickString(item.evidence)
-      }))
-      .filter((item) => item.item),
-    triageSteps: triageSteps
-      .slice(0, 6)
-      .map((item) => ({
-        step: pickString(item.step),
-        expectedSignal: pickString(item.expectedSignal),
-        fallback: pickString(item.fallback)
-      }))
-      .filter((item) => item.step),
-    rollbackDecision: {
-      shouldRollback: Boolean(rollbackDecision.shouldRollback),
-      reason: pickString(rollbackDecision.reason),
-      trigger: pickString(rollbackDecision.trigger)
-    }
+  const prompt = {
+    agentId: "agent-execution-policy-1",
+    role: "orchestrator" as const,
+    scope: "attachment" as const,
+    goal: "决定本轮分析执行策略（是否降级、是否单Agent）",
+    expectedOutput: "JSON: {degraded,reason,enforceSingleAgent,forceMultiAgent,promptBudgetRisk}",
+    systemPrompt:
+      "你是LLM编排策略器。你必须只输出 JSON，不得输出解释。根据上下文规模和信息质量判断执行策略。",
+    userPrompt: [
+      `iteration=${params.iterationName};file=${params.fileName};sourceType=${params.sourceType}`,
+      `strategy=${params.excerptPayload.strategy};digest=${params.excerptPayload.digest}`,
+      `fileStats=total:${params.excerptPayload.fileStats.totalFiles},text:${params.excerptPayload.fileStats.textFiles},binary:${params.excerptPayload.fileStats.binaryFiles}`,
+      `fileSelection=considered:${params.excerptPayload.fileSelection.consideredFiles},included:${params.excerptPayload.fileSelection.includedFiles},sampled:${params.excerptPayload.fileSelection.sampled ? "yes" : "no"}`,
+      `excerptLength=${params.excerptPayload.text.length};chunkCount=${params.chunkCount}`,
+      `forceMultiAgentHint=${params.forceMultiAgentHint ? "yes" : "no"}`,
+      `textPreview=${params.excerptPayload.text.slice(0, 1800) || "-"}`,
+      "输出要求：",
+      "1) degraded: true/false",
+      "2) reason: 简要原因",
+      "3) enforceSingleAgent: true/false",
+      "4) forceMultiAgent: true/false",
+      "5) promptBudgetRisk: low/medium/high"
+    ].join("\n\n")
   };
+  let selected = await runAnalysisPrompt(agentRunner, prompt);
+  let candidate = parseExecutionPolicyCandidate(selected.content);
+  let missing = listExecutionPolicyMissingReasons(candidate);
+  for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
+    const repairPrompt = {
+      ...prompt,
+      agentId: `agent-execution-policy-repair-${attempt}`,
+      userPrompt: [
+        prompt.userPrompt,
+        "请仅输出严格 JSON 并修复以下问题：",
+        missing.join("; "),
+        `上一版输出：${selected.content.slice(0, 1600)}`
+      ].join("\n\n")
+    };
+    selected = await runAnalysisPrompt(agentRunner, repairPrompt);
+    candidate = parseExecutionPolicyCandidate(selected.content);
+    missing = listExecutionPolicyMissingReasons(candidate);
+  }
+  if (missing.length > 0) {
+    throw new LlmInvocationError(`execution policy payload invalid: ${missing.join(", ")}`);
+  }
+  return candidate;
 }
 
-function extractReleaseReview(agentOutputs: IterationAgentOutput[]) {
-  const qaParsed = listParsedRoleOutputs(agentOutputs, "qa-reviewer")[0] ?? null;
-  const deliveryParsed = listParsedRoleOutputs(agentOutputs, "delivery-engineer")[0] ?? null;
-  const qaDecision = (qaParsed?.releaseDecision ?? {}) as Record<string, unknown>;
-  const qaBlockers = pickStringList(qaDecision.blockers, 8);
-  const qaPass = Boolean(qaDecision.pass);
-  const releaseReason = pickString(qaDecision.reason);
-  const releaseGates = pickStringList(deliveryParsed?.releaseGates, 8);
-  const rollbackPlan = Array.isArray(deliveryParsed?.rollbackPlan)
-    ? (deliveryParsed?.rollbackPlan as Array<Record<string, unknown>>)
-        .slice(0, 5)
-        .map((item) => {
-          const trigger = pickString(item.trigger);
-          const action = pickString(item.action);
-          return [trigger, action].filter(Boolean).join(" -> ");
-        })
-        .filter(Boolean)
-    : [];
-  return {
-    qaPass,
-    releaseReason,
-    blockers: qaBlockers,
-    releaseGates,
-    rollbackPlan
+async function synthesizeFolderSelectionOp(
+  agentRunner: AgentRunner | null,
+  input: AttachmentUploadInput
+): Promise<FolderSelectionDecision> {
+  if (!agentRunner) {
+    throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
+  }
+  const files = Array.isArray(input.files) ? input.files : [];
+  const manifest = files
+    .slice(0, 600)
+    .map((item, index) => {
+      const path = (item.path || item.fileName || "").trim();
+      const mime = (item.mimeType || "application/octet-stream").trim();
+      const size = Number.isFinite(item.size) ? item.size : 0;
+      const excerpt = (item.excerpt || "").trim().slice(0, 200);
+      return `[${index + 1}] path=${path};mime=${mime};size=${size};excerpt=${excerpt || "[empty]"}`;
+    })
+    .join("\n");
+  const prompt = {
+    agentId: "agent-folder-selection-1",
+    role: "orchestrator" as const,
+    scope: "attachment" as const,
+    goal: "选择本轮分析应纳入的文件",
+    expectedOutput: "JSON: {includedPaths:[], ignoredFiles:[{path,reason}], sampleReason}",
+    systemPrompt:
+      "你是分析上下文策展器。你必须只输出 JSON，不得输出解释文本。基于业务价值、可解析性和版本相关性选择文件。",
+    userPrompt: [
+      `folder=${input.folderName || input.fileName || "folder"}`,
+      `totalFiles=${files.length}`,
+      "请从以下文件清单中选出应纳入本轮分析的文件路径 includedPaths。",
+      "忽略的文件请写入 ignoredFiles，并给出 reason。",
+      "file manifest:",
+      manifest
+    ].join("\n\n")
   };
+  let selected = await runAnalysisPrompt(agentRunner, prompt);
+  let candidate = parseFolderSelectionCandidate(selected.content);
+  let missing = listFolderSelectionMissingReasons(candidate);
+  for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
+    const repairPrompt = {
+      ...prompt,
+      agentId: `agent-folder-selection-repair-${attempt}`,
+      userPrompt: [
+        prompt.userPrompt,
+        "你上一版输出缺少必填项，请仅输出严格 JSON。",
+        `缺失项：${missing.join("; ")}`,
+        `上一版输出：${selected.content.slice(0, 2000)}`
+      ].join("\n\n")
+    };
+    selected = await runAnalysisPrompt(agentRunner, repairPrompt);
+    candidate = parseFolderSelectionCandidate(selected.content);
+    missing = listFolderSelectionMissingReasons(candidate);
+  }
+  if (missing.length > 0) {
+    throw new LlmInvocationError(`folder selection payload invalid: ${missing.join(", ")}`);
+  }
+  return candidate;
 }
 
-function tokenizeRequirement(value: string) {
-  const normalized = value.toLowerCase();
-  const tokens = normalized
-    .split(/[^a-zA-Z0-9\u4e00-\u9fa5]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 2)
-    .slice(0, 8);
-  return Array.from(new Set(tokens));
-}
 
-function scorePathAgainstRequirement(requirement: string, path: string) {
-  const lowerPath = path.toLowerCase();
-  const tokens = tokenizeRequirement(requirement);
-  if (tokens.length === 0) {
-    return 0;
+async function synthesizeDeepInsightsOp(
+  agentRunner: AgentRunner | null,
+  params: {
+    input: AttachmentUploadInput;
+    excerptPayload: ReturnType<typeof composeAttachmentExcerpt>;
+    prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"];
+    clarificationQuestions: string[];
   }
-  return tokens.reduce((total, token) => (lowerPath.includes(token) ? total + 1 : total), 0);
-}
-
-function inferMappedPages(codePaths: string[]) {
-  return codePaths
-    .filter((item) => /(page|view|screen|ui|component)/i.test(item))
-    .slice(0, 6);
-}
-
-function inferMappedApis(codePaths: string[]) {
-  return codePaths
-    .filter((item) => /(route|controller|api|interfaces\/http)/i.test(item))
-    .slice(0, 6);
-}
-
-function inferMappedEntities(codePaths: string[], excerpt: string) {
-  const entitiesFromPath = codePaths
-    .filter((item) => /(entity|model|domain)/i.test(item))
-    .map((item) => item.split("/").pop() || item)
-    .map((item) => item.replace(/\.[a-z0-9]+$/i, ""))
-    .filter(Boolean)
-    .slice(0, 6);
-  const excerptEntities = excerpt
-    .split(/[，。；、\n:：/ ]/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 2 && item.length <= 24 && /(用户|订单|商品|账户|项目|任务|权限|配置|支付|库存)/.test(item))
-    .slice(0, 6);
-  return Array.from(new Set([...entitiesFromPath, ...excerptEntities])).slice(0, 8);
-}
-
-function buildTraceabilityMap(params: {
-  requirements: string[];
-  components: string[];
-  codePaths: string[];
-  prioritizedFindings: Array<{ priority: "P0" | "P1" | "P2"; content: string; reason: string }>;
-}) {
-  const requirements = params.requirements.slice(0, 8);
-  const components = params.components.slice(0, 8);
-  const codePaths = params.codePaths.slice(0, 12);
-  const requirementToComponent =
-    requirements.length > 0
-      ? requirements.map((requirement) => ({
-          requirement,
-          components:
-            components
-              .map((component) => ({ component, score: scorePathAgainstRequirement(requirement, component) }))
-              .sort((a, b) => b.score - a.score)
-              .map((item) => item.component)
-              .slice(0, 4),
-          evidence: "来源：需求范围与边界组件集合"
-        }))
-      : [];
-  const componentToCode =
-    components.length > 0
-      ? components.map((component) => ({
-          component,
-          codePaths: codePaths.slice(0, 4),
-          evidence: "来源：边界 codePaths 与交付计划路径"
-        }))
-      : [];
-  const requirementToCode =
-    requirements.length > 0
-      ? requirements.map((requirement) => ({
-          requirement,
-          codePaths:
-            codePaths
-              .map((path) => ({ path, score: scorePathAgainstRequirement(requirement, path) }))
-              .sort((a, b) => b.score - a.score)
-              .map((item) => item.path)
-              .slice(0, 4),
-          evidence: "来源：需求边界与代码路径白名单"
-        }))
-      : [];
-  const unmappedRequirements = requirementToCode
-    .filter((item) => item.codePaths.length === 0)
-    .map((item) => item.requirement)
-    .slice(0, 8);
-  const conflicts: string[] = [];
-  for (const item of requirementToCode) {
-    if (item.codePaths.length > 0 && components.length === 0) {
-      conflicts.push(`需求「${item.requirement}」映射到代码，但缺少组件映射。`);
-    }
+) {
+  if (!agentRunner) {
+    throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
-  const mapConfidence: "high" | "medium" | "low" =
-    unmappedRequirements.length === 0 && conflicts.length === 0
-      ? "high"
-      : unmappedRequirements.length <= Math.ceil(Math.max(1, requirements.length * 0.3))
-        ? "medium"
-        : "low";
-  const mappingSlots = requirements.length * 3;
-  const mappedSlots = requirementToComponent.length + requirementToCode.length + componentToCode.length;
-  const coverageScore = mappingSlots === 0 ? 0 : Math.min(100, Math.round((mappedSlots / mappingSlots) * 100));
-  const gaps: string[] = [];
-  if (requirements.length === 0) {
-    gaps.push("缺少 requirementRefs，无法形成需求侧映射。");
-  }
-  if (components.length === 0) {
-    gaps.push("缺少 componentRefs，无法形成组件侧映射。");
-  }
-  if (codePaths.length === 0) {
-    gaps.push("缺少 codePaths，无法形成代码路径映射。");
-  }
-  if (params.prioritizedFindings.some((item) => item.priority === "P0") && codePaths.length === 0) {
-    gaps.push("存在 P0 发现但缺少路径白名单，发布风险不可控。");
-  }
-  return {
-    requirementToComponent,
-    componentToCode,
-    requirementToCode,
-    coverageScore,
-    mappingConfidence: mapConfidence,
-    unmappedRequirements,
-    conflicts: Array.from(new Set(conflicts)).slice(0, 8),
-    gaps: Array.from(new Set(gaps)).slice(0, 8)
+  const fileManifest = buildDeepInsightsFileManifest(params.input);
+  const prompt = {
+    agentId: "agent-deep-insights-1",
+    role: "orchestrator" as const,
+    scope: "attachment" as const,
+    goal: "生成逐文件深度洞察与跨文件综合洞察",
+    expectedOutput:
+      "JSON: {coverage:{consideredFiles,analyzedFiles,partialFiles,failedFiles,coveragePercent}, fileInsights:[{path,fileName,mimeType,size,kind,status,mainContent,requiredWork,iterationValue,summary,keyPoints,risks,optimizeItems,keepItems,recommendedActions,openQuestions,citations,confidence}], crossFileInsights:{themes,conflicts,gaps,recommendations,conflictChains,rootCauses,impactScope,decisionSuggestions}}",
+    systemPrompt:
+      "你是资深需求分析师。你必须只输出 JSON，不得输出解释文字。逐文件洞察必须基于输入文件内容，不得虚构。",
+    userPrompt: [
+      `sourceType=${params.input.sourceType === "folder" ? "folder" : "single-file"};target=${params.input.fileName}`,
+      `digest=${params.excerptPayload.digest}`,
+      `prioritizedFindings=${params.prioritizedFindings.map((item) => `${item.priority}:${item.content}`).join(" | ") || "-"}`,
+      `clarificationQuestions=${params.clarificationQuestions.join(" | ") || "-"}`,
+      `files:\n${fileManifest}`,
+      "输出要求：",
+      "1) fileInsights 必须覆盖输入文件（可对信息不足文件给 partial/failed）。",
+      "2) kind 仅允许 document/code/image/prototype/binary。",
+      "3) status 仅允许 analyzed/partial/failed。",
+      "4) confidence 仅允许 high/medium/low。",
+      "5) 每个文件必须回答：mainContent(文件主要内容)、requiredWork(要做什么)、iterationValue(对当前迭代为何必要)。",
+      "6) 每个文件给出 summary/keyPoints/risks/optimizeItems/keepItems/recommendedActions/openQuestions/citations。",
+      "7) 如果是 HTML/原型，必须描述关键交互形态与状态变化。",
+      "8) optimizeItems 必须是需优化内容，keepItems 必须是应保持内容。",
+      "9) crossFileInsights 必须给出 themes/conflicts/gaps/recommendations/conflictChains/rootCauses/impactScope/decisionSuggestions。"
+    ].join("\n\n")
   };
-}
-
-function inferDiffRisk(item: string) {
-  const text = item.toLowerCase();
-  if (/(auth|payment|权限|鉴权|风控|库存|结算|生产|回滚)/.test(text)) {
-    return "high" as const;
+  let selected = await runAnalysisPrompt(agentRunner, prompt);
+  let candidate = parseDeepInsightsCandidate(selected.content);
+  let missing = listDeepInsightsMissingReasons(candidate);
+  for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
+    const repairPrompt = {
+      ...prompt,
+      agentId: `agent-deep-insights-repair-${attempt}`,
+      userPrompt: [
+        prompt.userPrompt,
+        "你上一版输出未满足必填字段，请仅输出严格 JSON 并补齐：",
+        `缺失项：${missing.join("; ")}`,
+        `上一版输出：${selected.content.slice(0, 2400)}`
+      ].join("\n\n")
+    };
+    selected = await runAnalysisPrompt(agentRunner, repairPrompt);
+    candidate = parseDeepInsightsCandidate(selected.content);
+    missing = listDeepInsightsMissingReasons(candidate);
   }
-  if (/(api|接口|schema|model|路由|controller|service)/.test(text)) {
-    return "medium" as const;
+  if (missing.length > 0) {
+    throw new LlmInvocationError(`deep insights payload invalid: ${missing.join(", ")}`);
   }
-  return "low" as const;
+  return candidate;
 }
 
-function buildVersionDiffDetailed(params: {
-  added: string[];
-  changed: string[];
-  removed: string[];
-  diffLocations: AttachmentAnalysisReport["diffLocations"];
-}) {
-  const toItems = (items: string[], fallbackDimension: string) =>
-    items.slice(0, 12).map((item) => ({
-      dimension:
-        params.diffLocations.find((entry) => entry.currentItem === item || entry.baselineItem === item)?.dimension || fallbackDimension,
-      item,
-      impact: inferDiffRisk(item) === "high" ? "涉及核心链路或高风险能力，需增加回归与发布门禁。" : "影响受控，按边界与验收清单推进。",
-      risk: inferDiffRisk(item)
-    }));
-  const impactScope = Array.from(
-    new Set(params.diffLocations.map((item) => item.dimension).filter(Boolean))
-  ).map((item) => String(item));
-  const allRiskItems = [...params.added, ...params.changed, ...params.removed];
-  const highRiskPoints = allRiskItems.filter((item) => inferDiffRisk(item) === "high");
-  return {
-    summary: `新增${params.added.length}项，变化${params.changed.length}项，移除${params.removed.length}项。`,
-    impactScope,
-    riskPoints: highRiskPoints.slice(0, 8),
-    added: toItems(params.added, "inScope"),
-    changed: toItems(params.changed, "inScope"),
-    removed: toItems(params.removed, "inScope")
-  };
-}
-
-function buildDomainKnowledge(params: {
-  requirements: string[];
-  codePaths: string[];
-  excerpt: string;
-  agentOutputs: IterationAgentOutput[];
-  projectCategory: string;
-}) {
-  const requirementTerms = params.requirements
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 8);
-  const parsedRequirements = listParsedRoleOutputs(params.agentOutputs, "requirements-analyst")[0] ?? null;
-  const parsedUnknowns = pickStringList(parsedRequirements?.unknowns, 8);
-  const parsedRules = pickStringList((parsedRequirements?.assumptions ?? []) as unknown, 8);
-  const termCandidates =
-    requirementTerms.length > 0
-      ? requirementTerms
-      : params.excerpt
-          .split(/[，。；、\n:：]/)
-          .map((item) => item.trim())
-          .filter((item) => item.length >= 2 && item.length <= 28)
-          .slice(0, 8);
-  const terms = termCandidates.map((term) => ({
-    term,
-    definition: `与${params.projectCategory || "业务"}相关的需求术语，需在实现与验收中保持一致语义。`,
-    mappedTo: {
-      pages: inferMappedPages(params.codePaths),
-      apis: inferMappedApis(params.codePaths),
-      entities: inferMappedEntities(params.codePaths, params.excerpt),
-      codePaths: params.codePaths.slice(0, 3)
-    },
-    evidence: "来源：需求条目 / 附件摘要",
-    bindingStrength:
-      params.codePaths.length >= 3 ? ("high" as const) : params.codePaths.length >= 1 ? ("medium" as const) : ("low" as const)
-  }));
-  return {
-    terms,
-    rules: parsedRules.length > 0 ? parsedRules : ["高风险需求必须有可验证验收项与回归点。"],
-    unknowns: parsedUnknowns
-  };
-}
 
 async function executeAgentPlanOp(
   agentRunner: AgentRunner | null,
@@ -756,297 +346,78 @@ async function executeAgentPlanOp(
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
   const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-  const configuredParallelism = Number.parseInt((processEnv.LLM_PLAN_PARALLELISM || "").trim(), 10);
-  const parallelism = Number.isInteger(configuredParallelism) && configuredParallelism > 0 ? Math.min(configuredParallelism, 6) : 2;
-  const outputs: IterationAgentOutput[] = [];
-  for (let i = 0; i < prompts.length; i += parallelism) {
-    const group = prompts.slice(i, i + parallelism);
-    const groupOutputs = await Promise.all(
-      group.map(async (prompt) => {
-        let result;
-        try {
-          result = await agentRunner.run(prompt, {
-            imageDataUrls: visionPayloads.map((item) => item.dataUrl)
-          });
-        } catch (error) {
-          throw new LlmInvocationError(`LLM invocation failed for ${prompt.role}: ${error instanceof Error ? error.message : "unknown_error"}`);
-        }
-        return {
-          agentId: prompt.agentId,
-          role: prompt.role,
-          status: "success",
-          content: result.content,
-          model: result.model
-        } as IterationAgentOutput;
-      })
-    );
-    outputs.push(...groupOutputs);
-  }
-  return outputs;
+  const parallelism = resolvePlanParallelismFromEnv(processEnv);
+  return executeAgentPlanPromptsOp({
+    prompts,
+    parallelism,
+    imageDataUrls: visionPayloads.map((item) => item.dataUrl),
+    runPrompt: (prompt, options) => runAnalysisPrompt(agentRunner, prompt, options)
+  });
 }
 
-function extractGeneratedQualityArtifacts(agentOutputs: IterationAgentOutput[]) {
-  const qaParsed = listParsedRoleOutputs(agentOutputs, "qa-reviewer")[0] ?? null;
-  const pickList = (value: unknown, max = 20) =>
-    Array.isArray(value)
-      ? value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, max)
-      : [];
-  const unitTests = pickList(qaParsed?.unitTests, 20);
-  const contractTests = pickList(qaParsed?.contractTests, 20);
-  const acceptanceChecklist = pickList(qaParsed?.acceptanceChecklist, 20);
-  const regressionPoints = pickList(qaParsed?.regressionsToWatch, 20);
-  return { unitTests, contractTests, acceptanceChecklist, regressionPoints, materializedFiles: [] as string[] };
-}
 
-async function synthesizeProjectProfileOp(
+async function synthesizeAttachmentInsightsOp(
   agentRunner: AgentRunner | null,
   params: {
     iterationName: string;
+    fileName: string;
     sourceType: "single-file" | "folder";
-    analyzedTarget: string;
     excerpt: string;
-    fileStats: { totalFiles: number; textFiles: number; binaryFiles: number };
     versionDiff: { added: string[]; changed: string[]; removed: string[] };
-    agentOutputs: IterationAgentOutput[];
-    contextLabel?: string;
+    diffLocations: AttachmentAnalysisReport["diffLocations"];
+    visionPayloads?: VisionPayload[];
   }
-): Promise<{
-  projectDetection: AttachmentAnalysisReport["projectDetection"];
-  meaningfulFindings: string[];
-  prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"];
-  nextActions: string[];
-  synthesisOutput?: IterationAgentOutput;
-}> {
+) {
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
-  const compactOutputLength = params.sourceType === "single-file" ? 320 : 520;
-  const compactOutputs = params.agentOutputs
-    .slice(0, 6)
-    .map((item) => `${item.role}:${item.status}\n${(item.content || "").slice(0, compactOutputLength)}`)
-    .join("\n\n---\n\n");
   const prompt = {
-    agentId: "agent-report-synthesis-1",
+    agentId: "agent-attachment-insights-1",
     role: "orchestrator" as const,
     scope: "attachment" as const,
-    goal: "识别项目/产品并输出高价值发现",
-    expectedOutput:
-      "JSON: {projectDetection:{projectName,productName,projectCategory,evidence[]}, meaningfulFindings:[...], prioritizedFindings:[{priority,content,reason}], nextActions:[...]}",
+    goal: "输出附件洞察摘要",
+    expectedOutput: "JSON: {projectCategory,artifactType,keyCharacteristics[],versionChangeSummary,confidence,limitations[]}",
     systemPrompt:
-      "你是资深产品分析师。你必须只输出 JSON，不得输出解释文字。输出必须具体、可证据化，禁止空泛话术。",
+      "你是产品分析专家。你必须只输出 JSON，不得输出解释文本。confidence 只能是 high/medium/low。",
     userPrompt: [
-      `分析目标=${params.analyzedTarget};sourceType=${params.sourceType};iteration=${params.iterationName};context=${params.contextLabel || "primary"}`,
-      `文件统计=total:${params.fileStats.totalFiles},text:${params.fileStats.textFiles},binary:${params.fileStats.binaryFiles}`,
-      `版本差异=added:${params.versionDiff.added.join(" | ") || "-"};changed:${params.versionDiff.changed.join(" | ") || "-"};removed:${
-        params.versionDiff.removed.join(" | ") || "-"
-      }`,
-      `附件节选:\n${params.excerpt.slice(0, 2500) || "无"}`,
-      `多Agent输出:\n${compactOutputs || "无"}`,
-      "请输出：1)项目名称 2)产品名称 3)项目类别 4)依据(evidence<=4条) 5)关键发现(meaningfulFindings<=8条) 6)优先级发现(prioritizedFindings<=8条，priority=P0/P1/P2) 7)下一步动作(nextActions<=6条)。"
+      `iteration=${params.iterationName};file=${params.fileName};sourceType=${params.sourceType}`,
+      `diff=added:${params.versionDiff.added.join(" | ") || "-"};changed:${params.versionDiff.changed.join(" | ") || "-"};removed:${params.versionDiff.removed.join(" | ") || "-"}`,
+      `diffLocations=${params.diffLocations.map((item) => `${item.dimension}/${item.changeType}:${item.baselineItem || "-"}->${item.currentItem}`).join(" | ") || "-"}`,
+      `excerpt=${params.excerpt.slice(0, 2600) || "-"}`,
+      "输出要求：projectCategory、artifactType、keyCharacteristics(1-8)、versionChangeSummary、confidence、limitations(0-8)。"
     ].join("\n\n")
   };
-  try {
-    const parseCandidate = (content: string) => {
-      const parsed = parseJsonObjectFromText(content);
-      const rawProject = (parsed?.projectDetection ?? {}) as Record<string, unknown>;
-      const projectName = pickString(rawProject.projectName);
-      const productName = pickString(rawProject.productName);
-      const projectCategory = pickString(rawProject.projectCategory);
-      const evidence = pickStringList(rawProject.evidence, 4);
-      const meaningfulFindings = pickStringList(parsed?.meaningfulFindings, 8);
-      const prioritizedFindings = Array.isArray(parsed?.prioritizedFindings)
-        ? parsed.prioritizedFindings
-            .map((item) => item as Record<string, unknown>)
-            .map((item) => ({
-              priority: pickString(item.priority) as "P0" | "P1" | "P2",
-              content: pickString(item.content),
-              reason: pickString(item.reason)
-            }))
-            .filter((item) => (item.priority === "P0" || item.priority === "P1" || item.priority === "P2") && item.content)
-            .slice(0, 8)
-        : [];
-      const nextActions = pickStringList(parsed?.nextActions, 6);
-      return { projectName, productName, projectCategory, evidence, meaningfulFindings, prioritizedFindings, nextActions };
+  const imageDataUrls = (params.visionPayloads || []).map((item) => item.dataUrl).filter(Boolean);
+  let selected = await runAnalysisPrompt(agentRunner, prompt, { imageDataUrls });
+  let candidate = parseAttachmentInsightsCandidate(selected.content);
+  let missing = listAttachmentInsightsMissingReasons(candidate);
+  for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
+    const repairPrompt = {
+      ...prompt,
+      agentId: `agent-attachment-insights-repair-${attempt}`,
+      userPrompt: [
+        prompt.userPrompt,
+        "请仅输出严格 JSON 并补齐以下缺失项：",
+        missing.join("; "),
+        `上一版输出：${selected.content.slice(0, 2200)}`
+      ].join("\n\n")
     };
-    const missingReasonsOf = (candidate: ReturnType<typeof parseCandidate>) => {
-      const reasons: string[] = [];
-      if (!candidate.projectName && !candidate.productName) reasons.push("missing projectDetection.projectName/productName");
-      if (candidate.meaningfulFindings.length === 0) reasons.push("meaningfulFindings is empty");
-      if (candidate.prioritizedFindings.length === 0) reasons.push("prioritizedFindings is empty");
-      if (candidate.nextActions.length === 0) reasons.push("nextActions is empty");
-      return reasons;
-    };
-
-    let selectedResult = await agentRunner.run(prompt);
-    let candidate = parseCandidate(selectedResult.content);
-    let missingReasons = missingReasonsOf(candidate);
-
-    const maxRepairAttempts = params.sourceType === "single-file" && params.fileStats.totalFiles <= 1 ? 1 : 2;
-    for (let attempt = 1; attempt <= maxRepairAttempts && missingReasons.length > 0; attempt += 1) {
-      const repairPrompt = {
-        ...prompt,
-        agentId: `agent-report-synthesis-repair-${attempt}`,
-        userPrompt: [
-          prompt.userPrompt,
-          "你上一版输出不满足必填字段约束。请只输出严格 JSON，且必须满足：",
-          "1) projectDetection.projectName 或 projectDetection.productName 至少一个非空",
-          "2) meaningfulFindings 至少 1 条",
-          "3) prioritizedFindings 至少 1 条且 priority 仅允许 P0/P1/P2",
-          "4) nextActions 至少 1 条",
-          `本次缺失项：${missingReasons.join("; ")}`,
-          `上一版输出：\n${selectedResult.content.slice(0, 2400)}`
-        ].join("\n\n")
-      };
-      selectedResult = await agentRunner.run(repairPrompt);
-      candidate = parseCandidate(selectedResult.content);
-      missingReasons = missingReasonsOf(candidate);
-    }
-
-    if (candidate.prioritizedFindings.length === 0 && candidate.meaningfulFindings.length > 0) {
-      const prioritizePrompt = {
-        agentId: "agent-report-prioritize-1",
-        role: "orchestrator" as const,
-        scope: "attachment" as const,
-        goal: "基于关键发现输出优先级发现",
-        expectedOutput: "JSON: {prioritizedFindings:[{priority,content,reason}]}",
-        systemPrompt:
-          "你是资深技术负责人。你必须只输出 JSON，不得输出解释文字。priority 只能是 P0/P1/P2。",
-        userPrompt: [
-          `分析目标=${params.analyzedTarget};iteration=${params.iterationName}`,
-          `关键发现:\n${candidate.meaningfulFindings.map((item, index) => `${index + 1}. ${item}`).join("\n")}`,
-          "请输出 prioritizedFindings（1-8条），每条包含 priority/content/reason。"
-        ].join("\n\n")
-      };
-      const prioritizedResult = await agentRunner.run(prioritizePrompt);
-      const prioritizedParsed = parseJsonObjectFromText(prioritizedResult.content);
-      const prioritizedFromModel = Array.isArray(prioritizedParsed?.prioritizedFindings)
-        ? prioritizedParsed.prioritizedFindings
-            .map((item) => item as Record<string, unknown>)
-            .map((item) => ({
-              priority: pickString(item.priority) as "P0" | "P1" | "P2",
-              content: pickString(item.content),
-              reason: pickString(item.reason)
-            }))
-            .filter((item) => (item.priority === "P0" || item.priority === "P1" || item.priority === "P2") && item.content)
-            .slice(0, 8)
-        : [];
-      if (prioritizedFromModel.length > 0) {
-        candidate = { ...candidate, prioritizedFindings: prioritizedFromModel };
-      }
-    }
-
-    if (!candidate.projectName && !candidate.productName) {
-      const fallbackDetection = detectProjectAndProduct({
-        excerpt: params.excerpt,
-        iterationName: params.iterationName,
-        fileName: params.analyzedTarget,
-        fileCount: params.fileStats.totalFiles
-      });
-      candidate = {
-        ...candidate,
-        projectName: fallbackDetection.projectName,
-        productName: fallbackDetection.productName,
-        projectCategory: candidate.projectCategory || fallbackDetection.projectCategory,
-        evidence: candidate.evidence.length > 0 ? candidate.evidence : fallbackDetection.evidence
-      };
-    }
-
-    if (!candidate.projectName && !candidate.productName) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: missing projectDetection.projectName/productName");
-    }
-    if (candidate.meaningfulFindings.length === 0) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: meaningfulFindings is empty");
-    }
-    if (candidate.prioritizedFindings.length === 0) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: prioritizedFindings is empty");
-    }
-    if (candidate.nextActions.length === 0) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: nextActions is empty");
-    }
-
-    const confidence = candidate.evidence.length >= 3 ? "high" : candidate.evidence.length >= 1 ? "medium" : "low";
-    return {
-      projectDetection: {
-        projectName: candidate.projectName,
-        productName: candidate.productName,
-        projectCategory: candidate.projectCategory,
-        evidence: candidate.evidence,
-        confidence
-      },
-      meaningfulFindings: candidate.meaningfulFindings,
-      prioritizedFindings: candidate.prioritizedFindings,
-      nextActions: candidate.nextActions,
-      synthesisOutput: {
-        agentId: prompt.agentId,
-        role: prompt.role,
-        status: "success",
-        content: selectedResult.content,
-        model: selectedResult.model
-      }
-    };
-  } catch (error) {
-    throw new LlmInvocationError(error instanceof Error ? error.message : "llm_unknown_error");
+    selected = await runAnalysisPrompt(agentRunner, repairPrompt, { imageDataUrls });
+    candidate = parseAttachmentInsightsCandidate(selected.content);
+    missing = listAttachmentInsightsMissingReasons(candidate);
   }
-}
-
-function mergeSynthesisResults(
-  base: {
-    projectDetection: AttachmentAnalysisReport["projectDetection"];
-    meaningfulFindings: string[];
-    prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"];
-    nextActions: string[];
-  },
-  syntheses: Array<{
-    projectDetection: AttachmentAnalysisReport["projectDetection"] | null;
-    meaningfulFindings: string[] | null;
-    prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"] | null;
-    nextActions: string[] | null;
-  }>
-) {
-  const projectDetection = { ...base.projectDetection };
-  const findings = [...base.meaningfulFindings];
-  const prioritized = [...base.prioritizedFindings];
-  const nextActions = [...base.nextActions];
-  for (const item of syntheses) {
-    if (item.projectDetection) {
-      if (item.projectDetection.projectName) {
-        projectDetection.projectName = item.projectDetection.projectName;
-      }
-      if (item.projectDetection.productName) {
-        projectDetection.productName = item.projectDetection.productName;
-      }
-      if (item.projectDetection.projectCategory) {
-        projectDetection.projectCategory = item.projectDetection.projectCategory;
-      }
-      projectDetection.evidence = Array.from(new Set([...projectDetection.evidence, ...item.projectDetection.evidence])).slice(0, 5);
-      if (item.projectDetection.confidence === "high") {
-        projectDetection.confidence = "high";
-      } else if (projectDetection.confidence === "low" && item.projectDetection.confidence === "medium") {
-        projectDetection.confidence = "medium";
-      }
-    }
-    if (item.meaningfulFindings?.length) {
-      findings.push(...item.meaningfulFindings);
-    }
-    if (item.prioritizedFindings?.length) {
-      prioritized.push(...item.prioritizedFindings);
-    }
-    if (item.nextActions?.length) {
-      nextActions.push(...item.nextActions);
-    }
+  if (missing.length > 0) {
+    throw new LlmInvocationError(`attachment insights payload invalid: ${missing.join(", ")}`);
   }
-  return {
-    projectDetection,
-    meaningfulFindings: Array.from(new Set(findings)).slice(0, 10),
-    prioritizedFindings: Array.from(
-      new Map(prioritized.map((item) => [`${item.priority}:${item.content}`, item])).values()
-    ).slice(0, 10),
-    nextActions: Array.from(new Set(nextActions)).slice(0, 8)
-  };
+  return candidate;
 }
 
 function applyLifecycleTransitionOp(
-  transitionIteration: (iterationId: number, toStatus: IterationStatus, note?: string) => { ok: boolean; reason?: string },
+  transitionIteration: (
+    iterationId: number,
+    toStatus: IterationStatus,
+    input: { source: IterationTransitionSource; reason: string; operator: string; operatorRole: string }
+  ) => { ok: boolean; reason?: string },
   iterationId: number,
   fromStatus: IterationStatus,
   toStatus: IterationStatus | null,
@@ -1058,7 +429,12 @@ function applyLifecycleTransitionOp(
   if (!autoTransition) {
     return { attempted: false, applied: false, fromStatus, toStatus, note: `已生成状态流转建议 ${fromStatus} -> ${toStatus}，等待手动确认。` };
   }
-  const result = transitionIteration(iterationId, toStatus, "Agent 自动驱动流转");
+  const result = transitionIteration(iterationId, toStatus, {
+    source: "auto",
+    reason: "Agent 自动驱动流转",
+    operator: "agent-runner",
+    operatorRole: "system"
+  });
   if (result.ok) {
     return { attempted: true, applied: true, fromStatus, toStatus, note: `已自动流转：${fromStatus} -> ${toStatus}` };
   }
@@ -1068,7 +444,11 @@ function applyLifecycleTransitionOp(
 export async function analyzeAttachmentOp(
   repo: WorkspaceRepository,
   agentRunner: AgentRunner | null,
-  transitionIteration: (iterationId: number, toStatus: IterationStatus, note?: string) => { ok: boolean; reason?: string },
+  transitionIteration: (
+    iterationId: number,
+    toStatus: IterationStatus,
+    input: { source: IterationTransitionSource; reason: string; operator: string; operatorRole: string }
+  ) => { ok: boolean; reason?: string },
   iterationId: number,
   input: AttachmentUploadInput
 ): Promise<AttachmentAnalysisReport | null> {
@@ -1080,22 +460,52 @@ export async function analyzeAttachmentOp(
   const previous = repo.findPreviousIteration(normalized);
   const previousScope = previous?.scope.inScope ?? [];
   const currentScope = normalized.scope.inScope;
-  const excerptPayload = composeAttachmentExcerpt(input);
+  const folderSelection =
+    input.sourceType === "folder" && Array.isArray(input.files) && input.files.length > 0
+      ? await synthesizeFolderSelectionOp(agentRunner, input)
+      : null;
+  const excerptPayload = composeAttachmentExcerpt(input, CONTEXT_GUARDRAILS, folderSelection);
   const visionPayloads = resolveVisionPayloads(input);
-  const initialContextGuardrail = evaluateContextGuardrail(excerptPayload, input);
   const added = currentScope.filter((item) => !previousScope.includes(item));
   const removed = previousScope.filter((item) => !currentScope.includes(item));
   const diffLocations = buildDiffLocations(previous ? normalizeIteration(previous) : null, normalized);
-  const singleAgentFastPath = shouldUseSingleAgentFastPath(input, excerptPayload);
   const changed = diffLocations.filter((item) => item.changeType === "changed").map((item) => `${item.dimension}: ${item.currentItem}`);
-  const inferredRisks = inferRisksFromExcerpt(excerptPayload.text);
-  const normalizedRisks =
-    normalized.assessment.risks.length > 0
-      ? normalized.assessment.risks
-      : inferredRisks.length > 0
-        ? inferredRisks
-        : ["暂无显式风险，请结合业务验收继续确认。"];
-  const agentPlan = buildIterationAgentPlan({
+  const normalizedRisks = normalized.assessment.risks.filter((item) => !isLowSignalText(item));
+  const executionPolicy = await synthesizeExecutionPolicyOp(agentRunner, {
+    iterationName: normalized.name,
+    fileName: input.fileName,
+    sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+    excerptPayload,
+    chunkCount: Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0,
+    forceMultiAgentHint: input.forceMultiAgent
+  });
+  const finalContextGuardrail = {
+    degraded: executionPolicy.degraded,
+    reason: executionPolicy.reason
+  };
+  const files = Array.isArray(input.files) ? input.files : [];
+  const totalFiles = input.sourceType === "folder" ? files.length : 1;
+  const hasPrototypeEvidence =
+    visionPayloads.length > 0 ||
+    files.some((item) => {
+      const mime = (item.mimeType || "").toLowerCase();
+      const path = (item.path || item.fileName || "").toLowerCase();
+      return mime.startsWith("image/") || /prototype|figma|sketch|xd/.test(path);
+    });
+  const hasDocumentEvidence =
+    files.length === 0 ||
+    files.some((item) => {
+      const mime = (item.mimeType || "").toLowerCase();
+      const path = (item.path || item.fileName || "").toLowerCase();
+      return (
+        mime.includes("text") ||
+        mime.includes("json") ||
+        mime.includes("xml") ||
+        mime.includes("markdown") ||
+        /\.(md|mdx|txt|doc|docx|pdf|ppt|pptx|xlsx|csv|json|yml|yaml)$/i.test(path)
+      );
+    });
+  const finalAgentPlan = buildIterationAgentPlan({
     iteration: normalized,
     previous: previous ? normalizeIteration(previous) : null,
     scope: input.agentScope ?? "full-cycle",
@@ -1103,36 +513,21 @@ export async function analyzeAttachmentOp(
     risks: normalizedRisks,
     fileName: input.fileName,
     attachmentMeta: { strategy: excerptPayload.strategy, digest: excerptPayload.digest, textPreview: excerptPayload.text },
-    enforceSingleAgent: initialContextGuardrail.degraded || singleAgentFastPath,
-    forceMultiAgent: singleAgentFastPath ? false : input.forceMultiAgent
+    attachmentSignals: {
+      sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+      hasPrototypeEvidence,
+      hasDocumentEvidence,
+      totalFiles
+    }
   });
-  const primaryPromptContextLength = agentPlan.prompts.reduce((total, prompt) => total + prompt.systemPrompt.length + prompt.userPrompt.length, 0);
-  const degradeByPromptBudget = primaryPromptContextLength > CONTEXT_GUARDRAILS.maxPromptBudget && agentPlan.strategy === "multi-agent";
-  const finalContextGuardrail = initialContextGuardrail.degraded
-    ? initialContextGuardrail
-    : degradeByPromptBudget
-      ? { degraded: true, reason: `prompt-budget-exceeded(${primaryPromptContextLength}>${CONTEXT_GUARDRAILS.maxPromptBudget})` }
-      : { degraded: false, reason: "" };
-  const finalAgentPlan = degradeByPromptBudget
-    ? buildIterationAgentPlan({
-        iteration: normalized,
-        previous: previous ? normalizeIteration(previous) : null,
-        scope: input.agentScope ?? "full-cycle",
-        diffLocations,
-        risks: normalizedRisks,
-        fileName: input.fileName,
-        attachmentMeta: { strategy: excerptPayload.strategy, digest: excerptPayload.digest, textPreview: excerptPayload.text },
-        enforceSingleAgent: true,
-        forceMultiAgent: false
-      })
-    : agentPlan;
   const agentOutputs = await executeAgentPlanOp(agentRunner, finalAgentPlan.prompts, visionPayloads);
   const unknownSignalCount = agentOutputs.reduce((total, output) => total + (output.content.toLowerCase().match(/unknown/g)?.length ?? 0), 0);
   const generatedTestMatrix = extractGeneratedTestMatrix(agentOutputs);
   const qualityArtifacts = extractGeneratedQualityArtifacts(agentOutputs);
+  const uxArtifacts = extractUxArtifacts(agentOutputs);
   const boundarySuggestion = extractBoundarySuggestion(agentOutputs);
   const releaseOpsActions = extractReleaseOpsActions(agentOutputs);
-  const clarificationQuestions = buildClarificationQuestions({
+  const clarificationQuestions = buildClarificationQuestionsOp({
     guardrail: finalContextGuardrail,
     unknownSignalCount,
     unknownSignalThreshold: CONTEXT_GUARDRAILS.unknownSignalThreshold,
@@ -1166,12 +561,12 @@ export async function analyzeAttachmentOp(
     ...qualityArtifacts,
     materializedFiles: existingMaterializedFiles
   };
-  const executableConstraintsState = {
+  let executableConstraintsState = {
     componentWhitelist: resolvedBoundary.componentRefs.slice(0, 24),
     codePathWhitelist: resolvedBoundary.codePaths.slice(0, 24),
     acceptanceChecks: Array.from(new Set([...normalized.scope.acceptanceCriteria, ...qualityArtifacts.acceptanceChecklist])).slice(0, 24)
   };
-  const executableConstraints = {
+  let executableConstraints = {
     ...executableConstraintsState,
     gateRules: [
       "仅允许改动 codePathWhitelist 内文件。",
@@ -1184,7 +579,7 @@ export async function analyzeAttachmentOp(
     pendingHumanConfirmation: true,
     lastAnalysisAt: generatedAt,
     lastAnalysisFileName: input.fileName,
-    lastAnalysisDigest: `added=${added.length};removed=${removed.length};diff=${diffLocations.length};strategy=${excerptPayload.strategy};chunks=${Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0};degraded=${finalContextGuardrail.degraded ? "yes" : "no"};fastPath=${singleAgentFastPath ? "yes" : "no"}${finalContextGuardrail.reason ? `;reason=${finalContextGuardrail.reason}` : ""}`,
+    lastAnalysisDigest: `added=${added.length};removed=${removed.length};diff=${diffLocations.length};strategy=${excerptPayload.strategy};chunks=${Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0};degraded=${finalContextGuardrail.degraded ? "yes" : "no"}${finalContextGuardrail.reason ? `;reason=${finalContextGuardrail.reason}` : ""};policyRisk=${executionPolicy.promptBudgetRisk}`,
     clarificationQuestions,
     clarificationDraftResolvedQuestions: [],
     clarificationDraftUpdatedAt: generatedAt,
@@ -1200,6 +595,10 @@ export async function analyzeAttachmentOp(
       ...resolvedQualityArtifacts,
       updatedAt: generatedAt
     },
+    uxArtifacts: {
+      ...uxArtifacts,
+      updatedAt: generatedAt
+    },
     executableConstraints: {
       ...executableConstraintsState,
       generatedAt
@@ -1210,70 +609,56 @@ export async function analyzeAttachmentOp(
   if (generatedTestMatrix.length > 0) {
     writeAuditLog(repo, "iteration_test_matrix_generated", `iteration:${iterationId}`, `cases=${generatedTestMatrix.length}`);
   }
-  const attachmentInsights = buildAttachmentInsights({
-    fileName: input.fileName,
-    mimeType: input.mimeType,
-    excerpt: excerptPayload.text,
-    strategy: excerptPayload.strategy,
-    iterationName: normalized.name,
-    diffLocations,
-    added,
-    changed,
-    removed
-  });
-  const projectDetection = detectProjectAndProduct({
-    excerpt: excerptPayload.text,
+  const attachmentInsights = await synthesizeAttachmentInsightsOp(agentRunner, {
     iterationName: normalized.name,
     fileName: input.fileName,
-    fileCount: excerptPayload.fileStats.totalFiles,
-    projectCategoryHint: attachmentInsights.projectCategory
-  });
-  const meaningfulFindings = buildMeaningfulFindings({
-    added,
-    changed,
-    removed,
-    characteristics: attachmentInsights.keyCharacteristics,
-    risks: normalizedRisks,
-    diffLocations
-  });
-  const synthesis = await synthesizeProjectProfileOp(agentRunner, {
-    iterationName: normalized.name,
     sourceType: input.sourceType === "folder" ? "folder" : "single-file",
-    analyzedTarget: input.sourceType === "folder" ? (input.folderName?.trim() || input.fileName) : input.fileName,
     excerpt: excerptPayload.text,
-    fileStats: excerptPayload.fileStats,
     versionDiff: { added, changed, removed },
-    agentOutputs,
-    contextLabel: "primary"
+    diffLocations,
+    visionPayloads
   });
+  const synthesis = await synthesizeProjectProfileOp(
+    agentRunner,
+    {
+      iterationName: normalized.name,
+      sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+      analyzedTarget: input.sourceType === "folder" ? (input.folderName?.trim() || input.fileName) : input.fileName,
+      excerpt: excerptPayload.text,
+      fileStats: excerptPayload.fileStats,
+      versionDiff: { added, changed, removed },
+      agentOutputs,
+      contextLabel: "primary",
+      visionPayloads
+    },
+    { runAnalysisPrompt, synthesisLlmConfig: SYNTHESIS_LLM_CONFIG }
+  );
   const batchSyntheses = excerptPayload.batchContexts.length
     ? await Promise.all(
         excerptPayload.batchContexts.map((batchContext, index) =>
-          synthesizeProjectProfileOp(agentRunner, {
-            iterationName: normalized.name,
-            sourceType: input.sourceType === "folder" ? "folder" : "single-file",
-            analyzedTarget: input.sourceType === "folder" ? (input.folderName?.trim() || input.fileName) : input.fileName,
-            excerpt: batchContext,
-            fileStats: excerptPayload.fileStats,
-            versionDiff: { added, changed, removed },
-            agentOutputs,
-            contextLabel: `batch-${index + 1}`
-          })
+          synthesizeProjectProfileOp(
+            agentRunner,
+            {
+              iterationName: normalized.name,
+              sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+              analyzedTarget: input.sourceType === "folder" ? (input.folderName?.trim() || input.fileName) : input.fileName,
+              excerpt: batchContext,
+              fileStats: excerptPayload.fileStats,
+              versionDiff: { added, changed, removed },
+              agentOutputs,
+              contextLabel: `batch-${index + 1}`,
+              visionPayloads
+            },
+            { runAnalysisPrompt, synthesisLlmConfig: SYNTHESIS_LLM_CONFIG }
+          )
         )
       )
     : [];
-  const resolvedProjectDetection = {
-    projectName: synthesis.projectDetection.projectName || projectDetection.projectName,
-    productName: synthesis.projectDetection.productName || projectDetection.productName,
-    projectCategory: synthesis.projectDetection.projectCategory || projectDetection.projectCategory,
-    evidence: synthesis.projectDetection.evidence.length > 0 ? synthesis.projectDetection.evidence : projectDetection.evidence,
-    confidence: synthesis.projectDetection.confidence || projectDetection.confidence
-  };
-  const mergedSynthesis = mergeSynthesisResults(
+  const mergedSynthesis = mergeSynthesisResultsOp(
     {
       projectDetection: {
-        ...resolvedProjectDetection,
-        confidence: resolvedProjectDetection.confidence || "low"
+        ...synthesis.projectDetection,
+        confidence: synthesis.projectDetection.confidence || "low"
       },
       meaningfulFindings: synthesis.meaningfulFindings,
       prioritizedFindings: synthesis.prioritizedFindings,
@@ -1283,113 +668,137 @@ export async function analyzeAttachmentOp(
   );
   const resolvedProjectDetectionWithPaths = {
     ...mergedSynthesis.projectDetection,
-    evidence: Array.from(
-      new Set([
-        ...mergedSynthesis.projectDetection.evidence,
-        ...(excerptPayload.fileSelection.includedPaths.length > 0
-          ? [`命中文件: ${excerptPayload.fileSelection.includedPaths.slice(0, 3).join("；")}`]
-          : [])
-      ])
-    ).slice(0, 5)
+    evidence: Array.from(new Set(mergedSynthesis.projectDetection.evidence)).slice(0, 5)
   };
   const resolvedMeaningfulFindings = mergedSynthesis.meaningfulFindings;
-  const resolvedPrioritizedFindings =
-    mergedSynthesis.prioritizedFindings.length > 0 ? mergedSynthesis.prioritizedFindings : prioritizeFindings(resolvedMeaningfulFindings);
-  const resolvedNextActions =
-    mergedSynthesis.nextActions.length > 0
-      ? mergedSynthesis.nextActions
-      : buildNextActions({
-          prioritizedFindings: resolvedPrioritizedFindings,
-          boundaryCodePaths: normalized.changeControl?.boundary?.codePaths || [],
-          clarificationQuestions
-        });
+  const resolvedPrioritizedFindings = mergedSynthesis.prioritizedFindings;
+  const resolvedNextActions = mergedSynthesis.nextActions;
   const finalNextActions = Array.from(new Set([...resolvedNextActions, ...releaseOpsActions].map((item) => item.trim()).filter(Boolean))).slice(0, 12);
+  const deepInsights = await synthesizeDeepInsightsOp(agentRunner, {
+    input,
+    excerptPayload,
+    prioritizedFindings: resolvedPrioritizedFindings,
+    clarificationQuestions
+  });
   const resolvedBoundaryForReport = normalized.changeControl?.boundary ?? currentChangeControl.boundary;
-  const releaseOpsStructured = extractReleaseOpsStructured(agentOutputs);
-  const qaReleaseReview = extractReleaseReview(agentOutputs);
-  const traceabilityMap = buildTraceabilityMap({
-    requirements:
-      resolvedBoundaryForReport?.requirementRefs?.length > 0
-        ? resolvedBoundaryForReport.requirementRefs
-        : normalized.scope.inScope.slice(0, 8),
-    components: resolvedBoundaryForReport?.componentRefs ?? [],
-    codePaths: resolvedBoundaryForReport?.codePaths ?? [],
-    prioritizedFindings: resolvedPrioritizedFindings
-  });
-  const domainKnowledge = buildDomainKnowledge({
-    requirements:
-      resolvedBoundaryForReport?.requirementRefs?.length > 0
-        ? resolvedBoundaryForReport.requirementRefs
-        : normalized.scope.inScope.slice(0, 8),
-    codePaths: resolvedBoundaryForReport?.codePaths ?? [],
-    excerpt: excerptPayload.text,
-    agentOutputs,
-    projectCategory: attachmentInsights.projectCategory
-  });
-  const versionDiffDetailed = buildVersionDiffDetailed({ added, changed, removed, diffLocations });
-  const boundaryCoverage =
-    (resolvedBoundaryForReport?.requirementRefs?.length || 0) > 0 &&
-    (resolvedBoundaryForReport?.componentRefs?.length || 0) > 0 &&
-    (resolvedBoundaryForReport?.codePaths?.length || 0) > 0
-      ? 100
-      : (resolvedBoundaryForReport?.requirementRefs?.length || 0) > 0 ||
-          (resolvedBoundaryForReport?.componentRefs?.length || 0) > 0 ||
-          (resolvedBoundaryForReport?.codePaths?.length || 0) > 0
-        ? 60
-        : 0;
-  const releaseDecision: "go" | "caution" | "block" =
-    qaReleaseReview.blockers.length > 0
-      ? "block"
-      : qaReleaseReview.qaPass
-        ? "go"
-        : "caution";
-  const traceabilityHardBlock =
-    resolvedPrioritizedFindings.some((item) => item.priority === "P0") && (resolvedBoundaryForReport?.codePaths?.length || 0) === 0;
-  const releaseDecisionWithHardBlock: "go" | "caution" | "block" = traceabilityHardBlock ? "block" : releaseDecision;
-  const mergedBlockers = traceabilityHardBlock
-    ? Array.from(new Set([...(qaReleaseReview.blockers || []), "存在 P0 发现但缺少 codePaths 白名单"]))
-    : qaReleaseReview.blockers;
-  const opsRollbackReason = releaseOpsStructured.rollbackDecision.reason;
-  const opsRollbackTrigger = releaseOpsStructured.rollbackDecision.trigger;
-  const releaseReview = {
-    decision: releaseDecisionWithHardBlock,
-    reason:
-      qaReleaseReview.releaseReason ||
-      (releaseDecisionWithHardBlock === "go" ? "未发现阻断项，可按门禁发布。" : "存在待确认风险。"),
-    blockers: mergedBlockers,
-    releaseGates: qaReleaseReview.releaseGates,
-    recommendations: finalNextActions.slice(0, 6),
-    rollback: {
-      shouldRollback: releaseOpsStructured.rollbackDecision.shouldRollback,
-      reason: opsRollbackReason || (releaseOpsStructured.rollbackDecision.shouldRollback ? "触发回滚条件。" : ""),
-      trigger: opsRollbackTrigger,
-      actions: qaReleaseReview.rollbackPlan
+  const businessConfirmation = await synthesizeBusinessConfirmationOp(
+    agentRunner,
+    {
+      iterationName: normalized.name,
+      baselineIterationName: previous?.name ?? "无基线",
+      analyzedTarget: input.sourceType === "folder" ? (input.folderName?.trim() || input.fileName) : input.fileName,
+      sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+      excerpt: excerptPayload.text,
+      requirements:
+        resolvedBoundaryForReport?.requirementRefs?.length > 0
+          ? resolvedBoundaryForReport.requirementRefs
+          : normalized.scope.inScope.slice(0, 12),
+      components: resolvedBoundaryForReport?.componentRefs ?? [],
+      codePaths: resolvedBoundaryForReport?.codePaths ?? [],
+      clarificationQuestions,
+      versionDiff: { added, changed, removed },
+      diffLocations,
+      prioritizedFindings: resolvedPrioritizedFindings,
+      visionPayloads
     },
-    qualitySignals: {
-      testCaseCount: generatedTestMatrix.length,
-      p0FindingCount: resolvedPrioritizedFindings.filter((item) => item.priority === "P0").length,
-      unknownSignalCount,
-      boundaryCoverage
+    { runAnalysisPrompt }
+  );
+  const businessConfirmationWithUx = {
+    ...businessConfirmation,
+    interactionInsights: {
+      ...businessConfirmation.interactionInsights,
+      primaryFlow: Array.from(new Set([...businessConfirmation.interactionInsights.primaryFlow, ...uxArtifacts.interactionFlows])).slice(0, 12),
+      keyInteractions: Array.from(new Set([...businessConfirmation.interactionInsights.keyInteractions, ...uxArtifacts.uxConstraints])).slice(0, 14),
+      exceptionPaths: Array.from(new Set([...businessConfirmation.interactionInsights.exceptionPaths, ...uxArtifacts.uiStates])).slice(0, 12)
     }
   };
-  const releaseReviewScore = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(
-        (releaseReview.decision === "go" ? 90 : releaseReview.decision === "caution" ? 70 : 40) * 0.4 +
-          Math.max(0, 100 - releaseReview.blockers.length * 12) * 0.25 +
-          Math.max(0, 100 - releaseReview.qualitySignals.p0FindingCount * 25) * 0.2 +
-          releaseReview.qualitySignals.boundaryCoverage * 0.15
-      )
-    )
+  const reportQuality = await synthesizeReportQualityGateOp(
+    agentRunner,
+    {
+      iterationName: normalized.name,
+      analyzedTarget: input.sourceType === "folder" ? (input.folderName?.trim() || input.fileName) : input.fileName,
+      sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+      deepInsights,
+      businessConfirmation: businessConfirmationWithUx,
+      prioritizedFindings: resolvedPrioritizedFindings,
+      clarificationQuestions
+    },
+    { runAnalysisPrompt }
   );
+  const releaseOpsStructured = extractReleaseOpsStructured(agentOutputs);
+  const qaReleaseReview = extractReleaseReview(agentOutputs);
+  const governanceInsights = await synthesizeGovernanceInsightsOp(
+    agentRunner,
+    {
+      iterationName: normalized.name,
+      baselineIterationName: previous?.name ?? "无基线",
+      excerpt: excerptPayload.text,
+      diffLocations,
+      added,
+      changed,
+      removed,
+      requirements:
+        resolvedBoundaryForReport?.requirementRefs?.length > 0
+          ? resolvedBoundaryForReport.requirementRefs
+          : normalized.scope.inScope.slice(0, 8),
+      components: resolvedBoundaryForReport?.componentRefs ?? [],
+      codePaths: resolvedBoundaryForReport?.codePaths ?? [],
+      prioritizedFindings: resolvedPrioritizedFindings,
+      clarificationQuestions
+    },
+    { runAnalysisPrompt }
+  );
+  const traceabilityMap = governanceInsights.traceabilityMap;
+  const domainKnowledge = governanceInsights.domainKnowledge;
+  const versionDiffDetailed = governanceInsights.versionDiffDetailed;
+  executableConstraints = governanceInsights.executableConstraints;
+  executableConstraintsState = {
+    componentWhitelist: executableConstraints.componentWhitelist.slice(0, 24),
+    codePathWhitelist: executableConstraints.codePathWhitelist.slice(0, 24),
+    acceptanceChecks: executableConstraints.acceptanceChecks.slice(0, 24)
+  };
+  const opsRollbackReason = releaseOpsStructured.rollbackDecision.reason;
+  const opsRollbackTrigger = releaseOpsStructured.rollbackDecision.trigger;
+  const releaseReviewSynthesized = await synthesizeReleaseReviewOp(
+    agentRunner,
+    {
+      iterationName: normalized.name,
+      excerpt: excerptPayload.text,
+      prioritizedFindings: resolvedPrioritizedFindings,
+      blockers: qaReleaseReview.blockers,
+      releaseGates: qaReleaseReview.releaseGates,
+      rollbackPlan: qaReleaseReview.rollbackPlan,
+      recommendations: finalNextActions.slice(0, 8),
+      qualitySignals: {
+        testCaseCount: generatedTestMatrix.length,
+        p0FindingCount: resolvedPrioritizedFindings.filter((item) => item.priority === "P0").length,
+        unknownSignalCount,
+        boundaryCoverage: traceabilityMap.coverageScore
+      }
+    },
+    { runAnalysisPrompt }
+  );
+  const releaseReview = {
+    decision: releaseReviewSynthesized.decision,
+    reason: releaseReviewSynthesized.reason,
+    blockers: releaseReviewSynthesized.blockers,
+    releaseGates: releaseReviewSynthesized.releaseGates,
+    recommendations: releaseReviewSynthesized.recommendations,
+    rollback: {
+      shouldRollback: releaseReviewSynthesized.rollback.shouldRollback,
+      reason: releaseReviewSynthesized.rollback.reason || opsRollbackReason,
+      trigger: releaseReviewSynthesized.rollback.trigger || opsRollbackTrigger,
+      actions: releaseReviewSynthesized.rollback.actions
+    },
+    qualitySignals: releaseReviewSynthesized.qualitySignals
+  };
+  const releaseReviewScore = releaseReviewSynthesized.score;
+  const opsRollbackLabel = releaseReview.rollback.shouldRollback ? "建议回滚" : "暂不回滚";
+  const opsRollbackReasonText = releaseReview.rollback.reason ? `（${releaseReview.rollback.reason}）` : "";
   const opsTriage = {
     hypotheses: releaseOpsStructured.hypotheses,
     triageSteps: releaseOpsStructured.triageSteps,
-    rollbackSuggestion: `回滚建议：${releaseReview.rollback.shouldRollback ? "建议回滚" : "暂不回滚"}${
-      releaseReview.rollback.reason ? `（${releaseReview.rollback.reason}）` : ""
-    }`
+    rollbackSuggestion: `回滚建议：${opsRollbackLabel}${opsRollbackReasonText}`
   };
   const analysisP0Count = resolvedPrioritizedFindings.filter((item) => item.priority === "P0").length;
   const analysisHighValueCount = resolvedPrioritizedFindings.filter((item) => item.priority === "P0" || item.priority === "P1").length;
@@ -1411,6 +820,14 @@ export async function analyzeAttachmentOp(
     lastReleaseReviewUpdatedAt: generatedAt,
     lastTraceabilityCoverageScore: traceabilityMap.coverageScore,
     lastOpsRollbackSuggested: releaseReview.rollback.shouldRollback,
+    lastReportPublishable: reportQuality.publishable,
+    lastReportQualityScore: reportQuality.score,
+    lastReportQualitySummary: reportQuality.summary,
+    lastReportQualityUpdatedAt: generatedAt,
+    uxArtifacts: {
+      ...uxArtifacts,
+      updatedAt: generatedAt
+    },
     executableConstraints: {
       ...executableConstraintsState,
       generatedAt
@@ -1440,6 +857,41 @@ export async function analyzeAttachmentOp(
     ...batchSyntheses.map((item) => item.synthesisOutput)
   ].filter(Boolean) as IterationAgentOutput[];
   const outputList = synthesisOutputs.length > 0 ? [...agentOutputs, ...synthesisOutputs] : agentOutputs;
+  const reportPayloadIssues = collectLlmBackedReportPayloadIssues({
+    projectDetection: resolvedProjectDetectionWithPaths,
+    meaningfulFindings: resolvedMeaningfulFindings,
+    prioritizedFindings: resolvedPrioritizedFindings,
+    nextActions: finalNextActions,
+    businessConfirmation: businessConfirmationWithUx,
+    reportQuality,
+    outputList
+  });
+  if (reportPayloadIssues.length > 0) {
+    throw new LlmInvocationError(`report_not_llm_quality: ${reportPayloadIssues.join(", ")}`);
+  }
+  const llmModels = Array.from(new Set(outputList.map((item) => (item.model || "").trim()).filter(Boolean)));
+  const finalRisks = Array.from(
+    new Set([
+      ...versionDiffDetailed.riskPoints.filter((item) => !isLowSignalText(item)),
+      ...resolvedPrioritizedFindings.filter((item) => item.priority === "P0" || item.priority === "P1").map((item) => item.reason).filter((item) => !isLowSignalText(item))
+    ])
+  ).slice(0, 12);
+  const finalSuggestions = Array.from(
+    new Set([
+      ...reportQuality.actionRequired.filter((item) => !isLowSignalText(item)),
+      ...releaseReview.recommendations.filter((item) => !isLowSignalText(item)),
+      ...finalNextActions.filter((item) => !isLowSignalText(item)),
+      ...releaseOpsActions.filter((item) => !isLowSignalText(item)),
+      ...attachmentInsights.limitations.filter((item) => !isLowSignalText(item)),
+      ...uxArtifacts.uxConstraints.filter((item) => !isLowSignalText(item))
+    ])
+  ).slice(0, 16);
+  writeAuditLog(
+    repo,
+    "attachment_llm_trace",
+    `iteration:${iterationId}`,
+    `models=${llmModels.join("|") || "unknown"};outputs=${outputList.length};target=${input.fileName}`
+  );
   return {
     iterationId: normalized.id,
     iterationName: normalized.name,
@@ -1466,7 +918,13 @@ export async function analyzeAttachmentOp(
       degradeReason: finalContextGuardrail.reason
     },
     clarificationQuestions,
-    understanding: `${summarizeFromExcerpt(excerptPayload.text, `已基于附件 ${input.fileName} 与当前迭代上下文完成语义理解。`)} 识别到 ${added.length} 项新增范围、${removed.length} 项移出范围。(${excerptPayload.digest})`,
+    understanding: [
+      businessConfirmationWithUx.coreIntent,
+      businessConfirmationWithUx.versionDiffSummary,
+      resolvedPrioritizedFindings.length > 0 ? `优先关注：${resolvedPrioritizedFindings[0].content}` : ""
+    ]
+      .filter((item) => item && item.trim().length > 0)
+      .join(" "),
     versionDiff: { baselineIterationName: previous?.name ?? "无基线", added, changed, removed },
     versionDiffDetailed,
     diffLocations,
@@ -1474,20 +932,17 @@ export async function analyzeAttachmentOp(
     agentPlan: finalAgentPlan,
     agentOutputs: outputList,
     lifecycleAction: finalLifecycleAction,
-    risks: normalizedRisks,
+    risks: finalRisks,
     traceabilityMap,
     executableConstraints,
     releaseReview,
     qualityArtifacts: resolvedQualityArtifacts,
+    uxArtifacts,
     domainKnowledge,
     opsTriage,
-    suggestions: [
-      "优先处理新增范围中的高业务价值项并明确负责人。",
-      "将关键差异同步到验收标准，避免需求理解偏差。",
-      attachmentInsights.versionChangeSummary,
-      ...releaseOpsActions.slice(0, 2),
-      ...attachmentInsights.limitations,
-      clarificationQuestions.length > 0 ? `请优先补充：${clarificationQuestions.join("；")}` : "当前澄清问题已收敛。"
-    ]
+    businessConfirmation: businessConfirmationWithUx,
+    deepInsights,
+    reportQuality,
+    suggestions: finalSuggestions
   };
 }

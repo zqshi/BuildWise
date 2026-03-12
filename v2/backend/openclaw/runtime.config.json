@@ -1,0 +1,35 @@
+{
+  "runtimeMode": "openclaw-native",
+  "openclaw": {
+    "sourcePath": "/Users/zqs/Downloads/project/longxia/【0228】openclaw",
+    "lockRef": "2026.2.27",
+    "entry": "openclaw.mjs",
+    "readOnly": true,
+    "profile": "buildwise-local",
+    "agentId": "main",
+    "strictLiveModel": true
+  },
+  "assistant": {
+    "personaPromptFile": "openclaw/buildwise-assistant.persona.md"
+  },
+  "skillsRoot": "v2/backend/skills/buildwise-openclaw",
+  "sourceRegistry": [
+    {
+      "project": "BuildWise",
+      "sourcePath": "/Users/zqs/Downloads/project/BuildWise",
+      "lockRef": "main",
+      "enabled": true
+    },
+    {
+      "project": "browser-use",
+      "sourcePath": "/Users/zqs/Downloads/project/browser-use",
+      "lockRef": "main",
+      "enabled": true
+    }
+  ],
+  "safety": {
+    "forbidOpenclawSourceWrite": true,
+    "requireHumanConfirmationForFirstIterationGitReport": true,
+    "fallbackToConversationOnSkillFailure": true
+  }
+}

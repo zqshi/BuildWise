@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0066ff",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1723",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .login-gradient {
+            background: linear-gradient(135deg, #0066ff 0%, #004dc2 100%);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased">
+<div class="flex min-h-screen w-full overflow-hidden">
+<!-- Left Section: 55% Width Brand Illustration & Value Prop -->
+<div class="hidden lg:flex lg:w-[55%] relative flex-col justify-center px-12 xl:px-24 bg-primary/5 dark:bg-primary/10 overflow-hidden">
+<div class="absolute top-10 left-12 flex items-center gap-3">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-2xl">account_tree</span>
+</div>
+<h1 class="text-slate-900 dark:text-slate-100 text-2xl font-bold tracking-tight">BuildWise</h1>
+</div>
+<div class="relative z-10 max-w-2xl">
+<div class="mb-8 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold">
+<span class="material-symbols-outlined text-sm">bolt</span>
+<span>Next Generation Enterprise Delivery</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-5xl xl:text-6xl font-black leading-[1.15] tracking-tight mb-6">
+                    将业务意图编译为<br/><span class="text-primary">可运行软件</span>
+</h2>
+<p class="text-slate-600 dark:text-slate-400 text-lg xl:text-xl font-normal max-w-lg mb-12">
+                    AI 驱动的企业级交付工作台，重塑软件开发全生命周期。
+                </p>
+<div class="relative w-full aspect-video rounded-2xl shadow-2xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700" data-alt="Modern AI software development dashboard interface visualization">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent"></div>
+<div class="p-6 flex flex-col gap-4">
+<div class="flex gap-2">
+<div class="h-3 w-3 rounded-full bg-red-400"></div>
+<div class="h-3 w-3 rounded-full bg-amber-400"></div>
+<div class="h-3 w-3 rounded-full bg-emerald-400"></div>
+</div>
+<div class="space-y-3">
+<div class="h-4 w-3/4 bg-slate-100 dark:bg-slate-700 rounded"></div>
+<div class="h-4 w-1/2 bg-slate-100 dark:bg-slate-700 rounded"></div>
+<div class="grid grid-cols-3 gap-4 mt-6">
+<div class="h-24 bg-primary/10 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-3xl">auto_fix_high</span>
+</div>
+<div class="h-24 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 text-3xl">code</span>
+</div>
+<div class="h-24 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 text-3xl">terminal</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Abstract Background Decorations -->
+<div class="absolute -bottom-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+<div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-2xl"></div>
+</div>
+<!-- Right Section: 45% Width Login Form -->
+<div class="w-full lg:w-[45%] flex flex-col items-center justify-center bg-white dark:bg-background-dark px-6 py-12">
+<div class="w-full max-w-[440px] space-y-8">
+<!-- Header -->
+<div class="text-left">
+<div class="lg:hidden flex items-center gap-2 mb-8">
+<div class="size-6 bg-primary rounded flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-lg">account_tree</span>
+</div>
+<span class="font-bold text-slate-900 dark:text-slate-100">BuildWise</span>
+</div>
+<h3 class="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">欢迎回来</h3>
+<p class="mt-2 text-slate-500 dark:text-slate-400">登录您的 BuildWise 账号以继续</p>
+</div>
+<!-- Toggle Switch -->
+<div class="p-1 bg-slate-100 dark:bg-slate-800 rounded-xl flex">
+<button class="flex-1 py-2 px-4 bg-white dark:bg-slate-700 shadow-sm rounded-lg text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        账号登录
+                    </button>
+<button class="flex-1 py-2 px-4 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+                        手机验证码
+                    </button>
+</div>
+<!-- Form -->
+<form class="space-y-5">
+<div class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">账号</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400">person</span>
+<input class="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary focus:border-primary text-slate-900 dark:text-slate-100 transition-all" placeholder="请输入用户名/邮箱" type="text"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">密码</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400">lock</span>
+<input class="w-full pl-11 pr-12 py-3.5 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary focus:border-primary text-slate-900 dark:text-slate-100 transition-all" placeholder="请输入密码" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 hover:text-slate-600" type="button">visibility</button>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<label class="flex items-center gap-2 cursor-pointer">
+<input class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+<span class="text-sm text-slate-600 dark:text-slate-400 font-medium">记住我</span>
+</label>
+<a class="text-sm font-semibold text-primary hover:underline underline-offset-4" href="#">忘记密码？</a>
+</div>
+<button class="w-full py-4 login-gradient text-white rounded-xl font-bold text-lg shadow-lg shadow-primary/20 hover:shadow-primary/30 active:scale-[0.98] transition-all" type="submit">
+                        登 录
+                    </button>
+</form>
+<!-- Third Party Login -->
+<div class="space-y-6">
+<div class="relative">
+<div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
+<div class="relative flex justify-center text-xs uppercase">
+<span class="bg-white dark:bg-background-dark px-4 text-slate-500 font-medium">其他方式登录</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-4">
+<button class="flex items-center justify-center p-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">hub</span>
+</button>
+<button class="flex items-center justify-center p-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">chat</span>
+</button>
+<button class="flex items-center justify-center p-3 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">shield</span>
+</button>
+</div>
+</div>
+<p class="text-center text-sm text-slate-500 dark:text-slate-400">
+                    还没有账号？ <a class="text-primary font-bold hover:underline" href="#">立即注册</a>
+</p>
+</div>
+<!-- Footer -->
+<div class="mt-16 flex gap-6 text-xs text-slate-400">
+<a class="hover:text-slate-600 dark:hover:text-slate-200" href="#">隐私权政策</a>
+<a class="hover:text-slate-600 dark:hover:text-slate-200" href="#">服务协议</a>
+<a class="hover:text-slate-600 dark:hover:text-slate-200" href="#">联系我们</a>
+</div>
+</div>
+</div>
+</body></html>

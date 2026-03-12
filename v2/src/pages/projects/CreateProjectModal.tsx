@@ -33,8 +33,8 @@ export function CreateProjectModal({
       <div className="modal-card">
         <div className="modal-head">
           <h3>新建项目</h3>
-          <button type="button" className="btn ghost" onClick={onClose}>
-            x
+          <button type="button" className="btn ghost" onClick={onClose} aria-label="关闭弹窗">
+            关闭
           </button>
         </div>
         <form onSubmit={onSubmit} className="modal-form">

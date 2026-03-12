@@ -1,0 +1,6 @@
+interface:
+  display_name: "Deliverable Governance"
+  short_description: "Manage draft-commit-confirm deliverable lifecycle"
+  default_prompt: "Use $03-deliverable-governance to govern deliverable states and chat visibility."
+policy:
+  allow_implicit_invocation: true

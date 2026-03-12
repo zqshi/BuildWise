@@ -16,6 +16,9 @@
   .insight-list {
     grid-template-columns:1fr
   }
+  .dashboard-bottom-grid {
+    grid-template-columns:1fr;
+  }
 
   .project-panel {
     max-height:none;
@@ -28,6 +31,19 @@
 
   .project-overview-panel {
     height:auto
+  }
+  .project-overview-hero {
+    grid-template-columns:1fr;
+  }
+  .project-summary-kpis {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .project-version-head,
+  .project-version-row {
+    grid-template-columns:minmax(160px,1fr) minmax(200px,1.6fr) minmax(120px,1fr) auto;
+  }
+  .project-overview-bottom-grid {
+    grid-template-columns:1fr;
   }
 
   .analysis-drawer {
@@ -49,6 +65,23 @@
   .interaction-inline-editor {
     grid-template-columns:1fr;
     align-items:stretch;
+  }
+  .analysis-kpi-grid {
+    grid-template-columns:1fr 1fr;
+  }
+  .analysis-depth-grid {
+    grid-template-columns:1fr;
+  }
+  .agent-collab-grid {
+    grid-template-columns:1fr;
+  }
+  .iteration-workbench-grid {
+    grid-template-columns:1fr;
+  }
+  .iteration-side-rail {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    max-height:none;
+    overflow:visible;
   }
 
   .ops-grid {
@@ -72,12 +105,48 @@
     align-items:flex-start
   }
 
+  .workspace-topbar {
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .workspace-topbar-actions {
+    width:100%;
+    flex-wrap:wrap;
+  }
+
+  .workspace-topbar-search {
+    min-width:0;
+    width:100%;
+  }
+
   .content-grid,.stats-grid {
     grid-template-columns:1fr
+  }
+  .project-summary-kpis {
+    grid-template-columns:1fr;
+  }
+  .project-version-head {
+    display:none;
+  }
+  .project-version-row {
+    grid-template-columns:1fr;
+    gap:6px;
+  }
+  .project-version-row > span:last-child {
+    display:flex;
+    justify-content:flex-start;
   }
 
   .iteration-meta-grid {
     grid-template-columns:1fr
+  }
+  .model-relation-graph svg {
+    height:min(360px,70vw);
+    min-height:220px;
+  }
+  .model-relation-detail-grid {
+    grid-template-columns:1fr;
   }
 
   .chat-input-row {
@@ -86,9 +155,27 @@
   .modal-grid-two {
     grid-template-columns:1fr;
   }
+  .iteration-type-radio-group {
+    grid-template-columns:1fr;
+  }
   .iteration-modal-card {
     width:calc(100vw - 20px);
     max-height:calc(100vh - 20px);
+    padding:14px;
+  }
+  .iteration-modal-title h3 {
+    font-size:21px;
+  }
+  .iteration-modal-subtitle {
+    font-size:12px;
+  }
+  .modal-mask {
+    align-items:flex-start;
+    padding:10px;
+  }
+  .iteration-modal-actions {
+    flex-wrap:wrap;
+    justify-content:flex-start;
   }
 
   .analysis-drawer {
@@ -120,9 +207,25 @@
   .interaction-inline-editor {
     grid-template-columns:1fr;
   }
+  .analysis-kpi-grid {
+    grid-template-columns:1fr;
+  }
+  .analysis-depth-grid {
+    grid-template-columns:1fr;
+  }
+  .agent-collab-grid {
+    grid-template-columns:1fr;
+  }
+  .analysis-decision-box {
+    position:static;
+    box-shadow:none;
+  }
+  .iteration-side-rail {
+    grid-template-columns:1fr;
+  }
 
   .analysis-drawer-mask.open {
-    background:rgba(5,22,45,.3)
+    background:rgba(15,23,35,.3)
   }
 
   .repo-status-grid {
@@ -134,6 +237,9 @@
   .repo-config-actions {
     justify-content:stretch;
     flex-wrap:wrap;
+  }
+  .recent-pagination {
+    justify-content:flex-start;
   }
 
 }

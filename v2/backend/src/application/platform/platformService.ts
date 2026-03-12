@@ -10,6 +10,7 @@ import {
   resolveDeploymentIterationId,
   resolveIterationId
 } from "./platformSupport";
+import { listUncoveredAcceptanceCriteria } from "../workspace/workspaceServiceCommon";
 
 export class PlatformService {
   constructor(
@@ -380,6 +381,14 @@ export class PlatformService {
         : [];
       if (acceptanceChecklist.length === 0) {
         blockers.push("缺少验收清单（acceptanceChecklist）");
+      }
+      const uncoveredAcceptanceCriteria = listUncoveredAcceptanceCriteria(
+        targetIteration.scope?.acceptanceCriteria ?? [],
+        acceptanceChecklist,
+        []
+      );
+      if (uncoveredAcceptanceCriteria.length > 0) {
+        blockers.push(`验收标准未完全覆盖（未覆盖 ${uncoveredAcceptanceCriteria.length} 项）`);
       }
       const boundaryCodePaths = Array.isArray(control?.boundary?.codePaths)
         ? control!.boundary.codePaths

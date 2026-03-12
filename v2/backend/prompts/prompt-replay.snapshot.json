@@ -1,29 +1,29 @@
 {
-  "generatedAt": "2026-02-18T09:24:21.525Z",
+  "generatedAt": "2026-03-04T08:21:11.604Z",
   "items": [
     {
       "file": "agent.iteration-coach.v2.md",
-      "systemLength": 1746,
+      "systemLength": 2409,
       "userLength": 99,
       "rendered": [
         {
           "scenario": 1,
-          "systemHash": "abc7c56da0375789",
+          "systemHash": "0c902edbd955867c",
           "userHash": "79a3e7be213edea9"
         },
         {
           "scenario": 2,
-          "systemHash": "abc7c56da0375789",
+          "systemHash": "0c902edbd955867c",
           "userHash": "afe65f891561db2b"
         },
         {
           "scenario": 3,
-          "systemHash": "abc7c56da0375789",
+          "systemHash": "0c902edbd955867c",
           "userHash": "aa8fe902104b28dd"
         },
         {
           "scenario": 4,
-          "systemHash": "abc7c56da0375789",
+          "systemHash": "0c902edbd955867c",
           "userHash": "6c141586865419ea"
         }
       ]
@@ -138,27 +138,27 @@
     },
     {
       "file": "agent.qa-reviewer.v2.md",
-      "systemLength": 910,
+      "systemLength": 1077,
       "userLength": 68,
       "rendered": [
         {
           "scenario": 1,
-          "systemHash": "a0bd71208be33114",
+          "systemHash": "f63a27a616ec2583",
           "userHash": "88db3077991802de"
         },
         {
           "scenario": 2,
-          "systemHash": "a0bd71208be33114",
+          "systemHash": "f63a27a616ec2583",
           "userHash": "12f7f90306dc6bb1"
         },
         {
           "scenario": 3,
-          "systemHash": "a0bd71208be33114",
+          "systemHash": "f63a27a616ec2583",
           "userHash": "28fc0a2364cf1fd1"
         },
         {
           "scenario": 4,
-          "systemHash": "a0bd71208be33114",
+          "systemHash": "f63a27a616ec2583",
           "userHash": "d5c008163e92c3b4"
         }
       ]

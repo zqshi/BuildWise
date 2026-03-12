@@ -13,12 +13,20 @@ import type {
   VersionAssessment
 } from "../../domain/workspace/types";
 import { normalizeThreePartVersion } from "../../domain/workspace/versioning";
+import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
+
+export const iterationStatuses: IterationStatus[] = ["planned", "in-progress", "review", "blocked", "completed"];
+
+export function isIterationStatus(value: string): value is IterationStatus {
+  return (iterationStatuses as string[]).includes(value);
+}
+
 export const statusTransitions: Record<IterationStatus, IterationStatus[]> = {
   planned: ["in-progress", "blocked"],
   "in-progress": ["review", "blocked", "completed"],
   review: ["in-progress", "completed", "blocked"],
   blocked: ["in-progress", "review"],
-  completed: ["in-progress"]
+  completed: []
 };
 export function fallbackScope(goals: string[]): IterationScope {
   return {
@@ -48,13 +56,6 @@ export function fallbackAssessment(scope: IterationScope, summary: string): Vers
   };
 }
 
-function toRepoSlug(value: string, fallback: string) {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || fallback;
-}
 function defaultRepositoryLayout(): ProjectRepository["layout"] {
   return [
     { path: "apps/web", purpose: "前端应用", required: true },
@@ -174,12 +175,81 @@ function normalizeExecutionStatus(value: unknown): "pending" | "passed" | "faile
   return "pending";
 }
 
+function normalizeArtifactStage(
+  value: unknown
+): "clarification" | "scope" | "interaction" | "development" | "testing" | "release" | "archive" {
+  const stage = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (
+    stage === "clarification" ||
+    stage === "scope" ||
+    stage === "interaction" ||
+    stage === "development" ||
+    stage === "testing" ||
+    stage === "release" ||
+    stage === "archive"
+  ) {
+    return stage;
+  }
+  return "clarification";
+}
+
+function normalizeArtifactStatus(value: unknown): "pending" | "partial" | "ready" {
+  const status = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (status === "partial" || status === "ready") {
+    return status;
+  }
+  return "pending";
+}
+
+function normalizeArtifactGateStatus(value: unknown): "pending" | "passed" | "blocked" {
+  const status = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (status === "passed" || status === "blocked") {
+    return status;
+  }
+  return "pending";
+}
+
+function normalizeArtifactEditCapability(value: unknown): "none" | "rich-text" | "prototype-select" {
+  const capability = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (capability === "rich-text" || capability === "prototype-select") {
+    return capability;
+  }
+  return "none";
+}
+
+function fallbackArtifactWorkflow() {
+  return {
+    activeStage: "clarification" as const,
+    updatedAt: "",
+    items: [
+      { id: "analysis-report", stage: "clarification" as const },
+      { id: "boundary-confirmation", stage: "scope" as const },
+      { id: "prototype-preview", stage: "interaction" as const },
+      { id: "code-delivery", stage: "development" as const },
+      { id: "test-matrix", stage: "testing" as const },
+      { id: "acceptance-checklist", stage: "testing" as const },
+      { id: "release-review", stage: "release" as const },
+      { id: "delivery-package", stage: "archive" as const }
+    ]
+  };
+}
+
 function normalizeChangeControl(control: IterationChangeControl | undefined): IterationChangeControl {
+  const defaultWorkflow = fallbackArtifactWorkflow();
   return {
     pendingHumanConfirmation: Boolean(control?.pendingHumanConfirmation),
     lastAnalysisAt: control?.lastAnalysisAt || "",
     lastAnalysisFileName: control?.lastAnalysisFileName || "",
     lastAnalysisDigest: control?.lastAnalysisDigest || "",
+    lastUploadedInputFingerprint: control?.lastUploadedInputFingerprint || "",
+    lastUploadedAt: control?.lastUploadedAt || "",
+    lastFailedAnalysisInput: control?.lastFailedAnalysisInput || "",
+    lastFailedAnalysisAt: control?.lastFailedAnalysisAt || "",
+    lastFailedAnalysisError: control?.lastFailedAnalysisError || "",
+    lastAttachmentUploadId: control?.lastAttachmentUploadId || "",
+    lastAttachmentIngestJobId: control?.lastAttachmentIngestJobId || "",
+    lastAttachmentAnalysisJobId: control?.lastAttachmentAnalysisJobId || "",
+    lastAttachmentReportId: control?.lastAttachmentReportId || "",
     clarificationRounds: Number.isInteger(control?.clarificationRounds) ? control!.clarificationRounds : 0,
     clarificationQuestions: Array.isArray(control?.clarificationQuestions) ? control!.clarificationQuestions : [],
     clarificationDraftResolvedQuestions: Array.isArray(control?.clarificationDraftResolvedQuestions)
@@ -224,6 +294,15 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
       regressionPoints: Array.isArray(control?.qualityArtifacts?.regressionPoints) ? control!.qualityArtifacts.regressionPoints : [],
       materializedFiles: Array.isArray(control?.qualityArtifacts?.materializedFiles) ? control!.qualityArtifacts.materializedFiles : [],
       updatedAt: typeof control?.qualityArtifacts?.updatedAt === "string" ? control.qualityArtifacts.updatedAt : ""
+    },
+    uxArtifacts: {
+      informationArchitecture: Array.isArray(control?.uxArtifacts?.informationArchitecture)
+        ? control!.uxArtifacts.informationArchitecture
+        : [],
+      interactionFlows: Array.isArray(control?.uxArtifacts?.interactionFlows) ? control!.uxArtifacts.interactionFlows : [],
+      uiStates: Array.isArray(control?.uxArtifacts?.uiStates) ? control!.uxArtifacts.uiStates : [],
+      uxConstraints: Array.isArray(control?.uxArtifacts?.uxConstraints) ? control!.uxArtifacts.uxConstraints : [],
+      updatedAt: typeof control?.uxArtifacts?.updatedAt === "string" ? control.uxArtifacts.updatedAt : ""
     },
     executableConstraints: {
       componentWhitelist: Array.isArray(control?.executableConstraints?.componentWhitelist)
@@ -282,6 +361,72 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
     lastReleaseReviewUpdatedAt: typeof control?.lastReleaseReviewUpdatedAt === "string" ? control.lastReleaseReviewUpdatedAt : "",
     lastTraceabilityCoverageScore: Number.isFinite(control?.lastTraceabilityCoverageScore) ? Number(control?.lastTraceabilityCoverageScore) : 0,
     lastOpsRollbackSuggested: Boolean(control?.lastOpsRollbackSuggested),
+    lastReportPublishable: Boolean(control?.lastReportPublishable),
+    lastReportQualityScore: Number.isFinite(control?.lastReportQualityScore) ? Number(control?.lastReportQualityScore) : 0,
+    lastReportQualitySummary: typeof control?.lastReportQualitySummary === "string" ? control.lastReportQualitySummary : "",
+    lastReportQualityUpdatedAt: typeof control?.lastReportQualityUpdatedAt === "string" ? control.lastReportQualityUpdatedAt : "",
+    artifactWorkflow: {
+      activeStage: normalizeArtifactStage(control?.artifactWorkflow?.activeStage || defaultWorkflow.activeStage),
+      updatedAt: typeof control?.artifactWorkflow?.updatedAt === "string" ? control.artifactWorkflow.updatedAt : "",
+      items: Array.isArray(control?.artifactWorkflow?.items)
+        ? control!.artifactWorkflow.items
+            .map((item) => ({
+              id: typeof item?.id === "string" ? item.id : "",
+              stage: normalizeArtifactStage(item?.stage),
+              title: typeof item?.title === "string" ? item.title : "",
+              category: typeof item?.category === "string" ? item.category : "",
+              description: typeof item?.description === "string" ? item.description : "",
+              status: normalizeArtifactStatus(item?.status),
+              gateStatus: normalizeArtifactGateStatus(item?.gateStatus),
+              inputVersionRef: Number.isFinite(item?.inputVersionRef) ? Number(item?.inputVersionRef) : 0,
+              outputVersion: Number.isFinite(item?.outputVersion) ? Number(item?.outputVersion) : 0,
+              stale: Boolean(item?.stale),
+              downstreamImpacts: Array.isArray(item?.downstreamImpacts)
+                ? item.downstreamImpacts.map((entry: unknown) => normalizeArtifactStage(entry))
+                : [],
+              source: typeof item?.source === "string" ? item.source : "",
+              editCapability: normalizeArtifactEditCapability(item?.editCapability),
+              summary: typeof item?.summary === "string" ? item.summary : "",
+              evidence: Array.isArray(item?.evidence) ? item.evidence.filter((entry: unknown) => typeof entry === "string") : [],
+              draft: {
+                content: typeof item?.draft?.content === "string" ? item.draft.content : "",
+                media: Array.isArray(item?.draft?.media) ? item.draft.media.filter((entry: unknown) => typeof entry === "string") : [],
+                updatedAt: typeof item?.draft?.updatedAt === "string" ? item.draft.updatedAt : "",
+                updatedBy: typeof item?.draft?.updatedBy === "string" ? item.draft.updatedBy : ""
+              },
+              lastConfirmedBy: typeof item?.lastConfirmedBy === "string" ? item.lastConfirmedBy : "",
+              lastConfirmedAt: typeof item?.lastConfirmedAt === "string" ? item.lastConfirmedAt : "",
+              updatedAt: typeof item?.updatedAt === "string" ? item.updatedAt : ""
+            }))
+            .filter((item) => item.id)
+        : defaultWorkflow.items
+            .map((item) => ({
+              id: item.id,
+              stage: item.stage,
+              title: "",
+              category: "",
+              description: "",
+              status: "pending" as const,
+              gateStatus: "pending" as const,
+              inputVersionRef: 0,
+              outputVersion: 0,
+              stale: false,
+              downstreamImpacts: [],
+              source: "",
+              editCapability: "none" as const,
+              summary: "",
+              evidence: [],
+              draft: {
+                content: "",
+                media: [],
+                updatedAt: "",
+                updatedBy: ""
+              },
+              lastConfirmedBy: "",
+              lastConfirmedAt: "",
+              updatedAt: ""
+            }))
+    },
     boundary: normalizeChangeBoundary(control?.boundary)
   };
 }
