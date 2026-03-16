@@ -1,4 +1,4 @@
-import type { FormEvent, RefObject } from "react";
+import { useEffect, useState, type FormEvent, type RefObject } from "react";
 import { getLoginModeCopy, shouldShowRequestCodeButton, type LoginMode } from "../../app/authLoginMode";
 import { LoginBrandPanel, LoginSocialSection } from "./loginPageSections";
 
@@ -50,6 +50,20 @@ export function LoginPage({
   const copy = getLoginModeCopy(loginMode);
   const isSmsMode = loginMode === "sms";
   const showRequestCodeButton = shouldShowRequestCodeButton(loginMode);
+  const [actionToast, setActionToast] = useState("");
+
+  useEffect(() => {
+    if (!actionToast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setActionToast(""), 2200);
+    return () => window.clearTimeout(timer);
+  }, [actionToast]);
+
+  const showUnavailableToast = () => {
+    setActionToast("暂未开放");
+  };
+
   return (
     <main className="auth-page">
       <div className="auth-backdrop" aria-hidden="true" />
@@ -57,6 +71,11 @@ export function LoginPage({
         <LoginBrandPanel />
 
         <section className="auth-card" aria-label="登录表单">
+          {actionToast ? (
+            <div className="auth-inline-toast" role="status" aria-live="polite">
+              <span>{actionToast}</span>
+            </div>
+          ) : null}
           <div className="auth-mobile-brand" aria-hidden="true">
             <span className="auth-mobile-logo">BW</span>
             <span>BuildWise</span>
@@ -206,16 +225,18 @@ export function LoginPage({
                 <input type="checkbox" />
                 <span>记住我</span>
               </label>
-              <button type="button" className="auth-link-btn">
-                忘记密码？
-              </button>
+              {isSmsMode ? null : (
+                <button type="button" className="auth-link-btn" onClick={showUnavailableToast}>
+                  忘记密码？
+                </button>
+              )}
             </div>
             {loginError ? <p className="auth-error">{loginError}</p> : null}
             <button type="submit" className="btn primary" disabled={!loginPhone.trim() || !loginCode.trim()}>
               {copy.submitText}
             </button>
           </form>
-          <LoginSocialSection />
+          <LoginSocialSection onRegisterClick={showUnavailableToast} />
         </section>
       </section>
     </main>

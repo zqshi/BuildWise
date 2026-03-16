@@ -6,6 +6,7 @@ export type OpenclawStructuredMessage = {
   risks: string[];
   evidence: string[];
   artifacts: string[];
+  flowRoute: string;
 };
 
 export type OpenclawPresentedMessage =
@@ -57,8 +58,15 @@ function extractStructured(raw: string): OpenclawStructuredMessage | null {
   const risks = toTextArray(parsed.risks);
   const evidence = toTextArray(parsed.evidence);
   const artifacts = toTextArray(parsed.artifacts);
+  const flowRoute = typeof parsed.flow_route === "string" ? parsed.flow_route.trim() : typeof parsed.flowRoute === "string" ? parsed.flowRoute.trim() : "";
   const hasContractShape =
-    Boolean(status || summary) || questions.length > 0 || nextActions.length > 0 || risks.length > 0 || evidence.length > 0 || artifacts.length > 0;
+    Boolean(status || summary) ||
+    questions.length > 0 ||
+    nextActions.length > 0 ||
+    risks.length > 0 ||
+    evidence.length > 0 ||
+    artifacts.length > 0 ||
+    Boolean(flowRoute);
   if (!hasContractShape) {
     return null;
   }
@@ -69,7 +77,8 @@ function extractStructured(raw: string): OpenclawStructuredMessage | null {
     nextActions,
     risks,
     evidence,
-    artifacts
+    artifacts,
+    flowRoute
   };
 }
 

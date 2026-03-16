@@ -28,5 +28,20 @@ test("presentOpenclawMessage converts skill-contract json into structured messag
     assert.deepEqual(presented.data.nextActions, ["方案A：修复权限后重试同步", "方案B：切换只读模式继续分析"]);
     assert.deepEqual(presented.data.risks, ["若继续失败，发布将被阻断。"]);
     assert.deepEqual(presented.data.evidence, ["sync_status=permission_denied"]);
+    assert.equal(presented.data.flowRoute, "");
+  }
+});
+
+test("presentOpenclawMessage parses flow route in main-window orchestration response", () => {
+  const raw = JSON.stringify({
+    status: "success",
+    summary: "已完成流程调整建议。",
+    next_actions: ["更新全局编排规则", "同步项目策略模板"],
+    flow_route: "skill-creator"
+  });
+  const presented = presentOpenclawMessage(raw);
+  assert.equal(presented.kind, "structured");
+  if (presented.kind === "structured") {
+    assert.equal(presented.data.flowRoute, "skill-creator");
   }
 });

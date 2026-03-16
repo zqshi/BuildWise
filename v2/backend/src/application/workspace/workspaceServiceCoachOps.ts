@@ -1,3 +1,4 @@
+import type { Project } from "../../domain/workspace/projectTypes";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Iteration, IterationCoachChatResponse } from "../../domain/workspace/types";
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
@@ -6,7 +7,8 @@ import { dedupeActions, isMechanicalSimilarReply, parseRecentSuggestedActions } 
 import { normalizeIteration } from "./workspaceSupport";
 import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitIntakeOps";
 import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
-import { runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
+import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
+import { buildCoachContractContext } from "./workspaceCoachInteractionContract";
 import {
   appendPolicyExecutionLogOp,
   evaluatePolicyGateForCoachOp,
@@ -74,6 +76,17 @@ function pickStringList(value: unknown, max = 8) {
     .slice(0, max);
 }
 
+function buildFallbackCoachReply(rawContent: string) {
+  const text = rawContent.trim();
+  if (!text) {
+    return "";
+  }
+  if (text.startsWith("{") && text.endsWith("}")) {
+    return "";
+  }
+  return text;
+}
+
 function inferIntent(iteration: Iteration, message: string): IterationCoachChatResponse["intent"] {
   const text = message.toLowerCase();
   const pendingQuestions = iteration.changeControl?.clarificationQuestions ?? [];
@@ -101,7 +114,57 @@ function inferIntent(iteration: Iteration, message: string): IterationCoachChatR
   return "general";
 }
 
-function buildCoachContext(iteration: Iteration, previous: Iteration | null, userMessage: string) {
+function summarizeProjectKnowledge(project: Project | null) {
+  const knowledge = project?.knowledgeBase;
+  if (!knowledge) {
+    return [
+      "项目知识.ontologyTerms=-",
+      "项目知识.stableRules=-",
+      "项目知识.componentInventory=-",
+      "项目知识.changePatterns=-"
+    ];
+  }
+  return [
+    `项目知识.ontologyTerms=${knowledge.ontologyTerms
+      .slice(0, 6)
+      .map((item) => `${item.term}${item.aliases.length > 0 ? `(${item.aliases.join("/")})` : ""}`)
+      .join(" | ") || "-"}`,
+    `项目知识.stableRules=${knowledge.stableRules
+      .slice(0, 6)
+      .map((item) => item.rule)
+      .join(" | ") || "-"}`,
+    `项目知识.componentInventory=${knowledge.componentInventory
+      .slice(0, 6)
+      .map((item) => item.component)
+      .join(" | ") || "-"}`,
+    `项目知识.changePatterns=${knowledge.changePatterns
+      .slice(0, 6)
+      .map((item) => item.pattern)
+      .join(" | ") || "-"}`
+  ];
+}
+
+function summarizeChangeIntelligence(iteration: Iteration) {
+  const changeControl = iteration.changeControl;
+  return [
+    `变更来源.type=${changeControl?.changeSource?.type || "unknown"}`,
+    `变更来源.rawInput=${changeControl?.changeSource?.rawInput || "-"}`,
+    `变更来源.attachments=${changeControl?.changeSource?.attachments?.join(" | ") || "-"}`,
+    `变更来源.references=${changeControl?.changeSource?.references?.join(" | ") || "-"}`,
+    `项目知识命中=${changeControl?.knowledgeHits?.join(" | ") || "-"}`,
+    `项目知识冲突=${changeControl?.knowledgeConflicts?.join(" | ") || "-"}`,
+    `功能点归一化=${changeControl?.normalizedFunctionalPoints?.join(" | ") || "-"}`,
+    `映射审计=${changeControl?.mappingAuditTrail
+      ?.slice(0, 8)
+      .map(
+        (item) =>
+          `${item.functionalPoint}=>需求[${item.requirementRefs.join(",") || "-"}];组件[${item.componentRefs.join(",") || "-"}];代码[${item.codePaths.join(",") || "-"}]`
+      )
+      .join(" | ") || "-"}`
+  ];
+}
+
+function buildCoachContext(iteration: Iteration, previous: Iteration | null, project: Project | null, userMessage: string) {
   const boundary = iteration.changeControl?.boundary;
   const unresolved = iteration.changeControl?.lastClarificationResolution?.unresolvedQuestions ?? [];
   const statusHint =
@@ -127,7 +190,16 @@ function buildCoachContext(iteration: Iteration, previous: Iteration | null, use
     `未解决澄清=${unresolved.join(" | ") || "-"}`,
     `边界.requirementRefs=${boundary?.requirementRefs.join(" | ") || "-"}`,
     `边界.componentRefs=${boundary?.componentRefs.join(" | ") || "-"}`,
-    `边界.codePaths=${boundary?.codePaths.join(" | ") || "-"}`
+    `边界.codePaths=${boundary?.codePaths.join(" | ") || "-"}`,
+    ...summarizeProjectKnowledge(project),
+    ...summarizeChangeIntelligence(iteration),
+    buildOpenclawSkillSelectionContext({
+      iteration,
+      project,
+      previousIterationName: previous?.name || "",
+      userMessage
+    }),
+    buildCoachContractContext(!previous)
   ].join("\n");
 }
 
@@ -207,6 +279,7 @@ export async function coachIterationConversationOp(
   }
   const skillChain = runOpenclawSkillChainForCoach({
     iteration: normalized,
+    project: project ?? null,
     previousIterationName: previous?.name || "",
     userMessage: message
   });
@@ -218,7 +291,7 @@ export async function coachIterationConversationOp(
   const expectedOutput =
     "JSON: {intent, reply, execution:{action,instruction,apply}, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}";
   const context = [
-    buildCoachContext(normalized, previous ? normalizeIteration(previous) : null, message),
+    buildCoachContext(normalized, previous ? normalizeIteration(previous) : null, project ?? null, message),
     `recent_messages=${recentMessages
       .map((item, idx) => `[${idx + 1}]${item.role}:${item.content.slice(0, 120).replace(/\s+/g, " ")}`)
       .join(" | ") || "-"}`,
@@ -252,7 +325,7 @@ export async function coachIterationConversationOp(
     const parsed = safeJsonParse(result.content);
     const modelIntent = pickString(parsed?.intent) as IterationCoachChatResponse["intent"];
     const guidance = (parsed?.guidance ?? {}) as Record<string, unknown>;
-    const generatedReply = pickString(parsed?.reply);
+    const generatedReply = pickString(parsed?.reply) || buildFallbackCoachReply(result.content);
     if (!generatedReply) {
       throw new LlmInvocationError("Coach LLM returned invalid payload: missing reply");
     }
@@ -276,9 +349,10 @@ export async function coachIterationConversationOp(
       : "none";
     const executionInstruction = pickString(executionRaw.instruction);
     const executionApply = Boolean(executionRaw.apply);
-    if (suggestedActionsRaw.length === 0) {
-      throw new LlmInvocationError("Coach LLM returned invalid payload: missing guidance.suggestedActions");
-    }
+    const fallbackSuggestedActions =
+      skillChain.suggestedActions.length > 0
+        ? skillChain.suggestedActions
+        : ["继续当前交付物确认，再推进下一阶段"];
     const reply = isMechanicalSimilarReply(generatedReply, recentAssistantReply)
       ? `我理解你的关注点。基于当前迭代「${normalized.name}」，我们先推进一个最关键动作：${
           (normalized.changeControl?.clarificationQuestions ?? [])[0] || "确认本轮边界与验收口径"
@@ -297,7 +371,7 @@ export async function coachIterationConversationOp(
     const finalIntent = validIntentSet.has(modelIntent) ? modelIntent : intent;
     const skillActions = dedupeActions(skillChain.suggestedActions, recentSuggestedActions);
     const mergedActions = dedupeActions(
-      [...suggestedActionsRaw, ...skillActions],
+      [...(suggestedActionsRaw.length > 0 ? suggestedActionsRaw : fallbackSuggestedActions), ...skillActions],
       recentSuggestedActions
     );
     const mergedChecklist = Array.from(new Set([...(clarificationChecklist || []), ...skillChain.checklist])).slice(0, 8);
@@ -332,7 +406,12 @@ export async function coachIterationConversationOp(
         stage: gate.stage,
         action: "coach_reply_generated",
         result: "success",
-        evidence: [response.reply.slice(0, 180), `skills=${skillChain.summaries.slice(0, 2).join(" | ") || "none"}`]
+        evidence: [
+          response.reply.slice(0, 180),
+          `skills=${skillChain.selectedSkills.join(" | ") || "none"}`,
+          `skill_reasons=${skillChain.selectionReasons.join(" | ") || "none"}`,
+          ...skillChain.evidence.slice(0, 4)
+        ]
       });
     }
     return response;

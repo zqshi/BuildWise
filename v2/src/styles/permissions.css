@@ -260,6 +260,11 @@
   color: var(--text-muted);
 }
 
+.link-btn:disabled {
+  color: #a3afbf;
+  cursor: not-allowed;
+}
+
 .permissions-table-foot {
   border-top: 1px solid #e8edf4;
   padding: 10px 16px;
@@ -402,12 +407,25 @@
   color: var(--text-secondary);
 }
 
+.permissions-role-row.locked {
+  background: #f8fafc;
+  color: #98a4b4;
+}
+
 .permissions-role-row.active {
   background: #f4f8ff;
 }
 
+.permissions-role-row.locked.active {
+  background: #f2f5f9;
+}
+
 .permissions-role-row .role-desc {
   color: var(--text-muted);
+}
+
+.permissions-role-row.locked .role-desc {
+  color: #a5b0be;
 }
 
 .permissions-group ul {

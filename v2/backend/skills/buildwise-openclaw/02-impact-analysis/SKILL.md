@@ -8,6 +8,11 @@ description: Impact analysis SOP based on ontology and dependency propagation. U
 ## Goal
 Estimate real change surface and prioritize safe implementation order.
 
+## Boundary
+- This skill only evaluates impact and execution risk.
+- It must not define deliverable lifecycle, release decision, or audit closure.
+- It may inform downstream artifacts, but must not replace them.
+
 ## Inputs
 - `change_events`
 - `ontology_map`

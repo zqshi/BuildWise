@@ -39,6 +39,7 @@ import {
   updateIterationTestMatrixExecution,
   transitionIterationState
 } from "./workspaceApi";
+import { buildCoachFollowupMessage } from "./coachConversationGuide";
 
 type UseIterationActionsParams = {
   currentIteration: Iteration | null;
@@ -660,21 +661,12 @@ export function useIterationActions({
           `可视化编辑执行结果（目标：${visualEditResult.target.target}）：${visualEditResult.summary}`
         );
         if (visualEditResult.warnings.length > 0) {
-          await createMessage(currentIteration.id, "system", `操作建议：${visualEditResult.warnings.join("；")}`);
+          await createMessage(currentIteration.id, "assistant", `补充建议：${visualEditResult.warnings.join("；")}`);
         }
         return visualEditResult;
       }
       const resolvedQuestions = currentIteration.changeControl?.clarificationDraftResolvedQuestions ?? [];
-      const coachPrompt =
-        currentIteration.changeControl?.pendingHumanConfirmation
-          ? [
-              "请以数字员工方式执行澄清引导，避免机械式逐题队列展示。",
-              "要求：先复述你对用户输入的理解，再给出1-2个最关键追问，并明确这些追问如何影响本次迭代的边界、功能范围或验收标准。",
-              "若信息仍不足，请继续引导；若已充分且用户表达确认意图，再提醒可输入“确认分析”。",
-              `用户输入：${text}`
-            ].join("\n")
-          : text;
-      const coach = await coachIterationMessage(currentIteration.id, coachPrompt);
+      const coach = await coachIterationMessage(currentIteration.id, text);
       await createMessage(currentIteration.id, "assistant", coach.reply);
       if (coach.execution?.action === "rewrite") {
         const instruction = (coach.execution.instruction || text).trim();
@@ -739,7 +731,7 @@ export function useIterationActions({
         return null;
       }
       if (coach.execution?.action === "enter-clarify-mode") {
-        await createMessage(currentIteration.id, "system", "已切换为澄清推进模式：将优先收敛关键待确认项。");
+        await createMessage(currentIteration.id, "assistant", "已切换为澄清推进模式，接下来我会优先收敛关键待确认项。");
       }
       if (coach.execution?.action === "run-full-cycle" || coach.intent === "full-cycle") {
         const autoAnalysisInput = buildAutoFullCycleAnalysisInput();
@@ -771,30 +763,9 @@ export function useIterationActions({
             `可部署交付包：${deliveryPackageFiles.join("；") || "未生成"}`
         );
       }
-      const intentPriorityMap: Record<string, "P0" | "P1" | "P2"> = {
-        release: "P0",
-        "full-cycle": "P0",
-        qa: "P1",
-        "confirm-boundary": "P1",
-        clarify: "P1",
-        "collect-attachment": "P1",
-        plan: "P2",
-        general: "P2"
-      };
-      const prerequisites = [
-        coach.guidance?.uploadRecommended ? "先上传本轮附件材料（需求文档/原型/接口变更）" : "",
-        (coach.guidance?.clarificationChecklist?.length || 0) > 0 ? "先完成关键澄清项确认" : ""
-      ].filter(Boolean);
-      const guidancePayload = {
-        intent: coach.intent,
-        priority: intentPriorityMap[coach.intent] || "P2",
-        uploadRecommended: Boolean(coach.guidance?.uploadRecommended),
-        actions: coach.guidance?.suggestedActions?.slice(0, 4) || [],
-        checklist: coach.guidance?.clarificationChecklist?.slice(0, 4) || [],
-        prerequisites
-      };
-      if (guidancePayload.actions.length > 0 || guidancePayload.checklist.length > 0 || guidancePayload.uploadRecommended) {
-        await createMessage(currentIteration.id, "system", `操作建议JSON:${JSON.stringify(guidancePayload)}`);
+      const followup = buildCoachFollowupMessage(coach);
+      if (followup) {
+        await createMessage(currentIteration.id, "assistant", followup);
       }
       await loadIterationDetail(currentIteration.id);
       return null;
@@ -1055,6 +1026,7 @@ export function useIterationActions({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      throw err;
     } finally {
       setBusy(false);
     }
@@ -1074,6 +1046,7 @@ export function useIterationActions({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      throw err;
     } finally {
       setBusy(false);
     }
@@ -1090,6 +1063,7 @@ export function useIterationActions({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      throw err;
     } finally {
       setBusy(false);
     }
@@ -1103,6 +1077,7 @@ export function useIterationActions({
       setChatMessages((prev) => [...prev, result.message]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
+      throw err;
     } finally {
       setBusy(false);
     }

@@ -11,6 +11,9 @@ import {
 } from "../../app/workspaceApi";
 import type { GovernancePermissionPoint, GovernanceRole } from "../../domain/workspace/governanceTypes";
 import {
+  BUILTIN_ROLE_MATRIX_OPTIONS,
+  canAccessGovernanceEntries,
+  isBuiltinLockedRole,
   isValidMainlandPhone,
   resolvePermissionTabPanels,
   mapMemberPresetRoleToPlatformRole,
@@ -36,12 +39,8 @@ type RoleRow = {
 
 const platformRoleOptions: Array<{ value: PlatformRole; label: string }> = [
   { value: "admin", label: "超级管理员" },
-  { value: "member", label: "项目成员" },
+  { value: "member", label: "成员" },
   { value: "viewer", label: "只读成员" }
-];
-
-const roleMatrixOptions: Array<{ key: RoleMatrixKey; label: string }> = [
-  { key: "owner", label: "超级管理员" }
 ];
 
 const MODULE_LABELS: Record<string, string> = {
@@ -60,7 +59,8 @@ const MODULE_LABELS: Record<string, string> = {
 };
 
 const BUILTIN_ROLE_META: Record<string, { description: string; level: number }> = {
-  owner: { description: "平台最高权限，默认拥有全量资源访问与治理能力", level: 9 }
+  owner: { description: "平台最高权限，默认拥有全量资源访问与治理能力", level: 9 },
+  member: { description: "平台默认成员角色，拥有基础工作台访问能力", level: 1 }
 };
 
 type CustomRole = {
@@ -114,7 +114,7 @@ function listAllPermissionPoints(permissionPoints: GovernancePermissionPoint[], 
 }
 
 export function PermissionSettingsPage({ currentRole }: PermissionSettingsPageProps) {
-  const isAdmin = currentRole === "owner";
+  const isAdmin = canAccessGovernanceEntries(currentRole);
   const [activeTab, setActiveTab] = useState<PermissionTab>("members");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -128,7 +128,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
     name: "",
     phone: "",
     department: "",
-    rolePreset: "project_manager" as MemberPresetRole,
+    rolePreset: "member" as MemberPresetRole,
     validFrom: "",
     validTo: "",
     note: ""
@@ -190,7 +190,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
   }, [bindings, searchKeyword]);
 
   const roleOptions = useMemo(
-    () => [...roleMatrixOptions, ...customRoles.map((item) => ({ key: item.key, label: item.label }))],
+    () => [...BUILTIN_ROLE_MATRIX_OPTIONS, ...customRoles.map((item) => ({ key: item.key, label: item.label }))],
     [customRoles]
   );
 
@@ -216,8 +216,9 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
     governanceRoles.forEach((item) => map.set(item.id, item.permissions));
     customRoles.forEach((item) => map.set(item.key, item.permissions));
     map.set("owner", allPermissionPoints);
+    map.set("member", permissionMapByRole.get("pm") || []);
     return map;
-  }, [governanceRoles, customRoles, allPermissionPoints]);
+  }, [governanceRoles, customRoles, allPermissionPoints, permissionMapByRole]);
   const groupedPermissionPoints = useMemo(() => {
     const grouped = new Map<string, Array<{ key: string; title: string }>>();
     permissionPoints.forEach((point) => {
@@ -233,14 +234,14 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
     }));
   }, [permissionPoints]);
   const roleRows = useMemo<RoleRow[]>(() => {
-    const builtinRows = roleMatrixOptions.map((item) => {
-      const role = governanceRoles.find((x) => x.id === item.key);
+    const builtinRows = BUILTIN_ROLE_MATRIX_OPTIONS.map((item) => {
+      const permissions = rolePermissionMap.get(item.key) || [];
       return {
         key: item.key,
         label: item.label,
         description: BUILTIN_ROLE_META[item.key]?.description || "系统内置角色",
         level: BUILTIN_ROLE_META[item.key]?.level || 1,
-        permissionCount: item.key === "owner" ? allPermissionPoints.length : role?.permissions.length || 0,
+        permissionCount: permissions.length,
         updatedAt: "--"
       };
     });
@@ -253,7 +254,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
       updatedAt: item.updatedAt.slice(0, 10)
     }));
     return [...builtinRows, ...customRows];
-  }, [governanceRoles, customRoles, allPermissionPoints]);
+  }, [customRoles, rolePermissionMap]);
 
   const handleCreateBinding = async () => {
     if (!isAdmin || !memberForm.name.trim() || !isValidMainlandPhone(memberForm.phone)) {
@@ -271,7 +272,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
         name: "",
         phone: "",
         department: "",
-        rolePreset: "project_manager",
+        rolePreset: "member",
         validFrom: "",
         validTo: "",
         note: ""
@@ -371,7 +372,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
   };
 
   const handleOpenRoleConfig = (roleKey: string) => {
-    if (roleKey === "owner") {
+    if (isBuiltinLockedRole(roleKey)) {
       return;
     }
     setSelectedMatrixRole(roleKey);
@@ -580,14 +581,21 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
               </div>
               <ul className="permissions-table-body">
                 {roleRows.map((item) => (
-                  <li key={item.key} className={`permissions-role-row ${selectedMatrixRole === item.key ? "active" : ""}`}>
+                  <li
+                    key={item.key}
+                    className={`permissions-role-row ${selectedMatrixRole === item.key ? "active" : ""} ${isBuiltinLockedRole(item.key) ? "locked" : ""}`}
+                  >
                     <span>{item.label}</span>
                     <span className="role-desc">{item.description}</span>
                     <span>{item.level}</span>
                     <span>{item.permissionCount}</span>
                     <span>{item.updatedAt}</span>
                     <span className="action-cell">
-                      {item.key === "owner" ? null : (
+                      {isBuiltinLockedRole(item.key) ? (
+                        <button type="button" className="link-btn muted" disabled title="系统内置角色暂不支持操作">
+                          不支持操作
+                        </button>
+                      ) : (
                         <button type="button" className="link-btn" onClick={() => handleOpenRoleConfig(item.key)}>
                           配置权限
                         </button>
@@ -635,18 +643,10 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
             <label>
               <input
                 type="radio"
-                checked={memberForm.rolePreset === "project_manager"}
-                onChange={() => setMemberForm((prev) => ({ ...prev, rolePreset: "project_manager" }))}
+                checked={memberForm.rolePreset === "member"}
+                onChange={() => setMemberForm((prev) => ({ ...prev, rolePreset: "member" }))}
               />
-              <span>项目经理</span>
-            </label>
-            <label>
-              <input
-                type="radio"
-                checked={memberForm.rolePreset === "viewer"}
-                onChange={() => setMemberForm((prev) => ({ ...prev, rolePreset: "viewer" }))}
-              />
-              <span>普通成员</span>
+              <span>成员</span>
             </label>
           </fieldset>
           <div className="permissions-form-row-two">

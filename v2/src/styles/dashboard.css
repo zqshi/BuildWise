@@ -66,3 +66,10 @@
 .status-chip { display:inline-flex; align-items:center; width:fit-content; padding:2px 8px; border-radius:var(--radius-pill); font-size:var(--text-2xs); font-weight:var(--font-weight-semibold) }
 .status-chip.ok { color:var(--success-600); background:color-mix(in srgb,var(--success-500) 16%, white) }
 .status-chip.warn { color:var(--danger-500); background:var(--danger-50) }
+.view-error-panel { margin-top:4px; display:grid; gap:12px }
+.view-error-content { display:grid; gap:12px }
+.view-error-summary { margin:0; color:var(--text-secondary) }
+.view-error-meta { margin:0; display:grid; gap:10px }
+.view-error-meta div { display:grid; gap:4px; padding:10px 12px; border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--bg-canvas) }
+.view-error-meta dt { font-size:var(--text-2xs); color:var(--text-muted) }
+.view-error-meta dd { margin:0; color:var(--text-primary); word-break:break-word }

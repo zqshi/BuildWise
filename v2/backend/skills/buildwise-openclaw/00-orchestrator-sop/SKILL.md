@@ -8,6 +8,12 @@ description: Single-agent orchestration SOP for iteration lifecycle governance. 
 ## Goal
 Drive one iteration end-to-end with one agent, enforce gates, and produce one unified contract.
 
+## Boundary
+- This skill owns orchestration only.
+- It may choose, order, and combine downstream skills dynamically.
+- It must not replace the specialized work of child skills with generic summaries.
+- It must not skip a needed child skill when that skill owns the required concern.
+
 ## Inputs
 - `iteration_context`
 - `runtime_config`

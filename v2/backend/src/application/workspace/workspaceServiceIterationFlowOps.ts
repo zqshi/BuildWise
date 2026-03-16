@@ -30,7 +30,7 @@ export function createIterationOp(repo: WorkspaceRepository, projectId: number, 
   if (!created.changeControl) {
     repo.updateIteration({
       ...created,
-      changeControl: defaultIterationChangeControl()
+      changeControl: defaultIterationChangeControl({ isFirstIteration: !previous, hasPreviousIteration: Boolean(previous) })
     });
   }
   let normalized = normalizeIteration(repo.findIteration(created.id) ?? created);

@@ -8,6 +8,11 @@ description: Exception detection and recovery SOP for runtime, sync, and test fa
 ## Goal
 Convert failure signals into controlled recovery decisions without losing iteration continuity.
 
+## Boundary
+- This skill only operates when an exception or unsafe state exists.
+- It must not perform normal-stage planning.
+- It must not overrule audit, release, or artifact content contracts outside the recovery context.
+
 ## Inputs
 - `runtime_signals`
 - `sync_status`
