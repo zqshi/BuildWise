@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { canAccessGovernanceEntries } from "../governance/permissionSettingsModel";
 
 type DockSidebarProps = {
   activeView: "dashboard" | "projects" | "permissions";
@@ -29,7 +30,7 @@ export function DockSidebar({
   onOpenOpenclawDialog,
   onLogout
 }: DockSidebarProps) {
-  const isAdmin = currentRole === "owner";
+  const isAdmin = canAccessGovernanceEntries(currentRole);
   const iconClassName = "dock-icon";
 
   return (

@@ -76,9 +76,12 @@ export function listUncoveredAcceptanceCriteria(
   return uncovered;
 }
 
-export function defaultIterationChangeControl(): IterationChangeControl {
+export function defaultIterationChangeControl(options?: { isFirstIteration?: boolean; hasPreviousIteration?: boolean }): IterationChangeControl {
   const now = new Date().toISOString();
-  const defaultArtifactWorkflow = buildDefaultArtifactWorkflow(now);
+  const defaultArtifactWorkflow = buildDefaultArtifactWorkflow(
+    now,
+    options?.isFirstIteration ? "first-iteration" : options?.hasPreviousIteration ? "subsequent-iteration" : "generic"
+  );
   return {
     pendingHumanConfirmation: false,
     lastAnalysisAt: "",
@@ -161,7 +164,18 @@ export function defaultIterationChangeControl(): IterationChangeControl {
       codePaths: [],
       note: "",
       updatedAt: ""
-    }
+    },
+    changeSource: {
+      type: "unknown",
+      rawInput: "",
+      attachments: [],
+      references: [],
+      updatedAt: ""
+    },
+    knowledgeHits: [],
+    knowledgeConflicts: [],
+    normalizedFunctionalPoints: [],
+    mappingAuditTrail: []
   };
 }
 

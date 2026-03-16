@@ -8,6 +8,11 @@ description: Deliverable lifecycle governance SOP for draft-commit-confirm-chat 
 ## Goal
 Ensure each required deliverable is actionable, confirmable, and traceable in conversation.
 
+## Boundary
+- This skill governs deliverable state only.
+- It must not decide the business content schema of artifacts.
+- It must not perform cross-iteration diffing, release judgment, or exception strategy selection.
+
 ## Inputs
 - `artifact_workflow`
 - `iteration_stage`

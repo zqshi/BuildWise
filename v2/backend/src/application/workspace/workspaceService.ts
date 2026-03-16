@@ -864,7 +864,7 @@ export class WorkspaceService {
   }
 
   openclawDirectChatGlobal(message: string) {
-    return openclawDirectChatGlobalOp({ message });
+    return openclawDirectChatGlobalOp(this.repo, { message });
   }
 
   probeOpenclawIntegration() {

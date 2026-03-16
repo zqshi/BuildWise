@@ -21,4 +21,5 @@ test("login card uses adaptive padding instead of fixed top offset", () => {
 
   assert.ok(authCardRule, "missing .auth-card rule");
   assert.match(authCardRule[0], /padding:clamp\(36px,18vh,230px\)/, "auth card must adapt top spacing to viewport height");
+  assert.match(authCardRule[0], /max-width:none/, "desktop login card should keep the original full-column width");
 });

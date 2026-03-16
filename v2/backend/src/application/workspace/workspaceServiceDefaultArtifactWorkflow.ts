@@ -1,6 +1,24 @@
 import type { IterationArtifactWorkflow } from "../../domain/workspace/types";
 
-export function buildDefaultArtifactWorkflow(now: string): IterationArtifactWorkflow {
+type ArtifactWorkflowMode = "generic" | "first-iteration" | "subsequent-iteration";
+
+function resolveAnalysisTitle(mode: ArtifactWorkflowMode) {
+  if (mode === "first-iteration") return "首版需求分析报告";
+  if (mode === "subsequent-iteration") return "继承差异分析报告";
+  return "需求分析报告";
+}
+
+function resolveAnalysisDescription(mode: ArtifactWorkflowMode) {
+  if (mode === "first-iteration") {
+    return "沉淀首版目标理解、业务对象、纳入项、排除项与待确认问题。";
+  }
+  if (mode === "subsequent-iteration") {
+    return "沉淀继承基线、增量差异、影响边界与回滚关注点。";
+  }
+  return "沉淀当前版本目标理解、边界、风险与待确认问题。";
+}
+
+export function buildDefaultArtifactWorkflow(now: string, mode: ArtifactWorkflowMode = "generic"): IterationArtifactWorkflow {
   const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
   const defaultRichTextEditable = new Set([
     "analysis-report",
@@ -36,9 +54,9 @@ export function buildDefaultArtifactWorkflow(now: string): IterationArtifactWork
       {
         id: "analysis-report",
         stage: "clarification",
-        title: "历史版本分析报告",
+        title: resolveAnalysisTitle(mode),
         category: "分析报告",
-        description: "沉淀历史版本洞察、差异、风险与澄清问题。",
+        description: resolveAnalysisDescription(mode),
         status: "pending",
         gateStatus: "pending",
         inputVersionRef: 0,
@@ -47,6 +65,27 @@ export function buildDefaultArtifactWorkflow(now: string): IterationArtifactWork
         downstreamImpacts: ["scope", "interaction", "development", "testing", "release", "archive"],
         source: "analysisReport",
         editCapability: resolveEditCapability("analysis-report"),
+        summary: "",
+        evidence: [],
+        draft: { content: "", media: [], updatedAt: "", updatedBy: "" },
+        lastConfirmedBy: "",
+        lastConfirmedAt: "",
+        updatedAt: now
+      },
+      {
+        id: "product-requirements-doc",
+        stage: "clarification",
+        title: "产品需求文档",
+        category: "PRD",
+        description: "沉淀问题定义、用户场景、功能需求、非功能要求与验收标准。",
+        status: "pending",
+        gateStatus: "pending",
+        inputVersionRef: 0,
+        outputVersion: 0,
+        stale: false,
+        downstreamImpacts: ["scope", "interaction", "development", "testing", "release", "archive"],
+        source: "analysisReport.prd",
+        editCapability: resolveEditCapability("product-requirements-doc"),
         summary: "",
         evidence: [],
         draft: { content: "", media: [], updatedAt: "", updatedBy: "" },
@@ -89,6 +128,48 @@ export function buildDefaultArtifactWorkflow(now: string): IterationArtifactWork
         downstreamImpacts: ["development", "testing", "release", "archive"],
         source: "uploadedFile.htmlPreviews/imagePreviews",
         editCapability: resolveEditCapability("prototype-preview"),
+        summary: "",
+        evidence: [],
+        draft: { content: "", media: [], updatedAt: "", updatedBy: "" },
+        lastConfirmedBy: "",
+        lastConfirmedAt: "",
+        updatedAt: now
+      },
+      {
+        id: "design-spec",
+        stage: "interaction",
+        title: "设计规范",
+        category: "设计规范",
+        description: "沉淀布局规则、颜色、字体、状态与响应式要求。",
+        status: "pending",
+        gateStatus: "pending",
+        inputVersionRef: 0,
+        outputVersion: 0,
+        stale: false,
+        downstreamImpacts: ["development", "testing", "release", "archive"],
+        source: "changeControl.uxArtifacts",
+        editCapability: resolveEditCapability("design-spec"),
+        summary: "",
+        evidence: [],
+        draft: { content: "", media: [], updatedAt: "", updatedBy: "" },
+        lastConfirmedBy: "",
+        lastConfirmedAt: "",
+        updatedAt: now
+      },
+      {
+        id: "technical-architecture",
+        stage: "development",
+        title: "技术架构",
+        category: "技术架构",
+        description: "沉淀模块职责、数据流、接口边界、依赖变化与回滚点。",
+        status: "pending",
+        gateStatus: "pending",
+        inputVersionRef: 0,
+        outputVersion: 0,
+        stale: false,
+        downstreamImpacts: ["testing", "release", "archive"],
+        source: "iteration.architecture",
+        editCapability: resolveEditCapability("technical-architecture"),
         summary: "",
         evidence: [],
         draft: { content: "", media: [], updatedAt: "", updatedBy: "" },

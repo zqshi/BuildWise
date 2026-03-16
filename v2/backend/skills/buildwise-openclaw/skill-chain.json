@@ -4,9 +4,12 @@
   "orchestrator": "00-orchestrator-sop",
   "sequence": [
     "01-ontology-mapping",
+    "10-business-rule-linking",
     "02-impact-analysis",
     "03-deliverable-governance",
     "04-cross-iteration",
+    "09-deliverable-content-contract",
+    "11-product-rd-quality-contract",
     "05-exception-recovery",
     "06-quality-release-gate",
     "07-audit-trace"

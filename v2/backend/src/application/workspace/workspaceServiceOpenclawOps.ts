@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import type { Project } from "../../domain/workspace/projectTypes";
+import { buildOpenclawSkillSelectionContext } from "./workspaceOpenclawSkillsBridge";
 
 type OpenclawRuntimeConfig = {
   openclaw?: {
@@ -205,10 +207,62 @@ function readSkillsChainBrief() {
     const parsed = JSON.parse(readFileSync(chainPath, "utf-8")) as { sequence?: unknown };
     const sequence = Array.isArray(parsed.sequence) ? parsed.sequence.map((item) => String(item).trim()).filter(Boolean) : [];
     if (sequence.length === 0) return "";
-    return `skills链路：${sequence.join(" -> ")}`;
+    return `skills 能力包：${sequence.join(" | ")}\n加载方式：渐进式加载，由 Agent 按当前问题自主选择最小必要 skills，不按固定顺序全量执行。`;
   } catch {
     return "";
   }
+}
+
+function summarizeProjectKnowledge(project: Project | null) {
+  if (!project) {
+    return "";
+  }
+  const knowledge = project.knowledgeBase;
+  const sections = [
+    `项目=${project.name}`,
+    `描述=${project.description || "-"}`,
+    `本体词典=${knowledge?.ontologyTerms
+      ?.slice(0, 8)
+      .map((item) => `${item.term}${item.aliases.length > 0 ? `(${item.aliases.join("/")})` : ""}`)
+      .join(" | ") || "-"}`,
+    `稳定规则=${knowledge?.stableRules?.slice(0, 8).map((item) => item.rule).join(" | ") || "-"}`,
+    `组件清单=${knowledge?.componentInventory?.slice(0, 8).map((item) => item.component).join(" | ") || "-"}`,
+    `代码能力映射=${knowledge?.codeMap?.slice(0, 8).map((item) => item.capability).join(" | ") || "-"}`,
+    `决策积累=${knowledge?.decisionLog?.slice(0, 8).map((item) => item.decision).join(" | ") || "-"}`,
+    `已知风险=${knowledge?.knownRisks?.slice(0, 8).map((item) => item.risk).join(" | ") || "-"}`,
+    `变更模式=${knowledge?.changePatterns?.slice(0, 8).map((item) => item.pattern).join(" | ") || "-"}`
+  ];
+  return ["[项目知识上下文]", ...sections].join("\n");
+}
+
+function summarizePortfolioKnowledge(repo: WorkspaceRepository) {
+  const projects = repo.listProjects().slice(0, 6);
+  if (projects.length === 0) {
+    return "";
+  }
+  return [
+    "[主窗口项目概览上下文]",
+    ...projects.map((project) => {
+      const knowledge = project.knowledgeBase;
+      return [
+        `项目=${project.name}`,
+        `状态=${project.status}`,
+        `稳定规则数量=${knowledge?.stableRules?.length || 0}`,
+        `组件数量=${knowledge?.componentInventory?.length || 0}`,
+        `已知风险数量=${knowledge?.knownRisks?.length || 0}`,
+        `最近决策=${knowledge?.decisionLog?.[0]?.decision || "-"}`
+      ].join(" ; ");
+    })
+  ].join("\n");
+}
+
+function summarizeProjectSkillSelection(project: Project | null, userMessage: string) {
+  return ["[skills selection]", buildOpenclawSkillSelectionContext({ project, userMessage })].join("\n");
+}
+
+function summarizePortfolioSkillSelection(repo: WorkspaceRepository, userMessage: string) {
+  const firstProject = repo.listProjects()[0] || null;
+  return ["[skills selection]", buildOpenclawSkillSelectionContext({ project: firstProject, userMessage })].join("\n");
 }
 
 function composeOpenclawPrompt(params: {
@@ -216,6 +270,7 @@ function composeOpenclawPrompt(params: {
   skillsChainBrief: string;
   userMessage: string;
   workspacePath?: string;
+  contextSections?: string[];
 }) {
   const sections: string[] = [];
   if (params.personaPrompt) {
@@ -226,6 +281,9 @@ function composeOpenclawPrompt(params: {
   }
   if (params.workspacePath && params.workspacePath.trim()) {
     sections.push(`当前工作区路径：${params.workspacePath.trim()}`);
+  }
+  if (params.contextSections?.length) {
+    sections.push(...params.contextSections.filter((item) => item.trim()));
   }
   sections.push(`用户消息：${params.userMessage.trim()}`);
   return sections.join("\n\n");
@@ -241,6 +299,7 @@ export function openclawDirectChatOp(
   }
 
   const binding = repo.listProjectWorkspaceBindings(input.projectId)[0] || null;
+  const project = repo.findProject(input.projectId);
   if (!binding) {
     throw new Error("project workspace binding not found");
   }
@@ -265,7 +324,8 @@ export function openclawDirectChatOp(
     personaPrompt,
     skillsChainBrief,
     userMessage: message,
-    workspacePath: binding.workspacePath
+    workspacePath: binding.workspacePath,
+    contextSections: [summarizeProjectKnowledge(project), summarizeProjectSkillSelection(project, message)]
   });
 
   const reply = runOpenclawCommand(runtimePaths, [openclawEntry, "--profile", profile, "agent", "--local", "--agent", agentId, "-m", prompt]);
@@ -284,7 +344,7 @@ export function openclawDirectChatOp(
   };
 }
 
-export function openclawDirectChatGlobalOp(input: { message: string }): OpenclawDirectChatResult {
+export function openclawDirectChatGlobalOp(repo: WorkspaceRepository, input: { message: string }): OpenclawDirectChatResult {
   const message = input.message.trim();
   if (!message) {
     throw new Error("message is required");
@@ -306,7 +366,8 @@ export function openclawDirectChatGlobalOp(input: { message: string }): Openclaw
   const prompt = composeOpenclawPrompt({
     personaPrompt,
     skillsChainBrief,
-    userMessage: message
+    userMessage: message,
+    contextSections: [summarizePortfolioKnowledge(repo), summarizePortfolioSkillSelection(repo, message)]
   });
 
   const reply = runOpenclawCommand(runtimePaths, [openclawEntry, "--profile", profile, "agent", "--local", "--agent", agentId, "-m", prompt]);

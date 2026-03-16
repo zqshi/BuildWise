@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { resolveAppRoute, type AppRoute } from "./authRouting";
 import { requestSmsLoginCode, verifySmsLoginCode } from "./workspaceApi";
 import { getDefaultLoginMode, getLoginModeSubmitError, type LoginMode } from "./authLoginMode";
 
-function getHashRoute() {
-  return window.location.hash === "#/login" ? "login" : "workspace";
-}
-
 export function useAuthController() {
-  const [route, setRoute] = useState<"workspace" | "login">(getHashRoute);
+  const [route, setRoute] = useState<AppRoute>(() => resolveAppRoute(window.location.hash));
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => localStorage.getItem("buildwise:auth") === "logged_in"
   );
@@ -34,14 +31,14 @@ export function useAuthController() {
   const loginCodeRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const handleHashChange = () => setRoute(getHashRoute());
+    const handleHashChange = () => setRoute(resolveAppRoute(window.location.hash));
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated && route !== "login") {
-      window.location.hash = "/login";
+    if (!isAuthenticated && route === "workspace") {
+      window.location.hash = "/";
     }
   }, [isAuthenticated, route]);
 

@@ -110,6 +110,16 @@ export function normalizeProject(project: Project): Project {
   const repo = project.repository ?? createDefaultProjectRepository(project);
   return {
     ...project,
+    knowledgeBase: {
+      ontologyTerms: Array.isArray(project.knowledgeBase?.ontologyTerms) ? project.knowledgeBase!.ontologyTerms : [],
+      stableRules: Array.isArray(project.knowledgeBase?.stableRules) ? project.knowledgeBase!.stableRules : [],
+      componentInventory: Array.isArray(project.knowledgeBase?.componentInventory) ? project.knowledgeBase!.componentInventory : [],
+      codeMap: Array.isArray(project.knowledgeBase?.codeMap) ? project.knowledgeBase!.codeMap : [],
+      decisionLog: Array.isArray(project.knowledgeBase?.decisionLog) ? project.knowledgeBase!.decisionLog : [],
+      knownRisks: Array.isArray(project.knowledgeBase?.knownRisks) ? project.knowledgeBase!.knownRisks : [],
+      changePatterns: Array.isArray(project.knowledgeBase?.changePatterns) ? project.knowledgeBase!.changePatterns : [],
+      updatedAt: typeof project.knowledgeBase?.updatedAt === "string" ? project.knowledgeBase.updatedAt : ""
+    },
     repository: {
       ...repo,
       repoMode:
@@ -427,7 +437,57 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
               updatedAt: ""
             }))
     },
-    boundary: normalizeChangeBoundary(control?.boundary)
+    boundary: normalizeChangeBoundary(control?.boundary),
+    changeSource: {
+      type:
+        control?.changeSource?.type === "natural-language" ||
+        control?.changeSource?.type === "document" ||
+        control?.changeSource?.type === "html" ||
+        control?.changeSource?.type === "image" ||
+        control?.changeSource?.type === "selection" ||
+        control?.changeSource?.type === "history-reference" ||
+        control?.changeSource?.type === "mixed" ||
+        control?.changeSource?.type === "unknown"
+          ? control.changeSource.type
+          : "unknown",
+      rawInput: typeof control?.changeSource?.rawInput === "string" ? control.changeSource.rawInput : "",
+      attachments: Array.isArray(control?.changeSource?.attachments) ? control!.changeSource.attachments.filter((item) => typeof item === "string") : [],
+      references: Array.isArray(control?.changeSource?.references) ? control!.changeSource.references.filter((item) => typeof item === "string") : [],
+      updatedAt: typeof control?.changeSource?.updatedAt === "string" ? control.changeSource.updatedAt : ""
+    },
+    knowledgeHits: Array.isArray(control?.knowledgeHits) ? control!.knowledgeHits.filter((item) => typeof item === "string") : [],
+    knowledgeConflicts: Array.isArray(control?.knowledgeConflicts) ? control!.knowledgeConflicts.filter((item) => typeof item === "string") : [],
+    normalizedFunctionalPoints: Array.isArray(control?.normalizedFunctionalPoints)
+      ? control!.normalizedFunctionalPoints.filter((item) => typeof item === "string")
+      : [],
+    mappingAuditTrail: Array.isArray(control?.mappingAuditTrail)
+      ? control!.mappingAuditTrail
+          .map((item) => ({
+            id: typeof item?.id === "string" ? item.id : "",
+            sourceType:
+              item?.sourceType === "natural-language" ||
+              item?.sourceType === "document" ||
+              item?.sourceType === "html" ||
+              item?.sourceType === "image" ||
+              item?.sourceType === "selection" ||
+              item?.sourceType === "history-reference" ||
+              item?.sourceType === "mixed" ||
+              item?.sourceType === "unknown"
+                ? item.sourceType
+                : "unknown",
+            functionalPoint: typeof item?.functionalPoint === "string" ? item.functionalPoint : "",
+            mappingConfidence:
+              item?.mappingConfidence === "high" || item?.mappingConfidence === "medium" || item?.mappingConfidence === "low"
+                ? item.mappingConfidence
+                : "low",
+            impactedArtifacts: Array.isArray(item?.impactedArtifacts) ? item.impactedArtifacts.filter((v) => typeof v === "string") : [],
+            requirementRefs: Array.isArray(item?.requirementRefs) ? item.requirementRefs.filter((v) => typeof v === "string") : [],
+            componentRefs: Array.isArray(item?.componentRefs) ? item.componentRefs.filter((v) => typeof v === "string") : [],
+            codePaths: Array.isArray(item?.codePaths) ? item.codePaths.filter((v) => typeof v === "string") : [],
+            createdAt: typeof item?.createdAt === "string" ? item.createdAt : ""
+          }))
+          .filter((item) => item.id || item.functionalPoint)
+      : []
   };
 }
 export function normalizeIteration(iteration: Iteration): Iteration {

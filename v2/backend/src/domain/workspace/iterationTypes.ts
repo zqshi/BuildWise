@@ -51,6 +51,24 @@ export type IterationChangeBoundary = {
   updatedAt: string;
 };
 
+export type IterationChangeSourceType =
+  | "natural-language"
+  | "document"
+  | "html"
+  | "image"
+  | "selection"
+  | "history-reference"
+  | "mixed"
+  | "unknown";
+
+export type IterationChangeSource = {
+  type: IterationChangeSourceType;
+  rawInput: string;
+  attachments: string[];
+  references: string[];
+  updatedAt: string;
+};
+
 export type IterationGeneratedTestCase = {
   type: string;
   caseId: string;
@@ -198,6 +216,21 @@ export type IterationChangeControl = {
   lastReportQualityUpdatedAt: string;
   artifactWorkflow: IterationArtifactWorkflow;
   boundary: IterationChangeBoundary;
+  changeSource: IterationChangeSource;
+  knowledgeHits: string[];
+  knowledgeConflicts: string[];
+  normalizedFunctionalPoints: string[];
+  mappingAuditTrail: Array<{
+    id: string;
+    sourceType: IterationChangeSourceType;
+    functionalPoint: string;
+    mappingConfidence: "high" | "medium" | "low";
+    impactedArtifacts: string[];
+    requirementRefs: string[];
+    componentRefs: string[];
+    codePaths: string[];
+    createdAt: string;
+  }>;
 };
 
 export type Iteration = {
