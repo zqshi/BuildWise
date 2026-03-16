@@ -2,6 +2,12 @@
 
 本目录记录产品愿景、商业计划、功能清单、技术与实施规范。为保持长期可维护性，文档采用统一的编号命名。
 
+## 快速入口
+
+- 项目运行与交付总览：`v2/README.md`
+- 后端运行、接口与投产说明：`v2/backend/README.md`
+- v2 当前补充文档目录：`v2/docs`
+
 ## 文档结构规范
 
 - `00-` 纲领与目录
@@ -36,6 +42,18 @@
 - `46-IM与Agent协作执行时序图.md`
 - `47-DDD+TDD与1000行治理最高声明.md`
 
+## v2 近期交付与治理文档
+
+- `v2/docs/agentic-flow-mock-dataset.md`
+- `v2/docs/openclaw-agentic-flow-governance.md`
+- `v2/docs/openclaw-real-llm-demo.md`
+- `v2/docs/openclaw-skills-implementation.md`
+- `v2/docs/creative-generator-demo-requirement.md`
+- `v2/docs/agent-skills-product-rd-evaluation.md`
+- `v2/docs/iteration-ontology-impact-contract.md`
+- `v2/docs/ui-style-upgrade-acceptance-2026-03-09.md`
+- `v2/docs/visual-e2e-alignment-browser-use-2026-03-09.md`
+
 ## 执行前必读顺序（强制）
 
 1. `10-产品顶层设计（执行版）.md`
@@ -51,7 +69,9 @@
 
 - 仓库卫生：`cd v2 && npm run check:hygiene`
 - 前端：`npm run check:boundaries && npm run typecheck && npm run build`
+- 前后端一键校验：`cd v2 && npm run verify:all`
 - 后端：`npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract`
+- 后端投产就绪校验：`npm --prefix backend run verify:prod-readiness`
 
 ## 文档模板
 
