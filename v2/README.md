@@ -60,6 +60,12 @@ cd v2/backend
 npm run dev
 ```
 
+公开官网入口：
+
+- 默认未登录访问：`#/`
+- 登录入口：`#/login`
+- 登录后工作台：`#/dashboard`
+
 ## 5. 生产启动
 
 前端静态构建：
@@ -146,14 +152,29 @@ npm run clean:workspace
 - 节点关系图支持 `加载演示数据`（mock）开关，便于在空数据项目中预览视觉效果与交互
 - 节点关系业务说明严格读取关系数据字段（如 `businessDescription / ontologyBasis / dataBasis`），不做模板兜底推断
 
-## 9. 演示数据（交付物真实流程）
+## 9. 权限治理默认约束
 
-清理旧 mock 项目并重建一套“真实流程导向”的交付物演示数据：
+- 平台内置角色固定为 `超级管理员` 与 `成员`，其中 `成员` 为新增成员默认角色。
+- `角色权限` Tab 中，`超级管理员` 与 `成员` 均按系统内置角色显示，置灰且不支持手工配置。
+- `成员管理` Tab 新增成员时，仅允许分配 `超级管理员` 或 `成员`。
+- `成员` 默认不显示 `权限管理` 与 `业务助手` 入口。
+
+## 10. 演示数据（Dashboard 单一 Mock 数据集）
+
+重建当前唯一保留的 Dashboard mock 数据集（覆盖 `data.json` 与 `data.runtime.json`）：
 
 ```bash
 cd v2
-npm run seed:deliverable:demo
+npm run seed:agentic:flow
 ```
 
-默认会清理项目名包含 `mock|演示|demo|示例|临时|tmp` 的项目，并创建 `真实流程演示项目`。
-可通过 `BUILDWISE_API_BASE` 指定后端地址（默认 `http://127.0.0.1:5055`）。
+该数据集仅保留 1 个项目、2 个迭代（首版本 + 后续版本/回滚分支），用于 `#/dashboard` 联调。
+
+真实 OpenClaw + LLM 演示（逐环节强制校验真实模型调用）：
+
+```bash
+cd v2
+npm run demo:openclaw:real
+```
+
+详见：`v2/docs/openclaw-real-llm-demo.md`

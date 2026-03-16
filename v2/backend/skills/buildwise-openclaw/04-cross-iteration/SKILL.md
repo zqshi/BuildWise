@@ -8,6 +8,11 @@ description: Cross-iteration governance SOP for inheritance and diffs. Use when 
 ## Goal
 Maintain continuity across iterations while making diffs explicit and auditable.
 
+## Boundary
+- This skill only handles inheritance and delta classification.
+- It must not own first-iteration baseline analysis.
+- It must not decide release gates or produce recovery execution plans.
+
 ## Inputs
 - `current_iteration`
 - `baseline_iteration`

@@ -13,6 +13,17 @@ import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domai
 import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
 import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
 import { deleteOpsTriageTemplate, fetchOpsTriageTemplates, upsertOpsTriageTemplate } from "../../app/workspaceApi";
+import { buildAnalysisArtifactPreview, parseAnalysisArtifactSections } from "./analysisArtifactPresenter";
+import { ArtifactCodeViewer, ArtifactTextEditor } from "./ArtifactEditorWidgets";
+import {
+  buildArtifactCommitSummary,
+  buildArtifactRevisionPrompt,
+  resolveArtifactActionErrorMessage,
+  shouldCloseDrawerAfterRevisionRequest,
+  stripRichTextToPlainText
+} from "./artifactEditorModel";
+import { ArtifactImpactPanel, IterationChangeIntelligencePanel } from "./IterationChangeIntelligencePanel";
+import { buildChangeIntelligenceSummary } from "./iterationChangeIntelligence";
 
 type PrototypeElement = {
   id: string;
@@ -63,15 +74,31 @@ type ImageSelectionRegion = {
 
 type HtmlPreviewHistoryItem = {
   path: string;
+  artifactId?: string;
+  content: string;
   selector: string;
   text: string;
   styles: Partial<Record<"color" | "backgroundColor" | "fontSize" | "fontWeight" | "width" | "height" | "display", string>>;
 };
 
-type ArtifactPreviewKind = "document" | "html-prototype" | "code" | "test-cases" | "release-review" | "delivery-package";
+type ArtifactPreviewKind =
+  | "analysis-report"
+  | "product-requirements-doc"
+  | "design-spec"
+  | "technical-architecture"
+  | "document"
+  | "html-prototype"
+  | "code"
+  | "test-cases"
+  | "release-review"
+  | "delivery-package";
 
 function resolveArtifactPreviewKind(artifactId: string): ArtifactPreviewKind {
+  if (artifactId === "analysis-report") return "analysis-report";
+  if (artifactId === "product-requirements-doc") return "product-requirements-doc";
   if (artifactId === "prototype-preview") return "html-prototype";
+  if (artifactId === "design-spec") return "design-spec";
+  if (artifactId === "technical-architecture") return "technical-architecture";
   if (artifactId === "code-delivery") return "code";
   if (artifactId === "test-matrix" || artifactId === "acceptance-checklist") return "test-cases";
   if (artifactId === "release-review") return "release-review";
@@ -82,6 +109,12 @@ function resolveArtifactPreviewKind(artifactId: string): ArtifactPreviewKind {
 const getInteractionDrawerWidthBounds = (viewportWidth: number) => {
   const max = Math.max(360, Math.round(viewportWidth * 0.96));
   const min = Math.min(420, max);
+  return { min, max };
+};
+
+const getArtifactDrawerWidthBounds = (viewportWidth: number) => {
+  const max = Math.max(420, Math.round(viewportWidth * 0.96));
+  const min = Math.min(520, max);
   return { min, max };
 };
 
@@ -508,6 +541,11 @@ export function IterationWorkspacePanel({
   const [selectedImageRegion, setSelectedImageRegion] = useState<ImageSelectionRegion | null>(null);
   const [dragImageRegion, setDragImageRegion] = useState<ImageSelectionRegion | null>(null);
   const [interactionInstruction, setInteractionInstruction] = useState("");
+  const [artifactEditorValue, setArtifactEditorValue] = useState("");
+  const [artifactEditorDirty, setArtifactEditorDirty] = useState(false);
+  const [artifactEditorBusy, setArtifactEditorBusy] = useState(false);
+  const [artifactEditorMode, setArtifactEditorMode] = useState<"view" | "edit">("view");
+  const [showChangeIntelligencePanel, setShowChangeIntelligencePanel] = useState(false);
   const [interactionDrawerWidth, setInteractionDrawerWidth] = useState(() => {
     if (typeof window === "undefined") {
       return 680;
@@ -524,11 +562,30 @@ export function IterationWorkspacePanel({
       return 680;
     }
   });
+  const [artifactDrawerWidth, setArtifactDrawerWidth] = useState(() => {
+    if (typeof window === "undefined") {
+      return 760;
+    }
+    try {
+      const raw = window.localStorage.getItem("buildwise:artifact-drawer-width");
+      const parsed = Number(raw);
+      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
+      if (!Number.isFinite(parsed)) {
+        return Math.max(min, Math.min(max, Math.round(window.innerWidth * 0.42)));
+      }
+      return Math.max(min, Math.min(max, parsed));
+    } catch {
+      return 760;
+    }
+  });
   const [htmlPreviewHistory, setHtmlPreviewHistory] = useState<HtmlPreviewHistoryItem[]>([]);
   const imageWrapRef = useRef<HTMLButtonElement | null>(null);
   const htmlPreviewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const artifactHtmlPreviewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const chatComposerInputRef = useRef<HTMLInputElement | null>(null);
   const imageDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const interactionDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const artifactDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const scopeInCount = contextData?.scope.inScope.length ?? 0;
   const scopeOutCount = contextData?.scope.outOfScope.length ?? 0;
   const acceptanceCount = contextData?.scope.acceptanceCriteria.length ?? 0;
@@ -580,7 +637,6 @@ export function IterationWorkspacePanel({
   const allowedTransitions = stateMachine?.allowedTransitions ?? [];
   const transitionHistory = stateMachine?.transitionHistory ?? [];
   const hasStateMachineActions = allowedTransitions.length > 0;
-  const hasStateMachineHistory = transitionHistory.length > 0;
   const hasAnalysisEntryInChat = chatMessages.some((msg) => getMsgKind(msg) === "event-analysis");
   const lastUploadMessageId = [...chatMessages].reverse().find((msg) => getMsgKind(msg) === "event-upload")?.id;
   const canOpenAnalysisPanel = !isAnalyzingAttachment && (Boolean(analysisReport) || hasAnalysisEntryInChat);
@@ -652,17 +708,30 @@ export function IterationWorkspacePanel({
   const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
   const artifactItems = currentIteration?.changeControl?.artifactWorkflow?.items || [];
   const activeArtifactStage = currentIteration?.changeControl?.artifactWorkflow?.activeStage || "clarification";
-  const visibleArtifactItems = artifactItems.filter((item) => item.stage === activeArtifactStage);
   const [analysisDrawerArtifactId, setAnalysisDrawerArtifactId] = useState<string | null>(null);
   const artifactMap = useMemo(() => new Map(artifactItems.map((item) => [item.id, item])), [artifactItems]);
   const selectedDrawerArtifact = analysisDrawerArtifactId ? artifactMap.get(analysisDrawerArtifactId) || null : null;
   const selectedArtifactKind = selectedDrawerArtifact ? resolveArtifactPreviewKind(selectedDrawerArtifact.id) : null;
-  const [artifactDraftContent, setArtifactDraftContent] = useState("");
-  const [artifactSummaryText, setArtifactSummaryText] = useState("");
-  const [artifactEvidenceText, setArtifactEvidenceText] = useState("");
-  const [artifactConfirmNote, setArtifactConfirmNote] = useState("");
-  const recentHistoryItems = transitionHistory.slice(0, 3);
-
+  const artifactDraftContent = selectedDrawerArtifact?.draft?.content || "";
+  const editableTextArtifactKinds: ArtifactPreviewKind[] = [
+    "product-requirements-doc",
+    "design-spec",
+    "technical-architecture",
+    "document"
+  ];
+  const isEditableTextArtifact = selectedArtifactKind ? editableTextArtifactKinds.includes(selectedArtifactKind) : false;
+  const artifactEditorSource = isEditableTextArtifact ? artifactDraftContent || selectedDrawerArtifact?.summary || "" : artifactDraftContent;
+  const selectedArtifactHtmlContent =
+    selectedArtifactKind === "html-prototype" ? (artifactDraftContent.trim() || selectedHtmlPreview?.content || "") : "";
+  const selectedArtifactHtmlPreview = useMemo(
+    () => (selectedArtifactKind === "html-prototype" && selectedArtifactHtmlContent ? instrumentHtmlPreview(selectedArtifactHtmlContent, interactionEditMode) : ""),
+    [selectedArtifactKind, selectedArtifactHtmlContent, interactionEditMode]
+  );
+  const analysisDraftSections = useMemo(
+    () => (selectedArtifactKind === "analysis-report" ? parseAnalysisArtifactSections(artifactDraftContent) : []),
+    [selectedArtifactKind, artifactDraftContent]
+  );
+  const changeIntelligenceSummary = useMemo(() => buildChangeIntelligenceSummary(currentIteration), [currentIteration]);
   useEffect(() => {
     const boundary = currentIteration?.changeControl?.boundary;
     setResolvedQuestions(currentIteration?.changeControl?.clarificationDraftResolvedQuestions ?? []);
@@ -674,21 +743,23 @@ export function IterationWorkspacePanel({
   }, [currentIteration?.id, currentIteration?.changeControl?.boundary?.updatedAt, currentIteration?.changeControl?.clarificationDraftUpdatedAt]);
 
   useEffect(() => {
+    setArtifactEditorValue(artifactEditorSource);
+    setArtifactEditorDirty(false);
+    setArtifactEditorMode("view");
+  }, [selectedDrawerArtifact?.id, artifactEditorSource]);
+
+  useEffect(() => {
     setAnalysisDrawerArtifactId(null);
   }, [currentIteration?.id]);
 
   useEffect(() => {
+    setShowChangeIntelligencePanel(false);
+  }, [currentIteration?.id]);
+
+  useEffect(() => {
     if (!selectedDrawerArtifact) {
-      setArtifactDraftContent("");
-      setArtifactSummaryText("");
-      setArtifactEvidenceText("");
-      setArtifactConfirmNote("");
       return;
     }
-    setArtifactDraftContent(selectedDrawerArtifact.draft?.content || "");
-    setArtifactSummaryText(selectedDrawerArtifact.summary || "");
-    setArtifactEvidenceText((selectedDrawerArtifact.evidence || []).join("\n"));
-    setArtifactConfirmNote("");
   }, [selectedDrawerArtifact?.id, selectedDrawerArtifact?.updatedAt]);
 
   useEffect(() => {
@@ -767,9 +838,40 @@ export function IterationWorkspacePanel({
   }, []);
 
   useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const resizeState = artifactDrawerResizeRef.current;
+      if (!resizeState) {
+        return;
+      }
+      const delta = resizeState.startX - event.clientX;
+      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
+      const next = Math.max(min, Math.min(max, resizeState.startWidth + delta));
+      setArtifactDrawerWidth(next);
+    };
+    const onPointerUp = () => {
+      artifactDrawerResizeRef.current = null;
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, []);
+
+  useEffect(() => {
     const onResize = () => {
       const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
       setInteractionDrawerWidth((prev) => Math.max(min, Math.min(max, prev)));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
+      setArtifactDrawerWidth((prev) => Math.max(min, Math.min(max, prev)));
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -785,6 +887,17 @@ export function IterationWorkspacePanel({
       // ignore storage failure
     }
   }, [interactionDrawerWidth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem("buildwise:artifact-drawer-width", String(artifactDrawerWidth));
+    } catch {
+      // ignore storage failure
+    }
+  }, [artifactDrawerWidth]);
 
   useEffect(() => {
     const previews = uploadedFile?.imagePreviews ?? [];
@@ -949,52 +1062,53 @@ export function IterationWorkspacePanel({
     document.body.removeChild(textarea);
   };
 
-  const resolveActionButtons = (content: string) => {
-    if (!content.startsWith("操作建议：")) {
-      return [];
+  const resolveGuidanceText = (content: string) => {
+    if (content.startsWith("操作建议JSON:")) {
+      const raw = content.replace(/^操作建议JSON:/, "").trim();
+      try {
+        const parsed = JSON.parse(raw) as {
+          uploadRecommended?: boolean;
+          actions?: string[];
+          checklist?: string[];
+          prerequisites?: string[];
+        };
+        const parts: string[] = [];
+        if (parsed.uploadRecommended) {
+          parts.push("建议先上传本轮相关材料。");
+        }
+        const actions = Array.isArray(parsed.actions)
+          ? parsed.actions.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 3)
+          : [];
+        if (actions.length > 0) {
+          parts.push(`下一步可执行：${actions.join("；")}。`);
+        }
+        const checklist = Array.isArray(parsed.checklist)
+          ? parsed.checklist.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 2)
+          : [];
+        if (checklist.length > 0) {
+          parts.push(`优先确认：${checklist.join("；")}。`);
+        }
+        const prerequisites = Array.isArray(parsed.prerequisites)
+          ? parsed.prerequisites.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 2)
+          : [];
+        if (prerequisites.length > 0) {
+          parts.push(`前置条件：${prerequisites.join("；")}。`);
+        }
+        return parts.length > 0 ? `继续推进建议：${parts.join("")}` : "继续推进建议：请在当前会话中明确下一步目标与边界。";
+      } catch {
+        return "继续推进建议：请在当前会话中明确下一步目标与边界。";
+      }
     }
-    return content
-      .replace(/^操作建议：/, "")
-      .split("；")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .slice(0, 4);
-  };
-
-  const resolveActionCard = (content: string) => {
-    if (!content.startsWith("操作建议JSON:")) {
-      return null;
+    if (content.startsWith("操作建议：")) {
+      const items = content
+        .replace(/^操作建议：/, "")
+        .split("；")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 4);
+      return items.length > 0 ? `补充建议：${items.join("；")}。` : "补充建议：请继续在会话中确认下一步。";
     }
-    const raw = content.replace(/^操作建议JSON:/, "").trim();
-    try {
-      const parsed = JSON.parse(raw) as {
-        intent?: string;
-        priority?: string;
-        uploadRecommended?: boolean;
-        actions?: string[];
-        checklist?: string[];
-        prerequisites?: string[];
-      };
-      const actions = Array.isArray(parsed.actions)
-        ? parsed.actions.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 4)
-        : [];
-      const checklist = Array.isArray(parsed.checklist)
-        ? parsed.checklist.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 4)
-        : [];
-      const prerequisites = Array.isArray(parsed.prerequisites)
-        ? parsed.prerequisites.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 3)
-        : [];
-      return {
-        intent: parsed.intent || "general",
-        priority: (parsed.priority || "P2").toUpperCase(),
-        uploadRecommended: Boolean(parsed.uploadRecommended),
-        actions,
-        checklist,
-        prerequisites
-      };
-    } catch {
-      return null;
-    }
+    return "";
   };
 
   const resolveDeliverableReference = (content: string) => {
@@ -1037,21 +1151,37 @@ export function IterationWorkspacePanel({
     };
   };
 
-  const handleQuickAction = (action: string) => {
-    if (/上传|附件|文件夹/.test(action)) {
-      onUploadClick();
-      return;
+  const resolveDeliverableCardData = (content: string) => {
+    const deliverable = resolveDeliverableReference(content);
+    if (!deliverable) {
+      return null;
     }
-    if (/查看分析报告|分析报告|确认边界|锁定边界|测试矩阵|验收/.test(action)) {
-      setAnalysisDrawerArtifactId(null);
-      onOpenAnalysisPanel();
-      return;
+    const matchedArtifact = artifactItems.find((item) => item.title === deliverable.title);
+    if (!matchedArtifact) {
+      return deliverable;
     }
-    onChatInputChange(action);
+    const matchedKind = resolveArtifactPreviewKind(matchedArtifact.id);
+    if (matchedKind !== "analysis-report") {
+      return {
+        ...deliverable,
+        summary: matchedArtifact.summary || deliverable.summary,
+        evidence: deliverable.evidence.length > 0 ? deliverable.evidence : matchedArtifact.evidence || []
+      };
+    }
+    const preview = buildAnalysisArtifactPreview(matchedArtifact.draft?.content || "");
+    return {
+      ...deliverable,
+      summary: preview.summary || matchedArtifact.summary || deliverable.summary,
+      evidence: preview.evidence.length > 0 ? preview.evidence : deliverable.evidence
+    };
   };
 
+  const findPreferredArtifactForStage = (stage: IterationArtifactStage) =>
+    artifactItems.find((item) => item.stage === stage) || artifactItems[0] || null;
+
   const openAnalysisDrawer = () => {
-    setAnalysisDrawerArtifactId(null);
+    const preferred = findPreferredArtifactForStage(activeArtifactStage);
+    setAnalysisDrawerArtifactId(preferred?.id || null);
     onOpenAnalysisPanel();
   };
 
@@ -1067,95 +1197,6 @@ export function IterationWorkspacePanel({
       return;
     }
     openArtifactPreviewById(matched.id);
-  };
-
-  const parseArtifactEvidence = (raw: string) =>
-    raw
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .slice(0, 20);
-
-  const handleSaveCurrentArtifactDraft = async () => {
-    if (!selectedDrawerArtifact) return;
-    const content = artifactDraftContent.trim();
-    if (!content) {
-      setChangeControlNotice("请先填写交付物草稿内容。");
-      return;
-    }
-    setChangeControlBusy(true);
-    try {
-      await onSaveArtifactDraft(selectedDrawerArtifact.id, { content, actor: "human" });
-      setChangeControlNotice(`已保存草稿：${selectedDrawerArtifact.title}`);
-    } finally {
-      setChangeControlBusy(false);
-    }
-  };
-
-  const handleCommitCurrentArtifact = async () => {
-    if (!selectedDrawerArtifact) return;
-    setChangeControlBusy(true);
-    try {
-      await onCommitArtifact(selectedDrawerArtifact.id, {
-        actor: "human",
-        summary: artifactSummaryText.trim(),
-        source: selectedDrawerArtifact.source,
-        evidence: parseArtifactEvidence(artifactEvidenceText)
-      });
-      setChangeControlNotice(`已提交交付物：${selectedDrawerArtifact.title}`);
-    } finally {
-      setChangeControlBusy(false);
-    }
-  };
-
-  const handleConfirmCurrentArtifact = async (passed: boolean) => {
-    if (!selectedDrawerArtifact) return;
-    setChangeControlBusy(true);
-    try {
-      await onConfirmArtifact(selectedDrawerArtifact.id, {
-        actor: "human",
-        passed,
-        note: artifactConfirmNote.trim()
-      });
-      if (!passed) {
-        setChangeControlNotice("已标记阻断，并通知管理员在对话窗口确认。");
-        return;
-      }
-      setChangeControlNotice(`已确认通过：${selectedDrawerArtifact.title}`);
-    } finally {
-      setChangeControlBusy(false);
-    }
-  };
-
-  const handleAppendCurrentArtifactToChat = async () => {
-    if (!selectedDrawerArtifact) return;
-    setChangeControlBusy(true);
-    try {
-      await onAppendArtifactToChat(selectedDrawerArtifact.id, {
-        actor: "human",
-        prompt: "请基于该交付物继续执行下一步，并反馈当前门禁状态。"
-      });
-      setChangeControlNotice("已将交付物引用卡发送到对话。");
-    } finally {
-      setChangeControlBusy(false);
-    }
-  };
-
-  const handleContinueFromArtifact = async () => {
-    if (!selectedDrawerArtifact) return;
-    await onChatSend({
-      overrideText: `继续执行：基于交付物「${selectedDrawerArtifact.title}」推进下一步，并给出当前门禁通过条件。`
-    });
-  };
-
-  const renderIntentLabel = (intent: string) => {
-    if (intent === "collect-attachment") return "引导上传";
-    if (intent === "clarify") return "澄清收敛";
-    if (intent === "confirm-boundary") return "边界确认";
-    if (intent === "plan") return "计划推进";
-    if (intent === "qa") return "验收推进";
-    if (intent === "release") return "发布准备";
-    return "通用引导";
   };
 
   const applyPrototypeInstruction = (instruction: string) => {
@@ -1384,8 +1425,15 @@ export function IterationWorkspacePanel({
     }
   };
 
+  const getActiveHtmlPreviewWindow = () => {
+    if (showAnalysisPanel && selectedArtifactKind === "html-prototype") {
+      return artifactHtmlPreviewFrameRef.current?.contentWindow || null;
+    }
+    return htmlPreviewFrameRef.current?.contentWindow || null;
+  };
+
   const applyHtmlActionsToPreview = (selector: string, result: IterationVisualEditResponse) => {
-    const frameWindow = htmlPreviewFrameRef.current?.contentWindow;
+    const frameWindow = getActiveHtmlPreviewWindow();
     if (!frameWindow || result.actions.length === 0) {
       return;
     }
@@ -1407,7 +1455,7 @@ export function IterationWorkspacePanel({
     if (!latest) {
       return;
     }
-    const frameWindow = htmlPreviewFrameRef.current?.contentWindow;
+    const frameWindow = getActiveHtmlPreviewWindow();
     if (!frameWindow) {
       return;
     }
@@ -1425,21 +1473,10 @@ export function IterationWorkspacePanel({
       },
       "*"
     );
-    const sourcePreview = htmlPrototypePreviews.find((item) => item.path === latest.path);
-    if (sourcePreview) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(sourcePreview.content, "text/html");
-      const target = latest.selector ? doc.querySelector(latest.selector) : null;
-      if (target) {
-        target.textContent = latest.text;
-        for (const [key, value] of Object.entries(latest.styles)) {
-          if (!value) {
-            continue;
-          }
-          (target as HTMLElement).style.setProperty(key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`), value);
-        }
-        onPatchUploadedHtmlPreview?.(latest.path, doc.documentElement.outerHTML);
-      }
+    if (latest.artifactId) {
+      void onSaveArtifactDraft(latest.artifactId, { content: latest.content, actor: "OpenClaw Agent" });
+    } else if (latest.path) {
+      onPatchUploadedHtmlPreview?.(latest.path, latest.content);
     }
     setHtmlPreviewHistory((prev) => prev.slice(1));
   };
@@ -1449,7 +1486,11 @@ export function IterationWorkspacePanel({
     if (!text) {
       return;
     }
-    if (showInteractionPanel && interactionEditMode && selectedHtmlPreview && /撤销|回退/.test(text) && htmlPreviewHistory.length > 0) {
+    const htmlInteractionInDrawer = showAnalysisPanel && selectedArtifactKind === "html-prototype" && selectedDrawerArtifact;
+    const htmlInteractionEnabled = interactionEditMode && (showInteractionPanel || htmlInteractionInDrawer);
+    const htmlInteractionSource = htmlInteractionInDrawer ? selectedArtifactHtmlContent : selectedHtmlPreview?.content || "";
+    const htmlInteractionPath = htmlInteractionInDrawer ? "" : selectedHtmlPreview?.path || "";
+    if (htmlInteractionEnabled && /撤销|回退/.test(text) && htmlPreviewHistory.length > 0) {
       handleUndoHtmlPreview();
       await onChatSend({
         overrideText: text,
@@ -1463,7 +1504,7 @@ export function IterationWorkspacePanel({
       });
       return;
     }
-    if (showInteractionPanel && interactionEditMode && selectedHtmlPreview && selectedHtmlElement) {
+    if (htmlInteractionEnabled && htmlInteractionSource && selectedHtmlElement) {
       const summary = `selector=${selectedHtmlElement.selector}; tag=${selectedHtmlElement.tag}; text=${selectedHtmlElement.text || "无"}; color=${selectedHtmlElement.styles.color}; bg=${selectedHtmlElement.styles.backgroundColor}; fontSize=${selectedHtmlElement.styles.fontSize}`;
       const result = await onChatSend({
         overrideText: text,
@@ -1482,13 +1523,19 @@ export function IterationWorkspacePanel({
         }
       });
       if (result?.actions?.length) {
-        const nextContent = applyActionsToHtmlContent(selectedHtmlPreview.content, selectedHtmlElement.selector, result);
-        if (nextContent !== selectedHtmlPreview.content) {
-          onPatchUploadedHtmlPreview?.(selectedHtmlPreview.path, nextContent);
+        const nextContent = applyActionsToHtmlContent(htmlInteractionSource, selectedHtmlElement.selector, result);
+        if (nextContent !== htmlInteractionSource) {
+          if (htmlInteractionInDrawer && selectedDrawerArtifact) {
+            await onSaveArtifactDraft(selectedDrawerArtifact.id, { content: nextContent, actor: "OpenClaw Agent" });
+          } else if (htmlInteractionPath) {
+            onPatchUploadedHtmlPreview?.(htmlInteractionPath, nextContent);
+          }
         }
         setHtmlPreviewHistory((prev) => [
           {
-            path: selectedHtmlPreview.path,
+            path: htmlInteractionPath,
+            artifactId: htmlInteractionInDrawer && selectedDrawerArtifact ? selectedDrawerArtifact.id : undefined,
+            content: htmlInteractionSource,
             selector: selectedHtmlElement.selector,
             text: selectedHtmlElement.text,
             styles: {
@@ -1547,10 +1594,154 @@ export function IterationWorkspacePanel({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
+  const handleArtifactDrawerResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    artifactDrawerResizeRef.current = {
+      startX: event.clientX,
+      startWidth: artifactDrawerWidth
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleSaveArtifactEditor = async () => {
+    if (!selectedDrawerArtifact || !artifactEditorDirty || artifactEditorBusy) {
+      return;
+    }
+    setArtifactEditorBusy(true);
+    try {
+      await onSaveArtifactDraft(selectedDrawerArtifact.id, {
+        content: artifactEditorValue,
+        actor: "OpenClaw Agent"
+      });
+      setArtifactEditorDirty(false);
+      setChangeControlNotice("交付物正文已保存。");
+    } catch (error) {
+      setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物正文保存失败，请稍后重试。"));
+    } finally {
+      setArtifactEditorBusy(false);
+    }
+  };
+
+  const handleSubmitArtifactForReview = async () => {
+    if (!selectedDrawerArtifact || artifactEditorBusy) {
+      return;
+    }
+    setArtifactEditorBusy(true);
+    try {
+      if (artifactEditorDirty) {
+        await onSaveArtifactDraft(selectedDrawerArtifact.id, {
+          content: artifactEditorValue,
+          actor: "OpenClaw Agent"
+        });
+      }
+      await onCommitArtifact(selectedDrawerArtifact.id, {
+        actor: "OpenClaw Agent",
+        summary: buildArtifactCommitSummary(artifactEditorValue || selectedDrawerArtifact.summary || "", selectedDrawerArtifact.summary),
+        evidence: selectedDrawerArtifact.evidence,
+        source: selectedDrawerArtifact.source
+      });
+      setArtifactEditorDirty(false);
+      setArtifactEditorMode("view");
+      setChangeControlNotice("交付物已提交，等待你确认。");
+    } catch (error) {
+      setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物提交失败，请稍后重试。"));
+    } finally {
+      setArtifactEditorBusy(false);
+    }
+  };
+
+  const handleConfirmSelectedArtifact = async () => {
+    if (!selectedDrawerArtifact || artifactEditorBusy) {
+      return;
+    }
+    setArtifactEditorBusy(true);
+    try {
+      await onConfirmArtifact(selectedDrawerArtifact.id, {
+        actor: "项目负责人",
+        passed: true,
+        note: selectedDrawerArtifact.summary
+      });
+      setChangeControlNotice("交付物已确认通过。");
+    } catch (error) {
+      setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物确认失败，请稍后重试。"));
+    } finally {
+      setArtifactEditorBusy(false);
+    }
+  };
+
+  const handleRequestArtifactRevision = () => {
+    if (!selectedDrawerArtifact) {
+      return;
+    }
+    onChatInputChange(buildArtifactRevisionPrompt(selectedDrawerArtifact.title, chatInput));
+    if (shouldCloseDrawerAfterRevisionRequest()) {
+      onCloseAnalysisPanel();
+    } else {
+      setAnalysisDrawerArtifactId(selectedDrawerArtifact.id);
+      onOpenAnalysisPanel();
+    }
+    setArtifactEditorMode("view");
+    setChangeControlNotice("已带入对话输入框，可直接继续补充修改意见。");
+    requestAnimationFrame(() => {
+      chatComposerInputRef.current?.focus();
+      chatComposerInputRef.current?.setSelectionRange(chatComposerInputRef.current.value.length, chatComposerInputRef.current.value.length);
+    });
+  };
+
   const openInteractionPanel = () => {
     onCloseAnalysisPanel();
     setShowInteractionPanel(true);
   };
+
+  const selectedArtifactAwaitingConfirmation = Boolean(
+    selectedDrawerArtifact && selectedDrawerArtifact.outputVersion > 0 && selectedDrawerArtifact.gateStatus !== "passed"
+  );
+  const canEditSelectedTextArtifact = isEditableTextArtifact && selectedDrawerArtifact?.editCapability !== "none";
+  const renderTextArtifactActions = () => (
+    <>
+      {artifactEditorMode === "edit" ? (
+        <>
+          <button
+            type="button"
+            className="btn ghost mini"
+            onClick={() => {
+              setArtifactEditorValue(artifactEditorSource);
+              setArtifactEditorDirty(false);
+              setArtifactEditorMode("view");
+            }}
+            disabled={artifactEditorBusy}
+          >
+            结束编辑
+          </button>
+          <button
+            type="button"
+            className="btn ghost mini"
+            onClick={() => {
+              setArtifactEditorValue(artifactEditorSource);
+              setArtifactEditorDirty(false);
+            }}
+            disabled={!artifactEditorDirty || artifactEditorBusy}
+          >
+            重置
+          </button>
+          <button
+            type="button"
+            className="btn primary mini"
+            onClick={() => void handleSaveArtifactEditor()}
+            disabled={!artifactEditorDirty || artifactEditorBusy}
+          >
+            {artifactEditorBusy ? "保存中..." : "保存草稿"}
+          </button>
+        </>
+      ) : canEditSelectedTextArtifact ? (
+        <button type="button" className="btn ghost mini" onClick={() => setArtifactEditorMode("edit")} disabled={artifactEditorBusy}>
+          编辑
+        </button>
+      ) : null}
+      <button type="button" className="btn ghost mini" onClick={() => void handleSubmitArtifactForReview()} disabled={artifactEditorBusy}>
+        提交确认
+      </button>
+    </>
+  );
 
   return (
     <>
@@ -1583,6 +1774,15 @@ export function IterationWorkspacePanel({
           <span>继承：{contextData?.previous ? contextData.previous.name : "首个版本"}</span>
           <span>范围 in/out：{scopeInCount}/{scopeOutCount}</span>
           <span>验收：{acceptanceCount} 项</span>
+          {changeIntelligenceSummary ? (
+            <button
+              type="button"
+              className="btn ghost mini"
+              onClick={() => setShowChangeIntelligencePanel((prev) => !prev)}
+            >
+              {showChangeIntelligencePanel ? "收起变更映射" : "查看变更映射"}
+            </button>
+          ) : null}
           {hasStateMachineActions ? (
             <div className="chat-tools">
               {allowedTransitions.slice(0, 2).map((status) => (
@@ -1595,6 +1795,13 @@ export function IterationWorkspacePanel({
         </div>
         <div className="iteration-workbench-grid">
           <div className="iteration-chat-main">
+            {showChangeIntelligencePanel && changeIntelligenceSummary ? (
+              <IterationChangeIntelligencePanel
+                iteration={currentIteration}
+                artifactItems={artifactItems}
+                onOpenArtifact={openArtifactPreviewById}
+              />
+            ) : null}
             <div
               className={`chat-body ${dragOver ? "drop-active" : ""}`}
               onDragOver={(event) => {
@@ -1626,15 +1833,15 @@ export function IterationWorkspacePanel({
                         <span>{getRoleLabel(msg.role)}</span>
                         <time dateTime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
                       </div>
-                      {resolveDeliverableReference(msg.content) ? (
+                      {resolveDeliverableCardData(msg.content) ? (
                         (() => {
-                          const deliverable = resolveDeliverableReference(msg.content);
+                          const deliverable = resolveDeliverableCardData(msg.content);
                           if (!deliverable) return null;
                           return (
                             <div className="deliverable-msg-card">
                               <div className="deliverable-msg-head">
                                 <strong>{deliverable.title}</strong>
-                                <span className="hint">{deliverable.status || "状态待确认"}</span>
+                                <span className="hint">{deliverable.status || "待你确认"}</span>
                               </div>
                               {deliverable.type ? <p className="hint">类型：{deliverable.type}</p> : null}
                               {deliverable.stage ? <p className="hint">阶段：{deliverable.stage}</p> : null}
@@ -1648,66 +1855,15 @@ export function IterationWorkspacePanel({
                               ) : null}
                               <div className="msg-inline-actions">
                                 <button type="button" className="btn ghost mini" onClick={() => openArtifactPreviewByTitle(deliverable.title)}>
-                                  查看预览
-                                </button>
-                                <button type="button" className="btn ghost mini" onClick={() => onChatInputChange(deliverable.prompt)}>
-                                  继续推进
+                                  查看交付物
                                 </button>
                               </div>
                             </div>
                           );
                         })()
-                      ) : msg.role === "system" && resolveActionCard(msg.content) ? (
-                        (() => {
-                          const card = resolveActionCard(msg.content);
-                          if (!card) return null;
-                          return (
-                            <div className="action-card">
-                              <p className="action-card-title">
-                                Agent 引导卡 · {renderIntentLabel(card.intent)}
-                                {card.uploadRecommended ? " · 建议先上传材料" : ""}
-                              </p>
-                              <p className={`action-priority ${card.priority === "P0" ? "p0" : card.priority === "P1" ? "p1" : "p2"}`}>
-                                优先级：{card.priority}
-                              </p>
-                              {card.prerequisites.length > 0 ? (
-                                <ul className="action-card-list">
-                                  {card.prerequisites.map((item) => (
-                                    <li key={`prereq-${item}`}>前置条件：{item}</li>
-                                  ))}
-                                </ul>
-                              ) : null}
-                              {card.actions.length > 0 ? (
-                                <div className="msg-inline-actions">
-                                  {card.actions.map((action) => (
-                                    <button key={action} type="button" className="btn ghost mini" onClick={() => handleQuickAction(action)}>
-                                      {action}
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : null}
-                              {card.checklist.length > 0 ? (
-                                <ul className="action-card-list">
-                                  {card.checklist.map((item) => (
-                                    <li key={item}>{item}</li>
-                                  ))}
-                                </ul>
-                              ) : null}
-                            </div>
-                          );
-                        })()
                       ) : (
-                        <p>{msg.content}</p>
+                        <p>{resolveGuidanceText(msg.content) || msg.content}</p>
                       )}
-                      {msg.role === "system" && !resolveActionCard(msg.content) && resolveActionButtons(msg.content).length > 0 ? (
-                        <div className="msg-inline-actions">
-                          {resolveActionButtons(msg.content).map((action) => (
-                            <button key={action} type="button" className="btn ghost mini" onClick={() => handleQuickAction(action)}>
-                              {action}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
                       {getMsgKind(msg) === "event-upload" && msg.id === lastUploadMessageId ? (
                         <div className="msg-inline-actions">
                           {canOpenAnalysisPanel ? (
@@ -1816,6 +1972,7 @@ export function IterationWorkspacePanel({
                 ) : null}
               </div>
               <input
+                ref={chatComposerInputRef}
                 value={chatInput}
                 onChange={(event) => onChatInputChange(event.target.value)}
                 onKeyDown={(event) => {
@@ -1837,63 +1994,6 @@ export function IterationWorkspacePanel({
               </p>
             ) : null}
           </div>
-          <aside className="iteration-side-rail" aria-label="交付与指标">
-            <section className="iteration-side-section">
-              <h3>核心交付物</h3>
-              <ul className="iteration-side-list">
-                {visibleArtifactItems.length > 0 ? (
-                  visibleArtifactItems.slice(0, 3).map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        className="iteration-side-deliverable-btn"
-                        onClick={() => openArtifactPreviewById(item.id)}
-                        aria-label={`查看交付物预览：${item.title}`}
-                      >
-                        <strong>{item.title}</strong>
-                        <span>{item.status} / {item.gateStatus}</span>
-                        <em>查看预览</em>
-                      </button>
-                    </li>
-                  ))
-                ) : (
-                  <li className="empty">暂无交付物</li>
-                )}
-              </ul>
-            </section>
-            <section className="iteration-side-section">
-              <h3>Pipeline 指标</h3>
-              <ul className="iteration-side-list compact">
-                <li>
-                  <strong>测试覆盖率</strong>
-                  <span>{matrixSummary.coverage}%</span>
-                </li>
-                <li>
-                  <strong>测试通过率</strong>
-                  <span>{matrixSummary.passRate}%</span>
-                </li>
-                <li>
-                  <strong>风险项</strong>
-                  <span>{materialRisks.length} 条</span>
-                </li>
-              </ul>
-            </section>
-            <section className="iteration-side-section">
-              <h3>最近变更</h3>
-              <ul className="iteration-side-list compact">
-                {recentHistoryItems.length > 0 ? (
-                  recentHistoryItems.map((item) => (
-                    <li key={`${item.id}-${item.createdAt}`}>
-                      <strong>{renderStatusLabel(item.fromStatus)} → {renderStatusLabel(item.toStatus)}</strong>
-                      <span>{new Date(item.createdAt).toLocaleString("zh-CN")}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="empty">暂无状态变更记录</li>
-                )}
-              </ul>
-            </section>
-          </aside>
         </div>
       </article>
       {uploadToastMessage ? (
@@ -1906,13 +2006,21 @@ export function IterationWorkspacePanel({
       ) : null}
 
       <div className={`analysis-drawer-mask ${showAnalysisPanel ? "open" : ""}`} onClick={onCloseAnalysisPanel} aria-hidden={!showAnalysisPanel} />
-      <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showAnalysisPanel ? "open" : ""}`}>
+      <aside
+        className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showAnalysisPanel ? "open" : ""}`}
+        style={{ width: `min(${artifactDrawerWidth}px, 100vw)` }}
+      >
         <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
+          <button
+            type="button"
+            className="artifact-drawer-resize-handle"
+            aria-label="拖拽调整交付物抽屉宽度"
+            title="拖拽调整交付物抽屉宽度"
+            onPointerDown={handleArtifactDrawerResizePointerDown}
+          />
           <div className="panel-head analysis-drawer-head">
             <div>
-              <h2>{selectedDrawerArtifact ? "交付物预览抽屉" : "分析报告抽屉"}</h2>
-              <p className="hint">当前迭代：{currentIteration?.name || "-"}</p>
-              {selectedDrawerArtifact ? <p className="hint">预览对象：{selectedDrawerArtifact.title}</p> : null}
+              <h2>{selectedDrawerArtifact ? `${selectedDrawerArtifact.title}` : "分析报告抽屉"}</h2>
             </div>
             <div className="chat-tools">
               <button type="button" className="visual-align-hidden-trigger" onClick={openInteractionPanel}>
@@ -1928,45 +2036,218 @@ export function IterationWorkspacePanel({
             className="preview-scroll"
           >
             {selectedDrawerArtifact ? (
-              <div className="info-box deliverable-preview-focus">
-                <div className="panel-head tight">
-                  <strong>{selectedDrawerArtifact.title}</strong>
-                  <span className="health-pill">{selectedDrawerArtifact.status}</span>
-                </div>
-                <p>类型：{selectedArtifactKind}</p>
-                <p>阶段：{selectedDrawerArtifact.stage}</p>
-                <p>Gate：{selectedDrawerArtifact.gateStatus}</p>
-                <p>版本：v{selectedDrawerArtifact.outputVersion}</p>
-                <p>摘要：{selectedDrawerArtifact.summary || "-"}</p>
-                {(selectedDrawerArtifact.evidence?.length ?? 0) > 0 ? (
-                  <p className="hint">证据：{selectedDrawerArtifact.evidence.join("；")}</p>
-                ) : null}
-                {selectedArtifactKind === "html-prototype" ? (
-                  <div className="info-box">
-                    <h3>HTML 原型预览</h3>
-                    {artifactDraftContent.trim() ? (
-                      <iframe
-                        title={`${selectedDrawerArtifact.title}-preview`}
-                        sandbox="allow-scripts allow-same-origin"
-                        srcDoc={patchHtmlRuntimeForPreview(artifactDraftContent)}
-                        style={{ width: "100%", minHeight: 380, border: "1px solid #d8dee6", borderRadius: 10, background: "#fff" }}
-                      />
+              <div className="deliverable-preview-focus">
+                <ArtifactImpactPanel iteration={currentIteration} artifact={selectedDrawerArtifact} />
+                {selectedArtifactKind === "analysis-report" ? (
+                  <div className="deliverable-stage-view stage-analysis-report">
+                    <h3>分析报告抽屉</h3>
+                    {analysisDraftSections.length > 0 ? (
+                      <>
+                        <div className="deliverable-kv-grid">
+                          {analysisDraftSections.slice(0, 4).map((section) => (
+                            <div key={`analysis-section-${section.title}`}>
+                              <span>{section.title}</span>
+                              <strong>{section.content || (section.bullets[0] ?? "-")}</strong>
+                            </div>
+                          ))}
+                        </div>
+                        {analysisDraftSections.slice(4).map((section, index) => (
+                          <section key={`analysis-draft-${section.title}-${index}`} className="deliverable-section">
+                            <h4>{section.title}</h4>
+                            {section.content ? <p style={{ whiteSpace: "pre-wrap" }}>{section.content}</p> : null}
+                            {section.bullets.length > 0 ? (
+                              <ul className="history-list">
+                                {section.bullets.map((item, bulletIndex) => (
+                                  <li key={`${section.title}-${bulletIndex}`} className="history-item">
+                                    <p>{item}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </section>
+                        ))}
+                      </>
+                    ) : analysisReport ? (
+                      <>
+                        <div className="deliverable-kv-grid">
+                          <div>
+                            <span>项目识别</span>
+                            <strong>{analysisReport.projectDetection?.projectName || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>产品</span>
+                            <strong>{analysisReport.projectDetection?.productName || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>项目类型</span>
+                            <strong>{analysisReport.projectDetection?.projectCategory || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>分析时间</span>
+                            <strong>{analysisReport.analyzedAt ? new Date(analysisReport.analyzedAt).toLocaleString("zh-CN") : "-"}</strong>
+                          </div>
+                        </div>
+                        <section className="deliverable-section">
+                          <h4>理解摘要</h4>
+                          <p>{analysisReport.understanding || selectedDrawerArtifact.summary || "-"}</p>
+                        </section>
+                        <section className="deliverable-section">
+                          <h4>高优先级发现</h4>
+                          {analysisReport.prioritizedFindings?.length ? (
+                            <ul className="history-list">
+                              {analysisReport.prioritizedFindings.slice(0, 6).map((item, index) => (
+                                <li key={`${item.priority}-${index}`} className="history-item">
+                                  <strong>[{item.priority}] {item.content}</strong>
+                                  <p className="hint">原因：{item.reason || "-"}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="hint">暂无结构化发现。</p>
+                          )}
+                        </section>
+                        <section className="deliverable-section">
+                          <h4>下一步建议</h4>
+                          {analysisReport.nextActions?.length ? (
+                            <ul className="history-list">
+                              {analysisReport.nextActions.slice(0, 6).map((item, index) => (
+                                <li key={`next-${index}`} className="history-item">
+                                  <p>{item}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="hint">暂无下一步建议。</p>
+                          )}
+                        </section>
+                      </>
                     ) : (
-                      <p className="hint">暂无原型内容，请先在下方编辑区输入 HTML 内容后保存。</p>
+                      <p className="hint">当前迭代暂无分析报告内容。</p>
                     )}
                   </div>
                 ) : null}
+                {selectedArtifactKind === "product-requirements-doc" ? (
+                  <div className="deliverable-stage-view stage-product-requirements">
+                    <h3>产品需求文档</h3>
+                    <ArtifactTextEditor
+                      title={`PRD · v${selectedDrawerArtifact.outputVersion}`}
+                      value={artifactEditorValue}
+                      readOnly={artifactEditorMode !== "edit"}
+                      onChange={(value) => {
+                        setArtifactEditorValue(value);
+                        setArtifactEditorDirty(value !== artifactEditorSource);
+                      }}
+                      actions={renderTextArtifactActions()}
+                    />
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "html-prototype" ? (
+                  <div className="deliverable-stage-view stage-prototype-preview">
+                    <h3>原型渲染抽屉</h3>
+                    <div className="artifact-prototype-toolbar">
+                      <span className="hint">
+                        数据源：{artifactDraftContent.trim() ? "交付物草稿" : selectedHtmlPreview ? `上传预览（${selectedHtmlPreview.name}）` : "暂无可渲染原型"}
+                      </span>
+                      <div className="chat-tools">
+                        <button type="button" className={`btn ghost mini ${interactionEditMode ? "is-active" : ""}`} onClick={() => setInteractionEditMode((prev) => !prev)}>
+                          {interactionEditMode ? "退出选中" : "选择元素"}
+                        </button>
+                        <button type="button" className="btn ghost mini" onClick={handleUndoHtmlPreview} disabled={htmlPreviewHistory.length === 0}>
+                          撤销
+                        </button>
+                      </div>
+                    </div>
+                    {selectedArtifactHtmlPreview ? (
+                      <div className="artifact-prototype-editor">
+                        <iframe
+                          ref={artifactHtmlPreviewFrameRef}
+                          title={`${selectedDrawerArtifact.title}-preview`}
+                          sandbox="allow-scripts allow-same-origin"
+                          srcDoc={selectedArtifactHtmlPreview}
+                          className="artifact-prototype-frame"
+                        />
+                        <div className="interaction-inline-editor artifact-inline-editor">
+                          <span className="interaction-target-chip">{selectedHtmlElement?.selector || "未选中元素"}</span>
+                          <input
+                            value={interactionInstruction}
+                            onChange={(event) => setInteractionInstruction(event.target.value)}
+                            placeholder={interactionEditMode ? "先点选原型元素，再用自然语言描述想修改的文案、尺寸或样式" : "点击“选择元素”后再描述想修改的内容"}
+                          />
+                          <button
+                            type="button"
+                            className="btn primary mini"
+                            onClick={() => {
+                              void sendInteractionInstruction(interactionInstruction);
+                              setInteractionInstruction("");
+                            }}
+                            disabled={!interactionInstruction.trim() || !selectedHtmlElement}
+                          >
+                            发送
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="hint">暂无原型内容，请在主对话中要求 Agent 生成或调整当前原型交付物。</p>
+                    )}
+                    {imagePrototypePreviews.length > 0 ? (
+                      <p className="hint">已检测到图片原型 {imagePrototypePreviews.length} 份，可在交互界面中继续编辑。</p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "design-spec" ? (
+                  <div className="deliverable-stage-view stage-design-spec">
+                    <h3>设计规范</h3>
+                    <ArtifactTextEditor
+                      title={`设计规范 · ${selectedDrawerArtifact.stage}`}
+                      value={artifactEditorValue}
+                      readOnly={artifactEditorMode !== "edit"}
+                      onChange={(value) => {
+                        setArtifactEditorValue(value);
+                        setArtifactEditorDirty(value !== artifactEditorSource);
+                      }}
+                      actions={renderTextArtifactActions()}
+                    />
+                  </div>
+                ) : null}
+                {selectedArtifactKind === "technical-architecture" ? (
+                  <div className="deliverable-stage-view stage-technical-architecture">
+                    <h3>技术架构</h3>
+                    <ArtifactTextEditor
+                      title={`技术架构 · ${selectedDrawerArtifact.stage}`}
+                      value={artifactEditorValue}
+                      readOnly={artifactEditorMode !== "edit"}
+                      onChange={(value) => {
+                        setArtifactEditorValue(value);
+                        setArtifactEditorDirty(value !== artifactEditorSource);
+                      }}
+                      actions={renderTextArtifactActions()}
+                    />
+                  </div>
+                ) : null}
                 {selectedArtifactKind === "code" ? (
-                  <div className="info-box">
-                    <h3>代码预览</h3>
-                    <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                      <code>{artifactDraftContent || selectedDrawerArtifact.summary || "暂无代码内容"}</code>
-                    </pre>
+                  <div className="deliverable-stage-view stage-code-delivery">
+                    <h3>代码交付抽屉</h3>
+                    <ArtifactCodeViewer
+                      title={selectedDrawerArtifact.title}
+                      value={stripRichTextToPlainText(artifactDraftContent || selectedDrawerArtifact.summary || "暂无代码内容")}
+                      actions={(
+                        <button
+                          type="button"
+                          className="btn ghost mini"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(stripRichTextToPlainText(artifactDraftContent || selectedDrawerArtifact.summary || ""));
+                            setChangeControlNotice("代码内容已复制。");
+                          }}
+                        >
+                          复制代码
+                        </button>
+                      )}
+                    />
                   </div>
                 ) : null}
                 {selectedArtifactKind === "test-cases" ? (
-                  <div className="info-box">
-                    <h3>测试用例视图</h3>
+                  <div className="deliverable-stage-view stage-test-cases">
+                    <h3>测试矩阵抽屉</h3>
                     {generatedTestMatrix.length > 0 ? (
                       <ul className="history-list">
                         {generatedTestMatrix.slice(0, 10).map((item) => (
@@ -1985,79 +2266,66 @@ export function IterationWorkspacePanel({
                   </div>
                 ) : null}
                 {selectedArtifactKind === "release-review" ? (
-                  <div className="info-box">
-                    <h3>发布评审视图</h3>
+                  <div className="deliverable-stage-view stage-release-review">
+                    <h3>发布评审抽屉</h3>
                     <p>最近结论：{currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
                     <p className="hint">说明：{currentIteration?.changeControl?.lastReleaseReviewReason || "-"}</p>
                   </div>
                 ) : null}
                 {selectedArtifactKind === "delivery-package" ? (
-                  <div className="info-box">
-                    <h3>交付归档视图</h3>
+                  <div className="deliverable-stage-view stage-delivery-package">
+                    <h3>交付归档抽屉</h3>
                     <p className="hint">
                       已落盘文件：{currentIteration?.changeControl?.qualityArtifacts?.materializedFiles?.join("；") || "暂无"}
                     </p>
                   </div>
                 ) : null}
                 {selectedArtifactKind === "document" ? (
-                  <div className="info-box">
-                    <h3>文档视图</h3>
-                    {artifactDraftContent.trim().startsWith("<") ? (
-                      <div dangerouslySetInnerHTML={{ __html: artifactDraftContent }} />
-                    ) : (
-                      <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                        <code>{artifactDraftContent || selectedDrawerArtifact.summary || "暂无文档内容"}</code>
-                      </pre>
-                    )}
+                  <div className="deliverable-stage-view stage-document">
+                    <h3>文档抽屉</h3>
+                    <ArtifactTextEditor
+                      title={selectedDrawerArtifact.title}
+                      value={artifactEditorValue}
+                      readOnly={artifactEditorMode !== "edit"}
+                      onChange={(value) => {
+                        setArtifactEditorValue(value);
+                        setArtifactEditorDirty(value !== artifactEditorSource);
+                      }}
+                      actions={renderTextArtifactActions()}
+                    />
                   </div>
                 ) : null}
-                {selectedDrawerArtifact.editCapability !== "none" ? (
-                  <div className="info-box">
-                    <h3>交付物编辑</h3>
-                    <label className="hint">
-                      草稿内容
-                      <textarea rows={8} value={artifactDraftContent} onChange={(event) => setArtifactDraftContent(event.target.value)} />
-                    </label>
-                    <label className="hint">
-                      摘要
-                      <textarea rows={3} value={artifactSummaryText} onChange={(event) => setArtifactSummaryText(event.target.value)} />
-                    </label>
-                    <label className="hint">
-                      证据（每行一条）
-                      <textarea rows={4} value={artifactEvidenceText} onChange={(event) => setArtifactEvidenceText(event.target.value)} />
-                    </label>
-                    <label className="hint">
-                      确认备注（阻断时建议填写原因）
-                      <textarea rows={3} value={artifactConfirmNote} onChange={(event) => setArtifactConfirmNote(event.target.value)} />
-                    </label>
-                    <div className="chat-tools">
-                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={handleSaveCurrentArtifactDraft}>
-                        保存草稿
-                      </button>
-                      <button type="button" className="btn secondary" disabled={changeControlBusy} onClick={handleCommitCurrentArtifact}>
-                        提交交付物
-                      </button>
-                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={() => void handleConfirmCurrentArtifact(true)}>
-                        确认通过
-                      </button>
-                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={() => void handleConfirmCurrentArtifact(false)}>
-                        标记阻断
-                      </button>
-                    </div>
-                    <div className="chat-tools">
-                      <button type="button" className="btn ghost mini" disabled={changeControlBusy} onClick={handleAppendCurrentArtifactToChat}>
-                        发送引用卡到对话
-                      </button>
-                      <button type="button" className="btn primary" disabled={changeControlBusy} onClick={handleContinueFromArtifact}>
-                        继续执行
-                      </button>
-                    </div>
+                <div className="deliverable-stage-view artifact-review-stage">
+                  <h3>交付物确认</h3>
+                  <p>
+                    当前版本：v{selectedDrawerArtifact.outputVersion || 0} · 状态：
+                    {selectedDrawerArtifact.gateStatus === "passed"
+                      ? " 已确认"
+                      : selectedDrawerArtifact.outputVersion > 0
+                        ? " 待你确认"
+                        : " 尚未提交确认"}
+                  </p>
+                  {selectedDrawerArtifact.lastConfirmedAt ? (
+                    <p className="hint">
+                      最近确认：{selectedDrawerArtifact.lastConfirmedBy || "-"} ·{" "}
+                      {new Date(selectedDrawerArtifact.lastConfirmedAt).toLocaleString("zh-CN")}
+                    </p>
+                  ) : (
+                    <p className="hint">当前交付物还没有用户确认记录。</p>
+                  )}
+                  <div className="chat-tools">
+                    <button
+                      type="button"
+                      className="btn primary mini"
+                      onClick={() => void handleConfirmSelectedArtifact()}
+                      disabled={!selectedArtifactAwaitingConfirmation || artifactEditorBusy}
+                    >
+                      确认通过
+                    </button>
+                    <button type="button" className="btn ghost mini" onClick={handleRequestArtifactRevision}>
+                      去对话中提调整
+                    </button>
                   </div>
-                ) : null}
-                <div className="chat-tools">
-                  <button type="button" className="btn ghost mini" onClick={() => setAnalysisDrawerArtifactId(null)}>
-                    查看完整分析报告
-                  </button>
                 </div>
               </div>
             ) : null}
@@ -2065,79 +2333,12 @@ export function IterationWorkspacePanel({
               !analysisReport ? (
               <div className="analysis-fallback-shell">
                 <section className="analysis-fallback-section">
-                  <h3>1. 项目理解确认 (AI 总结)</h3>
-                  <div className="analysis-fallback-emphasis">
-                    <p>
-                      基于最新 PR 描述，本项目旨在重构图表组件库，提升大数据量下的渲染性能，并统一主题变量调用逻辑。AI 确认核心变更点为：
-                      <strong>D3.js 升级至 V7.0 与 Context API 状态同步优化。</strong>
-                    </p>
-                  </div>
-                </section>
-                <section className="analysis-fallback-section">
-                  <h3>2. 关键发现与优先级</h3>
-                  <ul className="analysis-fallback-priority-list">
-                    <li>
-                      <span className="priority-chip p0">P0</span>
-                      <div>
-                        <strong>内存泄漏隐患</strong>
-                        <p>在多次销毁/重建 Chart 实例时，DOM 监听器未完全释放。</p>
-                      </div>
-                    </li>
-                    <li>
-                      <span className="priority-chip p1">P1</span>
-                      <div>
-                        <strong>主题适配缺失</strong>
-                        <p>Dark Mode 下轴线颜色对比度不足 (仅 2.1:1)。</p>
-                      </div>
-                    </li>
-                    <li>
-                      <span className="priority-chip p2">P2</span>
-                      <div>
-                        <strong>导出逻辑冗余</strong>
-                        <p>SVG 到 Canvas 的转换逻辑可提取至通用 Utils。</p>
-                      </div>
-                    </li>
-                  </ul>
-                </section>
-                <section className="analysis-fallback-section">
-                  <h3>3. 测试矩阵执行详情</h3>
-                  <div className="analysis-fallback-kpi">
-                    <div>
-                      <span>单元测试通过率</span>
-                      <strong>98.2%</strong>
-                    </div>
-                    <div>
-                      <span>覆盖率变更</span>
-                      <strong className="delta">+4.5%</strong>
-                    </div>
-                  </div>
-                  <div className="analysis-fallback-bars">
-                    <p>
-                      <span>边缘数据压力测试</span>
-                      <strong className="pass">Pass</strong>
-                    </p>
-                    <div className="bar"><i style={{ width: "100%" }} /></div>
-                    <p>
-                      <span>旧版本兼容性 (IE11)</span>
-                      <strong className="partial">Partial</strong>
-                    </p>
-                    <div className="bar warn"><i style={{ width: "65%" }} /></div>
-                  </div>
-                </section>
-                <section className="analysis-fallback-section">
-                  <h3>4. 需求-组件-代码映射图示</h3>
+                  <h3>对话推进模式</h3>
                   <div className="info-box">
-                    <p className="hint">暂无分析结果，请先上传附件。</p>
+                    <p>当前暂无结构化分析报告。请直接在聊天窗口继续描述目标、边界或阻断点，OpenClaw 会按对话上下文逐轮推进。</p>
+                    <p className="hint">建议先上传最新需求/原型/代码变更材料，再继续对话以获得更准确推进结果。</p>
                   </div>
                 </section>
-                <div className="analysis-fallback-actions">
-                  <button type="button" className="btn ghost">
-                    查看 2 条关键风险提示
-                  </button>
-                  <button type="button" className="btn primary">
-                    执行建议修复动作
-                  </button>
-                </div>
               </div>
               ) : (
               <>

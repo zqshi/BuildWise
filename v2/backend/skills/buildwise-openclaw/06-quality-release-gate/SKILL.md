@@ -8,6 +8,11 @@ description: Quality and release gate SOP for go-caution-block decisions. Use wh
 ## Goal
 Produce a transparent release decision with clear thresholds and rollback expectations.
 
+## Boundary
+- This skill only decides release readiness and rollback expectations.
+- It must not classify cross-iteration scope or generate full artifact content.
+- It must not continue execution after a blocked decision; recovery must be delegated.
+
 ## Inputs
 - `test_matrix`
 - `acceptance`

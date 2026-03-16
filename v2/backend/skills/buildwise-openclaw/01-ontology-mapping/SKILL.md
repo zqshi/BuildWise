@@ -8,6 +8,11 @@ description: Ontology mapping SOP for requirement-component-code-test traceabili
 ## Goal
 Build a trace map from business requirement to implementation and verification units.
 
+## Boundary
+- This skill only builds traceability structure.
+- It must not decide risk grade, release outcome, or recovery path.
+- It must not author full deliverable content beyond mapping-ready facts.
+
 ## Inputs
 - `requirements`
 - `code_index`

@@ -1,3 +1,7 @@
+type LoginSocialSectionProps = {
+  onRegisterClick: () => void;
+};
+
 export function LoginBrandPanel() {
   return (
     <article className="auth-brand-panel">
@@ -39,7 +43,7 @@ export function LoginBrandPanel() {
   );
 }
 
-export function LoginSocialSection() {
+export function LoginSocialSection({ onRegisterClick }: LoginSocialSectionProps) {
   return (
     <>
       <div className="auth-divider" role="separator" aria-label="其他登录方式">
@@ -66,7 +70,10 @@ export function LoginSocialSection() {
         </button>
       </div>
       <p className="auth-register-hint">
-        还没有账号？<button type="button" className="auth-link-btn">立即注册</button>
+        还没有账号？
+        <button type="button" className="auth-link-btn" onClick={onRegisterClick}>
+          立即注册
+        </button>
       </p>
       <div className="auth-footer-links">
         <button type="button" className="auth-link-btn">隐私政策</button>

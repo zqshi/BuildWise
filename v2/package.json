@@ -12,7 +12,8 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
     "check:skills": "npm --prefix backend run check:skills",
-    "seed:deliverable:demo": "node scripts/reset-and-seed-deliverable-demo.mjs",
+    "seed:agentic:flow": "node scripts/reset-and-seed-agentic-flow-mock.mjs",
+    "demo:openclaw:real": "node scripts/openclaw-real-llm-demo.mjs",
     "clean:workspace": "bash scripts/clean-workspace.sh",
     "report:readiness": "node scripts/report-readiness.mjs",
     "dev:stack:start": "bash scripts/start-dev-stack.sh",
@@ -22,10 +23,17 @@
     "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run check:skills && npm run typecheck && npm run build && npm run report:readiness && npm --prefix backend run check:boundaries && npm --prefix backend run typecheck && npm --prefix backend run build && npm --prefix backend run test:contract"
   },
   "dependencies": {
+    "@tiptap/react": "^3.20.1",
+    "@tiptap/starter-kit": "^3.20.1",
+    "markdown-it": "^14.1.1",
+    "prismjs": "^1.30.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-simple-code-editor": "^0.14.1"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/prismjs": "^1.26.6",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

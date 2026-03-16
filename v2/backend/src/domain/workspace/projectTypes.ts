@@ -45,6 +45,17 @@ export type ProjectRepository = {
   updatedAt: string;
 };
 
+export type ProjectKnowledgeBase = {
+  ontologyTerms: Array<{ term: string; aliases: string[]; definition: string; evidence: string }>;
+  stableRules: Array<{ rule: string; rationale: string; source: string }>;
+  componentInventory: Array<{ component: string; responsibility: string; relatedRequirements: string[]; relatedCodePaths: string[] }>;
+  codeMap: Array<{ capability: string; codePaths: string[]; tests: string[] }>;
+  decisionLog: Array<{ decision: string; status: "active" | "deprecated"; rationale: string; iterationVersion: string }>;
+  knownRisks: Array<{ risk: string; mitigation: string; trigger: string }>;
+  changePatterns: Array<{ pattern: string; preferredFlow: string; avoid: string }>;
+  updatedAt: string;
+};
+
 export type Project = {
   id: number;
   name: string;
@@ -55,4 +66,5 @@ export type Project = {
   iconColor?: string;
   lastUpdated?: string;
   repository?: ProjectRepository;
+  knowledgeBase?: ProjectKnowledgeBase;
 };

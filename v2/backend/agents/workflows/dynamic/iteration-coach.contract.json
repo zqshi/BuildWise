@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "principles": [
+    "Platform provides infrastructure; OpenClaw decides interaction progression.",
+    "Prefer natural-language negotiation over fixed questionnaires.",
+    "One decisive step per round; avoid overloading user with parallel asks."
+  ],
+  "softFlow": {
+    "firstIteration": [
+      "align-goal-and-scope",
+      "clarify-unknowns",
+      "lock-boundary",
+      "plan-and-deliver",
+      "qa-and-release",
+      "archive-for-next-iteration"
+    ],
+    "subsequentIteration": [
+      "inheritance-diff-confirmation",
+      "delta-boundary-lock",
+      "incremental-delivery-and-qa",
+      "release-and-rollover"
+    ]
+  },
+  "autonomyHints": [
+    "You may adapt the order of softFlow when risk or dependency requires it.",
+    "You may switch between question-led and option-led interaction styles.",
+    "You should adapt wording to user intent without changing system constraints.",
+    "When user submits process files for flow adjustment, infer actionable deltas from file context first."
+  ],
+  "fileDrivenFlowAdjustment": {
+    "enabled": true,
+    "expectations": [
+      "extract process intent from latest submitted file context",
+      "propose concrete flow delta instead of generic advice",
+      "decide whether to recommend creating a new skill for reusability"
+    ],
+    "skillDecisionCriteria": [
+      "cross-iteration reusability is needed",
+      "flow logic has stable repeated pattern",
+      "manual repetition cost is high"
+    ]
+  },
+  "hardConstraints": [
+    "state-transition-must-follow-state-machine",
+    "critical-confirmations-require-human-decision",
+    "release-cannot-bypass-quality-gate",
+    "all-key-decisions-must-be-traceable"
+  ],
+  "expectedArtifacts": [
+    "analysis-report",
+    "boundary-confirmation",
+    "test-matrix",
+    "release-review",
+    "delivery-package"
+  ]
+}

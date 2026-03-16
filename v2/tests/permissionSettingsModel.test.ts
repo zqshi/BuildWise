@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  BUILTIN_ROLE_MATRIX_OPTIONS,
+  canAccessGovernanceEntries,
   formatDate,
+  isBuiltinLockedRole,
   isValidMainlandPhone,
   mapMemberPresetRoleToPlatformRole,
   resolvePermissionTabPanels,
@@ -64,8 +67,25 @@ test("tab panels are mutually exclusive", () => {
 
 test("member preset role maps to platform role", () => {
   assert.equal(mapMemberPresetRoleToPlatformRole("super_admin"), "admin");
-  assert.equal(mapMemberPresetRoleToPlatformRole("project_manager"), "member");
-  assert.equal(mapMemberPresetRoleToPlatformRole("viewer"), "viewer");
+  assert.equal(mapMemberPresetRoleToPlatformRole("member"), "member");
+});
+
+test("builtin role matrix includes locked member role", () => {
+  assert.deepEqual(
+    BUILTIN_ROLE_MATRIX_OPTIONS.map((item) => item.key),
+    ["owner", "member"]
+  );
+  assert.equal(isBuiltinLockedRole("owner"), true);
+  assert.equal(isBuiltinLockedRole("member"), true);
+  assert.equal(isBuiltinLockedRole("custom-role"), false);
+});
+
+test("only owner can access governance entries", () => {
+  assert.equal(canAccessGovernanceEntries("owner"), true);
+  assert.equal(canAccessGovernanceEntries("pm"), false);
+  assert.equal(canAccessGovernanceEntries("developer"), false);
+  assert.equal(canAccessGovernanceEntries("qa"), false);
+  assert.equal(canAccessGovernanceEntries("viewer"), false);
 });
 
 test("mainland phone validator accepts 11-digit mobile and rejects invalid values", () => {

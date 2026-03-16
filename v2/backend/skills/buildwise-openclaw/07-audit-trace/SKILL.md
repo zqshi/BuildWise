@@ -8,6 +8,11 @@ description: Audit and trace SOP for full-chain replayability. Use when BuildWis
 ## Goal
 Guarantee every output in iteration flow can be traced, explained, and replayed.
 
+## Boundary
+- This skill only validates traceability and replayability.
+- It must not invent missing business conclusions to fill evidence gaps.
+- It must not substitute for orchestration, impact analysis, or release judgment.
+
 ## Inputs
 - `skill_calls`
 - `decisions`

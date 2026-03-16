@@ -42,12 +42,21 @@ function buildInitialOrchestrationStrategy(): ProjectPolicyRecord["strategy"] {
       { key: "test-blocked", fallbackAction: "pause-release", requireUserDecision: true }
     ],
     skillsPlan: [
-      { stage: "clarification", skills: ["00-orchestrator-sop", "01-ontology-mapping"] },
-      { stage: "scope", skills: ["02-impact-analysis", "03-deliverable-governance"] },
-      { stage: "development", skills: ["03-deliverable-governance"] },
-      { stage: "testing", skills: ["06-quality-release-gate"] },
-      { stage: "release", skills: ["06-quality-release-gate", "07-audit-trace"] },
-      { stage: "archive", skills: ["07-audit-trace", "04-cross-iteration"] }
+      {
+        stage: "agent-selected",
+        skills: [
+          "00-orchestrator-sop",
+          "01-ontology-mapping",
+          "02-impact-analysis",
+          "03-deliverable-governance",
+          "04-cross-iteration",
+          "05-exception-recovery",
+          "06-quality-release-gate",
+          "07-audit-trace",
+          "08-agentic-flow-contract",
+          "09-deliverable-content-contract"
+        ]
+      }
     ]
   };
 }

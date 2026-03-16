@@ -21,11 +21,12 @@ export type PermissionGroup = {
 };
 
 export type PermissionTab = "members" | "roles";
-export type MemberPresetRole = "super_admin" | "project_manager" | "viewer";
+export type MemberPresetRole = "super_admin" | "member";
+export type BuiltinRoleMatrixKey = "owner" | "member";
 
 const ROLE_LABELS: Record<PlatformRole, string> = {
   admin: "超级管理员",
-  member: "项目成员",
+  member: "成员",
   viewer: "只读成员"
 };
 
@@ -77,6 +78,13 @@ const PERMISSION_LABEL_MAP: Record<string, string[]> = {
   "deploy:transition": ["推进部署状态"],
   "policy:read": ["查看策略与门禁"]
 };
+
+const BUILTIN_LOCKED_ROLE_KEYS: BuiltinRoleMatrixKey[] = ["owner", "member"];
+
+export const BUILTIN_ROLE_MATRIX_OPTIONS: Array<{ key: BuiltinRoleMatrixKey; label: string }> = [
+  { key: "owner", label: "超级管理员" },
+  { key: "member", label: "成员" }
+];
 
 export function platformRoleLabel(role: PlatformRole): string {
   return ROLE_LABELS[role];
@@ -171,10 +179,15 @@ export function mapMemberPresetRoleToPlatformRole(preset: MemberPresetRole): Pla
   if (preset === "super_admin") {
     return "admin";
   }
-  if (preset === "project_manager") {
-    return "member";
-  }
-  return "viewer";
+  return "member";
+}
+
+export function isBuiltinLockedRole(roleKey: string): roleKey is BuiltinRoleMatrixKey {
+  return BUILTIN_LOCKED_ROLE_KEYS.includes(roleKey as BuiltinRoleMatrixKey);
+}
+
+export function canAccessGovernanceEntries(role: "owner" | "pm" | "developer" | "qa" | "viewer") {
+  return role === "owner";
 }
 
 export function isValidMainlandPhone(phone: string) {

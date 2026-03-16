@@ -156,6 +156,12 @@ export function OpenclawWorkspacePanel({ isAdmin, onBack }: Props) {
                                 </ul>
                               </div>
                             ) : null}
+                            {presented.data.flowRoute ? (
+                              <div>
+                                <strong>推进路线</strong>
+                                <p>{presented.data.flowRoute}</p>
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })()}
