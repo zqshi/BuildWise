@@ -11,8 +11,20 @@
 
 # Runtime workspace data
 v2/backend/.env
+v2/backend/data.json
 v2/backend/data.runtime.json
+backend/data.json
+backend/data.runtime.json
+v2/backend/openclaw-global.runtime.json
+v2/backend/continuous-modeling.runtime.json
 v2/backend/backups/
+
+# Runtime recordings and temporary artifacts
+v2/.artifacts/
+v2/backend/.runtime/
+v2/stitch/
+backend/.runtime/
+tmp/
 
 # Local automation runtime artifacts
 autoboot/runs/
@@ -23,3 +35,19 @@ autoboot/state.json
 autoboot/state/*.json
 autoboot/__pycache__/
 *.pyc
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Test coverage
+coverage/
+
+# Environment overrides
+*.env.local
+*.env.*.local

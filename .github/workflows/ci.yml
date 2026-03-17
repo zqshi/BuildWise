@@ -48,12 +48,24 @@ jobs:
         run: npm run build
         working-directory: v2/backend
 
+      - name: Frontend Lint
+        run: npx @biomejs/biome lint ./src
+        working-directory: v2
+
+      - name: Frontend Unit Tests
+        run: node --experimental-strip-types --test "tests/**/*.test.ts"
+        working-directory: v2
+
+      - name: Backend Unit Tests
+        run: npm test
+        working-directory: v2/backend
+
       - name: Backend Contract Test
         run: npm run test:contract
         working-directory: v2/backend
 
   e2e-agent-flow:
-    if: ${{ secrets.LLM_API_BASE != '' }}
+    if: ${{ vars.HAS_LLM_CONFIG == 'true' }}
     needs: verify
     runs-on: ubuntu-latest
     defaults:
@@ -120,8 +132,10 @@ jobs:
         working-directory: v2/backend
 
       - name: Resolve LLM Policy
+        env:
+          LLM_API_BASE: ${{ secrets.LLM_API_BASE }}
         run: |
-          if [ -n "${{ secrets.LLM_API_BASE }}" ]; then
+          if [ -n "$LLM_API_BASE" ]; then
             echo "LLM_CHECK_REQUIRE_CONFIGURED=true" >> "$GITHUB_ENV"
             echo "LLM_CHECK_REQUIRE_REACHABLE=true" >> "$GITHUB_ENV"
             echo "LLM_REQUIRED=true" >> "$GITHUB_ENV"

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ModelingService } from "../../../application/modeling/modelingService";
 import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
+import { parsePositiveInt } from "./workspaceRouteUtils";
 
 type ModelApi = {
   method?: string;
@@ -13,11 +14,6 @@ function normalizeMethod(value: string) {
     return method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   }
   return "GET";
-}
-
-function parsePositiveInt(value: string | undefined) {
-  const num = Number(value);
-  return Number.isInteger(num) && num > 0 ? num : null;
 }
 
 function isCoreWorkspacePath(path: string) {

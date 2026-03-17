@@ -15,6 +15,7 @@ import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitInt
 import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
 import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
 import { buildCoachContractContext } from "./workspaceCoachInteractionContract";
+import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import {
   appendPolicyExecutionLogOp,
   evaluatePolicyGateForCoachOp,
@@ -45,27 +46,6 @@ function loadCoachPromptTemplate(): CoachPromptTemplate {
 
 function renderTemplate(template: string, vars: Record<string, string>) {
   return template.replace(/\{\{(\w+)\}\}/g, (_all, key: string) => vars[key] ?? "");
-}
-
-function safeJsonParse(value: string) {
-  const text = value.trim();
-  if (!text) {
-    return null;
-  }
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
 }
 
 function pickString(value: unknown) {

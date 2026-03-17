@@ -11,7 +11,24 @@ function runGit(args: string[], cwd?: string) {
 }
 
 function isRemoteUrl(url: string) {
-  return /^(https?:\/\/|git@|ssh:\/\/)/i.test(url.trim());
+  return /^(https:\/\/|git@|ssh:\/\/)/i.test(url.trim());
+}
+
+function sanitizeRepoUrl(url: string): { ok: boolean; url: string; error: string } {
+  const trimmed = url.trim();
+  if (trimmed.length > 500) {
+    return { ok: false, url: trimmed, error: "repo_url_too_long" };
+  }
+  if (trimmed.startsWith("-")) {
+    return { ok: false, url: trimmed, error: "repo_url_argument_injection" };
+  }
+  if (/^file:\/\//i.test(trimmed)) {
+    return { ok: false, url: trimmed, error: "repo_url_file_protocol_not_allowed" };
+  }
+  if (!isRemoteUrl(trimmed)) {
+    return { ok: false, url: trimmed, error: "repo_url_unsupported_protocol" };
+  }
+  return { ok: true, url: trimmed, error: "" };
 }
 
 export function hasGitRequirementIntakeTarget(repo: ProjectRepository | null | undefined) {
@@ -99,11 +116,12 @@ export function readGitRepositoryRequirementSnapshot(input: {
   highlights: string[];
   error: string;
 } {
-  const repoUrl = input.repoUrl.trim();
   const branch = input.branch.trim() || "main";
-  if (!repoUrl || !isRemoteUrl(repoUrl)) {
-    return { ok: false, branch, summary: "", highlights: [], error: "invalid_repo_url" };
+  const sanitized = sanitizeRepoUrl(input.repoUrl);
+  if (!sanitized.ok) {
+    return { ok: false, branch, summary: "", highlights: [], error: sanitized.error || "invalid_repo_url" };
   }
+  const repoUrl = sanitized.url;
   const lsRemote = runGit(["ls-remote", "--heads", repoUrl, branch]);
   if (lsRemote.status !== 0) {
     return {

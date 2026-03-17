@@ -2,15 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { PlatformService } from "../../../application/platform/platformService";
 import { hasPermission } from "../../../application/platform/platformSupport";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-
-function parsePositiveInt(value: string | undefined) {
-  const num = Number(value);
-  return Number.isInteger(num) && num > 0 ? num : null;
-}
-
-function currentRole(authRole: string | undefined) {
-  return authRole?.trim().toLowerCase() || "viewer";
-}
+import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
 
 function ensurePermission(authRole: string | undefined, permission: string, workspaceService: WorkspaceService) {
   const role = currentRole(authRole);

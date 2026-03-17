@@ -46,7 +46,7 @@ type ArtifactCodeViewerProps = {
 };
 
 const markdown = new MarkdownIt({
-  html: true,
+  html: false,
   linkify: true,
   breaks: true
 });
@@ -167,13 +167,22 @@ function renderProfileOverview(
   return renderSectionOutline("文档结构", outlineSections);
 }
 
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[\s>][\s\S]*?<\/script>/gi, "")
+    .replace(/<(iframe|object|embed|form|input|textarea|button)[\s>][\s\S]*?<\/\1>/gi, "")
+    .replace(/<(iframe|object|embed|form|input|textarea|button)[\s/][^>]*>/gi, "")
+    .replace(/\s*on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, "")
+    .replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
+}
+
 function createMarkup(value: string) {
   const resolvedValue = extractArtifactDocumentContent(value);
   const format = detectDocumentFormat(resolvedValue);
   if (format === "html") {
-    return normalizeRichTextContent(resolvedValue);
+    return sanitizeHtml(normalizeRichTextContent(resolvedValue));
   }
-  return markdown.render(normalizeMarkdownForPreview(resolvedValue.trim() ? resolvedValue : "*暂无内容*"));
+  return sanitizeHtml(markdown.render(normalizeMarkdownForPreview(resolvedValue.trim() ? resolvedValue : "*暂无内容*")));
 }
 
 export function ArtifactTextEditor({ title, value, profile = "generic", readOnly = false, showTitle = true, onChange, actions }: ArtifactTextEditorProps) {

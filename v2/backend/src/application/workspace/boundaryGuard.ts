@@ -1,14 +1,10 @@
 import { existsSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, normalize, sep } from "node:path";
+import { normalizeRelPath } from "../../interfaces/http/routes/workspaceRouteUtils";
 
 function runGit(args: string[], cwd: string) {
   return spawnSync("git", args, { cwd, encoding: "utf-8" });
-}
-
-function normalizeRelPath(input: string) {
-  const normalized = normalize(input.replace(/\\/g, "/")).replace(/\\/g, "/");
-  return normalized.replace(/^\.?\//, "").replace(/\/+/g, "/").trim();
 }
 
 function isPathInside(rootPath: string, targetPath: string) {
