@@ -31,7 +31,7 @@ export async function coachIterationMessage(iterationId: number, message: string
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message })
-  });
+  }, 180000);
 }
 
 export async function executeIterationVisualEdit(

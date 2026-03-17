@@ -17,12 +17,6 @@ function isValidPhone(phone: string) {
   return /^1\d{10}$/.test(phone);
 }
 
-function normalizeWorkspaceRole(platformRole: "admin" | "member" | "viewer"): "owner" | "pm" | "viewer" {
-  if (platformRole === "admin") return "owner";
-  if (platformRole === "member") return "pm";
-  return "viewer";
-}
-
 export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
   const validVersionTypes = new Set(["major", "minor", "patch"]);
   app.post("/api/auth/sms/request", async (request, reply) => {
@@ -57,7 +51,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(403);
       return { message: "phone is not registered in platform members" };
     }
-    const workspaceRole = normalizeWorkspaceRole(binding.role);
+    const workspaceRole = service.resolveWorkspaceRole(binding.role);
     return {
       ok: true,
       user: {
@@ -96,9 +90,10 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(403);
       return { message: `permission denied for role ${role}` };
     }
-    const body = request.body as { userId?: string; role?: "admin" | "member" | "viewer" } | null;
+    const body = request.body as { userId?: string; role?: string } | null;
     const userId = body?.userId?.trim() || "";
-    if (!userId || !body?.role) {
+    const roleKey = body?.role?.trim() || "";
+    if (!userId || !roleKey) {
       reply.code(400);
       return { message: "userId and role are required" };
     }
@@ -106,7 +101,14 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "userId must be 11-digit mainland phone" };
     }
-    return service.upsertPlatformRoleBinding({ userId, role: body.role });
+    const builtinRoles = new Set<string>(service.listGovernanceRoles().map((item) => item.id));
+    const customRoles = new Set<string>(service.listGovernanceCustomRoles().map((item) => item.roleKey));
+    const legacyRoles = new Set<string>(["admin", "member", "viewer"]);
+    if (!builtinRoles.has(roleKey) && !customRoles.has(roleKey) && !legacyRoles.has(roleKey)) {
+      reply.code(400);
+      return { message: `unknown role: ${roleKey}` };
+    }
+    return service.upsertPlatformRoleBinding({ userId, role: roleKey });
   });
 
   app.delete("/api/governance/platform-role-bindings/:userId", async (request, reply) => {

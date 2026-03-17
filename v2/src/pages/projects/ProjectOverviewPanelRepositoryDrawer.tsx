@@ -9,7 +9,9 @@ export function ProjectOverviewPanelRepositoryDrawer({
   setRepoUrlDraft,
   currentProjectExists,
   repoConfigBusy,
+  repoValidationBusy,
   repoUrlValid,
+  repoValidationError,
   requireRemoteForProduction,
   setRequireRemoteForProduction,
   requireRemoteForStaging,
@@ -21,6 +23,7 @@ export function ProjectOverviewPanelRepositoryDrawer({
   setShowRepoAdvanced,
   repoMigrationPlan,
   canMoveToNextStep,
+  handleAdvanceRepositoryStep,
   handleSaveRepositoryPolicy,
   handleRefreshRepositoryStatus,
   handleConnectRepository
@@ -57,6 +60,8 @@ export function ProjectOverviewPanelRepositoryDrawer({
                 </div>
                 {!repoUrlDraft.trim() ? <p className="hint">请先粘贴代码仓地址。</p> : null}
                 {repoUrlDraft.trim() && !repoUrlValid ? <p className="error-inline">地址格式看起来不正确，请使用 https://、ssh:// 或 git@ 开头。</p> : null}
+                {repoValidationError ? <p className="error-inline">{repoValidationError}</p> : null}
+                {repoValidationBusy ? <p className="hint">正在检测远端仓库可达性…</p> : null}
               </div>
             ) : null}
 
@@ -109,10 +114,10 @@ export function ProjectOverviewPanelRepositoryDrawer({
 
             <div className="repo-config-actions">
               <button type="button" className="btn ghost mini" disabled={repoConfigStep === 1} onClick={() => setRepoConfigStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))}>上一步</button>
-              {repoConfigStep < 3 ? <button type="button" className="btn ghost mini" disabled={!canMoveToNextStep} onClick={() => setRepoConfigStep((prev) => (prev < 3 ? ((prev + 1) as 1 | 2 | 3) : prev))}>下一步</button> : null}
+              {repoConfigStep < 3 ? <button type="button" className="btn ghost mini" disabled={!canMoveToNextStep || repoValidationBusy} onClick={() => void handleAdvanceRepositoryStep()}>{repoValidationBusy ? "检测中…" : "下一步"}</button> : null}
               {repoConfigStep === 2 ? <button type="button" className="btn ghost mini" disabled={!currentProjectExists || repoConfigBusy} onClick={() => void handleSaveRepositoryPolicy()}>保存发布前规则</button> : null}
               {repoConfigStep === 3 ? <button type="button" className="btn ghost mini" disabled={!currentProjectExists || repoConfigBusy} onClick={() => void handleRefreshRepositoryStatus()}>刷新连接状态</button> : null}
-              <button type="button" className="btn primary mini" disabled={!currentProjectExists || repoConfigBusy || !repoUrlValid || repoConfigStep !== 3} onClick={() => void handleConnectRepository()}>保存并连接仓库</button>
+              <button type="button" className="btn primary mini" disabled={!currentProjectExists || repoConfigBusy || repoValidationBusy || !repoUrlValid || repoConfigStep !== 3} onClick={() => void handleConnectRepository()}>保存并连接仓库</button>
             </div>
           </div>
         </article>

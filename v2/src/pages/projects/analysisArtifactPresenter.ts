@@ -9,6 +9,21 @@ export type AnalysisArtifactPreview = {
   evidence: string[];
 };
 
+const INTERNAL_NOISE_LINE = /^\[(skills|skill)\]/i;
+const PRIORITY_SECTION_TITLES = [
+  "问题定义",
+  "目标",
+  "用户场景",
+  "纳入范围",
+  "排除项",
+  "关键约束",
+  "风险",
+  "待确认",
+  "待处理点",
+  "边界",
+  "验收标准"
+];
+
 function normalizeLine(line: string) {
   return line.replace(/^[\s\u3000]+|[\s\u3000]+$/g, "");
 }
@@ -17,7 +32,8 @@ export function parseAnalysisArtifactSections(content: string) {
   const lines = content
     .split("\n")
     .map(normalizeLine)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((line) => !INTERNAL_NOISE_LINE.test(line));
 
   const sections: AnalysisArtifactSection[] = [];
   let current: AnalysisArtifactSection | null = null;
@@ -66,18 +82,28 @@ export function buildAnalysisArtifactPreview(content: string): AnalysisArtifactP
   if (sections.length === 0) {
     return { summary: "", evidence: [] };
   }
-  const summary = sections
+  const ranked = [...sections].sort((left, right) => {
+    const leftIndex = PRIORITY_SECTION_TITLES.findIndex((title) => left.title.includes(title));
+    const rightIndex = PRIORITY_SECTION_TITLES.findIndex((title) => right.title.includes(title));
+    const leftRank = leftIndex === -1 ? PRIORITY_SECTION_TITLES.length : leftIndex;
+    const rightRank = rightIndex === -1 ? PRIORITY_SECTION_TITLES.length : rightIndex;
+    return leftRank - rightRank;
+  });
+  const summary = ranked
+    .filter((section) => section.content || section.bullets[0])
     .slice(0, 2)
     .map((section) => `${section.title}：${section.content || section.bullets[0] || "-"}`)
     .join("；");
-  const evidence = sections
-    .flatMap((section) =>
-      section.bullets.length > 0
-        ? section.bullets
-        : section.content
-          ? [`${section.title}：${section.content}`]
-          : []
-    )
+  const evidence = ranked
+    .flatMap((section) => {
+      if (section.bullets.length > 0) {
+        return section.bullets.map((item) => (/^[^:：]{1,18}[:：]/.test(item) ? item : `${section.title}：${item}`));
+      }
+      if (section.content) {
+        return [`${section.title}：${section.content}`];
+      }
+      return [];
+    })
     .slice(0, 4);
   return {
     summary,

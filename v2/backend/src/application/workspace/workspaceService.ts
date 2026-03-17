@@ -26,6 +26,7 @@ import type {
 } from "../../domain/workspace/types";
 import type { AgentRunner } from "./agentRunner";
 import { listAuditLogsOp, listGovernancePermissionPointsOp, listGovernanceRolesOp } from "./workspaceServiceGovernanceOps";
+import { resolveRolePermissions, resolveWorkspaceRole } from "./governanceRoleResolver";
 import {
   archiveProjectOp,
   bootstrapProjectRepositoryOp,
@@ -34,6 +35,7 @@ import {
   getProjectRepositoryStatusOp,
   getProjectRepositoryOp,
   getProjectRepositoryMigrationPlanOp,
+  validateProjectRepositoryRemoteOp,
   provisionProjectRepositoryOp,
   publishIterationToRemoteOp,
   scaffoldProjectRepositoryOp
@@ -287,7 +289,7 @@ export class WorkspaceService {
     return listPlatformRoleBindingsOp(this.repo);
   }
 
-  upsertPlatformRoleBinding(input: { userId: string; role: "admin" | "member" | "viewer" }) {
+  upsertPlatformRoleBinding(input: { userId: string; role: string }) {
     return upsertPlatformRoleBindingOp(this.repo, input);
   }
 
@@ -301,6 +303,14 @@ export class WorkspaceService {
 
   upsertGovernanceCustomRole(input: { roleKey?: string; name: string; description: string; level: number; permissions: string[] }) {
     return upsertGovernanceCustomRoleOp(this.repo, input);
+  }
+
+  resolveRolePermissions(roleKey: string) {
+    return resolveRolePermissions(roleKey, this.listGovernanceRoles(), this.listGovernanceCustomRoles());
+  }
+
+  resolveWorkspaceRole(roleKey: string) {
+    return resolveWorkspaceRole(roleKey, this.listGovernanceRoles(), this.listGovernanceCustomRoles());
   }
 
   removeGovernanceCustomRole(roleKey: string) {
@@ -325,6 +335,10 @@ export class WorkspaceService {
     >
   ) {
     return bootstrapProjectRepositoryOp(this.repo, projectId, input);
+  }
+
+  validateProjectRepositoryRemote(projectId: number, input: { url?: string }) {
+    return validateProjectRepositoryRemoteOp(this.repo, projectId, input);
   }
 
   configureProjectRepositoryMode(

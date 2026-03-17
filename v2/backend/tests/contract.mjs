@@ -1058,8 +1058,8 @@ try {
         .find((item) => typeof item?.content === "string" && item.content.includes("【交付物引用】附件分析报告"));
       assert(Boolean(lastArtifactRefMessage), "artifact commit should write deliverable reference card");
       assert(
-        typeof lastArtifactRefMessage?.content === "string" && lastArtifactRefMessage.content.includes("类型：document"),
-        "deliverable reference card should include artifact type"
+        typeof lastArtifactRefMessage?.content === "string" && lastArtifactRefMessage.content.includes("摘要："),
+        "deliverable reference card should include a user-facing summary"
       );
       const blockedArtifactConfirm = await request(
         `/api/iterations/${createdIterationId}/change-control/artifacts/test-matrix/confirm`,

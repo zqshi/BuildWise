@@ -11,14 +11,13 @@ import {
 } from "../../app/workspaceApi";
 import type { GovernancePermissionPoint, GovernanceRole } from "../../domain/workspace/governanceTypes";
 import {
+  buildMemberBindingRoleOptions,
   BUILTIN_ROLE_MATRIX_OPTIONS,
   canAccessGovernanceEntries,
   isBuiltinLockedRole,
   isValidMainlandPhone,
   resolvePermissionTabPanels,
-  mapMemberPresetRoleToPlatformRole,
   toPermissionMemberRows,
-  type MemberPresetRole,
   type PlatformRole,
   type PermissionTab
 } from "./permissionSettingsModel";
@@ -36,12 +35,6 @@ type RoleRow = {
   permissionCount: number;
   updatedAt: string;
 };
-
-const platformRoleOptions: Array<{ value: PlatformRole; label: string }> = [
-  { value: "admin", label: "超级管理员" },
-  { value: "member", label: "成员" },
-  { value: "viewer", label: "只读成员" }
-];
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "仪表盘",
@@ -128,7 +121,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
     name: "",
     phone: "",
     department: "",
-    rolePreset: "member" as MemberPresetRole,
+    roleKey: "pm",
     validFrom: "",
     validTo: "",
     note: ""
@@ -142,7 +135,7 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
   });
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [editingUserId, setEditingUserId] = useState("");
-  const [editingRole, setEditingRole] = useState<PlatformRole>("member");
+  const [editingRole, setEditingRole] = useState<PlatformRole>("pm");
   const [selectedMatrixRole, setSelectedMatrixRole] = useState<RoleMatrixKey>("owner");
   const [showRoleConfigDrawer, setShowRoleConfigDrawer] = useState(false);
   const [rolePermissionDraft, setRolePermissionDraft] = useState<string[]>([]);
@@ -178,7 +171,11 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
   }, []);
 
   const rows = useMemo(() => {
-    const allRows = toPermissionMemberRows(bindings);
+    const allRows = toPermissionMemberRows(
+      bindings,
+      governanceRoles,
+      customRoles.map((item) => ({ key: item.key, label: item.label, permissions: item.permissions }))
+    );
     const keyword = searchKeyword.trim().toLowerCase();
     if (!keyword) {
       return allRows;
@@ -192,6 +189,10 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
   const roleOptions = useMemo(
     () => [...BUILTIN_ROLE_MATRIX_OPTIONS, ...customRoles.map((item) => ({ key: item.key, label: item.label }))],
     [customRoles]
+  );
+  const memberBindingRoleOptions = useMemo(
+    () => buildMemberBindingRoleOptions(governanceRoles, customRoles.map((item) => ({ key: item.key, label: item.label, permissions: item.permissions }))),
+    [governanceRoles, customRoles]
   );
 
   const selectedCustomRole = useMemo(() => customRoles.find((item) => item.key === selectedMatrixRole) || null, [customRoles, selectedMatrixRole]);
@@ -263,16 +264,13 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
     try {
       setBusy(true);
       setNotice("");
-      await upsertPlatformRoleBinding(
-        { userId: memberForm.phone.trim(), role: mapMemberPresetRoleToPlatformRole(memberForm.rolePreset) },
-        currentRole
-      );
+      await upsertPlatformRoleBinding({ userId: memberForm.phone.trim(), role: memberForm.roleKey }, currentRole);
       await loadPageData();
       setMemberForm({
         name: "",
         phone: "",
         department: "",
-        rolePreset: "member",
+        roleKey: "pm",
         validFrom: "",
         validTo: "",
         note: ""
@@ -495,8 +493,8 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
                     </span>
                     <span>
                       {editingUserId === row.userId ? (
-                        <select value={editingRole} onChange={(event) => setEditingRole(event.target.value as PlatformRole)}>
-                          {platformRoleOptions.map((item) => (
+                        <select value={editingRole} onChange={(event) => setEditingRole(event.target.value)}>
+                          {memberBindingRoleOptions.map((item) => (
                             <option key={item.value} value={item.value}>{item.label}</option>
                           ))}
                         </select>
@@ -630,25 +628,15 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
             <span>所属部门</span>
             <input value={memberForm.department} onChange={(e) => setMemberForm((prev) => ({ ...prev, department: e.target.value }))} placeholder="请输入部门" />
           </label>
-          <fieldset className="permissions-radio-group">
-            <legend>分配角色 *</legend>
-            <label>
-              <input
-                type="radio"
-                checked={memberForm.rolePreset === "super_admin"}
-                onChange={() => setMemberForm((prev) => ({ ...prev, rolePreset: "super_admin" }))}
-              />
-              <span>超级管理员</span>
-            </label>
-            <label>
-              <input
-                type="radio"
-                checked={memberForm.rolePreset === "member"}
-                onChange={() => setMemberForm((prev) => ({ ...prev, rolePreset: "member" }))}
-              />
-              <span>成员</span>
-            </label>
-          </fieldset>
+          <label>
+            <span>分配角色 *</span>
+            <select value={memberForm.roleKey} onChange={(e) => setMemberForm((prev) => ({ ...prev, roleKey: e.target.value }))}>
+              {memberBindingRoleOptions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            <small>角色选项来自“角色权限”页的真实角色集合，保存后立即持久化生效。</small>
+          </label>
           <div className="permissions-form-row-two">
             <label>
               <span>生效时间</span>
