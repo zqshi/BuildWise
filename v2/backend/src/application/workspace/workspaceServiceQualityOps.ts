@@ -8,10 +8,7 @@ import type {
 } from "../../domain/workspace/types";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
 import { listUncoveredAcceptanceCriteria, writeAuditLog } from "./workspaceServiceCommon";
-
-function normalizeRelPath(input: string) {
-  return input.replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\/+/g, "/").trim();
-}
+import { normalizeRelPath } from "../../interfaces/http/routes/workspaceRouteUtils";
 
 function summarizeMatrix(matrix: Array<{ executionStatus?: string }>) {
   const total = matrix.length;

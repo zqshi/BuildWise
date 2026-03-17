@@ -30,7 +30,7 @@ export function ProjectOverviewPanelRepositoryDrawer({
 }: ProjectOverviewRepositoryDrawerProps) {
   return (
     <>
-      <div className={`analysis-drawer-mask ${showRepoConfigDrawer ? "open" : ""}`} onClick={() => setShowRepoConfigDrawer(false)} aria-hidden={!showRepoConfigDrawer} />
+      <div className={`analysis-drawer-mask ${showRepoConfigDrawer ? "open" : ""}`} onClick={() => setShowRepoConfigDrawer(false)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") setShowRepoConfigDrawer(false); }} aria-label="关闭" aria-hidden={!showRepoConfigDrawer} />
       <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showRepoConfigDrawer ? "open" : ""}`}>
         <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
           <div className="panel-head">

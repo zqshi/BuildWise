@@ -134,10 +134,10 @@ export function useIterationActions({
   const resolveUploadErrorMessage = (error: unknown) => {
     const raw = error instanceof Error ? error.message : "Unknown error";
     if (raw.includes("llm_preflight_not_configured")) {
-      return "附件分析失败：当前未配置大模型（LLM_API_BASE / LLM_API_KEY）。请联系管理员完成配置。";
+      return "附件分析失败：AI 服务未配置。请联系管理员完成配置。";
     }
     if (raw.includes("llm_preflight_unreachable")) {
-      return "附件分析失败：大模型服务当前不可用（鉴权或网络异常）。请检查 LLM_API_KEY/服务连通性后重试。";
+      return "附件分析失败：AI 服务当前不可用（鉴权或网络异常）。请联系管理员检查服务连通性后重试。";
     }
     if (raw.includes("request timeout")) {
       return "附件分析失败：请求超时（分析耗时过长）。请减少单次上传文件数量后重试。";
@@ -158,13 +158,13 @@ export function useIterationActions({
       return `附件分析失败：任务状态轮询异常，已自动停止等待。请检查后端服务后重试。详情：${raw}`;
     }
     if (raw.includes("API error: 503")) {
-      return "附件分析失败：当前未配置大模型服务（LLM_API_BASE）。请联系管理员先完成模型配置。";
+      return "附件分析失败：AI 服务未配置。请联系管理员先完成配置。";
     }
     if (raw.includes("API error: 409") || raw.includes("duplicate_upload")) {
       return "检测到重复上传：当前迭代已存在相同文档内容，请仅上传增量文档。";
     }
     if (raw.includes("aborted")) {
-      return "附件分析失败：大模型响应超时（后端已中断本次调用）。请重试，或调大 LLM_REQUEST_TIMEOUT_MS。";
+      return "附件分析失败：AI 服务响应超时（后端已中断本次调用）。请重试或联系管理员调整超时配置。";
     }
     if (raw.includes("API error: 502")) {
       return "附件分析失败：大模型调用异常，请稍后重试或检查模型服务可达性。";
@@ -178,7 +178,7 @@ export function useIterationActions({
   const resolveCoachErrorMessage = (error: unknown) => {
     const raw = error instanceof Error ? error.message : "Unknown error";
     if (raw.includes("API error: 503")) {
-      return "对话引导当前未接入大模型（LLM_API_BASE 未配置）。请先完成模型配置后再发送消息。";
+      return "对话引导当前未接入 AI 服务。请联系管理员完成配置后再发送消息。";
     }
     if (raw.includes("API error: 502")) {
       return "对话引导调用大模型失败，请检查模型服务可达性后重试。";

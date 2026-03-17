@@ -1,5 +1,6 @@
 import type { ModelingRepository } from "../../domain/modeling/repository";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import { safeJsonParse } from "../workspace/workspaceServiceAttachmentUtils";
 import {
   deploymentTransitions,
   normalizeTemplateParameters,
@@ -30,27 +31,6 @@ export class PlatformService {
     });
   }
 
-  private parseJsonObject(text: string) {
-    const content = (text || "").trim();
-    if (!content) {
-      return null;
-    }
-    try {
-      return JSON.parse(content) as Record<string, unknown>;
-    } catch {
-      const start = content.indexOf("{");
-      const end = content.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        try {
-          return JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
-  }
-
   private pickString(value: unknown) {
     return typeof value === "string" ? value.trim() : "";
   }
@@ -62,6 +42,9 @@ export class PlatformService {
     signals: string[];
     metricsDigest: string;
   }) {
+    // TECH DEBT: LLM config is read directly from process.env instead of runtimeConfig.
+    // runtimeConfig does not yet expose LLM_API_BASE / LLM_API_KEY / LLM_MODEL.
+    // When those are added to RuntimeConfig, this code should switch to use them.
     const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
     const baseUrlRaw = (processEnv.LLM_API_BASE || "").trim().replace(/\/+$/, "");
     const model = (processEnv.LLM_MODEL || "gpt-4o-mini").trim();
@@ -106,7 +89,7 @@ export class PlatformService {
         choices?: Array<{ message?: { content?: string } }>;
       };
       const content = payload.choices?.[0]?.message?.content?.trim() || "";
-      const parsed = this.parseJsonObject(content);
+      const parsed = safeJsonParse(content);
       if (!parsed) {
         return null;
       }
