@@ -4,32 +4,9 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { IterationCodeRewriteResponse } from "../../domain/workspace/types";
 import { LlmUnavailableError, type AgentRunner } from "./agentRunner";
 import { assertBoundaryWhitelist, resolveBoundaryFileCandidates } from "./boundaryGuard";
+import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
-
-function normalizeRelPath(input: string) {
-  return input.replace(/\\/g, "/").replace(/^\.?\//, "").replace(/\/+/g, "/").trim();
-}
-
-function safeJsonParse(value: string) {
-  const text = value.trim();
-  if (!text) {
-    return null;
-  }
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-}
+import { normalizeRelPath } from "../../interfaces/http/routes/workspaceRouteUtils";
 
 function pickString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

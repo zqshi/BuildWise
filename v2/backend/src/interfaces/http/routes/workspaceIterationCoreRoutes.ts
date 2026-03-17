@@ -5,11 +5,7 @@ import { hasPermission } from "../../../application/platform/platformSupport";
 import { isIterationStatus } from "../../../application/workspace/workspaceSupport";
 import type { AttachmentReportSection, AttachmentUploadInput } from "../../../domain/workspace/types";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { parsePositiveInt } from "./workspaceRouteUtils";
-
-function currentRole(authRole: string | undefined) {
-  return authRole?.trim().toLowerCase() || "viewer";
-}
+import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
 
 function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
   if (error instanceof LlmUnavailableError) {

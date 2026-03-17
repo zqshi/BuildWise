@@ -24,9 +24,14 @@ function parseBearerToken(value: unknown) {
 function devRoleFromHeader(request: FastifyRequest) {
   const raw = request.headers["x-role"];
   if (typeof raw === "string" && raw.trim()) {
-    return raw.trim().toLowerCase();
+    const role = raw.trim().toLowerCase();
+    if (role === "owner") {
+      console.warn("[runtimeAuth] x-role=owner 在 authMode=off 下被降级为 editor");
+      return "editor";
+    }
+    return role;
   }
-  return "owner";
+  return "viewer";
 }
 
 function unauthorized(reply: FastifyReply, message: string) {
@@ -35,6 +40,10 @@ function unauthorized(reply: FastifyReply, message: string) {
 }
 
 export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig) {
+  if (config.authMode === "off") {
+    console.warn("[runtimeAuth] AUTH_MODE=off: 认证已禁用，默认角色为 viewer。生产环境请配置 AUTH_MODE=token");
+  }
+
   app.addHook("onRequest", async (request, reply) => {
     const path = toPath(request.url);
     if (config.authMode === "off") {

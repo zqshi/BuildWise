@@ -1,10 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-
-function parsePositiveInt(value: string) {
-  const num = Number(value);
-  return Number.isInteger(num) && num > 0 ? num : null;
-}
+import { parsePositiveInt } from "./workspaceRouteUtils";
 
 export async function registerRepositoryTraceRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/api/projects/:id/repository", async (request, reply) => {

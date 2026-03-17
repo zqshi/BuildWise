@@ -608,7 +608,14 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
         {notice ? <p className="permissions-notice">{notice}</p> : null}
       </section>
 
-      <div className={`permissions-drawer-mask ${showAddMemberDrawer ? "open" : ""}`} onClick={() => setShowAddMemberDrawer(false)} />
+      <div
+        className={`permissions-drawer-mask ${showAddMemberDrawer ? "open" : ""}`}
+        onClick={() => setShowAddMemberDrawer(false)}
+        onKeyDown={(e) => { if (e.key === "Escape") setShowAddMemberDrawer(false); }}
+        role="button"
+        tabIndex={0}
+        aria-label="关闭"
+      />
       <aside className={`permissions-form-drawer ${showAddMemberDrawer ? "open" : ""}`} aria-hidden={!showAddMemberDrawer}>
         <header className="permissions-form-head">
           <h3>添加新成员</h3>
@@ -670,7 +677,14 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
         </footer>
       </aside>
 
-      <div className={`permissions-drawer-mask ${showAddRoleDrawer ? "open" : ""}`} onClick={() => setShowAddRoleDrawer(false)} />
+      <div
+        className={`permissions-drawer-mask ${showAddRoleDrawer ? "open" : ""}`}
+        onClick={() => setShowAddRoleDrawer(false)}
+        onKeyDown={(e) => { if (e.key === "Escape") setShowAddRoleDrawer(false); }}
+        role="button"
+        tabIndex={0}
+        aria-label="关闭"
+      />
       <aside className={`permissions-form-drawer ${showAddRoleDrawer ? "open" : ""}`} aria-hidden={!showAddRoleDrawer}>
         <header className="permissions-form-head">
           <h3>添加新角色</h3>
@@ -742,7 +756,14 @@ export function PermissionSettingsPage({ currentRole }: PermissionSettingsPagePr
         </footer>
       </aside>
 
-      <div className={`permissions-drawer-mask ${showRoleConfigDrawer ? "open" : ""}`} onClick={() => setShowRoleConfigDrawer(false)} />
+      <div
+        className={`permissions-drawer-mask ${showRoleConfigDrawer ? "open" : ""}`}
+        onClick={() => setShowRoleConfigDrawer(false)}
+        onKeyDown={(e) => { if (e.key === "Escape") setShowRoleConfigDrawer(false); }}
+        role="button"
+        tabIndex={0}
+        aria-label="关闭"
+      />
       <aside className={`permissions-form-drawer wide ${showRoleConfigDrawer ? "open" : ""}`} aria-hidden={!showRoleConfigDrawer}>
         <header className="permissions-form-head">
           <h3>{roleTitle} 权限配置</h3>

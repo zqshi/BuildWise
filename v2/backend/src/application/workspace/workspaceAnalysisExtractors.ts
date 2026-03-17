@@ -1,25 +1,11 @@
 import type { AttachmentAnalysisReport, IterationAgentOutput } from "../../domain/workspace/types";
+import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 
-export function parseJsonObjectFromText(text: string) {
-  const content = (text || "").trim();
-  if (!content) {
-    return null;
-  }
-  try {
-    return JSON.parse(content) as Record<string, unknown>;
-  } catch {
-    const start = content.indexOf("{");
-    const end = content.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(content.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-}
+/**
+ * @deprecated Use safeJsonParse from workspaceServiceAttachmentUtils instead.
+ * Kept as a re-export for backward compatibility with existing consumers.
+ */
+export const parseJsonObjectFromText = safeJsonParse;
 
 export function pickString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

@@ -1,11 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { parsePositiveInt } from "./workspaceRouteUtils";
-
-function currentRole(authRole: string | undefined) {
-  const role = authRole?.trim().toLowerCase() || "viewer";
-  return role === "admin" ? "owner" : role;
-}
+import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
 
 function isAdmin(role: string) {
   return role === "owner";

@@ -1,13 +1,20 @@
+import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
 
-const smsCodeStore = new Map<string, { code: string; expireAt: number }>();
+const smsCodeStore = new Map<string, { code: string; expireAt: number; createdAt: number }>();
+const SMS_CODE_MAX_AGE_MS = 10 * 60 * 1000;
+const SMS_CODE_MAX_STORE_SIZE = 1000;
 
-function currentRole(authRole: string | undefined) {
-  const role = authRole?.trim().toLowerCase() || "viewer";
-  return role === "admin" ? "owner" : role;
-}
+setInterval(() => {
+  const now = Date.now();
+  for (const [phone, entry] of smsCodeStore) {
+    if (now - entry.createdAt > SMS_CODE_MAX_AGE_MS) {
+      smsCodeStore.delete(phone);
+    }
+  }
+}, 5 * 60 * 1000).unref();
 
 function isAdmin(role: string) {
   return role === "owner";
@@ -26,10 +33,15 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "invalid phone" };
     }
+    if (smsCodeStore.size >= SMS_CODE_MAX_STORE_SIZE) {
+      reply.code(503);
+      return { message: "sms code store is full, please try later" };
+    }
     const code = `${Math.floor(100000 + Math.random() * 900000)}`;
-    const expireAt = Date.now() + 5 * 60 * 1000;
-    smsCodeStore.set(phone, { code, expireAt });
-    return { ok: true, expireAt: new Date(expireAt).toISOString(), debugCode: code };
+    const now = Date.now();
+    const expireAt = now + 5 * 60 * 1000;
+    smsCodeStore.set(phone, { code, expireAt, createdAt: now });
+    return { ok: true, expireAt: new Date(expireAt).toISOString(), ...(process.env.NODE_ENV !== "production" ? { debugCode: code } : {}) };
   });
 
   app.post("/api/auth/sms/verify", async (request, reply) => {
@@ -41,7 +53,12 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       return { message: "invalid phone or code" };
     }
     const saved = smsCodeStore.get(phone);
-    if (!saved || saved.expireAt < Date.now() || saved.code !== code) {
+    if (!saved || saved.expireAt < Date.now()) {
+      reply.code(400);
+      return { message: "invalid or expired code" };
+    }
+    const codeMatch = saved.code.length === code.length && timingSafeEqual(Buffer.from(saved.code), Buffer.from(code));
+    if (!codeMatch) {
       reply.code(400);
       return { message: "invalid or expired code" };
     }
@@ -189,11 +206,8 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
   };
 
   app.get("/api/governance/custom-roles", listCustomRolesHandler);
-  app.get("/api/governance/custom_roles", listCustomRolesHandler);
   app.post("/api/governance/custom-roles", upsertCustomRolesHandler);
-  app.post("/api/governance/custom_roles", upsertCustomRolesHandler);
   app.delete("/api/governance/custom-roles/:roleKey", removeCustomRoleHandler);
-  app.delete("/api/governance/custom_roles/:roleKey", removeCustomRoleHandler);
 
   app.post("/api/governance/openclaw/chat", async (request, reply) => {
     const role = currentRole(request.authRole);

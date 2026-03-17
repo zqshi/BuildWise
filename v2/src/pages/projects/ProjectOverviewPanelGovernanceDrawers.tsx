@@ -42,7 +42,7 @@ export function ProjectOverviewPanelGovernanceDrawers({
 }: ProjectOverviewGovernanceDrawersProps) {
   return (
     <>
-      <div className={`analysis-drawer-mask ${showPolicyDrawer ? "open" : ""}`} onClick={() => setShowPolicyDrawer(false)} aria-hidden={!showPolicyDrawer} />
+      <div className={`analysis-drawer-mask ${showPolicyDrawer ? "open" : ""}`} onClick={() => setShowPolicyDrawer(false)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") setShowPolicyDrawer(false); }} aria-label="关闭" aria-hidden={!showPolicyDrawer} />
       <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showPolicyDrawer ? "open" : ""}`}>
         <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
           <div className="panel-head">
@@ -106,7 +106,7 @@ export function ProjectOverviewPanelGovernanceDrawers({
         </article>
       </aside>
 
-      <div className={`analysis-drawer-mask ${showOpenclawDrawer ? "open" : ""}`} onClick={() => setShowOpenclawDrawer(false)} aria-hidden={!showOpenclawDrawer} />
+      <div className={`analysis-drawer-mask ${showOpenclawDrawer ? "open" : ""}`} onClick={() => setShowOpenclawDrawer(false)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") setShowOpenclawDrawer(false); }} aria-label="关闭" aria-hidden={!showOpenclawDrawer} />
       <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showOpenclawDrawer ? "open" : ""}`}>
         <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
           <div className="panel-head">

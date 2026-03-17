@@ -1,6 +1,7 @@
 import type { IterationVisualEditAction, IterationVisualEditResponse } from "../../domain/workspace/analysisTypes";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
+import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import { normalizeIteration } from "./workspaceSupport";
 
 type VisualEditTarget = {
@@ -17,27 +18,6 @@ type VisualEditTarget = {
 
 function normalizeText(message: string) {
   return message.trim().replace(/\s+/g, " ");
-}
-
-function safeJsonParse(value: string) {
-  const text = value.trim();
-  if (!text) {
-    return null;
-  }
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
 }
 
 function pickString(value: unknown) {
