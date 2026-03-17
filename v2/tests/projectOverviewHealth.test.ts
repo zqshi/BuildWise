@@ -27,3 +27,11 @@ test("project overview uses computed health score instead of missing ops metric"
   assert.match(source, /computeProjectOverviewHealthScore/);
   assert.doesNotMatch(source, /project_governance_health_score/);
 });
+
+test("project overview removes runtime status card and keeps repository setting entry", () => {
+  const source = readFileSync(new URL("../src/pages/projects/ProjectOverviewPanel.tsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /<h3>运行状态<\/h3>/);
+  assert.match(source, /<h3>代码仓设置<\/h3>/);
+  assert.match(source, /打开设置面板/);
+});

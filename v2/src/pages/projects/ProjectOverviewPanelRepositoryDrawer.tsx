@@ -62,6 +62,7 @@ export function ProjectOverviewPanelRepositoryDrawer({
                 {repoUrlDraft.trim() && !repoUrlValid ? <p className="error-inline">地址格式看起来不正确，请使用 https://、ssh:// 或 git@ 开头。</p> : null}
                 {repoValidationError ? <p className="error-inline">{repoValidationError}</p> : null}
                 {repoValidationBusy ? <p className="hint">正在检测远端仓库可达性…</p> : null}
+                {!repoValidationBusy && !repoValidationError && repoUrlValid ? <p className="hint">点击“下一步”时会校验仓库是否真实可达，校验失败将不能继续。</p> : null}
               </div>
             ) : null}
 
