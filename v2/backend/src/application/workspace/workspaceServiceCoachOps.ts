@@ -4,7 +4,13 @@ import type { Iteration, IterationCoachChatResponse } from "../../domain/workspa
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
 import { loadAgentPromptTemplate } from "./agentAssetRegistry";
 import { dedupeActions, isMechanicalSimilarReply, parseRecentSuggestedActions } from "./workspaceCoachReplyGuard";
+import { normalizeIterationMessageContent } from "./workspaceMessageSanitizer";
 import { normalizeIteration } from "./workspaceSupport";
+import {
+  buildImpactAssessmentFallbackReply,
+  hasImpactAssessmentReply,
+  isRequirementChangeMessage
+} from "./workspaceCoachImpactAssessment";
 import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitIntakeOps";
 import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
 import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
@@ -85,6 +91,15 @@ function buildFallbackCoachReply(rawContent: string) {
     return "";
   }
   return text;
+}
+
+function stripInternalSkillNotes(reply: string) {
+  return reply
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => !/^\[skills\]/i.test(line.trim()))
+    .join("\n")
+    .trim();
 }
 
 function inferIntent(iteration: Iteration, message: string): IterationCoachChatResponse["intent"] {
@@ -218,10 +233,11 @@ export async function coachIterationConversationOp(
   const recentMessages = repo
     .listMessages(iterationId)
     .slice(-8)
-    .map((item) => ({ role: item.role, content: item.content.trim() }));
+    .map((item) => ({ role: item.role, content: normalizeIterationMessageContent(item.role, item.content) }));
   const recentAssistantReply = [...recentMessages].reverse().find((item) => item.role === "assistant")?.content || "";
   const recentSuggestedActions = parseRecentSuggestedActions(recentMessages);
   const intent = inferIntent(normalized, message);
+  const requiresImpactAssessment = isRequirementChangeMessage(message);
   const promptTemplate = loadCoachPromptTemplate();
   const project = repo.findProject(normalized.projectId);
   const repoSyncResponse = handleCoachPeriodicRepositorySync({
@@ -292,6 +308,9 @@ export async function coachIterationConversationOp(
     "JSON: {intent, reply, execution:{action,instruction,apply}, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}";
   const context = [
     buildCoachContext(normalized, previous ? normalizeIteration(previous) : null, project ?? null, message),
+    requiresImpactAssessment
+      ? "本轮要求=用户正在提出新增/修改需求。reply 首段必须先给出影响评估，至少覆盖受影响页面/组件/接口/代码边界/业务规则风险中的已知项，并明确待确认点；不要要求用户自己先说明影响是什么。"
+      : "本轮要求=按自然沟通推进迭代。",
     `recent_messages=${recentMessages
       .map((item, idx) => `[${idx + 1}]${item.role}:${item.content.slice(0, 120).replace(/\s+/g, " ")}`)
       .join(" | ") || "-"}`,
@@ -358,6 +377,10 @@ export async function coachIterationConversationOp(
           (normalized.changeControl?.clarificationQuestions ?? [])[0] || "确认本轮边界与验收口径"
         }。`
       : generatedReply;
+    const replyWithAssessment =
+      requiresImpactAssessment && !hasImpactAssessmentReply(reply)
+        ? `${buildImpactAssessmentFallbackReply(normalized)}\n\n${reply}`
+        : reply;
     const validIntentSet = new Set<IterationCoachChatResponse["intent"]>([
       "collect-attachment",
       "clarify",
@@ -375,11 +398,10 @@ export async function coachIterationConversationOp(
       recentSuggestedActions
     );
     const mergedChecklist = Array.from(new Set([...(clarificationChecklist || []), ...skillChain.checklist])).slice(0, 8);
-    const skillSummarySuffix = skillChain.summaries.length > 0 ? `\n\n[skills] ${skillChain.summaries.slice(0, 2).join("；")}` : "";
     const response: IterationCoachChatResponse = {
       iterationId: normalized.id,
       intent: finalIntent,
-      reply: `${reply}${skillSummarySuffix}`.trim(),
+      reply: stripInternalSkillNotes(replyWithAssessment),
       execution: {
         action: executionAction,
         instruction: executionInstruction,

@@ -2,6 +2,11 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import {
+  buildArtifactSummary,
+  isMeaningfulArtifactContent,
+  normalizeArtifactContent
+} from "./creativeGeneratorArtifactQuality.mjs";
 
 const BASE = process.env.BUILDWISE_API_BASE || "http://127.0.0.1:5055";
 const ACTOR = process.env.BUILDWISE_DEMO_ACTOR || "creative-generator-demo";
@@ -12,19 +17,31 @@ const REQUIREMENT_MARKDOWN = readFileSync(REQUIREMENT_PATH, "utf-8");
 const PROJECT_NAME = "创意生成器演示项目";
 const V1_NAME = "V1 首版本：创意生成器 MVP";
 const V11_NAME = "V1.1 后续版本：业务规则注入与历史筛选";
+const FORCE_ARTIFACTS = new Set(
+  String(process.env.BUILDWISE_FORCE_ARTIFACTS || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+);
+const FORCE_ITERATION_IDS = new Set(
+  String(process.env.BUILDWISE_FORCE_ITERATION_IDS || "")
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item) && item > 0)
+);
 
 const V1_STEPS = [
-  ["analysis-report", "我要做一个创意生成器，请输出首版需求分析报告，明确目标用户、问题定义、纳入项、排除项、交互原则、待确认点。"],
-  ["product-requirements-doc", "继续输出产品需求文档，使用 Markdown，至少包含问题定义、用户场景、功能需求、非功能要求、排除项、验收标准。"],
-  ["boundary-confirmation", "继续输出边界确认，说明 in-scope、out-of-scope、关键约束、验收口径和 codePath 边界。"],
+  ["analysis-report", "我要做一个创意生成器，请输出首版需求分析报告。使用 Markdown 标题分节，必须完整包含：目标用户、问题定义、核心场景、本轮纳入项、本轮排除项、交互原则、关键风险、待确认点。不要只给摘要或待处理提示。"],
+  ["product-requirements-doc", "继续输出产品需求文档，使用 Markdown，至少包含问题定义、用户场景、功能需求、非功能要求、排除项、验收标准。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["boundary-confirmation", "继续输出边界确认，说明 in-scope、out-of-scope、关键约束、验收口径和 codePath 边界。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["prototype-preview", "继续输出原型交付物。保持正常对话回复，但正文必须包含一份完整可渲染的 HTML 原型，覆盖主题输入、创意结果列表、收藏和右侧详情抽屉。"],
-  ["design-spec", "继续输出设计规范，使用 Markdown，至少包含布局规则、颜色/字体、状态样式、交互反馈和响应式约束。"],
-  ["technical-architecture", "继续输出技术架构说明，使用 Markdown，至少包含模块职责、数据流、接口边界、依赖、失败处理和回滚点。"],
+  ["design-spec", "继续输出设计规范，使用 Markdown，至少包含布局规则、颜色/字体、状态样式、交互反馈和响应式约束。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["technical-architecture", "继续输出技术架构说明，使用 Markdown，至少包含模块职责、数据流、接口边界、依赖、失败处理和回滚点。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["code-delivery", "继续输出代码交付物。保持正常对话回复，但正文必须包含一段完整的 TypeScript/React 代码，用于创意生成器的主题输入与结果卡片列表。"],
-  ["test-matrix", "继续输出测试矩阵，使用 Markdown 表格或列表，覆盖主题输入、生成结果、收藏、详情抽屉、回归点。"],
-  ["acceptance-checklist", "继续输出验收清单，使用 Markdown，列出业务验收口径、发布前检查项和必须人工确认的点。"],
-  ["release-review", "继续输出发布评审，使用 Markdown，至少包含发布结论、阻断项、上线前置条件、回滚策略。"],
-  ["delivery-package", "继续输出交付归档，使用 Markdown，至少包含本版基线、已确认交付物、遗留问题、下版本继承输入。"]
+  ["test-matrix", "继续输出测试矩阵，使用 Markdown 表格或列表，覆盖主题输入、生成结果、收藏、详情抽屉、回归点。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["acceptance-checklist", "继续输出验收清单，使用 Markdown，列出业务验收口径、发布前检查项和必须人工确认的点。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["release-review", "继续输出发布评审，使用 Markdown，至少包含发布结论、阻断项、上线前置条件、回滚策略。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["delivery-package", "继续输出交付归档，使用 Markdown，至少包含本版基线、已确认交付物、遗留问题、下版本继承输入。直接输出完整正文，不要给流程说明或待处理摘要。"]
 ];
 
 const V11_REQUIREMENT = [
@@ -51,17 +68,17 @@ const V11_REQUIREMENT = [
 ].join("\n");
 
 const V11_STEPS = [
-  ["analysis-report", "我已完成 V1 基线，请输出继承差异分析报告，明确继承不变项、本轮新增项、业务规则变化、影响范围、待确认点。"],
-  ["product-requirements-doc", "继续输出 V1.1 增量 PRD，使用 Markdown，重点补充业务规则注入、禁用词规则、历史记录筛选和验收标准。"],
-  ["boundary-confirmation", "继续输出 V1.1 边界确认，明确继承不变项、增量 in-scope/out-of-scope、规则注入约束、代码边界。"],
+  ["analysis-report", "我已完成 V1 基线，请输出继承差异分析报告。使用 Markdown 标题分节，必须完整包含：继承不变项、本轮新增项、业务规则变化、影响范围、受影响工程对象、回归关注点、待确认点。不要只给摘要或待处理提示。"],
+  ["product-requirements-doc", "继续输出 V1.1 增量 PRD，使用 Markdown，重点补充业务规则注入、禁用词规则、历史记录筛选和验收标准。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["boundary-confirmation", "继续输出 V1.1 边界确认，明确继承不变项、增量 in-scope/out-of-scope、规则注入约束、代码边界。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["prototype-preview", "继续输出 V1.1 原型交付物。保持正常对话回复，但正文必须包含一份完整可渲染的 HTML 原型，体现业务规则输入区、规则命中标签和历史筛选。"],
-  ["design-spec", "继续输出 V1.1 设计规范，使用 Markdown，说明规则输入区、状态反馈、标签筛选、命中提示和响应式规则。"],
-  ["technical-architecture", "继续输出 V1.1 技术架构说明，使用 Markdown，明确业务规则如何从自然语言链接到工程对象、接口、状态和测试。"],
+  ["design-spec", "继续输出 V1.1 设计规范，使用 Markdown，说明规则输入区、状态反馈、标签筛选、命中提示和响应式规则。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["technical-architecture", "继续输出 V1.1 技术架构说明，使用 Markdown，明确业务规则如何从自然语言链接到工程对象、接口、状态和测试。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["code-delivery", "继续输出 V1.1 代码交付物。保持正常对话回复，但正文必须包含一段完整的 TypeScript/React 代码，体现业务规则输入、命中标签和历史筛选。"],
-  ["test-matrix", "继续输出 V1.1 测试矩阵，覆盖业务规则输入、禁用词校验、命中提示、历史筛选和 V1 主路径回归。"],
-  ["acceptance-checklist", "继续输出 V1.1 验收清单，重点包含业务规则正确映射、规则回归、人工确认点。"],
-  ["release-review", "继续输出 V1.1 发布评审，使用 Markdown，包含发布结论、规则注入风险、回滚策略和观察点。"],
-  ["delivery-package", "继续输出 V1.1 交付归档，使用 Markdown，说明新增业务规则基线、已确认交付物、遗留问题、V1.2 继承输入。"]
+  ["test-matrix", "继续输出 V1.1 测试矩阵，覆盖业务规则输入、禁用词校验、命中提示、历史筛选和 V1 主路径回归。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["acceptance-checklist", "继续输出 V1.1 验收清单，重点包含业务规则正确映射、规则回归、人工确认点。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["release-review", "继续输出 V1.1 发布评审，使用 Markdown，包含发布结论、规则注入风险、回滚策略和观察点。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["delivery-package", "继续输出 V1.1 交付归档，使用 Markdown，说明新增业务规则基线、已确认交付物、遗留问题、V1.2 继承输入。直接输出完整正文，不要给流程说明或待处理摘要。"]
 ];
 
 async function requestJson(path, options = {}, timeoutMs = 240000) {
@@ -181,15 +198,32 @@ async function listArtifacts(iterationId) {
   return Array.isArray(workflow?.items) ? workflow.items : [];
 }
 
+async function listMessages(iterationId) {
+  const messages = await assertOk("listMessages", () => requestJson(`/api/iterations/${iterationId}/messages`));
+  return Array.isArray(messages) ? messages : [];
+}
+
+async function assertNoUserArtifactReferenceMessages(iterationId) {
+  const messages = await listMessages(iterationId);
+  const invalid = messages.filter((item) => item?.role === "user" && String(item?.content || "").trim().startsWith("【交付物引用】"));
+  if (invalid.length > 0) {
+    throw new Error(`iteration ${iterationId} contains user artifact reference echoes: ${invalid.map((item) => item.id).join(",")}`);
+  }
+}
+
 function shouldSeedConversation(artifacts) {
   return !artifacts.some((item) => Number(item?.outputVersion || 0) > 0);
 }
 
-function selectPendingSteps(steps, artifacts) {
+function selectPendingSteps(iterationId, steps, artifacts) {
   const completed = new Set(
     artifacts.filter((item) => Number(item?.outputVersion || 0) > 0).map((item) => item.id)
   );
-  return steps.filter(([artifactId]) => !completed.has(artifactId));
+  return steps.filter(([artifactId]) => {
+    const forcedArtifact = FORCE_ARTIFACTS.has(artifactId);
+    const forcedIteration = FORCE_ITERATION_IDS.size === 0 || FORCE_ITERATION_IDS.has(iterationId);
+    return (forcedArtifact && forcedIteration) || !completed.has(artifactId);
+  });
 }
 
 async function generateIteration(iteration, seedConversation, steps, artifactPromptSuffix) {
@@ -199,26 +233,44 @@ async function generateIteration(iteration, seedConversation, steps, artifactPro
       await createMessage(iteration.id, message.role, message.content);
     }
   }
-  const pendingSteps = selectPendingSteps(steps, existingArtifacts);
+  const pendingSteps = selectPendingSteps(iteration.id, steps, existingArtifacts);
   const traces = [];
   for (const [artifactId, userMessage] of pendingSteps) {
-    await createMessage(iteration.id, "user", userMessage);
-    const response = await coachIteration(iteration.id, userMessage);
-    if (!response?.llm?.used || response?.llm?.degraded || !String(response?.llm?.model || "").trim()) {
-      throw new Error(`deliverable ${artifactId} did not use real llm: ${JSON.stringify(response?.llm || {})}`);
+    const forceRewrite = FORCE_ARTIFACTS.has(artifactId) && (FORCE_ITERATION_IDS.size === 0 || FORCE_ITERATION_IDS.has(iteration.id));
+    const effectiveMessage = forceRewrite
+      ? `这是用于流程验证的交付物重建，不是阶段推进。请忽略当前迭代所处阶段，直接输出交付物「${artifactId}」的完整正文，不要只回复摘要、待处理点或流程说明。\n\n${userMessage}`
+      : userMessage;
+    await createMessage(iteration.id, "user", effectiveMessage);
+    let response = null;
+    let content = "";
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const attemptPrompt =
+        attempt === 1
+          ? effectiveMessage
+          : `${effectiveMessage}\n\n上一版输出仍是流程提示或空洞摘要，不可接受。请直接输出交付物正文，并满足该交付物的结构要求。`;
+      response = await coachIteration(iteration.id, attemptPrompt);
+      if (!response?.llm?.used || response?.llm?.degraded || !String(response?.llm?.model || "").trim()) {
+        throw new Error(`deliverable ${artifactId} did not use real llm: ${JSON.stringify(response?.llm || {})}`);
+      }
+      content = normalizeArtifactContent(response.reply);
+      if (isMeaningfulArtifactContent(artifactId, content)) {
+        break;
+      }
+      if (attempt === 3) {
+        throw new Error(`deliverable ${artifactId} returned low-signal content: ${content.slice(0, 220)}`);
+      }
     }
-    const content = String(response.reply || "").trim();
     if (!content) {
       throw new Error(`deliverable ${artifactId} returned empty content`);
     }
     await createMessage(iteration.id, "assistant", content);
     await saveDraft(iteration.id, artifactId, content);
-    const committed = await commitArtifact(iteration.id, artifactId, `${artifactId} 已生成，等待用户确认。`, [iteration.name, artifactId]);
+    const committed = await commitArtifact(iteration.id, artifactId, buildArtifactSummary(artifactId, content), [iteration.name, artifactId]);
     await appendArtifact(iteration.id, artifactId, `请围绕交付物「${artifactId}」继续与用户确认，${artifactPromptSuffix}`);
     traces.push({
       artifactId,
-      model: response.llm.model,
-      intent: response.intent || "",
+      model: response?.llm?.model || "",
+      intent: response?.intent || "",
       gateStatus: committed.gateStatus,
       outputVersion: committed.outputVersion,
       preview: content.slice(0, 220)
@@ -257,6 +309,8 @@ async function main() {
 
   const artifactsV1 = await listArtifacts(v1.id);
   const artifactsV11 = await listArtifacts(v11.id);
+  await assertNoUserArtifactReferenceMessages(v1.id);
+  await assertNoUserArtifactReferenceMessages(v11.id);
   const outDir = resolve(process.cwd(), ".artifacts");
   mkdirSync(outDir, { recursive: true });
   const report = {

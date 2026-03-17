@@ -148,7 +148,7 @@ export type ProjectRoleBindingRecord = {
 export type PlatformRoleBindingRecord = {
   id: number;
   userId: string;
-  role: "admin" | "member" | "viewer";
+  role: string;
   createdAt: string;
   updatedAt: string;
 };

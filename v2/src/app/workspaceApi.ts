@@ -76,6 +76,18 @@ export async function bootstrapProjectRepository(
   });
 }
 
+export async function validateProjectRepositoryRemote(projectId: number, payload: { url: string }) {
+  return fetchJSON<{
+    ok: true;
+    checkedAt: string;
+    message: string;
+  }>(`${API_BASE}/api/projects/${projectId}/repository/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
 export async function fetchProjectRepositoryStatus(projectId: number) {
   return fetchJSON<{
     projectId: number;
@@ -762,7 +774,7 @@ export async function sendOpenclawProjectChat(projectId: number, message: string
 export type PlatformRoleBindingPayload = {
   id: number;
   userId: string;
-  role: "admin" | "member" | "viewer";
+  role: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -783,7 +795,7 @@ export async function fetchPlatformRoleBindings() {
   return ensureArray<PlatformRoleBindingPayload>(data);
 }
 
-export async function upsertPlatformRoleBinding(payload: { userId: string; role: "admin" | "member" | "viewer" }, role = "owner") {
+export async function upsertPlatformRoleBinding(payload: { userId: string; role: string }, role = "owner") {
   return fetchJSON<PlatformRoleBindingPayload>(`${API_BASE}/api/governance/platform-role-bindings`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
@@ -884,8 +896,8 @@ export async function verifySmsLoginCode(phone: string, code: string) {
     ok: boolean;
     user: {
       phone: string;
-      platformRole: "admin" | "member" | "viewer";
-      workspaceRole: "owner" | "pm" | "viewer";
+      platformRole: string;
+      workspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer";
     };
   }>(`${API_BASE}/api/auth/sms/verify`, {
     method: "POST",

@@ -113,7 +113,7 @@ async function bootstrap() {
   await registerWorkspaceRoutes(app, workspaceService);
   await registerRepositoryTraceRoutes(app, workspaceService);
   await registerAutobootRoutes(app, modelService);
-  await registerPlatformRoutes(app, platformService);
+  await registerPlatformRoutes(app, platformService, workspaceService);
 
   await app.listen({ port: config.port, host: config.host });
   console.log(`BuildWise backend started at http://${config.host}:${config.port}`);

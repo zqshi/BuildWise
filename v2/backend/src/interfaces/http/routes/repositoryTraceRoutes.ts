@@ -49,11 +49,43 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       requireRemoteForProduction: body?.requireRemoteForProduction,
       requireRemoteForStaging: body?.requireRemoteForStaging
     });
-    if (!repo) {
-      reply.code(404);
-      return { message: "project not found" };
+    if (!repo.ok) {
+      if (repo.reason === "project_not_found" || repo.reason === "repository_not_found") {
+        reply.code(404);
+        return { message: "project not found" };
+      }
+      if (repo.reason === "remote_validation_failed") {
+        reply.code(400);
+        return { message: repo.message || "repository remote validation failed" };
+      }
+      reply.code(400);
+      return { message: "repository bootstrap failed" };
     }
-    return repo;
+    return repo.data;
+  });
+
+  app.post("/api/projects/:id/repository/validate", async (request, reply) => {
+    const params = request.params as { id: string };
+    const projectId = parsePositiveInt(params.id);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    const body = request.body as { url?: string } | null;
+    const result = service.validateProjectRepositoryRemote(projectId, { url: body?.url });
+    if (!result.ok) {
+      if (result.reason === "project_not_found" || result.reason === "repository_not_found") {
+        reply.code(404);
+        return { message: "project not found" };
+      }
+      if (result.reason === "remote_validation_failed") {
+        reply.code(400);
+        return { message: result.message || "repository remote validation failed", checkedAt: result.checkedAt || "" };
+      }
+      reply.code(400);
+      return { message: "repository remote validation failed" };
+    }
+    return result.data;
   });
 
   app.get("/api/projects/:id/repository/status", async (request, reply) => {

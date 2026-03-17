@@ -72,7 +72,9 @@ export type ProjectOverviewRepositoryDrawerProps = {
   setRepoUrlDraft: (value: string) => void;
   currentProjectExists: boolean;
   repoConfigBusy: boolean;
+  repoValidationBusy: boolean;
   repoUrlValid: boolean;
+  repoValidationError: string;
   requireRemoteForProduction: boolean;
   setRequireRemoteForProduction: (value: boolean) => void;
   requireRemoteForStaging: boolean;
@@ -84,6 +86,7 @@ export type ProjectOverviewRepositoryDrawerProps = {
   setShowRepoAdvanced: (updater: (prev: boolean) => boolean) => void;
   repoMigrationPlan: RepoMigrationPlanView | null;
   canMoveToNextStep: boolean;
+  handleAdvanceRepositoryStep: () => Promise<void>;
   handleSaveRepositoryPolicy: () => Promise<void>;
   handleRefreshRepositoryStatus: () => Promise<void>;
   handleConnectRepository: () => Promise<void>;

@@ -2,8 +2,24 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { Project } from "../../domain/workspace/types";
 
+type GitRunResult = {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+};
+
+type GitRunner = (args: string[], cwd: string) => GitRunResult;
+
 function runGit(args: string[], cwd: string) {
-  return spawnSync("git", args, { cwd, encoding: "utf-8" });
+  return spawnSync("git", args, { cwd, encoding: "utf-8", timeout: 20_000 });
+}
+
+function normalizeGitError(output: string) {
+  return output.replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+export function looksLikeRemoteRepositoryUrl(url: string) {
+  return /^(https?:\/\/|git@|ssh:\/\/)/i.test(url.trim());
 }
 
 export function inferRemoteConfigured(projectRepo: NonNullable<Project["repository"]>) {
@@ -14,6 +30,38 @@ export function inferRemoteConfigured(projectRepo: NonNullable<Project["reposito
     return false;
   }
   return /^(https?:\/\/|git@|ssh:\/\/)/i.test(projectRepo.url.trim());
+}
+
+export function validateRepositoryRemoteUrl(input: { url: string }, runner: GitRunner = runGit) {
+  const now = new Date().toISOString();
+  const url = input.url.trim();
+  if (!url) {
+    return {
+      ok: false as const,
+      checkedAt: now,
+      message: "请先填写 Git 仓库地址。"
+    };
+  }
+  if (!looksLikeRemoteRepositoryUrl(url)) {
+    return {
+      ok: false as const,
+      checkedAt: now,
+      message: "地址格式不正确，请使用 https://、ssh:// 或 git@ 开头。"
+    };
+  }
+  const probe = runner(["ls-remote", "--heads", url], process.cwd());
+  if (probe.status !== 0) {
+    return {
+      ok: false as const,
+      checkedAt: now,
+      message: normalizeGitError(probe.stderr || probe.stdout || "git_ls_remote_failed")
+    };
+  }
+  return {
+    ok: true as const,
+    checkedAt: now,
+    message: ""
+  };
 }
 
 export function collectRepositoryHealth(projectRepo: NonNullable<Project["repository"]>) {
@@ -60,6 +108,6 @@ export function collectRepositoryHealth(projectRepo: NonNullable<Project["reposi
     remoteReachable,
     remoteSynced,
     lastCheckedAt: now,
-    lastError: remoteReachable ? "" : fetchDry.stderr?.trim() || fetchDry.stdout?.trim() || "origin is unreachable"
+    lastError: remoteReachable ? "" : normalizeGitError(fetchDry.stderr || fetchDry.stdout || "origin is unreachable")
   };
 }

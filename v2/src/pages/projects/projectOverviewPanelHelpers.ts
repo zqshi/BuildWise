@@ -157,6 +157,34 @@ export function looksLikeGitUrl(url: string) {
   return /^(https?:\/\/|ssh:\/\/|git@)/i.test(normalized);
 }
 
+export function computeProjectOverviewHealthScore(input: {
+  projectProgress: number;
+  modelRuleCount: number;
+  modelEntityCount: number;
+  modelRelationCount: number;
+  modelPageCount: number;
+  repoHealth?: {
+    remoteConfigured: boolean;
+    remoteReachable: boolean;
+    remoteSynced: boolean;
+  } | null;
+  runtimeStatus?: string | null;
+}) {
+  let score = 0;
+  if (input.modelRuleCount > 0) score += 20;
+  if (input.modelEntityCount > 0) score += 18;
+  if (input.modelPageCount > 0) score += 12;
+  if (input.modelRelationCount > 0) score += 15;
+  score += Math.round(Math.max(0, Math.min(100, input.projectProgress)) * 0.2);
+  if (input.repoHealth?.remoteConfigured) score += 10;
+  if (input.repoHealth?.remoteReachable) score += 10;
+  if (input.repoHealth?.remoteSynced) score += 10;
+  if ((input.runtimeStatus || "").trim() && /(ok|healthy)/i.test(input.runtimeStatus || "")) {
+    score += 5;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
 export function toBusinessSummaryErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "业务摘要生成失败";
   if (/API error: 404\b/.test(message) || /Route not found/i.test(message)) {
