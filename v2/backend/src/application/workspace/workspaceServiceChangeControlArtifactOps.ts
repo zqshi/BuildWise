@@ -25,15 +25,16 @@ function buildArtifactReferenceMessage(
   },
   prompt: string
 ) {
+  const evidence = item.evidence.map((entry) => entry.trim()).filter(Boolean);
+  const summary = item.summary.trim();
   return [
     `【交付物引用】${item.title}`,
-    `类型：${resolveArtifactKindLabel(item.id)}`,
-    `阶段：${item.stage}`,
-    `状态：${item.status} / gate=${item.gateStatus}`,
-    `摘要：${item.summary || "-"}`,
-    `证据：${item.evidence.join("；") || "-"}`,
+    `摘要：${summary || "请打开交付物查看详情。"}`,
+    evidence.length > 0 ? `关注点：${evidence.slice(0, 3).join("；")}` : "",
     prompt
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function notifyAdminConfirmation(
@@ -196,7 +197,7 @@ export function appendIterationArtifactToConversationOp(
   const item = workflow.items.find((entry) => entry.id === artifactId);
   if (!item) return undefined;
   const message = buildArtifactReferenceMessage(item, input.prompt?.trim() || "请基于该交付物继续推进下一步，并明确影响范围。");
-  const created = repo.createMessage(iterationId, "user", message);
+  const created = repo.createMessage(iterationId, "assistant", message);
   writeAuditLog(repo, "iteration_artifact_added_to_chat", `iteration:${iterationId}`, `artifact=${artifactId};messageId=${created.id}`);
   return { workflow, message: created };
 }

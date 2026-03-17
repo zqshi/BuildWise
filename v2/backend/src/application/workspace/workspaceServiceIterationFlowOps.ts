@@ -11,6 +11,7 @@ import type {
 import { buildMergedIterationPayload, normalizeIteration, normalizeProject, statusTransitions } from "./workspaceSupport";
 import { buildDefaultIterationCodeLink, defaultIterationChangeControl, hasProject, writeAuditLog } from "./workspaceServiceCommon";
 import { buildGitRequirementIntakePrompt, hasGitRequirementIntakeTarget } from "./workspaceServiceGitRequirementIntakeOps";
+import { normalizeIterationMessageContent } from "./workspaceMessageSanitizer";
 
 export function listIterationsOp(repo: WorkspaceRepository, projectId: number) {
   if (!hasProject(repo, projectId)) {
@@ -87,7 +88,8 @@ export function listMessagesOp(repo: WorkspaceRepository, iterationId: number) {
 }
 
 export function createMessageOp(repo: WorkspaceRepository, iterationId: number, role: "system" | "assistant" | "user", content: string) {
-  const created = repo.createMessage(iterationId, role, content);
+  const normalizedContent = normalizeIterationMessageContent(role, content);
+  const created = repo.createMessage(iterationId, role, normalizedContent);
   const iteration = repo.findIteration(iterationId);
   if (iteration) {
     const snapshot: AssessmentSnapshot = {

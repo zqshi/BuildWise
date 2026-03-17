@@ -14,6 +14,7 @@ import {
   fetchProjectModelBusinessSummary,
   fetchProjectRepositoryMigrationPlan,
   fetchProjectRepositoryStatus,
+  validateProjectRepositoryRemote,
   removeProjectRoleBinding,
   restoreProjectPolicyToInitialMode,
   sendOpenclawProjectChat,
@@ -27,6 +28,7 @@ import { buildModelRelationGraph } from "./projectModelGraphModel";
 import { composeOpenclawProjectMessage, type OpenclawDialogMode } from "../layout/openclawPromptComposer";
 import {
   MOCK_MODEL_RELATIONS,
+  computeProjectOverviewHealthScore,
   guessRepoName,
   inferProviderFromRepoUrl,
   looksLikeGitUrl,
@@ -95,6 +97,8 @@ export function ProjectOverviewPanel({
     lastError: string;
   } | null>(null);
   const [repoConfigBusy, setRepoConfigBusy] = useState(false);
+  const [repoValidationBusy, setRepoValidationBusy] = useState(false);
+  const [repoValidationError, setRepoValidationError] = useState("");
   const [repoConfigNotice, setRepoConfigNotice] = useState("");
   const [repoMigrationPlan, setRepoMigrationPlan] = useState<{
     currentMode: "external_git" | "managed_local" | "hybrid";
@@ -145,6 +149,7 @@ export function ProjectOverviewPanel({
     setRequireRemoteForStaging(currentProject?.repository?.governance?.requireRemoteForStaging ?? false);
     setRepoHealth(currentProject?.repository?.health || null);
     setRepoMigrationPlan(null);
+    setRepoValidationError("");
     setRepoConfigNotice("");
     setBusinessSummary(null);
     setBusinessSummaryError("");
@@ -166,9 +171,24 @@ export function ProjectOverviewPanel({
   const recentIterations = useMemo(() => sortedIterations.slice(-5), [sortedIterations]);
   const completedIterations = sortedIterations.filter((item) => item.status === "completed").length;
   const activeIterations = sortedIterations.length - completedIterations;
+  const displayedModelRelations = modelRelations;
+  const displayedModelRuleCount = modelRuleCount;
+  const displayedModelEntityCount = modelEntityCount;
+  const displayedModelPageCount = modelPageCount;
 
-  const findMetric = (name: string) => opsMetrics?.metrics.find((item) => item.name === name)?.value;
-  const healthScore = Math.max(0, Math.min(100, Number(findMetric("project_governance_health_score") ?? 0) || 0));
+  const healthScore = useMemo(
+    () =>
+      computeProjectOverviewHealthScore({
+        projectProgress,
+        modelRuleCount: displayedModelRuleCount,
+        modelEntityCount: displayedModelEntityCount,
+        modelRelationCount: displayedModelRelations.length,
+        modelPageCount: displayedModelPageCount,
+        repoHealth,
+        runtimeStatus: status?.status || ""
+      }),
+    [displayedModelEntityCount, displayedModelPageCount, displayedModelRelations.length, displayedModelRuleCount, projectProgress, repoHealth, status?.status]
+  );
   const trendText = useMemo(() => {
     if (recentIterations.length < 2) {
       return "样本不足，趋势待形成";
@@ -183,11 +203,6 @@ export function ProjectOverviewPanel({
     }
     return "跨迭代沉淀趋势平稳";
   }, [recentIterations]);
-
-  const displayedModelRelations = modelRelations;
-  const displayedModelRuleCount = modelRuleCount;
-  const displayedModelEntityCount = modelEntityCount;
-  const displayedModelPageCount = modelPageCount;
   const isUsingMockData = false;
   const relationTypeStats = useMemo(() => {
     const stats = new Map<string, number>();
@@ -313,6 +328,10 @@ export function ProjectOverviewPanel({
   const targetIterationId = currentIteration?.id || iterations[iterations.length - 1]?.id || null;
 
   useEffect(() => {
+    setRepoValidationError("");
+  }, [repoUrlDraft]);
+
+  useEffect(() => {
     const consumeEntry = () => {
       if (!currentProject) return;
       let pendingEntry: string | null = null;
@@ -408,6 +427,7 @@ export function ProjectOverviewPanel({
     if (!currentProject) return;
     try {
       setRepoConfigBusy(true);
+      setRepoValidationError("");
       const status = await fetchProjectRepositoryStatus(currentProject.id);
       setRepoHealth(status?.health || null);
       setRequireRemoteForProduction(status?.governance?.requireRemoteForProduction ?? true);
@@ -422,6 +442,45 @@ export function ProjectOverviewPanel({
     }
   };
 
+  const runRepositoryRemoteValidation = async () => {
+    if (!currentProject) {
+      return false;
+    }
+    const url = repoUrlDraft.trim();
+    if (!url) {
+      setRepoValidationError("请先填写 Git 仓库地址。");
+      return false;
+    }
+    if (!looksLikeGitUrl(url)) {
+      setRepoValidationError("地址格式不正确，请使用 https://、ssh:// 或 git@ 开头。");
+      return false;
+    }
+    try {
+      setRepoValidationBusy(true);
+      setRepoValidationError("");
+      await validateProjectRepositoryRemote(currentProject.id, { url });
+      return true;
+    } catch (error) {
+      setRepoValidationError(error instanceof Error ? error.message.replace(/^API error:\s*/i, "") : "仓库地址校验失败");
+      return false;
+    } finally {
+      setRepoValidationBusy(false);
+    }
+  };
+
+  const handleAdvanceRepositoryStep = async () => {
+    if (repoConfigStep !== 1) {
+      setRepoConfigStep((prev) => (prev < 3 ? ((prev + 1) as 1 | 2 | 3) : prev));
+      return;
+    }
+    const passed = await runRepositoryRemoteValidation();
+    if (!passed) {
+      return;
+    }
+    setRepoConfigNotice("仓库地址校验通过，可以继续配置发布规则。");
+    setRepoConfigStep(2);
+  };
+
   const handleConnectRepository = async () => {
     if (!currentProject) return;
     const url = repoUrlDraft.trim();
@@ -432,6 +491,11 @@ export function ProjectOverviewPanel({
     const repoName = guessRepoName(url) || currentProject.name;
     try {
       setRepoConfigBusy(true);
+      setRepoValidationError("");
+      const passed = await runRepositoryRemoteValidation();
+      if (!passed) {
+        return;
+      }
       await bootstrapProjectRepository(currentProject.id, {
         provider: inferProviderFromRepoUrl(url),
         name: repoName,
@@ -863,7 +927,9 @@ export function ProjectOverviewPanel({
         setRepoUrlDraft={setRepoUrlDraft}
         currentProjectExists={Boolean(currentProject)}
         repoConfigBusy={repoConfigBusy}
+        repoValidationBusy={repoValidationBusy}
         repoUrlValid={repoUrlValid}
+        repoValidationError={repoValidationError}
         requireRemoteForProduction={requireRemoteForProduction}
         setRequireRemoteForProduction={setRequireRemoteForProduction}
         requireRemoteForStaging={requireRemoteForStaging}
@@ -875,6 +941,7 @@ export function ProjectOverviewPanel({
         setShowRepoAdvanced={setShowRepoAdvanced}
         repoMigrationPlan={repoMigrationPlan}
         canMoveToNextStep={canMoveToNextStep}
+        handleAdvanceRepositoryStep={handleAdvanceRepositoryStep}
         handleSaveRepositoryPolicy={handleSaveRepositoryPolicy}
         handleRefreshRepositoryStatus={handleRefreshRepositoryStatus}
         handleConnectRepository={handleConnectRepository}

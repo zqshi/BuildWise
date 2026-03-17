@@ -40,6 +40,8 @@ import {
   transitionIterationState
 } from "./workspaceApi";
 import { buildCoachFollowupMessage } from "./coachConversationGuide";
+import { normalizeUserChatInput } from "./workspaceChatMessagePresentation";
+import { presentCoachReply } from "./workspaceChatReplyPresenter";
 
 type UseIterationActionsParams = {
   currentIteration: Iteration | null;
@@ -634,7 +636,7 @@ export function useIterationActions({
       };
     };
   }): Promise<IterationVisualEditResponse | null> => {
-    const text = (options?.overrideText ?? chatInput).trim();
+    const text = normalizeUserChatInput(options?.overrideText ?? chatInput);
     if (!text || !currentIteration) {
       return null;
     }
@@ -667,7 +669,10 @@ export function useIterationActions({
       }
       const resolvedQuestions = currentIteration.changeControl?.clarificationDraftResolvedQuestions ?? [];
       const coach = await coachIterationMessage(currentIteration.id, text);
-      await createMessage(currentIteration.id, "assistant", coach.reply);
+      const presentedReply = presentCoachReply(coach.reply);
+      if (presentedReply) {
+        await createMessage(currentIteration.id, "assistant", presentedReply);
+      }
       if (coach.execution?.action === "rewrite") {
         const instruction = (coach.execution.instruction || text).trim();
         if (!instruction) {

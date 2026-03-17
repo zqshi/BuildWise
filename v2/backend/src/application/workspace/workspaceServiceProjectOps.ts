@@ -2,7 +2,7 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Project } from "../../domain/workspace/types";
 import { normalizeProject } from "./workspaceSupport";
 import { writeAuditLog } from "./workspaceServiceCommon";
-import { collectRepositoryHealth } from "./workspaceServiceProjectRepoHealthOps";
+import { collectRepositoryHealth, validateRepositoryRemoteUrl } from "./workspaceServiceProjectRepoHealthOps";
 
 export { provisionProjectRepositoryOp, scaffoldProjectRepositoryOp } from "./workspaceServiceProjectProvisionOps";
 export { publishIterationToRemoteOp } from "./workspaceServiceProjectPublishOps";
@@ -54,22 +54,36 @@ export function bootstrapProjectRepositoryOp(
 ) {
   const project = repo.findProject(projectId);
   if (!project) {
-    return null;
+    return { ok: false as const, reason: "project_not_found" };
   }
   const normalized = normalizeProject(project);
   const currentRepo = normalized.repository;
   if (!currentRepo) {
-    return null;
+    return { ok: false as const, reason: "repository_not_found" };
+  }
+  const nextUrl = input.url?.trim() || currentRepo.url || "";
+  const nextMode = input.repoMode ?? currentRepo.repoMode;
+  const requiresRemoteValidation = nextMode === "external_git" || nextMode === "hybrid" || Boolean(nextUrl);
+  if (requiresRemoteValidation) {
+    const validation = validateRepositoryRemoteUrl({ url: nextUrl });
+    if (!validation.ok) {
+      return {
+        ok: false as const,
+        reason: "remote_validation_failed",
+        message: validation.message,
+        checkedAt: validation.checkedAt
+      };
+    }
   }
   const now = new Date().toISOString();
   const updatedRepo = {
     ...currentRepo,
-    repoMode: input.repoMode ?? currentRepo.repoMode,
+    repoMode: nextMode,
     provider: input.provider ?? currentRepo.provider,
     organization: input.organization?.trim() || currentRepo.organization,
     name: input.name?.trim() || currentRepo.name,
     defaultBranch: input.defaultBranch?.trim() || currentRepo.defaultBranch,
-    url: input.url?.trim() || currentRepo.url,
+    url: nextUrl,
     governance: {
       requireRemoteForProduction:
         typeof input.requireRemoteForProduction === "boolean"
@@ -85,16 +99,32 @@ export function bootstrapProjectRepositoryOp(
       provider: input.provider ?? currentRepo.provider,
       organization: input.organization?.trim() || currentRepo.organization,
       name: input.name?.trim() || currentRepo.name,
-      url: input.url?.trim() || currentRepo.url,
+      url: nextUrl,
       defaultBranch: input.defaultBranch?.trim() || currentRepo.defaultBranch,
-      repoMode: input.repoMode ?? currentRepo.repoMode
+      repoMode: nextMode
     }),
     updatedAt: now
   };
   const updatedProject = { ...normalized, repository: updatedRepo };
   repo.updateProject(updatedProject);
   writeAuditLog(repo, "project_repo_updated", `project:${projectId}`, `repo=${updatedRepo.url}`);
-  return updatedRepo;
+  return { ok: true as const, data: updatedRepo };
+}
+
+export function validateProjectRepositoryRemoteOp(repo: WorkspaceRepository, projectId: number, input: { url?: string }) {
+  const project = repo.findProject(projectId);
+  if (!project) {
+    return { ok: false as const, reason: "project_not_found" };
+  }
+  const normalized = normalizeProject(project);
+  const currentRepo = normalized.repository;
+  if (!currentRepo) {
+    return { ok: false as const, reason: "repository_not_found" };
+  }
+  const validation = validateRepositoryRemoteUrl({ url: input.url?.trim() || currentRepo.url || "" });
+  return validation.ok
+    ? { ok: true as const, data: validation }
+    : { ok: false as const, reason: "remote_validation_failed", message: validation.message, checkedAt: validation.checkedAt };
 }
 
 export function configureProjectRepositoryModeOp(

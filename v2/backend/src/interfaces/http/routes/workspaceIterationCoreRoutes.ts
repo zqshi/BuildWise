@@ -689,7 +689,8 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
 
   app.post("/api/iterations/:id/state/transition", async (request, reply) => {
     const role = currentRole(request.authRole);
-    if (!hasPermission(role, "iteration:transition")) {
+    const grantedPermissions = service.resolveRolePermissions(role);
+    if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
       reply.code(403);
       return { message: `permission denied for role ${role}` };
     }
@@ -709,7 +710,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid toStatus" };
     }
-    if (toStatus === "completed" && !hasPermission(role, "iteration:transition:complete")) {
+    if (toStatus === "completed" && !hasPermission(role, "iteration:transition:complete", grantedPermissions)) {
       reply.code(403);
       return { message: `permission denied for role ${role}` };
     }

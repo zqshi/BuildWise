@@ -2,6 +2,11 @@ import type { PlatformRoleBindingPayload } from "../../app/workspaceApi";
 import type { GovernanceRole } from "../../domain/workspace/governanceTypes";
 
 export type PlatformRole = PlatformRoleBindingPayload["role"];
+export type GovernanceCustomRoleSummary = {
+  key: string;
+  label: string;
+  permissions: string[];
+};
 
 export type PermissionMemberRow = {
   userId: string;
@@ -28,12 +33,6 @@ const ROLE_LABELS: Record<PlatformRole, string> = {
   admin: "超级管理员",
   member: "成员",
   viewer: "只读成员"
-};
-
-const TEAM_LABELS: Record<PlatformRole, string> = {
-  admin: "基础架构组",
-  member: "前端研发组",
-  viewer: "质量保证组"
 };
 
 const GROUP_TITLES: Record<string, string> = {
@@ -96,6 +95,58 @@ export function toWorkspaceRoleId(role: PlatformRole): GovernanceRole["id"] {
   return "viewer";
 }
 
+function normalizeBindingRole(role: string): string {
+  if (role === "admin") return "owner";
+  if (role === "member") return "pm";
+  return role;
+}
+
+function resolveMemberRoleLabel(
+  role: string,
+  governanceRoles: GovernanceRole[],
+  customRoles: GovernanceCustomRoleSummary[]
+) {
+  const normalizedRole = normalizeBindingRole(role);
+  const governanceRole = governanceRoles.find((item) => item.id === normalizedRole);
+  if (governanceRole) {
+    if (governanceRole.id === "owner") {
+      return "超级管理员";
+    }
+    if (governanceRole.id === "pm") {
+      return "成员";
+    }
+    return governanceRole.name;
+  }
+  const customRole = customRoles.find((item) => item.key === normalizedRole);
+  if (customRole) {
+    return customRole.label;
+  }
+  return ROLE_LABELS[role] || role;
+}
+
+function resolveMemberTeamName(role: string, governanceRoles: GovernanceRole[], customRoles: GovernanceCustomRoleSummary[]) {
+  const normalizedRole = normalizeBindingRole(role);
+  if (normalizedRole === "owner") {
+    return "基础架构组";
+  }
+  if (normalizedRole === "pm") {
+    return "前端研发组";
+  }
+  if (normalizedRole === "developer") {
+    return "研发工程组";
+  }
+  if (normalizedRole === "qa") {
+    return "质量保证组";
+  }
+  if (normalizedRole === "viewer") {
+    return "平台观察组";
+  }
+  if (customRoles.some((item) => item.key === normalizedRole)) {
+    return "自定义权限组";
+  }
+  return governanceRoles.find((item) => item.id === normalizedRole)?.name || "权限角色组";
+}
+
 export function formatDate(dateLike: string): string {
   const date = new Date(dateLike);
   if (Number.isNaN(date.getTime())) {
@@ -115,17 +166,34 @@ function displayNameFromUserId(userId: string): string {
   return DISPLAY_NAMES[hash % DISPLAY_NAMES.length] || "平台成员";
 }
 
-export function toPermissionMemberRows(items: PlatformRoleBindingPayload[]): PermissionMemberRow[] {
+export function toPermissionMemberRows(
+  items: PlatformRoleBindingPayload[],
+  governanceRoles: GovernanceRole[] = [],
+  customRoles: GovernanceCustomRoleSummary[] = []
+): PermissionMemberRow[] {
   return items.map((item) => ({
     userId: item.userId,
     displayName: displayNameFromUserId(item.userId),
     role: item.role,
-    roleLabel: ROLE_LABELS[item.role],
-    teamName: TEAM_LABELS[item.role],
+    roleLabel: resolveMemberRoleLabel(item.role, governanceRoles, customRoles),
+    teamName: resolveMemberTeamName(item.role, governanceRoles, customRoles),
     joinedAt: formatDate(item.createdAt),
-    statusLabel: item.role === "viewer" ? "禁用" : "正常",
-    statusTone: item.role === "viewer" ? "muted" : "ok"
+    statusLabel: normalizeBindingRole(item.role) === "viewer" ? "禁用" : "正常",
+    statusTone: normalizeBindingRole(item.role) === "viewer" ? "muted" : "ok"
   }));
+}
+
+export function buildMemberBindingRoleOptions(
+  governanceRoles: GovernanceRole[],
+  customRoles: GovernanceCustomRoleSummary[]
+): Array<{ value: string; label: string }> {
+  const governanceOptions = governanceRoles
+    .filter((item) => item.id === "owner" || item.id === "pm")
+    .map((item) => ({
+      value: item.id,
+      label: item.id === "owner" ? "超级管理员" : "成员"
+    }));
+  return [...governanceOptions, ...customRoles.map((item) => ({ value: item.key, label: item.label }))];
 }
 
 function groupKeyOf(permission: string): string {

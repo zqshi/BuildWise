@@ -9,8 +9,8 @@ export const rolePermissions: Record<string, string[]> = {
   viewer: ["collab:read", "deploy:read", "policy:read"]
 };
 
-export function hasPermission(role: string, permission: string) {
-  const permissions = rolePermissions[role] || [];
+export function hasPermission(role: string, permission: string, grantedPermissions?: string[]) {
+  const permissions = grantedPermissions && grantedPermissions.length > 0 ? grantedPermissions : rolePermissions[role] || [];
   return permissions.includes("*") || permissions.includes(permission);
 }
 

@@ -254,7 +254,7 @@ export function listPlatformRoleBindingsOp(repo: WorkspaceRepository) {
 
 export function upsertPlatformRoleBindingOp(
   repo: WorkspaceRepository,
-  input: { userId: string; role: "admin" | "member" | "viewer" }
+  input: { userId: string; role: string }
 ) {
   const existing = repo.listPlatformRoleBindings().find((item) => item.userId === input.userId);
   const now = nowIso();

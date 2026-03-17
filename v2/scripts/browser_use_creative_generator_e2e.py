@@ -59,7 +59,15 @@ def load_backend_env() -> dict:
 
 
 def build_llm(backend_env: dict):
-    if BROWSER_USE_PROVIDER in {'openai-compatible', 'deepseek'}:
+    if BROWSER_USE_PROVIDER == 'deepseek':
+        api_key = (os.getenv('DEEPSEEK_API_KEY') or os.getenv('OPENAI_API_KEY') or '').strip()
+        base_url = (os.getenv('DEEPSEEK_BASE_URL') or os.getenv('OPENAI_API_BASE') or 'https://api.deepseek.com/v1').strip()
+        model = (os.getenv('DEEPSEEK_MODEL') or os.getenv('OPENAI_MODEL') or 'deepseek-chat').strip()
+        if not api_key:
+            raise RuntimeError('DEEPSEEK_API_KEY is required for deepseek mode')
+        return ChatDeepSeek(model=model, api_key=api_key, base_url=base_url, max_tokens=4096)
+
+    if BROWSER_USE_PROVIDER == 'openai-compatible':
         api_key = (os.getenv('OPENAI_API_KEY') or backend_env.get('OPENAI_API_KEY') or os.getenv('DEEPSEEK_API_KEY') or '').strip()
         base_url = (os.getenv('OPENAI_BASE_URL') or backend_env.get('OPENAI_BASE_URL') or os.getenv('DEEPSEEK_BASE_URL') or '').strip()
         model = (os.getenv('OPENAI_MODEL') or backend_env.get('OPENAI_MODEL') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
@@ -126,22 +134,24 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
         (
             'login',
             f'''先打开 http://127.0.0.1:5173/app.html#/login。
-如果看到登录页：切换到“手机验证码”，输入手机号 {LOGIN_PHONE}，点击“发送验证码”，等待验证码自动填入后点击“登 录”。
+如果看到登录页：无论“手机验证码”是否已经选中，都先点击一次“手机验证码”标签，再输入手机号 {LOGIN_PHONE}，点击“发送验证码”，等待验证码自动填入后点击“登 录”。
 如果已经是已登录态，也需要确认当前不在营销页。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
             'workspace_navigation',
             f'''在当前浏览器会话中继续操作。
-找到项目“{project_name}”并点击进入，然后进入当前版本“{v11_name}”。
+先在仪表盘中定位项目“{project_name}”，优先点击该项目区域附近的“查看全部”按钮展开项目版本面板。
+然后在版本列表中找到“{v11_name}”对应的“进入版本”按钮并点击。
 成功标准：页面显示“迭代内需求沟通”，且顶部能看到“{v11_name}”或其版本号，且会话区能看到 BuildWise AI 消息。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
             'change_mapping_toggle',
-            '''在当前页面检查“变更映射”不是常驻展开。
-如果按钮“查看变更映射”存在，点击展开，再点击收起，确认按钮有反应。
-            如果默认未显示映射面板，也算通过。
+            '''保持在当前 V1.1 的“迭代内需求沟通”页面，不要点击“返回项目管理”或离开当前页面。
+不要再查找“查看变更映射”按钮；顶部状态条不应再出现这个入口。
+顶部不应再出现常驻的变更影响提醒卡；影响评估应直接体现在会话消息里，而不是单独占用固定显示区域。
+如果页面里不存在“查看变更映射”按钮，且顶部没有额外常驻提醒卡，即判定通过。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
@@ -212,11 +222,10 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
 
 
 async def run_stage(session: BrowserSession, llm, key: str, task: str) -> StageResult:
-    async def execute_stage(stage_llm, *, use_vision: bool, suffix: str, fallback_llm=None):
+    async def execute_stage(stage_llm, *, use_vision: bool, suffix: str):
         agent = Agent(
             task=task,
             llm=stage_llm,
-            fallback_llm=fallback_llm,
             browser_session=session,
             use_vision=use_vision,
             use_thinking=False,
@@ -231,8 +240,9 @@ async def run_stage(session: BrowserSession, llm, key: str, task: str) -> StageR
         return (history.final_result() or '').strip()
 
     fallback_llm = build_fallback_llm()
+    prefer_dom_only = BROWSER_USE_PROVIDER == 'deepseek'
     try:
-        raw = await execute_stage(llm, use_vision=True, suffix='vision', fallback_llm=fallback_llm)
+        raw = await execute_stage(llm, use_vision=not prefer_dom_only, suffix='vision' if not prefer_dom_only else 'dom-primary')
     except Exception as exc:
         raw = f'FAIL - browser-use stage exception: {exc}'
     line = next((item.strip() for item in raw.splitlines() if item.strip()), 'FAIL - no output')
