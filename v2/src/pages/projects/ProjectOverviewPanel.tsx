@@ -329,6 +329,7 @@ export function ProjectOverviewPanel({
 
   useEffect(() => {
     setRepoValidationError("");
+    setRepoConfigNotice("");
   }, [repoUrlDraft]);
 
   useEffect(() => {
@@ -485,6 +486,8 @@ export function ProjectOverviewPanel({
     if (!currentProject) return;
     const url = repoUrlDraft.trim();
     if (!url) {
+      setRepoConfigStep(1);
+      setRepoValidationError("请先填写 Git 仓库地址。");
       setRepoConfigNotice("请先填写 Git 仓库地址。");
       return;
     }
@@ -494,6 +497,8 @@ export function ProjectOverviewPanel({
       setRepoValidationError("");
       const passed = await runRepositoryRemoteValidation();
       if (!passed) {
+        setRepoConfigStep(1);
+        setRepoConfigNotice("仓库地址校验未通过，请修正后再保存。");
         return;
       }
       await bootstrapProjectRepository(currentProject.id, {
@@ -845,31 +850,24 @@ export function ProjectOverviewPanel({
           displayedModelRelations={displayedModelRelations}
           displayedModelRuleCount={displayedModelRuleCount}
         />
-        <section className="project-overview-bottom-grid">
-          <div className="info-box">
-            <div className="panel-head tight">
-              <h3>代码仓设置</h3>
-              <div className="chat-tools">
-                <button type="button" className="btn ghost mini" disabled={!currentProject} onClick={() => setShowRepoConfigDrawer(true)}>
-                  打开设置面板
-                </button>
-              </div>
+        <div className="info-box">
+          <div className="panel-head tight">
+            <h3>代码仓设置</h3>
+            <div className="chat-tools">
+              <button type="button" className="btn ghost mini" disabled={!currentProject} onClick={() => setShowRepoConfigDrawer(true)}>
+                打开设置面板
+              </button>
             </div>
-            <p className="hint">采用统一右侧滑入面板配置。业务人员只需填写一个 Git 仓库地址。</p>
-            <p className="hint">
-              地址已配置：{repoHealth ? (repoHealth.remoteConfigured ? "是" : "否") : "-"}；连接可用：
-              {repoHealth ? (repoHealth.remoteReachable ? "是" : "否") : "-"}；同步状态：
-              {repoHealth ? (repoHealth.remoteSynced ? "正常" : "待同步") : "-"}
-            </p>
-            {repoConfigNotice ? <p className="hint">{repoConfigNotice}</p> : null}
           </div>
-
-          <div className="info-box">
-            <h3>运行状态</h3>
-            {status ? <p>{`服务：${status.service} · 状态：${status.status}`}</p> : <p className="hint">暂无服务状态。</p>}
-            {error && <p className="error-inline">{error}</p>}
-          </div>
-        </section>
+          <p className="hint">采用统一右侧滑入面板配置。业务人员只需填写一个 Git 仓库地址。</p>
+          <p className="hint">
+            地址已配置：{repoHealth ? (repoHealth.remoteConfigured ? "是" : "否") : "-"}；连接可用：
+            {repoHealth ? (repoHealth.remoteReachable ? "是" : "否") : "-"}；同步状态：
+            {repoHealth ? (repoHealth.remoteSynced ? "正常" : "待同步") : "-"}
+          </p>
+          {repoConfigNotice ? <p className="hint">{repoConfigNotice}</p> : null}
+          {repoValidationError ? <p className="error-inline">{repoValidationError}</p> : null}
+        </div>
 
         <div className="info-box project-delete-box">
           <h3>项目操作</h3>
