@@ -7,8 +7,7 @@ import type {
   IterationTestArtifactsGenerationResponse
 } from "../../domain/workspace/types";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
-import { listUncoveredAcceptanceCriteria, writeAuditLog } from "./workspaceServiceCommon";
-import { normalizeRelPath } from "../../interfaces/http/routes/workspaceRouteUtils";
+import { listUncoveredAcceptanceCriteria, normalizeRelPath, writeAuditLog } from "./workspaceServiceCommon";
 
 function summarizeMatrix(matrix: Array<{ executionStatus?: string }>) {
   const total = matrix.length;

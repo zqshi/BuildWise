@@ -218,21 +218,39 @@ function summarizeProjectKnowledge(project: Project | null) {
     return "";
   }
   const knowledge = project.knowledgeBase;
-  const sections = [
-    `项目=${project.name}`,
-    `描述=${project.description || "-"}`,
-    `本体词典=${knowledge?.ontologyTerms
-      ?.slice(0, 8)
-      .map((item) => `${item.term}${item.aliases.length > 0 ? `(${item.aliases.join("/")})` : ""}`)
-      .join(" | ") || "-"}`,
-    `稳定规则=${knowledge?.stableRules?.slice(0, 8).map((item) => item.rule).join(" | ") || "-"}`,
-    `组件清单=${knowledge?.componentInventory?.slice(0, 8).map((item) => item.component).join(" | ") || "-"}`,
-    `代码能力映射=${knowledge?.codeMap?.slice(0, 8).map((item) => item.capability).join(" | ") || "-"}`,
-    `决策积累=${knowledge?.decisionLog?.slice(0, 8).map((item) => item.decision).join(" | ") || "-"}`,
-    `已知风险=${knowledge?.knownRisks?.slice(0, 8).map((item) => item.risk).join(" | ") || "-"}`,
-    `变更模式=${knowledge?.changePatterns?.slice(0, 8).map((item) => item.pattern).join(" | ") || "-"}`
-  ];
-  return ["[项目知识上下文]", ...sections].join("\n");
+  const parts: string[] = [`项目「${project.name}」`];
+  if (project.description) {
+    parts.push(`简介：${project.description}`);
+  }
+  const terms = knowledge?.ontologyTerms?.slice(0, 8) ?? [];
+  if (terms.length > 0) {
+    parts.push(`关键业务概念：${terms.map((item) => item.term + (item.aliases.length > 0 ? `（也叫${item.aliases.join("、")}）` : "")).join("、")}`);
+  }
+  const rules = knowledge?.stableRules?.slice(0, 8) ?? [];
+  if (rules.length > 0) {
+    parts.push(`已确认的业务规则：${rules.map((item) => item.rule).join("；")}`);
+  }
+  const components = knowledge?.componentInventory?.slice(0, 8) ?? [];
+  if (components.length > 0) {
+    parts.push(`功能模块：${components.map((item) => item.component).join("、")}`);
+  }
+  const codeMap = knowledge?.codeMap?.slice(0, 6) ?? [];
+  if (codeMap.length > 0) {
+    parts.push(`能力映射：${codeMap.map((item) => item.capability).join("、")}`);
+  }
+  const decisions = knowledge?.decisionLog?.slice(0, 4) ?? [];
+  if (decisions.length > 0) {
+    parts.push(`近期决策：${decisions.map((item) => item.decision).join("；")}`);
+  }
+  const risks = knowledge?.knownRisks?.slice(0, 6) ?? [];
+  if (risks.length > 0) {
+    parts.push(`已知风险：${risks.map((item) => item.risk).join("；")}`);
+  }
+  const patterns = knowledge?.changePatterns?.slice(0, 6) ?? [];
+  if (patterns.length > 0) {
+    parts.push(`变更模式：${patterns.map((item) => item.pattern).join("、")}`);
+  }
+  return parts.length > 1 ? `[项目知识上下文]\n${parts.join("\n")}` : "";
 }
 
 function summarizePortfolioKnowledge(repo: WorkspaceRepository) {
@@ -240,20 +258,22 @@ function summarizePortfolioKnowledge(repo: WorkspaceRepository) {
   if (projects.length === 0) {
     return "";
   }
-  return [
-    "[主窗口项目概览上下文]",
-    ...projects.map((project) => {
-      const knowledge = project.knowledgeBase;
-      return [
-        `项目=${project.name}`,
-        `状态=${project.status}`,
-        `稳定规则数量=${knowledge?.stableRules?.length || 0}`,
-        `组件数量=${knowledge?.componentInventory?.length || 0}`,
-        `已知风险数量=${knowledge?.knownRisks?.length || 0}`,
-        `最近决策=${knowledge?.decisionLog?.[0]?.decision || "-"}`
-      ].join(" ; ");
-    })
-  ].join("\n");
+  const summaries = projects.map((project) => {
+    const kb = project.knowledgeBase;
+    const details: string[] = [`「${project.name}」（${project.status}）`];
+    const ruleCount = kb?.stableRules?.length || 0;
+    const componentCount = kb?.componentInventory?.length || 0;
+    const riskCount = kb?.knownRisks?.length || 0;
+    if (ruleCount > 0 || componentCount > 0 || riskCount > 0) {
+      details.push(`已沉淀 ${ruleCount} 条规则、${componentCount} 个模块、${riskCount} 项风险`);
+    }
+    const latestDecision = kb?.decisionLog?.[0]?.decision;
+    if (latestDecision) {
+      details.push(`最近决策：${latestDecision}`);
+    }
+    return details.join("，");
+  });
+  return `[项目概览]\n当前有 ${projects.length} 个项目：\n${summaries.map((s) => `  - ${s}`).join("\n")}`;
 }
 
 function summarizeProjectSkillSelection(project: Project | null, userMessage: string) {
@@ -279,7 +299,7 @@ function composeOpenclawPrompt(params: {
   if (params.skillsChainBrief) {
     sections.push(`当前编排模式：openclaw + skills（单Agent）\n${params.skillsChainBrief}`);
   }
-  if (params.workspacePath && params.workspacePath.trim()) {
+  if (params.workspacePath?.trim()) {
     sections.push(`当前工作区路径：${params.workspacePath.trim()}`);
   }
   if (params.contextSections?.length) {

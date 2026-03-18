@@ -19,8 +19,15 @@ function makeRelationId(input: { fromEntityId: string; toEntityId: string; type:
   return `relation_${input.fromEntityId}_${input.type}_${input.toEntityId}`;
 }
 
+/**
+ * @deprecated 旧模型存储，将被 ContinuousModelingRepository + ModelSnapshot 体系替代。
+ * 保留兼容性，不再新增功能。新的模型数据通过 /api/projects/:id/model-view 统一视图获取。
+ */
 export class JsonModelRepository implements ModelingRepository {
-  constructor(private readonly modelFile: string) {}
+  private readonly modelFile: string;
+  constructor(modelFile: string) {
+    this.modelFile = modelFile;
+  }
 
   read(): ModelStore {
     const raw = readFileSync(this.modelFile, "utf-8");

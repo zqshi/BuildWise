@@ -1,111 +1,137 @@
-import type { RefObject, PointerEvent as ReactPointerEvent } from "react";
+import { memo, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import type {
-  HtmlPreviewInteractionPayload,
-  ImageSelectionRegion,
   PrototypeElement,
   PrototypeChangeHistoryItem,
+  HtmlPreviewHistoryItem,
+  ImageSelectionRegion,
 } from "./iterationWorkspacePanelTypes";
 
-export type IterationInteractionDrawerProps = {
+// ── Inline type aliases matching UploadedAttachmentMeta sub-shapes ──
+type HtmlPreviewItem = { name: string; path: string; content: string };
+type ImagePreviewItem = { name: string; path: string; dataUrl: string };
+
+export type InteractionDrawerContentProps = {
+  /* visibility / layout */
   showInteractionPanel: boolean;
-  interactionDrawerWidth: number;
   interactionEditMode: boolean;
-  htmlPrototypePreviews: { path: string; name: string; content: string }[];
-  selectedHtmlPreview: { path: string; name: string; content: string } | null;
+  interactionDrawerWidth: number;
+
+  /* HTML prototype previews */
+  htmlPrototypePreviews: HtmlPreviewItem[];
+  selectedHtmlPreview: HtmlPreviewItem | null;
   instrumentedHtmlPreview: string;
-  imagePrototypePreviews: { path: string; name: string; dataUrl: string }[];
-  selectedImagePreview: { path: string; name: string; dataUrl: string } | null;
-  selectedHtmlElement: HtmlPreviewInteractionPayload | null;
-  selectedImagePoint: { xPercent: number; yPercent: number } | null;
-  selectedImageRegion: ImageSelectionRegion | null;
-  dragImageRegion: ImageSelectionRegion | null;
-  imageSelectionSummary: string;
-  interactionInstruction: string;
+
+  /* image prototype previews */
+  imagePrototypePreviews: ImagePreviewItem[];
+  selectedImagePreview: ImagePreviewItem | null;
+
+  /* legacy prototype tree */
   prototypeElements: PrototypeElement[];
   prototypeTree: Record<string, Record<string, PrototypeElement[]>>;
-  selectedPrototypeElementId: string;
   selectedPrototypeElement: PrototypeElement | null;
+  selectedPrototypeElementId: string;
+
+  /* prototype plan / history */
   prototypeLastPlan: string[];
   prototypeHistory: PrototypeChangeHistoryItem[];
-  htmlPreviewHistory: { path: string; content: string; selector: string; text: string; styles: Record<string, string> }[];
+
+  /* rich-preview flag */
   hasRichInteractionPreview: boolean;
-  htmlPreviewFrameRef: RefObject<HTMLIFrameElement>;
-  imageWrapRef: RefObject<HTMLButtonElement>;
-  onClose: () => void;
-  onInteractionEditModeChange: (mode: boolean) => void;
-  onInteractionInstructionChange: (value: string) => void;
-  onSendInteractionInstruction: (instruction: string) => void;
-  onUndoHtmlPreview: () => void;
-  onSelectedHtmlPreviewPathChange: (path: string) => void;
-  onSelectedImagePreviewPathChange: (path: string) => void;
-  onSelectedImagePointChange: (point: { xPercent: number; yPercent: number } | null) => void;
-  onSelectedImageRegionChange: (region: ImageSelectionRegion | null) => void;
-  onSelectedPrototypeElementIdChange: (id: string) => void;
-  onPrototypeElementsChange: (updater: (prev: PrototypeElement[]) => PrototypeElement[]) => void;
-  onPrototypeHistoryChange: (updater: (prev: PrototypeChangeHistoryItem[]) => PrototypeChangeHistoryItem[]) => void;
-  onPrototypeLastPlanChange: (plan: string[]) => void;
-  onInteractionDrawerResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onImagePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onImagePointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onImagePointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onImagePointerCancel: () => void;
+
+  /* edit-mode related values */
+  interactionInstruction: string;
+  imageSelectionSummary: string;
+
+  /* selection state */
+  selectedHtmlElement: { selector: string; tag: string; text: string } | null;
+  selectedImageRegion: ImageSelectionRegion | null;
+  selectedImagePoint: { xPercent: number; yPercent: number } | null;
+  dragImageRegion: ImageSelectionRegion | null;
+
+  /* HTML preview history */
+  htmlPreviewHistory: HtmlPreviewHistoryItem[];
+
+  /* refs */
+  htmlPreviewFrameRef: MutableRefObject<HTMLIFrameElement | null>;
+  imageWrapRef: MutableRefObject<HTMLButtonElement | null>;
+
+  /* setters */
+  setShowInteractionPanel: Dispatch<SetStateAction<boolean>>;
+  setInteractionEditMode: Dispatch<SetStateAction<boolean>>;
+  setSelectedHtmlPreviewPath: Dispatch<SetStateAction<string>>;
+  setSelectedImagePreviewPath: Dispatch<SetStateAction<string>>;
+  setSelectedPrototypeElementId: Dispatch<SetStateAction<string>>;
+  setPrototypeElements: Dispatch<SetStateAction<PrototypeElement[]>>;
+  setPrototypeLastPlan: Dispatch<SetStateAction<string[]>>;
+  setPrototypeHistory: Dispatch<SetStateAction<PrototypeChangeHistoryItem[]>>;
+  setInteractionInstruction: Dispatch<SetStateAction<string>>;
+  setSelectedImagePoint: Dispatch<SetStateAction<{ xPercent: number; yPercent: number } | null>>;
+  setSelectedImageRegion: Dispatch<SetStateAction<ImageSelectionRegion | null>>;
+
+  /* callbacks */
+  handleInteractionDrawerResizePointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  handleImagePointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  handleImagePointerMove: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  handleImagePointerUp: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  handleImagePointerCancel: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  handleUndoHtmlPreview: () => void;
+  sendInteractionInstruction: (instruction: string) => void | Promise<void>;
 };
 
-export function IterationInteractionDrawer(props: IterationInteractionDrawerProps) {
-  const {
-    showInteractionPanel,
-    interactionDrawerWidth,
-    interactionEditMode,
-    htmlPrototypePreviews,
-    selectedHtmlPreview,
-    instrumentedHtmlPreview,
-    imagePrototypePreviews,
-    selectedImagePreview,
-    selectedHtmlElement,
-    selectedImagePoint,
-    selectedImageRegion,
-    dragImageRegion,
-    imageSelectionSummary,
-    interactionInstruction,
-    prototypeElements,
-    prototypeTree,
-    selectedPrototypeElementId,
-    selectedPrototypeElement,
-    prototypeLastPlan,
-    prototypeHistory,
-    htmlPreviewHistory,
-    hasRichInteractionPreview,
-    htmlPreviewFrameRef,
-    imageWrapRef,
-    onClose,
-    onInteractionEditModeChange,
-    onInteractionInstructionChange,
-    onSendInteractionInstruction,
-    onUndoHtmlPreview,
-    onSelectedHtmlPreviewPathChange,
-    onSelectedImagePreviewPathChange,
-    onSelectedImagePointChange,
-    onSelectedImageRegionChange,
-    onSelectedPrototypeElementIdChange,
-    onPrototypeElementsChange,
-    onPrototypeHistoryChange,
-    onPrototypeLastPlanChange,
-    onInteractionDrawerResizePointerDown,
-    onImagePointerDown,
-    onImagePointerMove,
-    onImagePointerUp,
-    onImagePointerCancel,
-  } = props;
-
+export const InteractionDrawerContent = memo(function InteractionDrawerContent({
+  showInteractionPanel,
+  interactionEditMode,
+  interactionDrawerWidth,
+  htmlPrototypePreviews,
+  selectedHtmlPreview,
+  instrumentedHtmlPreview,
+  imagePrototypePreviews,
+  selectedImagePreview,
+  prototypeElements,
+  prototypeTree,
+  selectedPrototypeElement,
+  selectedPrototypeElementId,
+  prototypeLastPlan,
+  prototypeHistory,
+  hasRichInteractionPreview,
+  interactionInstruction,
+  imageSelectionSummary,
+  selectedHtmlElement,
+  selectedImageRegion,
+  selectedImagePoint,
+  dragImageRegion,
+  htmlPreviewHistory,
+  htmlPreviewFrameRef,
+  imageWrapRef,
+  setShowInteractionPanel,
+  setInteractionEditMode,
+  setSelectedHtmlPreviewPath,
+  setSelectedImagePreviewPath,
+  setSelectedPrototypeElementId,
+  setPrototypeElements,
+  setPrototypeLastPlan,
+  setPrototypeHistory,
+  setInteractionInstruction,
+  setSelectedImagePoint,
+  setSelectedImageRegion,
+  handleInteractionDrawerResizePointerDown,
+  handleImagePointerDown,
+  handleImagePointerMove,
+  handleImagePointerUp,
+  handleImagePointerCancel,
+  handleUndoHtmlPreview,
+  sendInteractionInstruction,
+}: InteractionDrawerContentProps) {
   return (
     <>
       <div
         className={`analysis-drawer-mask interaction-drawer-mask ${showInteractionPanel ? "open" : ""}`}
-        onClick={onClose}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+        onClick={() => setShowInteractionPanel(false)}
         role="button"
         tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Escape") setShowInteractionPanel(false); }}
         aria-label="关闭"
+        aria-hidden={!showInteractionPanel}
       />
       <aside
         className={`panel interaction-drawer ${showInteractionPanel ? "open" : ""}`}
@@ -117,7 +143,7 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
             className="interaction-drawer-resize-handle"
             aria-label="拖拽调整面板宽度"
             title="拖拽调整面板宽度"
-            onPointerDown={onInteractionDrawerResizePointerDown}
+            onPointerDown={handleInteractionDrawerResizePointerDown}
           />
           <div className="panel-head">
             <h2>交互界面</h2>
@@ -127,13 +153,13 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                 className={`icon-btn ${interactionEditMode ? "is-active" : ""}`}
                 aria-label={interactionEditMode ? "退出编辑模式" : "进入编辑模式"}
                 title={interactionEditMode ? "退出编辑模式" : "编辑"}
-                onClick={() => onInteractionEditModeChange(!interactionEditMode)}
+                onClick={() => setInteractionEditMode((prev) => !prev)}
               >
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path d="M8 1.5L9.8 5.3L13.5 7L9.8 8.8L8 12.5L6.2 8.8L2.5 7L6.2 5.3L8 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                 </svg>
               </button>
-              <button type="button" className="btn ghost mini" onClick={onClose}>
+              <button type="button" className="btn ghost mini" onClick={() => setShowInteractionPanel(false)}>
                 收起界面
               </button>
             </div>
@@ -154,15 +180,15 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                       <span className="interaction-target-chip">{selectedHtmlElement?.tag || "未选中元素"}</span>
                       <input
                         value={interactionInstruction}
-                        onChange={(event) => onInteractionInstructionChange(event.target.value)}
+                        onChange={(event) => setInteractionInstruction(event.target.value)}
                         placeholder="描述想修改的逻辑或样式"
                       />
                       <button
                         type="button"
                         className="btn primary mini"
                         onClick={() => {
-                          void onSendInteractionInstruction(interactionInstruction);
-                          onInteractionInstructionChange("");
+                          void sendInteractionInstruction(interactionInstruction);
+                          setInteractionInstruction("");
                         }}
                         disabled={!interactionInstruction.trim() || !selectedHtmlElement}
                       >
@@ -171,12 +197,12 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                       <button
                         type="button"
                         className="btn ghost mini"
-                        onClick={onUndoHtmlPreview}
+                        onClick={handleUndoHtmlPreview}
                         disabled={htmlPreviewHistory.length === 0}
                       >
                         撤销上一步
                       </button>
-                      <button type="button" className="btn ghost mini" onClick={() => onInteractionInstructionChange("")}>
+                      <button type="button" className="btn ghost mini" onClick={() => setInteractionInstruction("")}>
                         清空
                       </button>
                     </div>
@@ -195,9 +221,9 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                           type="button"
                           className={`btn ghost mini ${selectedImagePreview.path === item.path ? "is-active" : ""}`}
                           onClick={() => {
-                            onSelectedImagePreviewPathChange(item.path);
-                            onSelectedImagePointChange(null);
-                            onSelectedImageRegionChange(null);
+                            setSelectedImagePreviewPath(item.path);
+                            setSelectedImagePoint(null);
+                            setSelectedImageRegion(null);
                           }}
                         >
                           {item.name}
@@ -211,10 +237,10 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                     ref={imageWrapRef}
                     type="button"
                     className={`interaction-image-wrap ${interactionEditMode ? "is-editing" : ""}`}
-                    onPointerDown={onImagePointerDown}
-                    onPointerMove={onImagePointerMove}
-                    onPointerUp={onImagePointerUp}
-                    onPointerCancel={onImagePointerCancel}
+                    onPointerDown={handleImagePointerDown}
+                    onPointerMove={handleImagePointerMove}
+                    onPointerUp={handleImagePointerUp}
+                    onPointerCancel={handleImagePointerCancel}
                   >
                     <img className="interaction-image-preview" src={selectedImagePreview.dataUrl} alt={selectedImagePreview.name} />
                     {selectedImageRegion ? (
@@ -251,21 +277,21 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                       <span className="interaction-target-chip">{selectedImageRegion ? "区域" : selectedImagePoint ? "点位" : "未选中"}</span>
                       <input
                         value={interactionInstruction}
-                        onChange={(event) => onInteractionInstructionChange(event.target.value)}
+                        onChange={(event) => setInteractionInstruction(event.target.value)}
                         placeholder={imageSelectionSummary || "先点选或框选，再描述想修改的逻辑或样式"}
                       />
                       <button
                         type="button"
                         className="btn primary mini"
                         onClick={() => {
-                          onSendInteractionInstruction(interactionInstruction);
-                          onInteractionInstructionChange("");
+                          sendInteractionInstruction(interactionInstruction);
+                          setInteractionInstruction("");
                         }}
                         disabled={!interactionInstruction.trim() || (!selectedImageRegion && !selectedImagePoint)}
                       >
                         发送
                       </button>
-                      <button type="button" className="btn ghost mini" onClick={() => onInteractionInstructionChange("")}>
+                      <button type="button" className="btn ghost mini" onClick={() => setInteractionInstruction("")}>
                         清空
                       </button>
                     </div>
@@ -287,7 +313,7 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                                 key={element.id}
                                 type="button"
                                 className={`btn ghost mini ${selectedPrototypeElementId === element.id ? "is-active" : ""}`}
-                                onClick={() => onSelectedPrototypeElementIdChange(element.id)}
+                                onClick={() => setSelectedPrototypeElementId(element.id)}
                               >
                                 {element.label}
                               </button>
@@ -314,7 +340,7 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                             width: `${item.width}px`,
                             minHeight: `${item.height}px`
                           }}
-                          onClick={() => onSelectedPrototypeElementIdChange(item.id)}
+                          onClick={() => setSelectedPrototypeElementId(item.id)}
                         >
                           {item.label}
                         </button>
@@ -332,7 +358,7 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                         className="btn ghost mini"
                         onClick={() =>
                           selectedPrototypeElement &&
-                          onPrototypeElementsChange((prev) =>
+                          setPrototypeElements((prev) =>
                             prev.map((item) => (item.id === selectedPrototypeElement.id ? { ...item, visible: !item.visible } : item))
                           )
                         }
@@ -344,7 +370,7 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                         className="btn ghost mini"
                         onClick={() =>
                           selectedPrototypeElement &&
-                          onPrototypeElementsChange((prev) =>
+                          setPrototypeElements((prev) =>
                             prev.map((item) => (item.id === selectedPrototypeElement.id ? { ...item, emphasized: !item.emphasized } : item))
                           )
                         }
@@ -360,9 +386,9 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
                           if (!latest) {
                             return;
                           }
-                          onPrototypeElementsChange((prev) => prev.map((item) => (item.id === latest.targetId ? latest.before : item)));
-                          onPrototypeHistoryChange((prev) => prev.slice(1));
-                          onPrototypeLastPlanChange([`已撤销：${latest.summary}`]);
+                          setPrototypeElements((prev) => prev.map((item) => (item.id === latest.targetId ? latest.before : item)));
+                          setPrototypeHistory((prev) => prev.slice(1));
+                          setPrototypeLastPlan([`已撤销：${latest.summary}`]);
                         }}
                       >
                         撤销上一步
@@ -402,4 +428,4 @@ export function IterationInteractionDrawer(props: IterationInteractionDrawerProp
       </aside>
     </>
   );
-}
+});

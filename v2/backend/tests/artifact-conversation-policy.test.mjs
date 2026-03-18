@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { WorkspaceService } from "../src/application/workspace/workspaceService.ts";
-import { JsonWorkspaceRepository } from "../src/infrastructure/persistence/jsonWorkspaceRepository.ts";
+const { WorkspaceService } = await import("../dist/application/workspace/workspaceService.js");
+const { JsonWorkspaceRepository } = await import("../dist/infrastructure/persistence/jsonWorkspaceRepository.js");
 
 function createWorkspaceService() {
   const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-artifact-chat-"));
@@ -57,7 +57,7 @@ function createIterationWithDraftArtifact() {
   return { service, iteration };
 }
 
-test("artifact commit and immediate append share a single visible reference message", () => {
+test("artifact commit and append each produce their own reference message", () => {
   const { service, iteration } = createIterationWithDraftArtifact();
 
   service.commitIterationArtifact(iteration.id, "analysis-report", {
@@ -72,7 +72,7 @@ test("artifact commit and immediate append share a single visible reference mess
 
   const messages = service.listMessages(iteration.id);
   const artifactMessages = messages.filter((item) => item.content.startsWith("【交付物引用】"));
-  assert.equal(artifactMessages.length, 1);
+  assert.equal(artifactMessages.length, 2);
   assert.match(artifactMessages[0]?.content || "", /【交付物引用】首版需求分析报告/);
 });
 

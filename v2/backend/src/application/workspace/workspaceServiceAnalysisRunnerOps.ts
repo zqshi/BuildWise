@@ -61,6 +61,7 @@ export async function runAttachmentAnalysisJobOp(params: {
   reportIndexesByJobId: Map<string, AttachmentReportIndex>;
   createReportId: () => string;
   buildReportSections: (reportId: string, report: AttachmentAnalysisReport) => AttachmentReportSection[];
+  onAnalysisCompleted?: (iterationId: number, report: AttachmentAnalysisReport) => void;
 }) {
   const {
     analysisJobs,
@@ -75,7 +76,8 @@ export async function runAttachmentAnalysisJobOp(params: {
     reportSectionsByReportId,
     reportIndexesByJobId,
     createReportId,
-    buildReportSections
+    buildReportSections,
+    onAnalysisCompleted
   } = params;
   const job = analysisJobs.get(jobId);
   if (!job) {
@@ -139,7 +141,6 @@ export async function runAttachmentAnalysisJobOp(params: {
           lastBatchError = error instanceof Error ? error.message : "unknown_error";
           job.progress.stageHint = `batch:${batchIndex + 1}/${batches.length}:error`;
           if (attempt < analysisBatchRetryLimit) {
-            continue;
           }
         }
       }
@@ -191,6 +192,13 @@ export async function runAttachmentAnalysisJobOp(params: {
           lastAttachmentReportId: reportId
         };
         repo.updateIteration(iteration);
+      }
+      if (onAnalysisCompleted && job.result) {
+        try {
+          onAnalysisCompleted(job.iterationId, job.result);
+        } catch {
+          // modeling trigger must not block analysis pipeline
+        }
       }
     }
     if (batchFailures.length > 0) {

@@ -3,12 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "lint": "npx @biomejs/biome lint ./src",
-    "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\"",
+    "lint": "biome lint ./src",
+    "test": "c8 node --experimental-strip-types --test \"tests/**/*.test.ts\"",
     "preview": "vite preview",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
@@ -30,16 +33,30 @@
     "prismjs": "^1.30.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-simple-code-editor": "^0.14.1"
+    "react-simple-code-editor": "^0.14.1",
+    "dompurify": "^3.2.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/markdown-it": "^14.1.2",
     "@types/prismjs": "^1.26.6",
+    "@types/dompurify": "^3.2.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "c8": "^10.1.0",
+    "lint-staged": "^15.2.0",
+    "simple-git-hooks": "^2.11.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.2"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "biome lint --write",
+      "biome format --write"
+    ]
   }
 }

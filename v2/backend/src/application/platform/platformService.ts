@@ -348,7 +348,7 @@ export class PlatformService {
       if (environment === "production" && releaseScore > 0 && releaseScore < 75) {
         blockers.push(`生产环境发布要求 releaseReviewScore>=75，当前为 ${releaseScore}`);
       }
-      const matrix = Array.isArray(control?.generatedTestMatrix) ? control!.generatedTestMatrix : [];
+      const matrix = Array.isArray(control?.generatedTestMatrix) ? control?.generatedTestMatrix : [];
       const failedOrBlocked = matrix.filter((item) => item.executionStatus === "failed" || item.executionStatus === "blocked");
       if (failedOrBlocked.length > 0) {
         blockers.push(`测试矩阵存在失败/阻断用例 ${failedOrBlocked.length} 条`);
@@ -360,7 +360,7 @@ export class PlatformService {
         }
       }
       const acceptanceChecklist = Array.isArray(control?.qualityArtifacts?.acceptanceChecklist)
-        ? control!.qualityArtifacts.acceptanceChecklist
+        ? control?.qualityArtifacts.acceptanceChecklist
         : [];
       if (acceptanceChecklist.length === 0) {
         blockers.push("缺少验收清单（acceptanceChecklist）");
@@ -374,9 +374,9 @@ export class PlatformService {
         blockers.push(`验收标准未完全覆盖（未覆盖 ${uncoveredAcceptanceCriteria.length} 项）`);
       }
       const boundaryCodePaths = Array.isArray(control?.boundary?.codePaths)
-        ? control!.boundary.codePaths
+        ? control?.boundary.codePaths
         : Array.isArray(control?.executableConstraints?.codePathWhitelist)
-          ? control!.executableConstraints.codePathWhitelist
+          ? control?.executableConstraints.codePathWhitelist
           : [];
       if (boundaryCodePaths.length === 0) {
         blockers.push("缺少代码路径白名单（boundary.codePaths）");
@@ -730,7 +730,7 @@ export class PlatformService {
       triageSteps: finalTriageSteps.map((item) => ({
         ...item,
         commands:
-          Array.isArray((item as { commands?: string[] }).commands) && (item as { commands?: string[] }).commands!.length > 0
+          Array.isArray((item as { commands?: string[] }).commands) && ((item as { commands?: string[] }).commands?.length ?? 0) > 0
             ? (item as { commands?: string[] }).commands!.slice(0, 4)
             : [
                 "curl -sS {{apiBase}}/api/ops/runtime",

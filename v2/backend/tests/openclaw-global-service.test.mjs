@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OpenclawGlobalService } from "../src/application/openclawGlobal/openclawGlobalService.ts";
+const { OpenclawGlobalService } = await import("../dist/application/openclawGlobal/openclawGlobalService.js");
 
 function createInMemoryRepo() {
   const store = {

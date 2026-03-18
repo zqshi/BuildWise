@@ -260,8 +260,8 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       note?: string;
     } | null;
     const category = body?.category?.trim() || "general";
-    const keywords = Array.isArray(body?.keywords) ? body!.keywords : [];
-    const commands = Array.isArray(body?.commands) ? body!.commands : [];
+    const keywords = Array.isArray(body?.keywords) ? body?.keywords : [];
+    const commands = Array.isArray(body?.commands) ? body?.commands : [];
     const result = service.upsertOpsTriageTemplate({
       id: body?.id,
       projectId: typeof body?.projectId === "number" ? body.projectId : undefined,
@@ -316,7 +316,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       severity: body?.severity,
       title,
       description: body?.description,
-      signals: Array.isArray(body?.signals) ? body!.signals : []
+      signals: Array.isArray(body?.signals) ? body?.signals : []
     });
   });
 }

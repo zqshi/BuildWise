@@ -124,31 +124,6 @@ async function runAnalysisPrompt(
   return agentRunner.run(withAnalysisMethodology(prompt), options);
 }
 
-// Backward-compat shim:
-// some historical runtime paths referenced `evaluateContextGuardrail`.
-// Keep this symbol available to avoid hard failures when old call sites are still in memory.
-function evaluateContextGuardrail(input: {
-  excerptLength?: number;
-  chunkCount?: number;
-  sourceType?: "single-file" | "folder";
-}) {
-  const excerptLength = Number.isFinite(input?.excerptLength) ? Number(input.excerptLength) : 0;
-  const chunkCount = Number.isFinite(input?.chunkCount) ? Number(input.chunkCount) : 0;
-  const sourceType = input?.sourceType === "folder" ? "folder" : "single-file";
-  const overExcerpt = excerptLength > CONTEXT_GUARDRAILS.maxExcerptLength;
-  const overChunks = chunkCount > CONTEXT_GUARDRAILS.maxChunkCount;
-  const degraded = overExcerpt || overChunks;
-  const reason = degraded
-    ? `context_guardrail:source=${sourceType};excerpt=${excerptLength};chunks=${chunkCount};limits=${CONTEXT_GUARDRAILS.maxExcerptLength}/${CONTEXT_GUARDRAILS.maxChunkCount}`
-    : "";
-  return {
-    degraded,
-    reason,
-    enforceSingleAgent: degraded,
-    forceMultiAgent: sourceType === "folder" && !degraded,
-    promptBudgetRisk: degraded ? "high" as const : "low" as const
-  };
-}
 
 async function synthesizeExecutionPolicyOp(
   agentRunner: AgentRunner | null,

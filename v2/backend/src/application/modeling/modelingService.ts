@@ -18,6 +18,10 @@ import {
   stageOfVersion
 } from "./modelingSupport";
 
+/**
+ * @deprecated 旧模型服务（基于 model.json），将被 ContinuousModelingService + ModelSnapshot 体系替代。
+ * 保留兼容性，不再新增功能。新增建模逻辑请使用 ContinuousModelingService。
+ */
 export class ModelingService {
   constructor(
     private readonly modelRepo: ModelingRepository,

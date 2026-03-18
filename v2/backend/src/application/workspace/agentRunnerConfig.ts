@@ -1,8 +1,11 @@
 export type LlmEnv = Record<string, string | undefined>;
-export type LlmProvider = "openai-compatible" | "anthropic-compatible";
+export type LlmProvider = "openai-compatible" | "anthropic-compatible" | "openclaw";
 
 export function resolveLlmProvider(env: LlmEnv): LlmProvider {
   const preferred = (env.LLM_PROVIDER || "").trim().toLowerCase();
+  if (preferred === "openclaw") {
+    return "openclaw";
+  }
   if (preferred === "anthropic") {
     return "anthropic-compatible";
   }

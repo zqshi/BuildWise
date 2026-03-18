@@ -58,4 +58,22 @@ export class ContinuousModelingService {
       reviewTaskCount: plan.blockingReviewTasks.length
     };
   }
+
+  publishSnapshot(snapshotId: string, projectId: number) {
+    const snapshots = this.repository.listSnapshots(projectId);
+    const target = snapshots.find((item) => item.id === snapshotId);
+    if (!target) {
+      return { ok: false as const, reason: "snapshot_not_found" };
+    }
+    if (target.status !== "candidate") {
+      return { ok: false as const, reason: "snapshot_not_candidate" };
+    }
+    // supersede any existing published snapshots
+    const currentPublished = snapshots.filter((item) => item.status === "published");
+    for (const old of currentPublished) {
+      this.repository.updateSnapshotStatus(old.id, "superseded");
+    }
+    this.repository.updateSnapshotStatus(snapshotId, "published");
+    return { ok: true as const, snapshotId };
+  }
 }

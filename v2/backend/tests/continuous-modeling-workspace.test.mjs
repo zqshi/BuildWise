@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { ContinuousModelingService } from "../src/application/continuousModeling/continuousModelingService.ts";
-import { ContinuousModelingWorkspaceService } from "../src/application/continuousModeling/continuousModelingWorkspaceService.ts";
-import { buildProjectModelView } from "../src/application/continuousModeling/continuousModelingProjectView.ts";
-import { JsonWorkspaceRepository } from "../src/infrastructure/persistence/jsonWorkspaceRepository.ts";
+const { ContinuousModelingService } = await import("../dist/application/continuousModeling/continuousModelingService.js");
+const { ContinuousModelingWorkspaceService } = await import("../dist/application/continuousModeling/continuousModelingWorkspaceService.js");
+const { buildProjectModelView } = await import("../dist/application/continuousModeling/continuousModelingProjectView.js");
+const { JsonWorkspaceRepository } = await import("../dist/infrastructure/persistence/jsonWorkspaceRepository.js");
 
 function createWorkspaceRepository() {
   const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-continuous-modeling-workspace-"));

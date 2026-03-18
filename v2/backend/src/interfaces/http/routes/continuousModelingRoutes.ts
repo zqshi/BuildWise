@@ -219,6 +219,27 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return saved.data;
   });
 
+  app.post("/api/projects/:id/model-snapshots/:snapshotId/publish", async (request, reply) => {
+    const params = request.params as { id?: string; snapshotId?: string };
+    const projectId = parsePositiveInt(params.id);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "invalid project id" };
+    }
+    const snapshotId = (params.snapshotId || "").trim();
+    if (!snapshotId) {
+      reply.code(400);
+      return { message: "invalid snapshot id" };
+    }
+    const result = service.publishSnapshot(snapshotId, projectId);
+    if (!result.ok) {
+      const status = result.reason === "project_not_found" ? 404 : result.reason === "snapshot_not_found" ? 404 : 409;
+      reply.code(status);
+      return { message: result.reason };
+    }
+    return result;
+  });
+
   app.get("/api/projects/:id/model-view", async (request, reply) => {
     const params = request.params as { id?: string };
     const query = request.query as { iterationId?: string } | undefined;

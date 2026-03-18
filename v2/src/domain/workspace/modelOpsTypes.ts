@@ -95,3 +95,23 @@ export type ProjectModelBusinessSummaryPayload = {
   focus: string[];
   risks: string[];
 };
+
+export type ProjectModelViewPayload = {
+  projectName?: string;
+  iterationName?: string;
+  iterationStatus?: string;
+  entities: Array<{ id: string; name: string }>;
+  relations: Array<{
+    id: string;
+    fromEntityId: string;
+    toEntityId: string;
+    type: "one_to_one" | "one_to_many" | "many_to_many";
+    businessMeaning?: string;
+  }>;
+  rules: Array<{ name: string; statement?: string }>;
+  reviewTasks: Array<{ title: string; blocking: boolean }>;
+  ontologyTerms: Array<{ businessTerm: string }>;
+  evidence: string[];
+  latestSnapshotId: string | null;
+  latestSnapshotStatus: "none" | "candidate" | "published" | "superseded";
+};

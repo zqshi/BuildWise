@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -168,12 +169,11 @@ function renderProfileOverview(
 }
 
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s>][\s\S]*?<\/script>/gi, "")
-    .replace(/<(iframe|object|embed|form|input|textarea|button)[\s>][\s\S]*?<\/\1>/gi, "")
-    .replace(/<(iframe|object|embed|form|input|textarea|button)[\s/][^>]*>/gi, "")
-    .replace(/\s*on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, "")
-    .replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="');
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ["style"],
+    FORBID_ATTR: ["style"],
+    ALLOW_DATA_ATTR: false
+  });
 }
 
 function createMarkup(value: string) {

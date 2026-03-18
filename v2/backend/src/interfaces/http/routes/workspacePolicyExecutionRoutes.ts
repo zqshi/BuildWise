@@ -26,7 +26,7 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
       return { message: "message is required" };
     }
     try {
-      return service.openclawDirectChat(projectId, message);
+      return await service.openclawDirectChat(projectId, message);
     } catch (error) {
       reply.code(500);
       return { message: error instanceof Error ? error.message : "openclaw chat failed" };
