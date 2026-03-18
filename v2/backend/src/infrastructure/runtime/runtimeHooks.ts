@@ -3,18 +3,7 @@ import type { RuntimeState } from "./runtimeState";
 
 export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState) {
   app.addHook("onRequest", async (request, reply) => {
-    try {
-      state.onRequest(request, reply);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "request rejected";
-      if (message === "too many requests" && reply.statusCode < 400) {
-        reply.code(429);
-      }
-      if (message === "service is shutting down" && reply.statusCode < 400) {
-        reply.code(503);
-      }
-      throw err;
-    }
+    state.onRequest(request, reply);
   });
 
   app.addHook("onResponse", async (request, reply) => {

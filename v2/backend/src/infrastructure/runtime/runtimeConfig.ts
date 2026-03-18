@@ -121,6 +121,9 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
   if (nodeEnv === "production" && corsOrigins === true) {
     throw new Error("CORS_ORIGINS must be explicitly configured in production");
   }
+  if (nodeEnv === "production" && authMode !== "token") {
+    throw new Error(`AUTH_MODE must be 'token' in production (current: '${authMode}')`);
+  }
   if (authMode === "token" && Object.keys(authTokens).length === 0) {
     throw new Error("AUTH_MODE=token requires AUTH_TOKENS_JSON");
   }
@@ -133,7 +136,7 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     nodeEnv,
     corsOrigins,
     rateLimitWindowMs: parsePositiveInt(env.RATE_LIMIT_WINDOW_MS, 60_000),
-    rateLimitMax: parsePositiveInt(env.RATE_LIMIT_MAX, 2000),
+    rateLimitMax: parsePositiveInt(env.RATE_LIMIT_MAX, 200),
     shutdownTimeoutMs: parsePositiveInt(env.SHUTDOWN_TIMEOUT_MS, 10_000),
     authMode,
     authTokens,

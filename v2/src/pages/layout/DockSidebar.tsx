@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { memo, type RefObject } from "react";
 import { canAccessGovernanceEntries } from "../governance/permissionSettingsModel";
 
 type DockSidebarProps = {
@@ -16,7 +16,7 @@ type DockSidebarProps = {
   onLogout: () => void;
 };
 
-export function DockSidebar({
+export const DockSidebar = memo(function DockSidebar({
   activeView,
   currentRole,
   dockUserLabel,
@@ -96,4 +96,4 @@ export function DockSidebar({
       </div>
     </aside>
   );
-}
+});

@@ -8,7 +8,3 @@ export function currentRole(authRole: string | undefined) {
   const role = authRole?.trim().toLowerCase() || "viewer";
   return role === "admin" ? "owner" : role;
 }
-
-export function normalizeRelPath(input: string) {
-  return input.replace(/\\/g, "/").replace(/^\/+/, "");
-}

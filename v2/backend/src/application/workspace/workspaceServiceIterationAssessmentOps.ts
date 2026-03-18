@@ -1,7 +1,7 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { AssessmentPayload, IterationStatus, IterationTransitionSource } from "../../domain/workspace/types";
 import { writeAuditLog } from "./workspaceServiceCommon";
-import { normalizeIteration, recomputeAssessment, statusTransitions } from "./workspaceSupport";
+import { normalizeIteration, recomputeAssessment, canTransitionTo } from "./workspaceSupport";
 
 export function transitionIterationWithMetaOp(
   repo: WorkspaceRepository,
@@ -31,8 +31,7 @@ export function transitionIterationWithMetaOp(
   if (fromStatus === toStatus) {
     return { ok: true, data: { iterationId, fromStatus, toStatus, source, reason } };
   }
-  const allowed = statusTransitions[fromStatus] || [];
-  if (!allowed.includes(toStatus)) {
+  if (!canTransitionTo(fromStatus, toStatus)) {
     return { ok: false, reason: "invalid_transition" };
   }
   normalized.status = toStatus;

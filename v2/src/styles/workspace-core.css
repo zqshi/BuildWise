@@ -442,7 +442,7 @@
   overflow:hidden;
   background:
     radial-gradient(circle at 0% 0%, color-mix(in srgb,var(--brand-100) 45%, transparent), transparent 38%),
-    linear-gradient(180deg, color-mix(in srgb,var(--brand-50) 70%, #fff) 0%, color-mix(in srgb,var(--bg-canvas) 90%, #fff) 100%);
+    linear-gradient(180deg, color-mix(in srgb,var(--brand-50) 70%, var(--bg-surface)) 0%, color-mix(in srgb,var(--bg-canvas) 90%, var(--bg-surface)) 100%);
 }
 
 .openclaw-chat-head {
@@ -690,7 +690,7 @@
 }
 .model-details-view-switch .btn.active {
   border-color:var(--border-brand);
-  background:color-mix(in srgb,var(--brand-50) 72%, #fff);
+  background:color-mix(in srgb,var(--brand-50) 72%, var(--bg-surface));
   color:var(--brand-700);
 }
 .model-relation-graph-box {
@@ -760,7 +760,7 @@
 }
 .model-relation-graph-nodes .relation-node-dot {
   fill:var(--brand-500);
-  stroke:color-mix(in srgb,var(--brand-700) 74%, #fff);
+  stroke:color-mix(in srgb,var(--brand-700) 74%, var(--bg-surface));
   stroke-width:.55;
   transition:opacity var(--duration-fast) var(--ease-standard),transform var(--duration-fast) var(--ease-standard);
 }
@@ -768,7 +768,7 @@
   cursor:pointer;
 }
 .model-relation-graph-nodes .relation-node.is-selected .relation-node-dot {
-  stroke:color-mix(in srgb,var(--warning-600) 76%, #fff);
+  stroke:color-mix(in srgb,var(--warning-600) 76%, var(--bg-surface));
   stroke-width:.95;
 }
 .model-relation-graph-nodes .relation-node.is-flash .relation-node-dot {
@@ -800,7 +800,7 @@
 .model-relation-evidence {
   border:1px solid color-mix(in srgb,var(--border-brand) 38%, var(--border-default));
   border-radius:8px;
-  background:color-mix(in srgb,var(--brand-50) 62%, #fff);
+  background:color-mix(in srgb,var(--brand-50) 62%, var(--bg-surface));
   padding:8px;
 }
 .model-relation-evidence p {
@@ -860,7 +860,7 @@
 }
 .relation-detail-link:hover {
   border-color:var(--border-brand);
-  background:color-mix(in srgb,var(--brand-50) 70%, #fff);
+  background:color-mix(in srgb,var(--brand-50) 70%, var(--bg-surface));
   color:var(--text-primary);
 }
 @keyframes relation-edge-flash {
@@ -981,16 +981,16 @@
 }
 .health-pill.pass {
   color:var(--success-600);
-  border-color:color-mix(in srgb,var(--success-500) 42%, #fff);
-  background:color-mix(in srgb,var(--success-500) 12%, #fff);
+  border-color:color-mix(in srgb,var(--success-500) 42%, var(--bg-surface));
+  background:color-mix(in srgb,var(--success-500) 12%, var(--bg-surface));
 }
 .health-pill.warning {
   color:var(--warning-700);
-  border-color:color-mix(in srgb,var(--warning-500) 52%, #fff);
+  border-color:color-mix(in srgb,var(--warning-500) 52%, var(--bg-surface));
   background:var(--warning-50);
 }
 .health-pill.block {
   color:var(--text-danger);
-  border-color:color-mix(in srgb,var(--danger-500) 34%, #fff);
-  background:color-mix(in srgb,var(--danger-50) 70%, #fff);
+  border-color:color-mix(in srgb,var(--danger-500) 34%, var(--bg-surface));
+  background:color-mix(in srgb,var(--danger-50) 70%, var(--bg-surface));
 }

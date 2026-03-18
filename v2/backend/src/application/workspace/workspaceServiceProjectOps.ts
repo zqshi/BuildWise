@@ -2,7 +2,7 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Project } from "../../domain/workspace/types";
 import { normalizeProject } from "./workspaceSupport";
 import { writeAuditLog } from "./workspaceServiceCommon";
-import { collectRepositoryHealth, validateRepositoryRemoteUrl } from "./workspaceServiceProjectRepoHealthOps";
+import { collectRepositoryHealth, looksLikeRemoteRepositoryUrl, validateRepositoryRemoteUrl } from "./workspaceServiceProjectRepoHealthOps";
 
 export { provisionProjectRepositoryOp, scaffoldProjectRepositoryOp } from "./workspaceServiceProjectProvisionOps";
 export { publishIterationToRemoteOp } from "./workspaceServiceProjectPublishOps";
@@ -64,16 +64,13 @@ export function bootstrapProjectRepositoryOp(
   const nextUrl = input.url?.trim() || currentRepo.url || "";
   const nextMode = input.repoMode ?? currentRepo.repoMode;
   const requiresRemoteValidation = nextMode === "external_git" || nextMode === "hybrid" || Boolean(nextUrl);
-  if (requiresRemoteValidation) {
-    const validation = validateRepositoryRemoteUrl({ url: nextUrl });
-    if (!validation.ok) {
-      return {
-        ok: false as const,
-        reason: "remote_validation_failed",
-        message: validation.message,
-        checkedAt: validation.checkedAt
-      };
-    }
+  if (requiresRemoteValidation && nextUrl && !looksLikeRemoteRepositoryUrl(nextUrl)) {
+    return {
+      ok: false as const,
+      reason: "remote_validation_failed",
+      message: "地址格式不正确，请使用 https://、ssh:// 或 git@ 开头。",
+      checkedAt: new Date().toISOString()
+    };
   }
   const now = new Date().toISOString();
   const updatedRepo = {

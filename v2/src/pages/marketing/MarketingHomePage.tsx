@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   marketingHeroStats,
   marketingFeatures,
@@ -16,6 +17,15 @@ export function MarketingHomePage({
   isAuthenticated,
   onSecondaryAction
 }: MarketingHomePageProps) {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <main className="marketing-page">
       <div className="marketing-backdrop" aria-hidden="true">
@@ -24,15 +34,15 @@ export function MarketingHomePage({
         <span className="marketing-glow marketing-glow-three" />
       </div>
 
-      <div className="marketing-shell">
-        <header className="marketing-nav">
+      <header className={`marketing-nav${scrolled ? " marketing-nav-scrolled" : ""}`}>
+        <div className="marketing-nav-inner">
           <a className="marketing-brand" href="#/" aria-label="BuildWise 官网">
             <span className="marketing-brand-logo" aria-hidden="true">
               BW
             </span>
             <span className="marketing-brand-copy">
               <strong>BuildWise</strong>
-              <small>Business Intent Compiler</small>
+              <small>AI-Native Delivery</small>
             </span>
           </a>
           <div className="marketing-nav-actions">
@@ -40,22 +50,25 @@ export function MarketingHomePage({
               {isAuthenticated ? "返回工作区" : "登录"}
             </button>
           </div>
-        </header>
+        </div>
+      </header>
+
+      <div className="marketing-shell">
 
         <section className="marketing-hero">
           <div className="marketing-hero-copy">
-            <p className="marketing-hero-badge">业务意图编译器 · 企业级软件交付系统</p>
+            <p className="marketing-hero-badge">AI 原生软件交付工作台</p>
             <h1>
-              将业务意图编译为
-              <span>可运行软件</span>
+              业务人员直接推进
+              <span>软件交付</span>
             </h1>
             <p className="marketing-hero-body">
-              BuildWise 用统一项目模型连接需求表达、软件生成与交付治理，让业务、设计与研发工作在同一条可追溯链路上协同。
+              上传需求文档，AI 自动完成分析、生成交付物、评估发布风险。全程对话式引导，不需要写代码，不需要等排期。
             </p>
             <div className="marketing-hero-signal" aria-label="BuildWise 核心链路">
-              <span>业务表达</span>
-              <span>项目模型</span>
-              <span>交付治理</span>
+              <span>上传文档</span>
+              <span>AI 分析</span>
+              <span>确认发布</span>
             </div>
           </div>
           <div className="marketing-hero-visual" aria-hidden="true">
@@ -87,14 +100,14 @@ export function MarketingHomePage({
                 </div>
               </div>
               <div className="marketing-hero-stage-float marketing-hero-stage-float-left">
-                <span>Intent</span>
-                <strong>Business context</strong>
-                <small>目标、流程、约束</small>
+                <span>Input</span>
+                <strong>需求文档</strong>
+                <small>PRD、原型、截图</small>
               </div>
               <div className="marketing-hero-stage-float marketing-hero-stage-float-right">
-                <span>Delivery</span>
-                <strong>Project model</strong>
-                <small>页面、接口、规则、治理</small>
+                <span>Output</span>
+                <strong>交付物 + 发布决策</strong>
+                <small>代码、测试、评审</small>
               </div>
             </div>
           </div>
@@ -117,8 +130,8 @@ export function MarketingHomePage({
 
         <section className="marketing-contrast" id="contrast">
           <article className="marketing-problem-column">
-            <p>传统困境</p>
-            <h2>为什么现有软件交付链路总在失真</h2>
+            <p>现在的痛</p>
+            <h2>为什么你的团队总在重复解释同一件事</h2>
             <ul>
               {marketingProblems.map((item) => (
                 <li key={item.title}>
@@ -129,8 +142,8 @@ export function MarketingHomePage({
             </ul>
           </article>
           <article className="marketing-solution-column">
-            <p>BuildWise 解法</p>
-            <h2>把需求表达、生成和治理纳入同一系统</h2>
+            <p>BuildWise 怎么解</p>
+            <h2>上传文档，AI 帮你从分析做到发布</h2>
             <ul>
               {marketingSolutions.map((item) => (
                 <li key={item.title}>
@@ -145,7 +158,7 @@ export function MarketingHomePage({
         <section className="marketing-section" id="features">
           <div className="marketing-section-head">
             <p>核心能力</p>
-            <h2>围绕统一项目模型建立软件交付语言</h2>
+            <h2>不写代码也能推进软件交付</h2>
           </div>
           <div className="marketing-feature-grid">
             {marketingFeatures.map((item) => (
@@ -162,8 +175,8 @@ export function MarketingHomePage({
 
         <section className="marketing-section marketing-journey" id="journey">
           <div className="marketing-section-head">
-            <p>交付路径</p>
-            <h2>从业务意图到软件交付的三步路径</h2>
+            <p>怎么用</p>
+            <h2>三步完成一次迭代交付</h2>
           </div>
           <div className="marketing-journey-list">
             {marketingJourney.map((step) => (
@@ -190,22 +203,17 @@ export function MarketingHomePage({
         <section className="marketing-cta">
           <div className="marketing-cta-copy">
             <p>BuildWise</p>
-            <h2>让软件交付回到同一语义、同一模型、同一链路</h2>
-          </div>
-          <div className="marketing-cta-actions">
-            <button type="button" className="btn primary" onClick={onSecondaryAction}>
-              {isAuthenticated ? "返回工作区" : "登录"}
-            </button>
+            <h2>让业务人员直接参与软件交付，而不只是等结果</h2>
           </div>
         </section>
 
         <footer className="marketing-footer">
           <div className="marketing-footer-brand">
             <strong>BuildWise</strong>
-            <span>Business Intent Compiler</span>
+            <span>AI-Native Delivery</span>
           </div>
           <div className="marketing-footer-meta">
-            <span>© 2026 BuildWise. Unified delivery model for modern software teams.</span>
+            <span>© 2026 BuildWise. AI-native delivery platform for modern teams.</span>
           </div>
         </footer>
       </div>

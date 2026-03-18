@@ -20,7 +20,7 @@ export function hasProject(repo: WorkspaceRepository, projectId: number) {
   if (!project) {
     return false;
   }
-  return !Boolean(normalizeProject(project).deletedAt);
+  return !normalizeProject(project).deletedAt;
 }
 
 export function buildDefaultIterationCodeLink(repo: WorkspaceRepository, iteration: Iteration): IterationCodeLink | null {
@@ -208,4 +208,12 @@ export function listIterationsNormalized(repo: WorkspaceRepository, projectId: n
     return null;
   }
   return repo.listIterations(projectId).map(normalizeIteration);
+}
+
+export function normalizeRelPath(input: string) {
+  const normalized = input.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (normalized.includes("../") || normalized.startsWith("..")) {
+    return "";
+  }
+  return normalized;
 }

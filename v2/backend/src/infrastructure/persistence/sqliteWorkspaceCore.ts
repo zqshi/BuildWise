@@ -75,7 +75,12 @@ function normalizeCollectionValue(value: unknown) {
 export class SqliteWorkspaceCore {
   readonly db: DatabaseSync;
 
-  constructor(private readonly dbFile: string, private readonly seedDataFile?: string) {
+  private readonly dbFile: string;
+  private readonly seedDataFile?: string;
+
+  constructor(dbFile: string, seedDataFile?: string) {
+    this.dbFile = dbFile;
+    this.seedDataFile = seedDataFile;
     const dir = dirname(dbFile);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });

@@ -142,7 +142,7 @@ export function useWorkspaceLoaders({
     try {
       const statusData = await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
       setStatus(statusData);
-      setError((prev) => (prev && prev.includes("后端服务不可用") ? null : prev));
+      setError((prev) => (prev?.includes("后端服务不可用") ? null : prev));
       return { ok: true as const };
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Unknown error";
@@ -286,7 +286,7 @@ export function useWorkspaceLoaders({
       if (stopped) {
         return;
       }
-      setError((prev) => (prev && prev.includes("后端服务不可用") ? null : prev));
+      setError((prev) => (prev?.includes("后端服务不可用") ? null : prev));
     }, STATUS_POLL_INTERVAL_MS);
     return () => {
       stopped = true;

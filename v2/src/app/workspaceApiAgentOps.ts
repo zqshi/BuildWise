@@ -514,7 +514,7 @@ export async function retryIterationAttachmentAnalysis(
 ) {
   await ensureLlmReadyForAnalysis();
   const createdJob =
-    options?.jobId && options.jobId.trim()
+    options?.jobId?.trim()
       ? await fetchJSON<AttachmentAnalysisJob>(
           `${API_BASE}/api/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(options.jobId)}/retry`,
           {

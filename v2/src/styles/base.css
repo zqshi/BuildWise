@@ -11,6 +11,7 @@
   --text-muted: #64748b;
   --text-on-brand: #ffffff;
   --text-danger: #b91c1c;
+  --text-disabled: #9aa7ba;
   --bg-canvas: #f5f7f8;
   --bg-surface: #ffffff;
   --bg-surface-muted: #eef2f6;
@@ -33,6 +34,17 @@
   --info-400: #38bdf8;
   --success-500: #22c55e;
   --success-600: #16a34a;
+  --success-50: #dcfce7;
+  --orange-500: #f97316;
+  --orange-50: #ffedd5;
+  --bg-slate-50: #f8fafc;
+  --bg-slate-100: #f1f5f9;
+  --border-slate-200: #e2e8f0;
+  --text-slate-900: #0f172a;
+  --text-gray-900: #111827;
+  --blue-50: #dbeafe;
+  --sky-50: #e0f2fe;
+  --amber-50: #fef3c7;
   --shadow-card: 0 8px 24px rgba(15, 23, 35, .07);
   --shadow-float: 0 20px 44px rgba(15, 23, 35, .18);
   --shadow-pop: 0 10px 24px rgba(15, 23, 35, .14);

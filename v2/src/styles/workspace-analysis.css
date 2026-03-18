@@ -64,7 +64,7 @@
 .analysis-drawer.open { transform:translateX(0); opacity:1; pointer-events:auto }
 .analysis-drawer-inner { height:100%; min-height:0; display:grid; grid-template-rows:auto 1fr auto }
 .analysis-drawer-head {
-  background:#f8fafc !important;
+  background:var(--bg-slate-50) !important;
 }
 .visual-align-hidden-trigger {
   position:absolute !important;
@@ -203,7 +203,7 @@
 .analysis-fallback-section {
   border:1px solid var(--border-default);
   border-radius:12px;
-  background:#fff;
+  background:var(--bg-surface);
   padding:12px;
   display:grid;
   gap:10px;
@@ -216,7 +216,7 @@
 .analysis-fallback-emphasis {
   border-left:4px solid var(--brand-500);
   border-radius:8px;
-  background:color-mix(in srgb,var(--brand-50) 72%, #fff);
+  background:color-mix(in srgb,var(--brand-50) 72%, var(--bg-surface));
   padding:10px 12px;
 }
 .analysis-fallback-emphasis p {
@@ -265,16 +265,16 @@
   font-weight:700;
 }
 .priority-chip.p0 {
-  color:#ef4444;
-  background:#fee2e2;
+  color:var(--danger-500);
+  background:var(--danger-50);
 }
 .priority-chip.p1 {
-  color:#f97316;
-  background:#ffedd5;
+  color:var(--orange-500);
+  background:var(--orange-50);
 }
 .priority-chip.p2 {
-  color:#16a34a;
-  background:#dcfce7;
+  color:var(--success-600);
+  background:var(--success-50);
 }
 .analysis-fallback-kpi {
   display:grid;
@@ -297,7 +297,7 @@
 .analysis-fallback-kpi strong {
   font-size:34px;
   line-height:1.1;
-  color:#22c55e;
+  color:var(--success-500);
 }
 .analysis-fallback-kpi strong.delta {
   color:var(--brand-500);
@@ -314,25 +314,25 @@
   font-size:12px;
 }
 .analysis-fallback-bars .pass {
-  color:#16a34a;
+  color:var(--success-600);
 }
 .analysis-fallback-bars .partial {
-  color:#f97316;
+  color:var(--orange-500);
 }
 .analysis-fallback-bars .bar {
   width:100%;
   height:6px;
   border-radius:999px;
-  background:#e2e8f0;
+  background:var(--border-slate-200);
   overflow:hidden;
 }
 .analysis-fallback-bars .bar i {
   display:block;
   height:100%;
-  background:#22c55e;
+  background:var(--success-500);
 }
 .analysis-fallback-bars .bar.warn i {
-  background:#f97316;
+  background:var(--orange-500);
 }
 .analysis-fallback-actions {
   display:grid;

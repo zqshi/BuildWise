@@ -24,7 +24,7 @@ type AttachmentUploadOpsContext = {
   repo: WorkspaceRepository;
   uploads: Map<string, AttachmentUploadRecord>;
   ingestJobs: Map<string, AttachmentIngestJob>;
-  reportIndexesByJobId: Map<string, AttachmentReportIndex>;
+  reportIndexesByJobId: ReadonlyMap<string, AttachmentReportIndex>;
   attachmentChunkStorageDir: string;
   submitAttachmentAnalysisJob: (iterationId: number, input: AttachmentUploadInput) => AttachmentAnalysisJob | null;
 };

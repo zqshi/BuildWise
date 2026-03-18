@@ -29,15 +29,34 @@ type CoachPromptTemplate = {
 
 const coachPromptFallback: CoachPromptTemplate = {
   systemPrompt: [
-    "你是 BuildWise 的迭代教练（iteration-coach）。",
-    "你的目标是通过自然沟通引导用户补齐信息、上传材料并推进迭代。",
-    "你必须输出 JSON，不要输出 markdown。"
+    "你是 BuildWise 的迭代教练。你的角色像一位经验丰富的项目经理和业务顾问——你理解技术，但始终站在业务视角与用户沟通。",
+    "",
+    "沟通风格：",
+    "- 用自然、口语化的中文对话，像同事间的讨论，不要像机器在汇报",
+    "- 直接回应用户的问题和关切，不要复述用户说的话",
+    "- 给建议时说清楚「为什么」，而不是只列清单",
+    "- 用业务语言而非技术术语——说「订单流程」而不是「order-service API endpoint」",
+    "- 如果要提到多个事项，用简短的自然段落，不要用编号列表或结构化输出",
+    "- 语气专业但不刻板，可以适当表达态度（比如「这个改动范围有点大，我建议我们先聊清楚优先级」）",
+    "",
+    "你的职责：",
+    "- 引导用户把需求说清楚、材料补齐全",
+    "- 当信息不足时，主动提出关键问题而不是被动等待",
+    "- 当用户提出变更时，先评估影响再给建议",
+    "- 推进迭代向前走，但不催促——节奏由用户把控",
+    "",
+    "输出格式要求：你的回复必须是合法 JSON，包含 intent、reply、execution、guidance 四个字段。",
+    "其中 reply 字段是用户直接看到的对话内容，必须是自然流畅的中文，不含任何 JSON/markdown 标记。"
   ].join("\n"),
   userPrompt: [
-    "用户消息：{{message}}",
-    "上下文：{{context}}",
-    "请输出：{{expectedOutput}}"
-  ].join("\n\n")
+    "用户说：{{message}}",
+    "",
+    "当前情况：",
+    "{{context}}",
+    "",
+    "请以合法 JSON 回复，格式：{{expectedOutput}}",
+    "注意：reply 字段写给用户看，要自然、有温度、有针对性。"
+  ].join("\n")
 };
 
 function loadCoachPromptTemplate(): CoachPromptTemplate {
@@ -112,80 +131,89 @@ function inferIntent(iteration: Iteration, message: string): IterationCoachChatR
 function summarizeProjectKnowledge(project: Project | null) {
   const knowledge = project?.knowledgeBase;
   if (!knowledge) {
-    return [
-      "项目知识.ontologyTerms=-",
-      "项目知识.stableRules=-",
-      "项目知识.componentInventory=-",
-      "项目知识.changePatterns=-"
-    ];
+    return ["这个项目还没有积累业务知识，需要通过分析材料来逐步沉淀。"];
   }
-  return [
-    `项目知识.ontologyTerms=${knowledge.ontologyTerms
-      .slice(0, 6)
-      .map((item) => `${item.term}${item.aliases.length > 0 ? `(${item.aliases.join("/")})` : ""}`)
-      .join(" | ") || "-"}`,
-    `项目知识.stableRules=${knowledge.stableRules
-      .slice(0, 6)
-      .map((item) => item.rule)
-      .join(" | ") || "-"}`,
-    `项目知识.componentInventory=${knowledge.componentInventory
-      .slice(0, 6)
-      .map((item) => item.component)
-      .join(" | ") || "-"}`,
-    `项目知识.changePatterns=${knowledge.changePatterns
-      .slice(0, 6)
-      .map((item) => item.pattern)
-      .join(" | ") || "-"}`
-  ];
+  const parts: string[] = [];
+  const terms = knowledge.ontologyTerms.slice(0, 6);
+  if (terms.length > 0) {
+    parts.push(`项目中的关键业务概念：${terms.map((item) => item.term + (item.aliases.length > 0 ? `（也叫${item.aliases.join("、")}）` : "")).join("、")}`);
+  }
+  const rules = knowledge.stableRules.slice(0, 6);
+  if (rules.length > 0) {
+    parts.push(`已确认的业务规则：${rules.map((item) => item.rule).join("；")}`);
+  }
+  const components = knowledge.componentInventory.slice(0, 6);
+  if (components.length > 0) {
+    parts.push(`涉及的功能模块：${components.map((item) => item.component).join("、")}`);
+  }
+  const patterns = knowledge.changePatterns.slice(0, 4);
+  if (patterns.length > 0) {
+    parts.push(`常见变更模式：${patterns.map((item) => item.pattern).join("、")}`);
+  }
+  return parts.length > 0 ? parts : ["项目知识库已初始化但暂无具体条目。"];
 }
 
 function summarizeChangeIntelligence(iteration: Iteration) {
-  const changeControl = iteration.changeControl;
-  return [
-    `变更来源.type=${changeControl?.changeSource?.type || "unknown"}`,
-    `变更来源.rawInput=${changeControl?.changeSource?.rawInput || "-"}`,
-    `变更来源.attachments=${changeControl?.changeSource?.attachments?.join(" | ") || "-"}`,
-    `变更来源.references=${changeControl?.changeSource?.references?.join(" | ") || "-"}`,
-    `项目知识命中=${changeControl?.knowledgeHits?.join(" | ") || "-"}`,
-    `项目知识冲突=${changeControl?.knowledgeConflicts?.join(" | ") || "-"}`,
-    `功能点归一化=${changeControl?.normalizedFunctionalPoints?.join(" | ") || "-"}`,
-    `映射审计=${changeControl?.mappingAuditTrail
-      ?.slice(0, 8)
-      .map(
-        (item) =>
-          `${item.functionalPoint}=>需求[${item.requirementRefs.join(",") || "-"}];组件[${item.componentRefs.join(",") || "-"}];代码[${item.codePaths.join(",") || "-"}]`
-      )
-      .join(" | ") || "-"}`
-  ];
+  const cc = iteration.changeControl;
+  const parts: string[] = [];
+  if (cc?.changeSource?.type && cc.changeSource.type !== "unknown") {
+    const typeLabel = cc.changeSource.type === "document" ? "上传的文档" : cc.changeSource.type === "html" ? "网页内容" : cc.changeSource.type === "image" ? "截图/图片" : cc.changeSource.type;
+    parts.push(`变更来源是${typeLabel}`);
+  }
+  if (cc?.changeSource?.rawInput) {
+    parts.push(`原始输入摘要：${cc.changeSource.rawInput.slice(0, 120)}`);
+  }
+  const hits = cc?.knowledgeHits ?? [];
+  if (hits.length > 0) {
+    parts.push(`与已有知识的关联：${hits.join("、")}`);
+  }
+  const conflicts = cc?.knowledgeConflicts ?? [];
+  if (conflicts.length > 0) {
+    parts.push(`发现的知识冲突：${conflicts.join("、")}`);
+  }
+  const fps = cc?.normalizedFunctionalPoints ?? [];
+  if (fps.length > 0) {
+    parts.push(`归纳出的功能点：${fps.join("、")}`);
+  }
+  return parts;
 }
 
 function buildCoachContext(iteration: Iteration, previous: Iteration | null, project: Project | null, userMessage: string) {
   const boundary = iteration.changeControl?.boundary;
   const unresolved = iteration.changeControl?.lastClarificationResolution?.unresolvedQuestions ?? [];
-  const statusHint =
+  const statusLabel =
     iteration.status === "planned"
-      ? "planning"
+      ? "规划阶段"
       : iteration.status === "in-progress"
-        ? "execution"
+        ? "执行中"
         : iteration.status === "review"
-          ? "review"
+          ? "评审阶段"
           : iteration.status === "blocked"
-            ? "risk-control"
-            : "delivery-close";
-  return [
-    `迭代=${iteration.name};状态=${iteration.status};进度=${iteration.progress}`,
-    `基线=${previous?.name ?? "无"}`,
-    `阶段提示=${statusHint}`,
-    `用户消息=${userMessage}`,
-    `范围inScope=${iteration.scope.inScope.join(" | ") || "-"}`,
-    `范围outOfScope=${iteration.scope.outOfScope.join(" | ") || "-"}`,
-    `验收标准=${iteration.scope.acceptanceCriteria.join(" | ") || "-"}`,
-    `分析时间=${iteration.changeControl?.lastAnalysisAt || "none"}`,
-    `待确认=${iteration.changeControl?.pendingHumanConfirmation ? "yes" : "no"}`,
-    `未解决澄清=${unresolved.join(" | ") || "-"}`,
-    `边界.requirementRefs=${boundary?.requirementRefs.join(" | ") || "-"}`,
-    `边界.componentRefs=${boundary?.componentRefs.join(" | ") || "-"}`,
-    `边界.codePaths=${boundary?.codePaths.join(" | ") || "-"}`,
+            ? "遇阻"
+            : "收尾交付";
+  const contextParts = [
+    `当前迭代「${iteration.name}」处于${statusLabel}，进度 ${iteration.progress}。${previous ? `上一轮迭代是「${previous.name}」。` : "这是第一轮迭代。"}`,
+    iteration.scope.inScope.length > 0
+      ? `本轮范围包括：${iteration.scope.inScope.join("、")}。`
+      : "",
+    iteration.scope.outOfScope.length > 0
+      ? `明确不做的：${iteration.scope.outOfScope.join("、")}。`
+      : "",
+    iteration.scope.acceptanceCriteria.length > 0
+      ? `验收标准：${iteration.scope.acceptanceCriteria.join("；")}。`
+      : "",
+    iteration.changeControl?.lastAnalysisAt
+      ? `最近一次材料分析在 ${iteration.changeControl.lastAnalysisAt}。`
+      : "用户还没有上传过材料。",
+    iteration.changeControl?.pendingHumanConfirmation
+      ? "有待用户确认的事项。"
+      : "",
+    unresolved.length > 0
+      ? `还有未解决的澄清问题：${unresolved.join("；")}。`
+      : "",
+    boundary && boundary.requirementRefs.length > 0
+      ? `变更边界涉及需求：${boundary.requirementRefs.join("、")}。`
+      : "",
     ...summarizeProjectKnowledge(project),
     ...summarizeChangeIntelligence(iteration),
     buildOpenclawSkillSelectionContext({
@@ -195,7 +223,8 @@ function buildCoachContext(iteration: Iteration, previous: Iteration | null, pro
       userMessage
     }),
     buildCoachContractContext(!previous)
-  ].join("\n");
+  ];
+  return contextParts.filter(Boolean).join("\n");
 }
 
 export async function coachIterationConversationOp(
@@ -285,17 +314,19 @@ export async function coachIterationConversationOp(
   }
 
   const expectedOutput =
-    "JSON: {intent, reply, execution:{action,instruction,apply}, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}";
+    'JSON 格式：{intent: 意图标签, reply: "给用户的自然语言回复（不要有任何标记语法）", execution:{action,instruction,apply}, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}';
   const context = [
     buildCoachContext(normalized, previous ? normalizeIteration(previous) : null, project ?? null, message),
     requiresImpactAssessment
-      ? "本轮要求=用户正在提出新增/修改需求。reply 首段必须先给出影响评估，至少覆盖受影响页面/组件/接口/代码边界/业务规则风险中的已知项，并明确待确认点；不要要求用户自己先说明影响是什么。"
-      : "本轮要求=按自然沟通推进迭代。",
-    `recent_messages=${recentMessages
-      .map((item, idx) => `[${idx + 1}]${item.role}:${item.content.slice(0, 120).replace(/\s+/g, " ")}`)
-      .join(" | ") || "-"}`,
-    `recent_suggested_actions=${recentSuggestedActions.join(" | ") || "-"}`
-  ].join("\n");
+      ? "重要：用户正在提出新增或修改需求。在 reply 中先聊清楚这个变更可能影响哪些业务流程、功能模块和规则，说清楚你已知的和待确认的，不要反过来问用户「你觉得影响了什么」。"
+      : "",
+    recentMessages.length > 0
+      ? `最近的对话：\n${recentMessages.map((item, idx) => `  ${idx + 1}. ${item.role === "user" ? "用户" : "教练"}：${item.content.slice(0, 120).replace(/\s+/g, " ")}`).join("\n")}`
+      : "",
+    recentSuggestedActions.length > 0
+      ? `上轮已建议的行动（避免重复）：${recentSuggestedActions.join("、")}`
+      : ""
+  ].filter(Boolean).join("\n\n");
   const prompt = {
     agentId: "agent-iteration-coach-1",
     role: "iteration-coach" as const,
@@ -320,7 +351,12 @@ export async function coachIterationConversationOp(
   };
 
   try {
-    const result = await agentRunner.run(prompt);
+    const result = await agentRunner.run(prompt, {
+      sessionContext: {
+        projectId: normalized.projectId,
+        iterationId: normalized.id
+      }
+    });
     const parsed = safeJsonParse(result.content);
     const modelIntent = pickString(parsed?.intent) as IterationCoachChatResponse["intent"];
     const guidance = (parsed?.guidance ?? {}) as Record<string, unknown>;

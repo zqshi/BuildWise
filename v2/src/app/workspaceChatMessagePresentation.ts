@@ -1,5 +1,5 @@
 import type { IterationMessage } from "../domain/workspace/types";
-import { buildArtifactSummary, extractArtifactDisplayContent, extractDeliverableTitleFromContent, isStructuredArtifactContent } from "./artifactContentPresentation.ts";
+import { buildArtifactSummary, extractArtifactDisplayContent, extractDeliverableTitleFromContent, isStructuredArtifactContent } from "./artifactContentPresentation";
 
 export type ArtifactReferenceMessage = {
   title: string;
