@@ -1,4 +1,5 @@
 import type { IterationAgentPrompt } from "../../domain/workspace/types";
+import { createLogger } from "../../infrastructure/runtime/logger";
 import {
   anthropicMessagesEndpoint,
   resolveApiKey,
@@ -8,6 +9,8 @@ import {
   type LlmEnv
 } from "./agentRunnerConfig";
 import { OpenClawAgentRunner } from "../../infrastructure/openclaw/openclawAgentRunner";
+
+const log = createLogger("llm-run");
 
 export type LlmRuntimeStatus = {
   configured: boolean;
@@ -132,7 +135,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
             ];
       const modelToUse = options?.modelOverride?.trim() || this.model;
       if (traceEnabled) {
-        console.log(`[llm-run] start model=${modelToUse} role=${prompt.role} agentId=${prompt.agentId}`);
+        log.info("start", { model: modelToUse, role: prompt.role, agentId: prompt.agentId });
       }
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
@@ -165,9 +168,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
         throw new Error("llm_empty_content");
       }
       if (traceEnabled) {
-        console.log(
-          `[llm-run] done model=${payload.model || modelToUse} role=${prompt.role} agentId=${prompt.agentId} latencyMs=${Date.now() - startedAt}`
-        );
+        log.info("done", { model: payload.model || modelToUse, role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt });
       }
       return {
         content,
@@ -176,7 +177,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     } catch (error) {
       if (traceEnabled) {
         const message = error instanceof Error ? error.message : "unknown_error";
-        console.log(`[llm-run] fail role=${prompt.role} agentId=${prompt.agentId} latencyMs=${Date.now() - startedAt} error=${message}`);
+        log.info("fail", { role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt, error: message });
       }
       throw error;
     } finally {

@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+export { nowIso } from "../../shared/utils";
 
 export const rolePermissions: Record<string, string[]> = {
   admin: ["*"],
@@ -20,10 +21,6 @@ export const deploymentTransitions: Record<string, string[]> = {
   success: [],
   failed: ["running"]
 };
-
-export function nowIso() {
-  return new Date().toISOString();
-}
 
 export function randomToken(prefix = "") {
   return `${prefix}${crypto.randomUUID().slice(0, 8)}`;

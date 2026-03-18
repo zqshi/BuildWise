@@ -18,14 +18,17 @@ import { registerGracefulShutdown } from "./infrastructure/runtime/runtimeShutdo
 import { probeRuntimeDependencies } from "./infrastructure/runtime/runtimeDependencyProbe";
 import { RuntimeState } from "./infrastructure/runtime/runtimeState";
 import { loadEnvFileIntoMap } from "./infrastructure/runtime/envFileLoader";
+import { createLogger } from "./infrastructure/runtime/logger";
 import { registerAutobootRoutes } from "./interfaces/http/routes/autobootRoutes";
 import { registerContinuousModelingRoutes } from "./interfaces/http/routes/continuousModelingRoutes";
 import { registerPlatformRoutes } from "./interfaces/http/routes/platformRoutes";
 import { registerRepositoryTraceRoutes } from "./interfaces/http/routes/repositoryTraceRoutes";
 import { registerSystemRoutes } from "./interfaces/http/routes/systemRoutes";
+import { registerAuthRoutes } from "./interfaces/http/routes/authRoutes";
 import { registerWorkspaceRoutes } from "./interfaces/http/routes/workspaceRoutes";
 
 function loadEnvFileIntoProcessEnv() {
+  const log = createLogger("env-load");
   const processRef = (globalThis as { process?: { cwd: () => string; env?: Record<string, string | undefined> } }).process;
   if (!processRef?.env) {
     return;
@@ -50,7 +53,7 @@ function loadEnvFileIntoProcessEnv() {
     overrideKeys: llmOverrideKeys
   });
   if (result.overridden > 0) {
-    console.log(`[env-load] overridden=${result.overridden} file=${result.filePath}`);
+    log.info("env file overrides applied", { overridden: result.overridden, file: result.filePath });
   }
 }
 
@@ -60,6 +63,7 @@ const env =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 
 async function bootstrap() {
+  const log = createLogger("bootstrap");
   const backendRoot = join(__dirname, "..");
   const appRoot = join(backendRoot, "..");
   const config = loadRuntimeConfig(env, {
@@ -97,8 +101,8 @@ async function bootstrap() {
   runtime.setLlmStatus(llmStatus);
   const dependencyStatus = await probeRuntimeDependencies(config);
   runtime.setDependencyStatus(dependencyStatus);
-  console.log(`[llm-probe] configured=${llmStatus.configured} reachable=${llmStatus.reachable} base=${llmStatus.baseUrl || "n/a"} model=${llmStatus.model} error=${llmStatus.error || "none"}`);
-  console.log(`[dependency-probe] modelFile=${dependencyStatus.modelFile.healthy} storage=${dependencyStatus.storage.healthy} required=${config.dependencyRequired}`);
+  log.info("llm probe completed", { configured: llmStatus.configured, reachable: llmStatus.reachable, base: llmStatus.baseUrl || "n/a", model: llmStatus.model, error: llmStatus.error || "none" });
+  log.info("dependency probe completed", { modelFile: dependencyStatus.modelFile.healthy, storage: dependencyStatus.storage.healthy, required: config.dependencyRequired });
   const workspaceRepo =
     config.storageBackend === "sqlite"
       ? new SqliteWorkspaceRepository(config.workspaceDbFile, dataFile)
@@ -165,6 +169,7 @@ async function bootstrap() {
     getRuntime: () => runtime.snapshot(),
     isReady: () => runtime.isReady()
   });
+  registerAuthRoutes(app, workspaceService, config);
   await registerWorkspaceRoutes(app, workspaceService);
   await registerRepositoryTraceRoutes(app, workspaceService);
   await registerAutobootRoutes(app, modelService);
@@ -172,10 +177,11 @@ async function bootstrap() {
   await registerPlatformRoutes(app, platformService, workspaceService);
 
   await app.listen({ port: config.port, host: config.host });
-  console.log(`BuildWise backend started at http://${config.host}:${config.port}`);
+  log.info("server started", { host: config.host, port: config.port });
 }
 
 bootstrap().catch((err) => {
-  console.error(err);
+  const log = createLogger("bootstrap");
+  log.error("bootstrap failed", { error: err instanceof Error ? err.message : String(err) });
   (globalThis as { process?: { exit?: (code?: number) => void } }).process?.exit?.(1);
 });

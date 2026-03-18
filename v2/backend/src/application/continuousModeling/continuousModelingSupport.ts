@@ -6,10 +6,7 @@ import type {
   OntologyTerm,
   ReviewTask
 } from "../../domain/continuousModeling/types";
-
-export function nowIso() {
-  return new Date().toISOString();
-}
+export { nowIso } from "../../shared/utils";
 
 function uniq(values: string[]) {
   return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));

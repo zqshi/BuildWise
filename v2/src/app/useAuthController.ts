@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { resolveAppRoute, type AppRoute } from "./authRouting";
 import { requestSmsLoginCode, verifySmsLoginCode } from "./workspaceApi";
 import { getDefaultLoginMode, getLoginModeSubmitError, type LoginMode } from "./authLoginMode";
+import { saveTokens, clearTokens } from "../infrastructure/auth/tokenStore";
 
 export function useAuthController() {
   const [route, setRoute] = useState<AppRoute>(() => resolveAppRoute(window.location.hash));
@@ -50,6 +51,20 @@ export function useAuthController() {
     return () => window.clearInterval(timer);
   }, [countdown]);
 
+  useEffect(() => {
+    const handleExpired = () => {
+      clearTokens();
+      localStorage.setItem("buildwise:auth", "logged_out");
+      localStorage.removeItem("buildwise:auth-phone");
+      localStorage.removeItem("buildwise:auth-role");
+      setIsAuthenticated(false);
+      setWorkspaceRole("viewer");
+      window.location.hash = "/login";
+    };
+    window.addEventListener("buildwise:auth-expired", handleExpired);
+    return () => window.removeEventListener("buildwise:auth-expired", handleExpired);
+  }, []);
+
   const handleRequestCode = async () => {
     const phone = loginPhone.trim();
     if (!/^1\d{10}$/.test(phone)) {
@@ -92,6 +107,9 @@ export function useAuthController() {
     try {
       setLoginError("");
       const result = await verifySmsLoginCode(loginPhone.trim(), loginCode.trim());
+      if (result.accessToken && result.refreshToken && result.expiresIn) {
+        saveTokens(result.accessToken, result.refreshToken, result.expiresIn);
+      }
       const role = result.user.workspaceRole;
       localStorage.setItem("buildwise:auth", "logged_in");
       localStorage.setItem("buildwise:auth-phone", result.user.phone);
@@ -113,6 +131,7 @@ export function useAuthController() {
     if (!confirmed) {
       return false;
     }
+    clearTokens();
     localStorage.setItem("buildwise:auth", "logged_out");
     localStorage.removeItem("buildwise:userAvatar");
     localStorage.removeItem("buildwise:auth-phone");

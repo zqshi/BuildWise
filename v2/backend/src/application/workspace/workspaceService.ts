@@ -13,7 +13,6 @@ import type {
   IterationReleaseReviewResponse,
   IterationDeliveryPackageResult,
   IterationTestArtifactsGenerationResponse,
-  IterationCodeRewriteResponse,
   IterationCodeLink,
   IterationChangeBoundary,
   Iteration,
@@ -54,16 +53,11 @@ export class WorkspaceService {
   readonly openclaw: OpenclawService;
   readonly fullCycle: FullCycleService;
 
-  private readonly repo: WorkspaceRepository;
-  private readonly agentRunner: AgentRunner | null;
-
   constructor(
     repo: WorkspaceRepository,
     agentRunner: AgentRunner | null = null,
     modelingRepo: ContinuousModelingRepository | null = null
   ) {
-    this.repo = repo;
-    this.agentRunner = agentRunner;
     this.project = new ProjectService(repo);
     this.governance = new GovernanceService(repo);
     this.iteration = new IterationService(repo, agentRunner);

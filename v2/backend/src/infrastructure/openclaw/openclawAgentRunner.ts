@@ -16,11 +16,14 @@ import type {
   AgentRunOptions,
   ConversationMessage
 } from "../../application/workspace/agentRunner";
+import { createLogger } from "../runtime/logger";
 import {
   OpenClawGatewayClient,
   type OpenClawGatewayConfig,
   type GatewayChatMessage
 } from "./openclawGatewayClient";
+
+const log = createLogger("openclaw-run");
 
 export class OpenClawAgentRunner implements AgentRunner {
   private readonly client: OpenClawGatewayClient;
@@ -57,7 +60,7 @@ export class OpenClawAgentRunner implements AgentRunner {
     const traceEnabled = ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.LLM_TRACE || "").trim() === "1";
     const startedAt = Date.now();
     if (traceEnabled) {
-      console.log(`[openclaw-run] start role=${prompt.role} agentId=${prompt.agentId} session=${sessionKey || "none"}`);
+      log.info("start", { role: prompt.role, agentId: prompt.agentId, session: sessionKey || "none" });
     }
 
     try {
@@ -68,7 +71,7 @@ export class OpenClawAgentRunner implements AgentRunner {
       });
 
       if (traceEnabled) {
-        console.log(`[openclaw-run] done role=${prompt.role} agentId=${prompt.agentId} latencyMs=${Date.now() - startedAt}`);
+        log.info("done", { role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt });
       }
 
       return {
@@ -78,7 +81,7 @@ export class OpenClawAgentRunner implements AgentRunner {
     } catch (error) {
       if (traceEnabled) {
         const message = error instanceof Error ? error.message : "unknown_error";
-        console.log(`[openclaw-run] fail role=${prompt.role} agentId=${prompt.agentId} latencyMs=${Date.now() - startedAt} error=${message}`);
+        log.info("fail", { role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt, error: message });
       }
       throw error;
     }

@@ -1,9 +1,6 @@
 import type { ModelStore, TraceItem } from "../../domain/modeling/types";
 import type { WorkspaceStore } from "../../domain/workspace/types";
-
-export function nowIso() {
-  return new Date().toISOString();
-}
+export { nowIso } from "../../shared/utils";
 
 export function normalizeMethod(method?: string) {
   return (method || "GET").toUpperCase();

@@ -899,6 +899,9 @@ export async function verifySmsLoginCode(phone: string, code: string) {
       platformRole: string;
       workspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer";
     };
+    accessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
   }>(`${API_BASE}/api/auth/sms/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

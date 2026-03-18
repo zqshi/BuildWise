@@ -120,7 +120,6 @@ export function selectOpenclawSkills(params: {
   const knowledgeHits = params.iteration?.changeControl?.knowledgeHits || [];
   const knowledgeConflicts = params.iteration?.changeControl?.knowledgeConflicts || [];
   const domainTerms = params.iteration?.changeControl?.domainKnowledgeEntries?.map((item) => item.term) || [];
-  const projectTerms = params.project?.knowledgeBase?.ontologyTerms?.map((item) => item.term) || [];
   const projectRules = params.project?.knowledgeBase?.stableRules?.map((item) => item.rule) || [];
   const businessRuleTriggered =
     hasAny(normalizedMessage, [

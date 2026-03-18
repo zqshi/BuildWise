@@ -3,18 +3,14 @@ import type {
   AssessmentPayload,
   CreateIterationInput,
   Iteration,
-  IterationCodeLink,
   IterationContextPayload,
   IterationStatus,
   IterationTransitionSource
 } from "../../domain/workspace/types";
-import type { AgentRunner } from "./agentRunner";
 import {
-  bindIterationCodeLinkOp,
   createIterationOp,
   createMessageOp,
   getAssessmentOp,
-  getIterationCodeLinkOp,
   getIterationContextOp,
   getStateMachineOp,
   listAssessmentSnapshotsOp,
@@ -28,7 +24,7 @@ import { writeAuditLog } from "./workspaceServiceCommon";
 export class IterationService {
   constructor(
     private readonly repo: WorkspaceRepository,
-    private readonly agentRunner: AgentRunner | null = null
+    _agentRunner: unknown = null
   ) {}
 
   listIterations(projectId: number) {

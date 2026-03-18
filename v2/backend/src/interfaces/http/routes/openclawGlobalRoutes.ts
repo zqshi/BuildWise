@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { OpenclawGlobalService } from "../../../application/openclawGlobal/openclawGlobalService";
+import { currentRole, isAdmin } from "./workspaceRouteUtils";
 
 export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service: OpenclawGlobalService) {
   // ---- 对话列表 ----
@@ -8,7 +9,12 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 创建对话 ----
-  app.post("/api/openclaw/conversations", async (request) => {
+  app.post("/api/openclaw/conversations", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const body = (request.body || {}) as { title?: string };
     return service.createConversation(body.title);
   });
@@ -31,6 +37,11 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
 
   // ---- 发送消息 ----
   app.post("/api/openclaw/conversations/:id/messages", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string };
     const conversationId = (params.id || "").trim();
     const body = (request.body || {}) as { content?: string };
@@ -64,6 +75,11 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
 
   // ---- 激活 Skill ----
   app.post("/api/openclaw/skills/:id/activate", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string };
     const skillId = (params.id || "").trim();
     if (!skillId) {
@@ -80,6 +96,11 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
 
   // ---- 废弃 Skill ----
   app.post("/api/openclaw/skills/:id/deprecate", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string };
     const skillId = (params.id || "").trim();
     if (!skillId) {
@@ -100,7 +121,12 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 恢复初始配置 ----
-  app.post("/api/openclaw/strategy/restore-initial", async () => {
+  app.post("/api/openclaw/strategy/restore-initial", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     return service.restoreInitialConfig();
   });
 }

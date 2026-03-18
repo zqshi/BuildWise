@@ -9,7 +9,6 @@ import type {
   Project,
   WorkspaceStore
 } from "../../domain/workspace/types";
-import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
 
 export const seedStore: WorkspaceStore = {
   projects: [
@@ -75,11 +74,9 @@ function normalizeCollectionValue(value: unknown) {
 export class SqliteWorkspaceCore {
   readonly db: DatabaseSync;
 
-  private readonly dbFile: string;
   private readonly seedDataFile?: string;
 
   constructor(dbFile: string, seedDataFile?: string) {
-    this.dbFile = dbFile;
     this.seedDataFile = seedDataFile;
     const dir = dirname(dbFile);
     if (!existsSync(dir)) {

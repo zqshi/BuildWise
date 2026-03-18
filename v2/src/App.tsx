@@ -35,6 +35,7 @@ export default function App() {
   };
   if (isMarketingRoute) {
     return (
+      <ViewErrorBoundary viewKey="marketing" viewLabel="营销首页">
       <Suspense fallback={<div className="loading-spinner" />}>
         <MarketingHomePage
         isAuthenticated={controller.isAuthenticated}
@@ -50,11 +51,13 @@ export default function App() {
         }}
       />
       </Suspense>
+      </ViewErrorBoundary>
     );
   }
 
   if (controller.route === "login" || !controller.isAuthenticated) {
     return (
+      <ViewErrorBoundary viewKey="login" viewLabel="登录页">
       <Suspense fallback={<div className="loading-spinner" />}>
         <LoginPage
         loginMode={controller.loginMode}
@@ -79,6 +82,7 @@ export default function App() {
         onCodeBlur={() => controller.setLoginTouched((prev) => ({ ...prev, code: true }))}
       />
       </Suspense>
+      </ViewErrorBoundary>
     );
   }
 

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
+import { currentRole } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/api/iterations/:id/change-control", async (request, reply) => {
@@ -18,6 +19,11 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
   });
 
   app.post("/api/iterations/:id/change-control/confirm", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -68,6 +74,11 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
   });
 
   app.post("/api/iterations/:id/change-control/boundary", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -93,6 +104,11 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
   });
 
   app.post("/api/iterations/:id/change-control/draft", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {

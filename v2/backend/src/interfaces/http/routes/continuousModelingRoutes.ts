@@ -9,7 +9,7 @@ import type {
   OntologyTerm,
   ReviewTask
 } from "../../../domain/continuousModeling/types";
-import { parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 
 function asTextArray(value: unknown) {
   return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
@@ -170,6 +170,11 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
   });
 
   app.post("/api/projects/:id/model-snapshots/plan", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     const body = (request.body || {}) as Record<string, unknown>;
@@ -199,6 +204,11 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
   });
 
   app.post("/api/projects/:id/model-snapshots/candidate", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     const body = (request.body || {}) as Record<string, unknown>;
@@ -220,6 +230,11 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
   });
 
   app.post("/api/projects/:id/model-snapshots/:snapshotId/publish", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string; snapshotId?: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {

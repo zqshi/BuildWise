@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { RuntimeConfig } from "./runtimeConfig";
 import type { RuntimeState } from "./runtimeState";
+import { createLogger } from "./logger";
+
+const log = createLogger("shutdown");
 
 type ProcessLike = {
   on: (event: string, handler: () => void) => void;
@@ -21,10 +24,10 @@ export function registerGracefulShutdown(
     }
     closing = true;
     state.setShuttingDown(true);
-    console.warn("Graceful shutdown started", { signal });
+    log.warn("graceful shutdown started", { signal });
 
     const timer = setTimeout(() => {
-      console.error("Forced shutdown timeout reached", { timeoutMs: config.shutdownTimeoutMs });
+      log.error("forced shutdown timeout reached", { timeoutMs: config.shutdownTimeoutMs });
       processLike.exit(1);
     }, config.shutdownTimeoutMs);
     timer.unref();
@@ -35,7 +38,7 @@ export function registerGracefulShutdown(
       processLike.exit(0);
     } catch (error) {
       clearTimeout(timer);
-      console.error("Graceful shutdown failed", error);
+      log.error("graceful shutdown failed", { error: error instanceof Error ? (error as Error).message : String(error) });
       processLike.exit(1);
     }
   };

@@ -1,4 +1,6 @@
 import type { AttachmentAnalysisReport, IterationAgentOutput } from "../../domain/workspace/types";
+export { pickString, pickStringList } from "../../shared/utils";
+import { pickString, pickStringList } from "../../shared/utils";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 
 /**
@@ -6,20 +8,6 @@ import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
  * Kept as a re-export for backward compatibility with existing consumers.
  */
 export const parseJsonObjectFromText = safeJsonParse;
-
-export function pickString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-export function pickStringList(value: unknown, max = 8) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0)
-    .slice(0, max);
-}
 
 export function isLowSignalText(value: string) {
   const normalized = (value || "").trim();
