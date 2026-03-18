@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            "vendor-editor": ["@tiptap/react", "@tiptap/starter-kit", "@tiptap/extension-underline"],
+            "vendor-editor": ["@tiptap/react", "@tiptap/starter-kit"],
             "vendor-markdown": ["markdown-it"]
           }
         }

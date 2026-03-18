@@ -3,8 +3,7 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   IterationReleaseReviewResponse,
   IterationDeliveryPackageResult,
-  IterationTestArtifactsGenerationResponse,
-  IterationCodeRewriteResponse
+  IterationTestArtifactsGenerationResponse
 } from "../../domain/workspace/types";
 import type { AgentRunner } from "./agentRunner";
 import { executeVisualEditInstructionOp } from "./workspaceServiceVisualEditOps";

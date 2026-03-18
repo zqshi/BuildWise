@@ -29,6 +29,7 @@ export type IterationModule = {
 };
 
 export type IterationStatus = "planned" | "in-progress" | "review" | "blocked" | "completed";
+export type IterationTransitionSource = "manual" | "auto";
 export type IterationVersionType = "major" | "minor" | "patch";
 
 export type IterationCodeLink = {
@@ -143,8 +144,9 @@ export type IterationArtifactWorkflow = {
   updatedAt: string;
 };
 
-export type IterationChangeControl = {
-  pendingHumanConfirmation: boolean;
+// ── IterationChangeControl sub-types (ISP) ──
+
+export type AnalysisState = {
   lastAnalysisAt: string;
   lastAnalysisFileName: string;
   lastAnalysisDigest: string;
@@ -157,6 +159,19 @@ export type IterationChangeControl = {
   lastAttachmentIngestJobId: string;
   lastAttachmentAnalysisJobId: string;
   lastAttachmentReportId: string;
+  lastAnalysisP0Count: number;
+  lastAnalysisHighValueCount: number;
+  lastAnalysisConsideredFiles: number;
+  lastAnalysisIgnoredFiles: number;
+  lastAnalysisIgnoredFileRatio: number;
+  lastReportPublishable: boolean;
+  lastReportQualityScore: number;
+  lastReportQualitySummary: string;
+  lastReportQualityUpdatedAt: string;
+};
+
+export type ClarificationState = {
+  pendingHumanConfirmation: boolean;
   clarificationRounds: number;
   clarificationQuestions: string[];
   clarificationDraftResolvedQuestions: string[];
@@ -169,17 +184,28 @@ export type IterationChangeControl = {
   lastClarificationNote: string;
   confirmedAt: string;
   confirmedBy: string;
-  generatedTestMatrix: IterationGeneratedTestCase[];
-  generatedTestMatrixUpdatedAt: string;
-  testMatrixExecutionUpdatedAt: string;
-  qualityArtifacts: IterationQualityArtifacts;
-  uxArtifacts: IterationUxArtifacts;
+};
+
+export type BoundaryState = {
+  boundary: IterationChangeBoundary;
+  changeSource: IterationChangeSource;
   executableConstraints: {
     componentWhitelist: string[];
     codePathWhitelist: string[];
     acceptanceChecks: string[];
     generatedAt: string;
   };
+};
+
+export type TestingState = {
+  generatedTestMatrix: IterationGeneratedTestCase[];
+  generatedTestMatrixUpdatedAt: string;
+  testMatrixExecutionUpdatedAt: string;
+  qualityArtifacts: IterationQualityArtifacts;
+  uxArtifacts: IterationUxArtifacts;
+};
+
+export type TraceabilityState = {
   traceabilitySnapshot: {
     requirementCoverage: number;
     mappingConfidence: "high" | "medium" | "low";
@@ -187,37 +213,7 @@ export type IterationChangeControl = {
     conflicts: string[];
     generatedAt: string;
   };
-  domainKnowledgeEntries: Array<{
-    term: string;
-    definition: string;
-    mappedPages: string[];
-    mappedApis: string[];
-    mappedEntities: string[];
-    mappedCodePaths: string[];
-    evidence: string;
-  }>;
-  domainKnowledgeUpdatedAt: string;
-  lastAnalysisP0Count: number;
-  lastAnalysisHighValueCount: number;
-  lastAnalysisConsideredFiles: number;
-  lastAnalysisIgnoredFiles: number;
-  lastAnalysisIgnoredFileRatio: number;
-  lastReleaseReviewDecision: "go" | "caution" | "block" | "";
-  lastReleaseReviewReason: string;
-  lastReleaseReviewBlockers: string[];
-  lastReleaseReviewScore: number;
-  lastReleaseReviewUpdatedAt: string;
   lastTraceabilityCoverageScore: number;
-  lastOpsRollbackSuggested: boolean;
-  lastReportPublishable: boolean;
-  lastReportQualityScore: number;
-  lastReportQualitySummary: string;
-  lastReportQualityUpdatedAt: string;
-  artifactWorkflow: IterationArtifactWorkflow;
-  boundary: IterationChangeBoundary;
-  changeSource: IterationChangeSource;
-  knowledgeHits: string[];
-  knowledgeConflicts: string[];
   normalizedFunctionalPoints: string[];
   mappingAuditTrail: Array<{
     id: string;
@@ -231,6 +227,41 @@ export type IterationChangeControl = {
     createdAt: string;
   }>;
 };
+
+export type DomainKnowledgeState = {
+  domainKnowledgeEntries: Array<{
+    term: string;
+    definition: string;
+    mappedPages: string[];
+    mappedApis: string[];
+    mappedEntities: string[];
+    mappedCodePaths: string[];
+    evidence: string;
+  }>;
+  domainKnowledgeUpdatedAt: string;
+  knowledgeHits: string[];
+  knowledgeConflicts: string[];
+};
+
+export type ReleaseState = {
+  lastReleaseReviewDecision: "go" | "caution" | "block" | "";
+  lastReleaseReviewReason: string;
+  lastReleaseReviewBlockers: string[];
+  lastReleaseReviewScore: number;
+  lastReleaseReviewUpdatedAt: string;
+  lastOpsRollbackSuggested: boolean;
+  artifactWorkflow: IterationArtifactWorkflow;
+};
+
+// ── Backward-compatible composite ──
+
+export type IterationChangeControl = AnalysisState &
+  ClarificationState &
+  BoundaryState &
+  TestingState &
+  TraceabilityState &
+  DomainKnowledgeState &
+  ReleaseState;
 
 export type Iteration = {
   id: number;
@@ -268,6 +299,11 @@ export type Iteration = {
   };
 };
 
+export type CreateIterationInput = Partial<Iteration> &
+  Pick<Iteration, "name" | "description"> & {
+    versionType?: IterationVersionType;
+  };
+
 export type IterationContextPayload = {
   iteration: Iteration | null;
   previous: Iteration | null;
@@ -287,9 +323,9 @@ export type AssessmentSnapshot = {
   source: "create" | "message" | "manual-recompute" | "restore" | "state-transition";
   note: string;
   assessment: VersionAssessment;
-  scope?: IterationScope;
-  status?: IterationStatus;
-  progress?: number;
+  scope: IterationScope;
+  status: IterationStatus;
+  progress: number;
   createdAt: string;
 };
 
@@ -299,6 +335,10 @@ export type IterationTransition = {
   fromStatus: IterationStatus;
   toStatus: IterationStatus;
   note: string;
+  reason: string;
+  source: IterationTransitionSource;
+  operator: string;
+  operatorRole: string;
   createdAt: string;
 };
 
@@ -318,4 +358,20 @@ export type IterationMessage = {
   role: ChatRole;
   content: string;
   createdAt: string;
+};
+
+export type ProductionDeliveryLoopState =
+  | "need_prototype_alignment"
+  | "need_arch_alignment"
+  | "implementing"
+  | "repairing"
+  | "testing"
+  | "ready_for_release";
+
+export type ProductionDeliveryLoop = {
+  state: ProductionDeliveryLoopState;
+  blockedBy: string[];
+  repairActions: string[];
+  evidence: string[];
+  updatedAt: string;
 };

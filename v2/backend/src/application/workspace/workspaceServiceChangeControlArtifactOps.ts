@@ -4,15 +4,6 @@ import { normalizeIteration } from "./workspaceSupport";
 import { defaultIterationChangeControl, writeAuditLog } from "./workspaceServiceCommon";
 import { artifactStageOrder, ensureArtifactWorkflow, markDownstreamStale } from "./workspaceServiceChangeControlArtifactWorkflow";
 
-function resolveArtifactKindLabel(artifactId: string) {
-  if (artifactId === "prototype-preview") return "html-prototype";
-  if (artifactId === "code-delivery") return "code";
-  if (artifactId === "test-matrix" || artifactId === "acceptance-checklist") return "test-cases";
-  if (artifactId === "release-review") return "release-review";
-  if (artifactId === "delivery-package") return "delivery-package";
-  return "document";
-}
-
 function buildArtifactReferenceMessage(
   item: {
     id: string;

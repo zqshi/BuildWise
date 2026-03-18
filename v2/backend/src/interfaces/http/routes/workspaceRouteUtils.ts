@@ -8,3 +8,11 @@ export function currentRole(authRole: string | undefined) {
   const role = authRole?.trim().toLowerCase() || "viewer";
   return role === "admin" ? "owner" : role;
 }
+
+export function isAdmin(role: string) {
+  return role === "owner";
+}
+
+export function isValidPhone(phone: string) {
+  return /^1\d{10}$/.test(phone);
+}

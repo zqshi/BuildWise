@@ -4,10 +4,8 @@ import type {
   AttachmentAnalysisJob,
   AttachmentUploadInput,
   AttachmentUploadRecord,
-  AttachmentIngestJob,
-  AttachmentReportIndex
+  AttachmentIngestJob
 } from "../../domain/workspace/types";
-import type { AgentRunner } from "./agentRunner";
 import type { AnalysisService } from "./analysisService";
 import { ensureDir } from "./workspaceServiceAttachmentUtils";
 import {
@@ -29,7 +27,7 @@ export class UploadService {
   constructor(
     private readonly repo: WorkspaceRepository,
     readonly analysisService: AnalysisService,
-    private readonly agentRunner: AgentRunner | null = null
+    _agentRunner: unknown = null
   ) {
     const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
     this.attachmentChunkStorageDir = (processEnv.ATTACHMENT_CHUNK_STORAGE_DIR || join(process.cwd(), ".runtime", "attachment-chunks")).trim();

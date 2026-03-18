@@ -102,6 +102,8 @@ export class RuntimeState {
     reply.header("x-frame-options", "DENY");
     reply.header("referrer-policy", "no-referrer");
     reply.header("x-permitted-cross-domain-policies", "none");
+    reply.header("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    reply.header("strict-transport-security", "max-age=63072000; includeSubDomains");
   }
 
   setShuttingDown(value: boolean) {

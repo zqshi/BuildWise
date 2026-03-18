@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { RuntimeState } from "./runtimeState";
+import { createLogger } from "./logger";
 
 export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState) {
+  const log = createLogger("http");
   app.addHook("onRequest", async (request, reply) => {
     state.onRequest(request, reply);
   });
@@ -23,11 +25,12 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState) 
     const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
     const isKnown = error.message === "too many requests" || error.message === "service is shutting down";
     if (!isKnown && statusCode >= 500) {
-      console.error("Unhandled request error", { requestId: request.id, error: error.message });
+      log.error("unhandled request error", { requestId: request.id, error: error.message });
     }
+    const isDev = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !== "production";
     return reply.code(statusCode).send({
       error: statusCode >= 500 ? "internal_error" : "request_error",
-      message: statusCode >= 500 ? "Internal server error" : error.message,
+      message: statusCode >= 500 ? (isDev ? error.message : "Internal server error") : error.message,
       requestId: request.id
     });
   });

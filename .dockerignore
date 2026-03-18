@@ -1,0 +1,11 @@
+node_modules
+v2/node_modules
+v2/backend/node_modules
+v2/dist
+v2/backend/dist
+.git
+.claude
+*.db
+*.runtime.json
+.env
+v2/backend/.env

@@ -1,0 +1,21 @@
+services:
+  buildwise:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5055:5055"
+    volumes:
+      - buildwise-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - AUTH_MODE=token
+      - AUTH_TOKENS_JSON={"change-me-owner-token":"owner","change-me-qa-token":"qa"}
+      - CORS_ORIGINS=http://localhost:5055
+      - LLM_API_BASE=
+      - LLM_API_KEY=
+      - LLM_MODEL=
+    restart: unless-stopped
+
+volumes:
+  buildwise-data:

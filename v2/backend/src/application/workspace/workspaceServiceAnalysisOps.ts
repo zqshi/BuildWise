@@ -24,8 +24,7 @@ import {
   extractReleaseOpsStructured,
   extractReleaseReview,
   extractUxArtifacts,
-  isLowSignalText,
-  pickString
+  isLowSignalText
 } from "./workspaceAnalysisExtractors";
 import { listAttachmentInsightsMissingReasons, parseAttachmentInsightsCandidate } from "./workspaceServiceAnalysisAttachmentInsightsOps";
 import { executeAgentPlanPromptsOp, resolvePlanParallelismFromEnv } from "./workspaceServiceAnalysisAgentPlanOps";
@@ -37,7 +36,6 @@ import {
   parseExecutionPolicyCandidate,
   parseFolderSelectionCandidate
 } from "./workspaceServiceAnalysisPreflightOps";
-import { buildDomainKnowledge, buildTraceabilityMap, buildVersionDiffDetailed } from "./workspaceAnalysisTraceability";
 import { buildClarificationQuestionsOp, mergeSynthesisResultsOp } from "./workspaceServiceAnalysisSynthesisOps";
 import { readPositiveInt, readStringList } from "./workspaceEnvParsers";
 import { defaultIterationChangeControl, writeAuditLog } from "./workspaceServiceCommon";

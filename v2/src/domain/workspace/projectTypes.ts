@@ -67,6 +67,8 @@ export type Project = {
   description: string;
   status: string;
   deletedAt?: string;
+  icon?: string;
+  iconColor?: string;
   lastUpdated?: string;
   repository?: ProjectRepository;
   knowledgeBase?: ProjectKnowledgeBase;

@@ -3,10 +3,8 @@ import type {
   AssessmentPayload,
   AssessmentSnapshot,
   CreateIterationInput,
-  Iteration,
   IterationCodeLink,
-  IterationContextPayload,
-  IterationStatus
+  IterationContextPayload
 } from "../../domain/workspace/types";
 import { buildMergedIterationPayload, normalizeIteration, normalizeProject, allowedTransitionsFrom } from "./workspaceSupport";
 import { buildDefaultIterationCodeLink, defaultIterationChangeControl, hasProject, writeAuditLog } from "./workspaceServiceCommon";
