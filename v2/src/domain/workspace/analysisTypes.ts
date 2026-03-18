@@ -364,6 +364,63 @@ export type AttachmentUploadManifestFile = {
   chunkCount: number;
 };
 
+export type AttachmentUploadChunkMeta = {
+  chunkIndex: number;
+  chunkSize: number;
+  chunkSha256: string;
+  storagePath: string;
+  receivedAt: string;
+};
+
+export type AttachmentUploadFileRecord = {
+  fileId: string;
+  uploadId: string;
+  path: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  chunkCount: number;
+  uploadedChunks: number;
+  status: "uploading" | "uploaded" | "failed";
+  chunkBitmap: boolean[];
+  chunks: AttachmentUploadChunkMeta[];
+  createdAt: string;
+  updatedAt: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type AttachmentUploadRecord = {
+  uploadId: string;
+  iterationId: number;
+  sourceType: "single-file" | "folder";
+  folderName: string;
+  idempotencyKey: string;
+  status: "uploading" | "uploaded" | "failed";
+  totalFiles: number;
+  totalBytes: number;
+  files: AttachmentUploadFileRecord[];
+  createdAt: string;
+  updatedAt: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type AttachmentIngestJob = {
+  ingestJobId: string;
+  uploadId: string;
+  status: "queued" | "running" | "completed" | "failed" | "partial";
+  totalFiles: number;
+  processedFiles: number;
+  createdAt: string;
+  startedAt: string;
+  finishedAt: string;
+  heartbeatAt: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
 export type AttachmentUploadInitResponse = {
   uploadId: string;
   status: "uploading" | "uploaded" | "failed";
@@ -383,6 +440,17 @@ export type AttachmentUploadCompleteResponse = {
 };
 
 export type AttachmentReportSectionStatus = "ready" | "failed" | "empty";
+
+export type AttachmentReportSection = {
+  sectionId: string;
+  reportId: string;
+  sectionKey: "overview" | "projectDetection" | "findings" | "risks" | "traceability" | "appendix";
+  sectionOrder: number;
+  status: AttachmentReportSectionStatus;
+  itemCount: number;
+  updatedAt: string;
+  content: Record<string, unknown>;
+};
 
 export type AttachmentReportIndex = {
   reportId: string;
@@ -604,10 +672,4 @@ export type OpsAlertTriageResponse = {
   triageSteps: Array<{ step: string; expectedSignal: string; fallback: string; commands: string[] }>;
   rollbackSuggestion: string;
   matchedTemplates: string[];
-  disposition?: {
-    action: "observe" | "mitigate" | "rollback";
-    escalationOwner: string;
-    rationale: string;
-    rollbackTrigger: string;
-  };
 };

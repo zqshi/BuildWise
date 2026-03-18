@@ -1,11 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 import { registerWorkspacePolicyExecutionRoutes } from "./workspacePolicyExecutionRoutes";
-
-function isAdmin(role: string) {
-  return role === "owner";
-}
 
 function currentUserId(headers: Record<string, unknown>) {
   const raw = String(headers["x-user-id"] || headers["x-user"] || "system").trim();

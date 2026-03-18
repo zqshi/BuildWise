@@ -76,7 +76,6 @@ function listFilesRecursive(root: string, rel = "", collector: string[] = []) {
       continue;
     }
     const nextRel = rel ? join(rel, entry.name) : entry.name;
-    const full = join(root, nextRel);
     if (entry.isDirectory()) {
       if (collector.length >= 120) {
         return collector;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ModelingService } from "../../../application/modeling/modelingService";
 import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
-import { parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 
 type ModelApi = {
   method?: string;
@@ -43,6 +43,11 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
   });
 
   app.post("/api/model/entities", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const body = request.body as { name?: string; businessLabel?: string; fields?: unknown[] } | null;
     const name = body?.name?.trim();
     if (!name) {
@@ -105,6 +110,11 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
   });
 
   app.post("/api/model/relations", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const body = request.body as {
       projectId?: number;
       fromEntityId?: string;
@@ -146,6 +156,11 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
   });
 
   app.delete("/api/model/relations/:id", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id?: string };
     const relationId = params.id?.trim();
     const query = request.query as { projectId?: string } | null;
@@ -204,7 +219,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
   ] as const;
 
   for (const path of roadmapPaths) {
-    app.get(path, async (request, reply) => {
+    app.get(path, async (_request, reply) => {
       const roadmap = service.describeRoadmap(path);
       if (!roadmap) {
         reply.code(404);

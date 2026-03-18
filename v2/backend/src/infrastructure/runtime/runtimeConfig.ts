@@ -10,7 +10,10 @@ export type RuntimeConfig = {
   rateLimitWindowMs: number;
   rateLimitMax: number;
   shutdownTimeoutMs: number;
-  authMode: "off" | "token";
+  authMode: "off" | "token" | "jwt";
+  jwtSecret: string;
+  jwtAccessTtlSec: number;
+  jwtRefreshTtlSec: number;
   authTokens: Record<string, string>;
   authPublicPathPrefixes: string[];
   llmRequired: boolean;
@@ -55,8 +58,11 @@ function parseCorsOrigins(value: string | undefined): string[] | true {
     .filter(Boolean);
 }
 
-function parseAuthMode(value: string | undefined): "off" | "token" {
-  return value?.trim().toLowerCase() === "token" ? "token" : "off";
+function parseAuthMode(value: string | undefined): "off" | "token" | "jwt" {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "token") return "token";
+  if (normalized === "jwt") return "jwt";
+  return "off";
 }
 
 function parseAuthTokens(value: string | undefined): Record<string, string> {
@@ -115,17 +121,24 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     "/health",
     "/ready",
     "/api/status",
-    "/api/collab/share/"
+    "/api/collab/share/",
+    "/api/auth/"
   ]);
   const storageBackend = parseStorageBackend(env.STORAGE_BACKEND);
   if (nodeEnv === "production" && corsOrigins === true) {
     throw new Error("CORS_ORIGINS must be explicitly configured in production");
   }
-  if (nodeEnv === "production" && authMode !== "token") {
-    throw new Error(`AUTH_MODE must be 'token' in production (current: '${authMode}')`);
+  if (nodeEnv === "production" && authMode === "off") {
+    throw new Error(`AUTH_MODE must be 'token' or 'jwt' in production (current: '${authMode}')`);
   }
   if (authMode === "token" && Object.keys(authTokens).length === 0) {
     throw new Error("AUTH_MODE=token requires AUTH_TOKENS_JSON");
+  }
+  if (authMode === "jwt") {
+    const secret = (env.JWT_SECRET || "").trim();
+    if (secret.length < 32) {
+      throw new Error("JWT_SECRET must be at least 32 characters when AUTH_MODE=jwt");
+    }
   }
 
   return {
@@ -145,6 +158,9 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     dependencyRequired: parseBool(env.DEPENDENCY_REQUIRED, nodeEnv === "production"),
     storageBackend,
     workspaceDbFile: env.WORKSPACE_DB_FILE?.trim() || defaults.dataFile.replace(/\.json$/i, ".db"),
+    jwtSecret: (env.JWT_SECRET || "").trim(),
+    jwtAccessTtlSec: parsePositiveInt(env.JWT_ACCESS_TTL_SEC, 7200),
+    jwtRefreshTtlSec: parsePositiveInt(env.JWT_REFRESH_TTL_SEC, 604800),
     dataFile: env.WORKSPACE_DATA_FILE?.trim() || defaults.dataFile,
     modelFile: env.MODEL_FILE?.trim() || defaults.modelFile
   };

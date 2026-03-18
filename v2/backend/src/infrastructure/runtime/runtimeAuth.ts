@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { RuntimeConfig } from "./runtimeConfig";
+import { createLogger } from "./logger";
+import { verifyJwt } from "./jwt";
 
 function toPath(url: string) {
   const index = url.indexOf("?");
@@ -22,11 +24,12 @@ function parseBearerToken(value: unknown) {
 }
 
 function devRoleFromHeader(request: FastifyRequest) {
+  const log = createLogger("auth");
   const raw = request.headers["x-role"];
   if (typeof raw === "string" && raw.trim()) {
     const role = raw.trim().toLowerCase();
     if (role === "owner") {
-      console.warn("[runtimeAuth] x-role=owner 在 authMode=off 下被降级为 editor");
+      log.warn("x-role=owner downgraded to editor in authMode=off");
       return "editor";
     }
     return role;
@@ -40,22 +43,44 @@ function unauthorized(reply: FastifyReply, message: string) {
 }
 
 export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig) {
+  const log = createLogger("auth");
   if (config.authMode === "off") {
-    console.warn("[runtimeAuth] AUTH_MODE=off: 认证已禁用，默认角色为 viewer。生产环境请配置 AUTH_MODE=token");
+    log.warn("AUTH_MODE=off: authentication disabled, default role is viewer");
   }
 
   app.addHook("onRequest", async (request, reply) => {
     const path = toPath(request.url);
+
     if (config.authMode === "off") {
       request.authRole = devRoleFromHeader(request);
       return;
     }
 
+    // 公开路径直接放行（token 和 jwt 模式共用）
     if (isPublicPath(path, config.authPublicPathPrefixes)) {
       request.authRole = "viewer";
       return;
     }
 
+    if (config.authMode === "jwt") {
+      const token = parseBearerToken(request.headers.authorization);
+      if (!token) {
+        return unauthorized(reply, "missing bearer token");
+      }
+      try {
+        const payload = verifyJwt(token, config.jwtSecret);
+        if (payload.type !== "access") {
+          return unauthorized(reply, "invalid token type");
+        }
+        request.authRole = payload.role;
+        request.authSub = payload.sub;
+      } catch {
+        return unauthorized(reply, "invalid or expired token");
+      }
+      return;
+    }
+
+    // token 模式（原有逻辑）
     const token = parseBearerToken(request.headers.authorization);
     if (!token) {
       return unauthorized(reply, "missing bearer token");

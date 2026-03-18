@@ -219,7 +219,7 @@ export class ModelingService {
     const bindings = model.rules.map((rule) => {
       const target = (rule.target || "").toLowerCase();
       const matchedEntities = model.entities
-        .filter((entity, index) => target && (target.includes(entityNames[index]) || entityNames[index].includes(target)))
+        .filter((_entity, index) => target && (target.includes(entityNames[index]) || entityNames[index].includes(target)))
         .map((entity) => entity.name);
       const status: "bound" | "unbound" = matchedEntities.length > 0 ? "bound" : "unbound";
       return {

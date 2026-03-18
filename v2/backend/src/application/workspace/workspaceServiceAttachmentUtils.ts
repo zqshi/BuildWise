@@ -4,6 +4,7 @@ import type {
   AttachmentUploadInput,
   IterationCodeRewriteResponse
 } from "../../domain/workspace/types";
+export { nowIso, pickStringList } from "../../shared/utils";
 import { mergeAttachmentReports } from "./workspaceServiceAttachmentReportMerge";
 
 function countInputFiles(input: AttachmentUploadInput) {
@@ -96,10 +97,6 @@ export function parseAttachmentInputSnapshot(raw: string): AttachmentUploadInput
 
 export function shortId(prefix: string) {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
-}
-
-export function nowIso() {
-  return new Date().toISOString();
 }
 
 export function ensureDir(path: string) {
@@ -195,16 +192,6 @@ export function safeJsonParse(value: string) {
     }
     return null;
   }
-}
-
-export function pickStringList(value: unknown, max = 8) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter(Boolean)
-    .slice(0, max);
 }
 
 export { mergeAttachmentReports };

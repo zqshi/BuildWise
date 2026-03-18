@@ -1,7 +1,6 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { AgentRunner } from "./agentRunner";
 import { OpenClawAgentRunner } from "../../infrastructure/openclaw/openclawAgentRunner";
-import { OpenClawGatewayClient } from "../../infrastructure/openclaw/openclawGatewayClient";
 import {
   openclawDirectChatGlobalOp,
   openclawDirectChatOp,

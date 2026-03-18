@@ -140,6 +140,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/messages", async (request, reply) => {
+    const authRole = currentRole(request.authRole);
+    if (authRole === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${authRole}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -157,6 +162,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/interaction-state", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -185,6 +195,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/agent-chat", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -216,6 +231,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/visual-edit/execute", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -260,6 +280,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/code-rewrite", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -295,6 +320,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/analysis", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -330,6 +360,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/full-cycle", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -405,6 +440,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/uploads/init", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -436,6 +476,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.put("/api/iterations/:id/uploads/:uploadId/files/:fileId/chunks/:chunkIndex", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; uploadId: string; fileId: string; chunkIndex: string };
     const iterationId = parsePositiveInt(params.id);
     const chunkIndex = parsePositiveInt(params.chunkIndex);
@@ -466,6 +511,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/uploads/:uploadId/complete", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; uploadId: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -485,6 +535,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/analysis/jobs", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -516,6 +571,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/analysis/jobs/by-upload", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -547,6 +607,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/analysis/jobs/retry-latest", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -572,6 +637,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/analysis/jobs/:jobId/retry", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; jobId: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -770,6 +840,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/assessment/recompute", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -785,6 +860,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/api/iterations/:id/assessment/restore/:snapshotId", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; snapshotId: string };
     const iterationId = parsePositiveInt(params.id);
     const snapshotId = parsePositiveInt(params.snapshotId);

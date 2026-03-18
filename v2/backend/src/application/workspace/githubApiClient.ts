@@ -1,3 +1,7 @@
+import { createLogger } from "../../infrastructure/runtime/logger";
+
+const log = createLogger("github-api");
+
 export async function requestGitHub<T = Record<string, unknown>>(
   url: string,
   init: RequestInit,
@@ -21,7 +25,7 @@ export async function requestGitHub<T = Record<string, unknown>>(
   try {
     body = (await res.json()) as T;
   } catch (error) {
-    console.warn("[requestGitHub] response parse failed:", error instanceof Error ? error.message : error);
+    log.warn("response parse failed", { error: error instanceof Error ? error.message : String(error) });
     body = null;
   }
   return { status: res.status, body };

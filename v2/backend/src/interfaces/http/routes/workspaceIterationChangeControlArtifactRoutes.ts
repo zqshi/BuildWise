@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { resolveArtifactId, resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
+import { currentRole } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlArtifactRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/api/iterations/:id/change-control/artifacts", async (request, reply) => {
@@ -18,6 +19,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/api/iterations/:id/change-control/artifacts/:artifactId/draft", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -47,6 +53,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/api/iterations/:id/change-control/artifacts/:artifactId/commit", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -72,6 +83,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/api/iterations/:id/change-control/artifacts/:artifactId/confirm", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -96,6 +112,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/api/iterations/:id/change-control/artifacts/:artifactId/add-to-chat", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -119,6 +140,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/api/iterations/:id/change-control/stage/transition", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {

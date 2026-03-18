@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 
 export async function registerRepositoryTraceRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/api/projects/:id/repository", async (request, reply) => {
@@ -19,6 +19,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/projects/:id/repository/bootstrap", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -61,6 +66,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/projects/:id/repository/validate", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -115,6 +125,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/projects/:id/repository/mode", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -139,6 +154,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/projects/:id/repository/provision", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -179,6 +199,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/projects/:id/repository/scaffold", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -209,6 +234,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/iterations/:id/publish", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -261,6 +291,11 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/api/iterations/:id/code-link", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {

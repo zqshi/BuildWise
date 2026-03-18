@@ -1,98 +1,9 @@
-import { randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
-
-const smsCodeStore = new Map<string, { code: string; expireAt: number; createdAt: number; failedAttempts: number }>();
-const smsRateStore = new Map<string, number>();
-const SMS_CODE_MAX_AGE_MS = 10 * 60 * 1000;
-const SMS_CODE_MAX_STORE_SIZE = 1000;
-const SMS_RATE_LIMIT_MS = 60 * 1000;
-const SMS_MAX_FAILED_ATTEMPTS = 5;
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [phone, entry] of smsCodeStore) {
-    if (now - entry.createdAt > SMS_CODE_MAX_AGE_MS) {
-      smsCodeStore.delete(phone);
-    }
-  }
-}, 5 * 60 * 1000).unref();
-
-function isAdmin(role: string) {
-  return role === "owner";
-}
-
-function isValidPhone(phone: string) {
-  return /^1\d{10}$/.test(phone);
-}
+import { currentRole, isAdmin, isValidPhone, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
   const validVersionTypes = new Set(["major", "minor", "patch"]);
-  app.post("/api/auth/sms/request", async (request, reply) => {
-    const body = request.body as { phone?: string } | null;
-    const phone = (body?.phone || "").trim();
-    if (!isValidPhone(phone)) {
-      reply.code(400);
-      return { message: "invalid phone" };
-    }
-    if (smsCodeStore.size >= SMS_CODE_MAX_STORE_SIZE) {
-      reply.code(503);
-      return { message: "sms code store is full, please try later" };
-    }
-    const lastSentAt = smsRateStore.get(phone);
-    const now = Date.now();
-    if (lastSentAt && now - lastSentAt < SMS_RATE_LIMIT_MS) {
-      reply.code(429);
-      return { message: "请稍后再试，每60秒只能发送一次验证码" };
-    }
-    const code = `${randomInt(100000, 999999)}`;
-    const expireAt = now + 5 * 60 * 1000;
-    smsCodeStore.set(phone, { code, expireAt, createdAt: now, failedAttempts: 0 });
-    smsRateStore.set(phone, now);
-    return { ok: true, expireAt: new Date(expireAt).toISOString() };
-  });
-
-  app.post("/api/auth/sms/verify", async (request, reply) => {
-    const body = request.body as { phone?: string; code?: string } | null;
-    const phone = (body?.phone || "").trim();
-    const code = (body?.code || "").trim();
-    if (!isValidPhone(phone) || !/^\d{6}$/.test(code)) {
-      reply.code(400);
-      return { message: "invalid phone or code" };
-    }
-    const saved = smsCodeStore.get(phone);
-    if (!saved || saved.expireAt < Date.now()) {
-      reply.code(400);
-      return { message: "invalid or expired code" };
-    }
-    if (saved.failedAttempts >= SMS_MAX_FAILED_ATTEMPTS) {
-      smsCodeStore.delete(phone);
-      reply.code(429);
-      return { message: "验证码已失效，失败次数过多，请重新获取" };
-    }
-    const codeMatch = saved.code.length === code.length && timingSafeEqual(Buffer.from(saved.code), Buffer.from(code));
-    if (!codeMatch) {
-      saved.failedAttempts += 1;
-      reply.code(400);
-      return { message: "invalid or expired code" };
-    }
-    smsCodeStore.delete(phone);
-    const binding = service.listPlatformRoleBindings().find((item) => item.userId === phone);
-    if (!binding) {
-      reply.code(403);
-      return { message: "phone is not registered in platform members" };
-    }
-    const workspaceRole = service.resolveWorkspaceRole(binding.role);
-    return {
-      ok: true,
-      user: {
-        phone,
-        platformRole: binding.role,
-        workspaceRole
-      }
-    };
-  });
 
   app.get("/api/governance/roles", async () => {
     return service.listGovernanceRoles();
