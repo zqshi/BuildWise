@@ -1,24 +1,47 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "organizeImports": {
-    "enabled": false
+    "enabled": true
   },
   "formatter": {
-    "enabled": false
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      },
+      "a11y": {
+        "useSemanticElements": "off",
+        "noSvgWithoutTitle": "off",
+        "useFocusableInteractive": "off",
+        "useKeyWithClickEvents": "warn",
+        "useButtonType": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noEmptyBlock": "warn"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn"
+      },
+      "complexity": {
+        "noForEach": "off"
+      }
     }
   },
   "files": {
     "ignore": [
       "node_modules",
       "dist",
-      ".vite",
-      "*.test.ts",
-      "*.test.tsx"
+      ".vite"
     ]
   }
 }

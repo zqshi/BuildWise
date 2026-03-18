@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { WorkspaceService } from "../src/application/workspace/workspaceService.ts";
-import { JsonWorkspaceRepository } from "../src/infrastructure/persistence/jsonWorkspaceRepository.ts";
+const { WorkspaceService } = await import("../dist/application/workspace/workspaceService.js");
+const { JsonWorkspaceRepository } = await import("../dist/infrastructure/persistence/jsonWorkspaceRepository.js");
 
 function createWorkspaceService() {
   const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-workspace-repo-"));

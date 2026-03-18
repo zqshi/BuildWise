@@ -1,74 +1,61 @@
-import { useMemo, type RefObject, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, type RefObject } from "react";
+import { deleteOpsTriageTemplate, upsertOpsTriageTemplate } from "../../app/workspaceApi";
+import type { AnalysisArtifactSection } from "./analysisArtifactPresenter";
+import { ArtifactCodeViewer, ArtifactTextEditor } from "./ArtifactEditorWidgets";
+import {
+  stripRichTextToPlainText
+} from "./artifactEditorModel";
+import { ArtifactImpactPanel } from "./IterationChangeIntelligencePanel";
+import type {
+  ArtifactPreviewKind,
+  HtmlPreviewInteractionPayload,
+  HtmlPreviewHistoryItem,
+} from "./iterationWorkspacePanelTypes";
 import type {
   AttachmentAnalysisReport,
   Iteration,
   IterationVisualEditResponse,
-} from "../../domain/workspace/types";
+} from "./iterationWorkspacePanelTypes";
+import type { OpsTriageTemplate } from "./iterationWorkspacePanelTypes";
+import type { IterationGeneratedTestCase } from "../../domain/workspace/iterationTypes";
+import type { IterationArtifactWorkflowItem } from "../../domain/workspace/iterationTypes";
+import { parseLines, copyText } from "./messageDisplayHelpers";
 import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
-import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
-import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
-import { ArtifactCodeViewer, ArtifactTextEditor } from "./ArtifactEditorWidgets";
-import { extractArtifactPrototypeHtml, stripRichTextToPlainText } from "./artifactEditorModel";
-import { parseAnalysisArtifactSections } from "./analysisArtifactPresenter";
-import {
-  buildEvidenceSignal,
-  buildLabeledSignal,
-  formatSignalItems
-} from "./iterationWorkspaceSignalPresenter";
-import { ArtifactImpactPanel } from "./IterationChangeIntelligencePanel";
-import type { ArtifactPreviewKind, HtmlPreviewInteractionPayload, HtmlPreviewHistoryItem } from "./iterationWorkspacePanelTypes";
-import { resolveArtifactPreviewKind, instrumentHtmlPreview } from "./iterationWorkspacePanelUtils";
-import { API_BASE } from "../../app/workspaceApiCore";
 
-type ArtifactItem = {
-  id: string;
-  title: string;
-  summary?: string;
-  evidence?: string[];
-  source?: string;
-  stage?: string;
-  draft?: { content?: string };
-  outputVersion: number;
-  gateStatus?: string;
-  editCapability?: string;
-  lastConfirmedAt?: string;
-  lastConfirmedBy?: string;
-  updatedAt?: string;
-};
+/* ────────────────────────────────────────────────────────── */
 
-export type IterationAnalysisDrawerProps = {
-  currentIteration: Iteration | null;
+export type AnalysisDrawerContentProps = {
+  /* ── core data ── */
   analysisReport: AttachmentAnalysisReport | null;
-  uploadedFile: UploadedAttachmentMeta | null;
-  artifactDrawerWidth: number;
-  selectedDrawerArtifact: ArtifactItem | null;
+  currentIteration: Iteration | null;
+  selectedDrawerArtifact: IterationArtifactWorkflowItem | null;
   selectedArtifactKind: ArtifactPreviewKind | null;
-  artifactDraftContent: string;
+
+  /* ── artifact editor state ── */
   artifactEditorValue: string;
-  artifactEditorSource: string;
-  artifactEditorMode: "view" | "edit";
   artifactEditorDirty: boolean;
   artifactEditorBusy: boolean;
+  artifactEditorMode: "view" | "edit";
+  artifactEditorSource: string;
   isEditableTextArtifact: boolean;
   canEditSelectedTextArtifact: boolean;
   selectedArtifactAwaitingConfirmation: boolean;
-  interactionEditMode: boolean;
+
+  /* ── artifact draft / preview ── */
+  analysisDraftSections: AnalysisArtifactSection[];
+  artifactDraftContent: string;
+  selectedArtifactHtmlPreview: string;
+  selectedArtifactHtmlContent: string;
+
+  /* ── html interaction ── */
+  selectedHtmlPreview: UploadedAttachmentMeta["htmlPreviews"][number] | null;
   selectedHtmlElement: HtmlPreviewInteractionPayload | null;
-  selectedHtmlPreview: { path: string; name: string; content: string } | null;
+  interactionEditMode: boolean;
   htmlPreviewHistory: HtmlPreviewHistoryItem[];
   interactionInstruction: string;
-  analysisScrollRef: RefObject<HTMLDivElement>;
-  artifactHtmlPreviewFrameRef: RefObject<HTMLIFrameElement>;
-  imagePrototypePreviews: { path: string; name: string; dataUrl: string }[];
-  generatedTestMatrix: Array<{
-    caseId: string;
-    type: string;
-    focus: string;
-    expected: string;
-    evidence: string;
-    executionStatus: "pending" | "passed" | "failed" | "blocked" | "skipped";
-    executionNote?: string;
-  }>;
+
+  /* ── test matrix ── */
+  generatedTestMatrix: IterationGeneratedTestCase[];
   testMatrixStatusMap: Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped">;
   testMatrixNoteMap: Record<string, string>;
   matrixSummary: {
@@ -81,93 +68,187 @@ export type IterationAnalysisDrawerProps = {
     coverage: number;
     passRate: number;
   };
+
+  /* ── prioritised findings ── */
+  onlyHighValue: boolean;
+  visiblePrioritizedFindings: Array<{ priority: string; content: string; reason: string }>;
+
+  /* ── risk / suggestions ── */
+  materialRisks: string[];
+  materialSuggestions: string[];
+
+  /* ── report-level flags / derived ── */
+  showAdvancedReportSections: boolean;
+  hasBaselineComparison: boolean;
+
+  /* ── advanced report sections ── */
+  traceabilityMap: AttachmentAnalysisReport["traceabilityMap"] | undefined;
+  executableConstraints: AttachmentAnalysisReport["executableConstraints"] | undefined;
+  versionDiffDetailed: AttachmentAnalysisReport["versionDiffDetailed"] | undefined;
+  releaseReview: AttachmentAnalysisReport["releaseReview"] | undefined;
+  domainKnowledge: AttachmentAnalysisReport["domainKnowledge"] | undefined;
+  opsTriage: AttachmentAnalysisReport["opsTriage"] | undefined;
+  qualityArtifacts: AttachmentAnalysisReport["qualityArtifacts"] | undefined;
+
+  /* ── diff data ── */
+  diffLocations: AttachmentAnalysisReport["diffLocations"];
+  diffAdded: string[];
+  diffChanged: string[];
+  diffRemoved: string[];
+
+  /* ── confirmation ── */
+  reportPendingConfirmation: boolean;
+  reportConfirmedAt: string;
+  confirmedUnderstanding: string;
+
+  /* ── clarification ── */
+  clarificationQuestions: string[];
+
+  /* ── change control / notices ── */
   changeControlBusy: boolean;
   changeControlNotice: string;
   opsCopyNotice: string;
-  opsTemplates: OpsTriageTemplate[];
+
+  /* ── ops template form ── */
   templateBusy: boolean;
   templateNotice: string;
   templateCategory: string;
   templateKeywordsText: string;
   templateCommandsText: string;
   templateNote: string;
-  onlyHighValue: boolean;
+
+  /* ── ops templates data ── */
+  opsTemplates: OpsTriageTemplate[];
+
+  /* ── image previews (used for hint) ── */
+  imagePrototypePreviews: UploadedAttachmentMeta["imagePreviews"];
+
+  /* ── layout ── */
+  artifactDrawerWidth: number;
+
+  /* ── refs ── */
+  analysisScrollRef: RefObject<HTMLDivElement>;
+  artifactHtmlPreviewFrameRef: RefObject<HTMLIFrameElement>;
+
+  /* ── callbacks: panel actions ── */
   onCloseAnalysisPanel: () => void;
-  onOpenInteractionPanel: () => void;
-  onArtifactDrawerResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onArtifactEditorValueChange: (value: string) => void;
-  onArtifactEditorModeChange: (mode: "view" | "edit") => void;
-  onArtifactEditorDirtyChange: (dirty: boolean) => void;
-  onSaveArtifactEditor: () => void;
-  onSubmitArtifactForReview: () => void;
-  onConfirmSelectedArtifact: () => void;
-  onRequestArtifactRevision: () => void;
-  onInteractionEditModeChange: (mode: boolean) => void;
-  onInteractionInstructionChange: (value: string) => void;
-  onSendInteractionInstruction: (instruction: string) => void;
-  onUndoHtmlPreview: () => void;
-  onSetTestMatrixStatusMap: (updater: (prev: Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped">) => Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped">) => void;
-  onSetTestMatrixNoteMap: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
-  onSetChangeControlBusy: (busy: boolean) => void;
-  onSetChangeControlNotice: (notice: string) => void;
-  onSetOpsCopyNotice: (notice: string) => void;
-  onSetTemplateCategory: (category: string) => void;
-  onSetTemplateKeywordsText: (text: string) => void;
-  onSetTemplateCommandsText: (text: string) => void;
-  onSetTemplateNote: (note: string) => void;
-  onSetTemplateBusy: (busy: boolean) => void;
-  onSetTemplateNotice: (notice: string) => void;
-  onSetOnlyHighValue: (updater: (prev: boolean) => boolean) => void;
+  onChatInputChange: (value: string) => void;
+  onChatSend: (options?: {
+    overrideText?: string;
+    prototypeTarget?: string | null;
+    prototypeSummary?: string;
+    interactionContext?: {
+      mode?: "html" | "image" | "prototype";
+      target?: string;
+      summary?: string;
+      html?: {
+        selector?: string;
+        tag?: string;
+        text?: string;
+        styles?: Record<string, string>;
+      };
+    };
+  }) => Promise<IterationVisualEditResponse | null>;
+
+  /* ── callbacks: artifact actions ── */
+  handleSaveArtifactEditor: () => Promise<void>;
+  handleSubmitArtifactForReview: () => Promise<void>;
+  handleConfirmSelectedArtifact: () => Promise<void>;
+  handleRequestArtifactRevision: () => void;
+
+  /* ── callbacks: test matrix ── */
   onUpdateTestMatrixExecution: (
-    updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; note?: string }>
+    updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
   ) => void | Promise<void>;
   onGenerateTestArtifacts: (dryRun?: boolean) => void | Promise<void>;
   onRefreshReleaseReview: () => void | Promise<void>;
-  onChatSend: (options?: { overrideText?: string }) => Promise<unknown>;
-  onChatInputChange: (value: string) => void;
-  copyText: (text: string) => Promise<void>;
-  parseLines: (value: string) => string[];
+
+  /* ── callbacks: setters ── */
+  setArtifactEditorValue: React.Dispatch<React.SetStateAction<string>>;
+  setArtifactEditorDirty: React.Dispatch<React.SetStateAction<boolean>>;
+  setArtifactEditorMode: React.Dispatch<React.SetStateAction<"view" | "edit">>;
+  setArtifactEditorBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  setChangeControlBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  setChangeControlNotice: React.Dispatch<React.SetStateAction<string>>;
+  setOpsCopyNotice: React.Dispatch<React.SetStateAction<string>>;
+  setTestMatrixStatusMap: React.Dispatch<React.SetStateAction<Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped">>>;
+  setTestMatrixNoteMap: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setOnlyHighValue: React.Dispatch<React.SetStateAction<boolean>>;
+  setTemplateBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  setTemplateNotice: React.Dispatch<React.SetStateAction<string>>;
+  setTemplateCategory: React.Dispatch<React.SetStateAction<string>>;
+  setTemplateKeywordsText: React.Dispatch<React.SetStateAction<string>>;
+  setTemplateCommandsText: React.Dispatch<React.SetStateAction<string>>;
+  setTemplateNote: React.Dispatch<React.SetStateAction<string>>;
+  setInteractionEditMode: React.Dispatch<React.SetStateAction<boolean>>;
+  setInteractionInstruction: React.Dispatch<React.SetStateAction<string>>;
+  setSelectedHtmlElement: React.Dispatch<React.SetStateAction<HtmlPreviewInteractionPayload | null>>;
+  setHoveredHtmlElement: React.Dispatch<React.SetStateAction<HtmlPreviewInteractionPayload | null>>;
+  setHtmlPreviewHistory: React.Dispatch<React.SetStateAction<HtmlPreviewHistoryItem[]>>;
+
+  /* ── callbacks: drawer resize ── */
+  handleArtifactDrawerResizePointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
+
+  /* ── callbacks: html preview ── */
+  handleUndoHtmlPreview: () => void;
+  sendInteractionInstruction: (instruction: string) => Promise<void> | void;
+
+  /* ── callbacks: interaction panel ── */
+  openInteractionPanel: () => void;
+
+  /* ── callbacks: ops templates ── */
   reloadOpsTemplates: () => Promise<void>;
-  upsertOpsTriageTemplate: (payload: {
-    projectId?: number;
-    category: string;
-    keywords: string[];
-    commands: string[];
-    note: string;
-  }) => Promise<unknown>;
-  deleteOpsTriageTemplate: (id: string) => Promise<unknown>;
+  buildOpsCommandTemplates: (step: string, projectId: number, templates: OpsTriageTemplate[]) => string[];
 };
 
-export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
+export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: AnalysisDrawerContentProps) {
   const {
-    currentIteration,
     analysisReport,
-    artifactDrawerWidth,
+    currentIteration,
     selectedDrawerArtifact,
     selectedArtifactKind,
-    artifactDraftContent,
     artifactEditorValue,
-    artifactEditorSource,
-    artifactEditorMode,
     artifactEditorDirty,
     artifactEditorBusy,
+    artifactEditorMode,
+    artifactEditorSource,
     isEditableTextArtifact,
     canEditSelectedTextArtifact,
     selectedArtifactAwaitingConfirmation,
-    interactionEditMode,
-    selectedHtmlElement,
+    analysisDraftSections,
+    artifactDraftContent,
+    selectedArtifactHtmlPreview,
+    selectedArtifactHtmlContent,
     selectedHtmlPreview,
+    selectedHtmlElement,
+    interactionEditMode,
     htmlPreviewHistory,
     interactionInstruction,
-    analysisScrollRef,
-    artifactHtmlPreviewFrameRef,
-    imagePrototypePreviews,
     generatedTestMatrix,
     testMatrixStatusMap,
     testMatrixNoteMap,
     matrixSummary,
+    onlyHighValue,
+    visiblePrioritizedFindings,
+    materialRisks,
+    materialSuggestions,
+    showAdvancedReportSections,
+    hasBaselineComparison,
+    traceabilityMap,
+    executableConstraints,
+    versionDiffDetailed,
+    releaseReview,
+    domainKnowledge,
+    opsTriage,
+    qualityArtifacts,
+    diffLocations,
+    diffAdded,
+    diffChanged,
+    diffRemoved,
+    reportPendingConfirmation,
+    reportConfirmedAt,
+    confirmedUnderstanding,
     changeControlBusy,
-    opsTemplates,
     opsCopyNotice,
     templateBusy,
     templateNotice,
@@ -175,127 +256,45 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
     templateKeywordsText,
     templateCommandsText,
     templateNote,
-    onlyHighValue,
+    opsTemplates,
+    imagePrototypePreviews,
+    artifactDrawerWidth,
+    analysisScrollRef,
+    artifactHtmlPreviewFrameRef,
     onCloseAnalysisPanel,
-    onOpenInteractionPanel,
-    onArtifactDrawerResizePointerDown,
-    onArtifactEditorValueChange,
-    onArtifactEditorModeChange,
-    onArtifactEditorDirtyChange,
-    onSaveArtifactEditor,
-    onSubmitArtifactForReview,
-    onConfirmSelectedArtifact,
-    onRequestArtifactRevision,
-    onInteractionEditModeChange,
-    onInteractionInstructionChange,
-    onSendInteractionInstruction,
-    onUndoHtmlPreview,
-    onSetTestMatrixStatusMap,
-    onSetTestMatrixNoteMap,
-    onSetChangeControlBusy,
-    onSetChangeControlNotice,
-    onSetOpsCopyNotice,
-    onSetTemplateCategory,
-    onSetTemplateKeywordsText,
-    onSetTemplateCommandsText,
-    onSetTemplateNote,
-    onSetTemplateBusy,
-    onSetTemplateNotice,
-    onSetOnlyHighValue,
+    onChatInputChange,
+    onChatSend,
+    handleSaveArtifactEditor,
+    handleSubmitArtifactForReview,
+    handleConfirmSelectedArtifact,
+    handleRequestArtifactRevision,
     onUpdateTestMatrixExecution,
     onGenerateTestArtifacts,
     onRefreshReleaseReview,
-    onChatSend,
-    onChatInputChange,
-    copyText,
-    parseLines,
+    setArtifactEditorValue,
+    setArtifactEditorDirty,
+    setArtifactEditorMode,
+    setChangeControlBusy,
+    setChangeControlNotice,
+    setOpsCopyNotice,
+    setTestMatrixStatusMap,
+    setTestMatrixNoteMap,
+    setOnlyHighValue,
+    setTemplateBusy,
+    setTemplateNotice,
+    setTemplateCategory,
+    setTemplateKeywordsText,
+    setTemplateCommandsText,
+    setTemplateNote,
+    setInteractionEditMode,
+    setInteractionInstruction,
+    handleArtifactDrawerResizePointerDown,
+    handleUndoHtmlPreview,
+    sendInteractionInstruction,
+    openInteractionPanel,
     reloadOpsTemplates,
-    upsertOpsTriageTemplate: upsertTemplate,
-    deleteOpsTriageTemplate: deleteTemplate,
+    buildOpsCommandTemplates,
   } = props;
-
-  const extractedArtifactPrototypeHtml = useMemo(() => extractArtifactPrototypeHtml(artifactDraftContent), [artifactDraftContent]);
-
-  const selectedArtifactHtmlContent =
-    selectedArtifactKind === "html-prototype" ? (extractedArtifactPrototypeHtml || selectedHtmlPreview?.content || "") : "";
-  const selectedArtifactHtmlPreview = useMemo(
-    () => (selectedArtifactKind === "html-prototype" && selectedArtifactHtmlContent ? instrumentHtmlPreview(selectedArtifactHtmlContent, interactionEditMode) : ""),
-    [selectedArtifactKind, selectedArtifactHtmlContent, interactionEditMode]
-  );
-  const analysisDraftSections = useMemo(
-    () => (selectedArtifactKind === "analysis-report" ? parseAnalysisArtifactSections(artifactDraftContent) : []),
-    [selectedArtifactKind, artifactDraftContent]
-  );
-
-  const showAdvancedReportSections = Boolean(analysisReport);
-  const diffLocations = analysisReport?.diffLocations ?? [];
-  const diffAdded = analysisReport?.versionDiff?.added ?? [];
-  const diffChanged = analysisReport?.versionDiff?.changed ?? [];
-  const diffRemoved = analysisReport?.versionDiff?.removed ?? [];
-  const hasBaselineComparison = Boolean(
-    analysisReport?.versionDiff?.baselineIterationName && analysisReport?.versionDiff?.baselineIterationName !== analysisReport?.iterationName
-  );
-  const materialRisks = (analysisReport?.risks || []).filter((item) => !item.includes("暂无显式风险"));
-  const materialSuggestions = (analysisReport?.suggestions || []).filter(
-    (item) => !item.includes("当前澄清问题已收敛") && !item.includes("暂无结构化差异")
-  );
-  const traceabilityMap = analysisReport?.traceabilityMap;
-  const executableConstraints = analysisReport?.executableConstraints;
-  const versionDiffDetailed = analysisReport?.versionDiffDetailed;
-  const releaseReview = analysisReport?.releaseReview;
-  const domainKnowledge = analysisReport?.domainKnowledge;
-  const opsTriage = analysisReport?.opsTriage;
-  const qualityArtifacts = analysisReport?.qualityArtifacts;
-  const prioritizedFindings = analysisReport?.prioritizedFindings || [];
-  const visiblePrioritizedFindings = onlyHighValue
-    ? prioritizedFindings.filter((item) => item.priority === "P0" || item.priority === "P1")
-    : prioritizedFindings;
-  const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
-  const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
-  const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
-
-  const buildOpsCommandTemplates = (step: string, projectId: number, templates: OpsTriageTemplate[]) => {
-    const lowered = step.toLowerCase();
-    const matched = templates.filter((template) => template.keywords.some((keyword) => lowered.includes(keyword.toLowerCase())));
-    if (matched.length > 0) {
-      const applyVars = (command: string) =>
-        command
-          .split("{{projectId}}")
-          .join(String(projectId))
-          .split("{{apiBase}}")
-          .join(API_BASE)
-          .split("{{backendDir}}")
-          .join("backend");
-      return Array.from(
-        new Set(
-          matched
-            .flatMap((template) => template.commands)
-            .map((command) => applyVars(command))
-        )
-      ).slice(0, 6);
-    }
-    const commands: string[] = [];
-    if (lowered.includes("健康") || lowered.includes("health") || lowered.includes("就绪") || lowered.includes("ready")) {
-      commands.push(`curl -sS ${API_BASE}/health`);
-      commands.push(`curl -sS ${API_BASE}/ready`);
-    }
-    if (lowered.includes("指标") || lowered.includes("metric") || lowered.includes("错误率") || lowered.includes("延迟")) {
-      commands.push(`curl -sS ${API_BASE}/api/ops/metrics`);
-      commands.push(`curl -sS ${API_BASE}/api/ops/runtime`);
-    }
-    if (lowered.includes("发布") || lowered.includes("deploy")) {
-      commands.push(`curl -sS ${API_BASE}/api/ops/deployments`);
-      commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
-    }
-    if (lowered.includes("回滚") || lowered.includes("rollback")) {
-      commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
-    }
-    if (commands.length === 0) {
-      commands.push(`curl -sS ${API_BASE}/api/ops/runtime`);
-      commands.push(`curl -sS ${API_BASE}/api/ops/metrics`);
-    }
-    return Array.from(new Set(commands)).slice(0, 4);
-  };
 
   const renderTextArtifactActions = () => (
     <>
@@ -305,9 +304,9 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
             type="button"
             className="btn ghost mini"
             onClick={() => {
-              onArtifactEditorValueChange(artifactEditorSource);
-              onArtifactEditorDirtyChange(false);
-              onArtifactEditorModeChange("view");
+              setArtifactEditorValue(artifactEditorSource);
+              setArtifactEditorDirty(false);
+              setArtifactEditorMode("view");
             }}
             disabled={artifactEditorBusy}
           >
@@ -317,8 +316,8 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
             type="button"
             className="btn ghost mini"
             onClick={() => {
-              onArtifactEditorValueChange(artifactEditorSource);
-              onArtifactEditorDirtyChange(false);
+              setArtifactEditorValue(artifactEditorSource);
+              setArtifactEditorDirty(false);
             }}
             disabled={!artifactEditorDirty || artifactEditorBusy}
           >
@@ -327,18 +326,18 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
           <button
             type="button"
             className="btn primary mini"
-            onClick={() => void onSaveArtifactEditor()}
+            onClick={() => void handleSaveArtifactEditor()}
             disabled={!artifactEditorDirty || artifactEditorBusy}
           >
             {artifactEditorBusy ? "保存中..." : "保存草稿"}
           </button>
         </>
       ) : canEditSelectedTextArtifact ? (
-        <button type="button" className="btn ghost mini" onClick={() => onArtifactEditorModeChange("edit")} disabled={artifactEditorBusy}>
+        <button type="button" className="btn ghost mini" onClick={() => setArtifactEditorMode("edit")} disabled={artifactEditorBusy}>
           编辑
         </button>
       ) : null}
-      <button type="button" className="btn ghost mini" onClick={() => void onSubmitArtifactForReview()} disabled={artifactEditorBusy}>
+      <button type="button" className="btn ghost mini" onClick={() => void handleSubmitArtifactForReview()} disabled={artifactEditorBusy}>
         提交确认
       </button>
     </>
@@ -346,7 +345,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
 
   return (
     <>
-      <div className="analysis-drawer-mask open" onClick={onCloseAnalysisPanel} onKeyDown={(e) => { if (e.key === "Escape") onCloseAnalysisPanel(); }} role="button" tabIndex={0} aria-label="关闭" />
+      <div className="analysis-drawer-mask open" onClick={onCloseAnalysisPanel} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") onCloseAnalysisPanel(); }} aria-label="关闭" aria-hidden={false} />
       <aside
         className="panel preview-panel context-panel artifact-preview-panel analysis-drawer open"
         style={{ width: `min(${artifactDrawerWidth}px, 100vw)` }}
@@ -357,14 +356,14 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
             className="artifact-drawer-resize-handle"
             aria-label="拖拽调整交付物抽屉宽度"
             title="拖拽调整交付物抽屉宽度"
-            onPointerDown={onArtifactDrawerResizePointerDown}
+            onPointerDown={handleArtifactDrawerResizePointerDown}
           />
           <div className="panel-head analysis-drawer-head">
             <div>
               <h2>{selectedDrawerArtifact ? `${selectedDrawerArtifact.title}` : "分析报告抽屉"}</h2>
             </div>
             <div className="chat-tools">
-              <button type="button" className="visual-align-hidden-trigger" onClick={onOpenInteractionPanel}>
+              <button type="button" className="visual-align-hidden-trigger" onClick={openInteractionPanel}>
                 交互界面
               </button>
               <button type="button" className="icon-btn" aria-label="关闭报告抽屉" onClick={onCloseAnalysisPanel}>
@@ -477,8 +476,8 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                     readOnly={artifactEditorMode !== "edit"}
                     showTitle={false}
                     onChange={(value) => {
-                      onArtifactEditorValueChange(value);
-                      onArtifactEditorDirtyChange(value !== artifactEditorSource);
+                      setArtifactEditorValue(value);
+                      setArtifactEditorDirty(value !== artifactEditorSource);
                     }}
                     actions={renderTextArtifactActions()}
                   />
@@ -490,10 +489,10 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         数据源：{artifactDraftContent.trim() ? "交付物草稿" : selectedHtmlPreview ? `上传预览（${selectedHtmlPreview.name}）` : "暂无可渲染原型"}
                       </span>
                       <div className="chat-tools">
-                        <button type="button" className={`btn ghost mini ${interactionEditMode ? "is-active" : ""}`} onClick={() => onInteractionEditModeChange(!interactionEditMode)}>
+                        <button type="button" className={`btn ghost mini ${interactionEditMode ? "is-active" : ""}`} onClick={() => setInteractionEditMode((prev) => !prev)}>
                           {interactionEditMode ? "退出选中" : "选择元素"}
                         </button>
-                        <button type="button" className="btn ghost mini" onClick={onUndoHtmlPreview} disabled={htmlPreviewHistory.length === 0}>
+                        <button type="button" className="btn ghost mini" onClick={handleUndoHtmlPreview} disabled={htmlPreviewHistory.length === 0}>
                           撤销
                         </button>
                       </div>
@@ -511,15 +510,15 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                           <span className="interaction-target-chip">{selectedHtmlElement?.selector || "未选中元素"}</span>
                           <input
                             value={interactionInstruction}
-                            onChange={(event) => onInteractionInstructionChange(event.target.value)}
-                            placeholder={interactionEditMode ? "先点选原型元素，再用自然语言描述想修改的文案、尺寸或样式" : "点击「选择元素」后再描述想修改的内容"}
+                            onChange={(event) => setInteractionInstruction(event.target.value)}
+                            placeholder={interactionEditMode ? "先点选原型元素，再用自然语言描述想修改的文案、尺寸或样式" : "点击\u201c选择元素\u201d后再描述想修改的内容"}
                           />
                           <button
                             type="button"
                             className="btn primary mini"
                             onClick={() => {
-                              void onSendInteractionInstruction(interactionInstruction);
-                              onInteractionInstructionChange("");
+                              void sendInteractionInstruction(interactionInstruction);
+                              setInteractionInstruction("");
                             }}
                             disabled={!interactionInstruction.trim() || !selectedHtmlElement}
                           >
@@ -543,8 +542,8 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                     readOnly={artifactEditorMode !== "edit"}
                     showTitle={false}
                     onChange={(value) => {
-                      onArtifactEditorValueChange(value);
-                      onArtifactEditorDirtyChange(value !== artifactEditorSource);
+                      setArtifactEditorValue(value);
+                      setArtifactEditorDirty(value !== artifactEditorSource);
                     }}
                     actions={renderTextArtifactActions()}
                   />
@@ -557,8 +556,8 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                     readOnly={artifactEditorMode !== "edit"}
                     showTitle={false}
                     onChange={(value) => {
-                      onArtifactEditorValueChange(value);
-                      onArtifactEditorDirtyChange(value !== artifactEditorSource);
+                      setArtifactEditorValue(value);
+                      setArtifactEditorDirty(value !== artifactEditorSource);
                     }}
                     actions={renderTextArtifactActions()}
                   />
@@ -573,7 +572,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         className="btn ghost mini"
                         onClick={() => {
                           void navigator.clipboard.writeText(stripRichTextToPlainText(artifactDraftContent || selectedDrawerArtifact.summary || ""));
-                          onSetChangeControlNotice("代码内容已复制。");
+                          setChangeControlNotice("代码内容已复制。");
                         }}
                       >
                         复制代码
@@ -631,13 +630,13 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                     readOnly={artifactEditorMode !== "edit"}
                     showTitle={false}
                     onChange={(value) => {
-                      onArtifactEditorValueChange(value);
-                      onArtifactEditorDirtyChange(value !== artifactEditorSource);
+                      setArtifactEditorValue(value);
+                      setArtifactEditorDirty(value !== artifactEditorSource);
                     }}
                     actions={renderTextArtifactActions()}
                   />
                 ) : null}
-                <ArtifactImpactPanel iteration={currentIteration} artifact={selectedDrawerArtifact as unknown as import("../../domain/workspace/iterationTypes").IterationArtifactWorkflowItem} />
+                <ArtifactImpactPanel iteration={currentIteration} artifact={selectedDrawerArtifact} />
                 <footer className="artifact-review-footer">
                   <p>
                     当前版本：v{selectedDrawerArtifact.outputVersion || 0} · 状态：
@@ -659,12 +658,12 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                     <button
                       type="button"
                       className="btn primary mini"
-                      onClick={() => void onConfirmSelectedArtifact()}
+                      onClick={() => void handleConfirmSelectedArtifact()}
                       disabled={!selectedArtifactAwaitingConfirmation || artifactEditorBusy}
                     >
                       确认通过
                     </button>
-                    <button type="button" className="btn ghost mini" onClick={onRequestArtifactRevision}>
+                    <button type="button" className="btn ghost mini" onClick={handleRequestArtifactRevision}>
                       去对话中提调整
                     </button>
                   </div>
@@ -748,7 +747,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                   <div className="info-box">
                     <div className="panel-head">
                       <h3>优先级发现</h3>
-                      <button type="button" className="btn ghost mini" onClick={() => onSetOnlyHighValue((prev) => !prev)}>
+                      <button type="button" className="btn ghost mini" onClick={() => setOnlyHighValue((prev) => !prev)}>
                         {onlyHighValue ? "显示全部" : "仅看高价值"}
                       </button>
                     </div>
@@ -776,7 +775,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         className="btn ghost mini"
                         disabled={changeControlBusy}
                         onClick={() =>
-                          onSetTestMatrixStatusMap(() =>
+                          setTestMatrixStatusMap(
                             Object.fromEntries(generatedTestMatrix.map((item) => [item.caseId, "passed"])) as Record<
                               string,
                               "pending" | "passed" | "failed" | "blocked" | "skipped"
@@ -791,7 +790,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         className="btn ghost mini"
                         disabled={changeControlBusy}
                         onClick={() =>
-                          onSetTestMatrixStatusMap(() =>
+                          setTestMatrixStatusMap(
                             Object.fromEntries(generatedTestMatrix.map((item) => [item.caseId, "pending"])) as Record<
                               string,
                               "pending" | "passed" | "failed" | "blocked" | "skipped"
@@ -816,7 +815,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                               value={testMatrixStatusMap[item.caseId] || "pending"}
                               onChange={(event) => {
                                 const next = event.target.value as "pending" | "passed" | "failed" | "blocked" | "skipped";
-                                onSetTestMatrixStatusMap((prev) => ({ ...prev, [item.caseId]: next }));
+                                setTestMatrixStatusMap((prev) => ({ ...prev, [item.caseId]: next }));
                               }}
                             >
                               <option value="pending">pending</option>
@@ -832,7 +831,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                               rows={2}
                               value={testMatrixNoteMap[item.caseId] || ""}
                               onChange={(event) =>
-                                onSetTestMatrixNoteMap((prev) => ({
+                                setTestMatrixNoteMap((prev) => ({
                                   ...prev,
                                   [item.caseId]: event.target.value
                                 }))
@@ -869,12 +868,12 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                           if (updates.length === 0) {
                             return;
                           }
-                          onSetChangeControlBusy(true);
+                          setChangeControlBusy(true);
                           try {
                             await onUpdateTestMatrixExecution(updates);
-                            onSetChangeControlNotice(`已保存 ${updates.length} 条测试执行状态。`);
+                            setChangeControlNotice(`已保存 ${updates.length} 条测试执行状态。`);
                           } finally {
-                            onSetChangeControlBusy(false);
+                            setChangeControlBusy(false);
                           }
                         }}
                       >
@@ -885,12 +884,12 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         className="btn secondary"
                         disabled={changeControlBusy}
                         onClick={async () => {
-                          onSetChangeControlBusy(true);
+                          setChangeControlBusy(true);
                           try {
                             await onGenerateTestArtifacts(true);
-                            onSetChangeControlNotice("已生成测试产物计划（dry-run）。");
+                            setChangeControlNotice("已生成测试产物计划（dry-run）。");
                           } finally {
-                            onSetChangeControlBusy(false);
+                            setChangeControlBusy(false);
                           }
                         }}
                       >
@@ -901,12 +900,12 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         className="btn ghost"
                         disabled={changeControlBusy}
                         onClick={async () => {
-                          onSetChangeControlBusy(true);
+                          setChangeControlBusy(true);
                           try {
                             await onRefreshReleaseReview();
-                            onSetChangeControlNotice("已刷新发布前质量评审。");
+                            setChangeControlNotice("已刷新发布前质量评审。");
                           } finally {
-                            onSetChangeControlBusy(false);
+                            setChangeControlBusy(false);
                           }
                         }}
                       >
@@ -968,7 +967,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                           <li key={`${item.requirement}-${index}`} className="history-item">
                             <strong>{item.requirement}</strong>
                             <p>代码路径：{item.codePaths.join("；") || "-"}</p>
-                            <p className="hint">{buildEvidenceSignal(item.evidence)}</p>
+                            <p className="hint">evidence：{item.evidence || "-"}</p>
                           </li>
                         ))}
                       </ul>
@@ -997,8 +996,8 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                       信号：用例 {releaseReview.qualitySignals.testCaseCount}，P0 {releaseReview.qualitySignals.p0FindingCount}，unknown{" "}
                       {releaseReview.qualitySignals.unknownSignalCount}，边界覆盖 {releaseReview.qualitySignals.boundaryCoverage}%
                     </p>
-                    {buildLabeledSignal("阻断项", releaseReview.blockers) ? <p className="hint">{buildLabeledSignal("阻断项", releaseReview.blockers)}</p> : null}
-                    {buildLabeledSignal("门禁", releaseReview.releaseGates) ? <p className="hint">{buildLabeledSignal("门禁", releaseReview.releaseGates)}</p> : null}
+                    {(releaseReview.blockers?.length ?? 0) > 0 ? <p className="hint">阻断项：{releaseReview.blockers.join("；")}</p> : null}
+                    {(releaseReview.releaseGates?.length ?? 0) > 0 ? <p className="hint">门禁：{releaseReview.releaseGates.join("；")}</p> : null}
                     <p className="hint">
                       回滚：{releaseReview.rollback.shouldRollback ? "建议回滚" : "暂不回滚"}
                       {releaseReview.rollback.reason ? `（${releaseReview.rollback.reason}）` : ""}
@@ -1022,7 +1021,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                     ) : (
                       <p className="hint">暂无术语抽取结果。</p>
                     )}
-                    {buildLabeledSignal("待确认", domainKnowledge.unknowns) ? <p className="hint">{buildLabeledSignal("待确认", domainKnowledge.unknowns)}</p> : null}
+                    {(domainKnowledge.unknowns?.length ?? 0) > 0 ? <p className="hint">待确认：{domainKnowledge.unknowns.join("；")}</p> : null}
                   </div>
                 ) : null}
                 {showAdvancedReportSections && opsTriage ? (
@@ -1034,7 +1033,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                           <li key={`${item.priority}-${item.item}-${index}`} className="history-item">
                             <strong>{item.priority}</strong>
                             <p>{item.item}</p>
-                            <p className="hint">{buildEvidenceSignal(item.evidence)}</p>
+                            <p className="hint">evidence：{item.evidence || "-"}</p>
                           </li>
                         ))}
                       </ul>
@@ -1063,7 +1062,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                                       ...commands
                                     ].join("\n");
                                     await copyText(payload);
-                                    onSetOpsCopyNotice(`已复制步骤 ${index + 1} 的排障内容。`);
+                                    setOpsCopyNotice(`已复制步骤 ${index + 1} 的排障内容。`);
                                   }}
                                 >
                                   复制该步骤
@@ -1079,14 +1078,14 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                       {templateNotice ? <p className="hint">{templateNotice}</p> : null}
                       <label className="hint">
                         类别
-                        <input value={templateCategory} onChange={(event) => onSetTemplateCategory(event.target.value)} placeholder="如：db/network/cache" />
+                        <input value={templateCategory} onChange={(event) => setTemplateCategory(event.target.value)} placeholder="如：db/network/cache" />
                       </label>
                       <label className="hint">
                         关键词（每行一项）
                         <textarea
                           rows={3}
                           value={templateKeywordsText}
-                          onChange={(event) => onSetTemplateKeywordsText(event.target.value)}
+                          onChange={(event) => setTemplateKeywordsText(event.target.value)}
                           placeholder={"例如：\n数据库\ndb\n连接超时"}
                         />
                       </label>
@@ -1095,13 +1094,13 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                         <textarea
                           rows={4}
                           value={templateCommandsText}
-                          onChange={(event) => onSetTemplateCommandsText(event.target.value)}
+                          onChange={(event) => setTemplateCommandsText(event.target.value)}
                           placeholder={"例如：\ncurl -sS {{apiBase}}/api/ops/runtime\ncd {{backendDir}} && PROJECT_ID={{projectId}} npm run ops:rollback"}
                         />
                       </label>
                       <label className="hint">
                         说明
-                        <input value={templateNote} onChange={(event) => onSetTemplateNote(event.target.value)} placeholder="模板用途说明" />
+                        <input value={templateNote} onChange={(event) => setTemplateNote(event.target.value)} placeholder="模板用途说明" />
                       </label>
                       <div className="chat-tools">
                         <button
@@ -1112,12 +1111,12 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                             const keywords = parseLines(templateKeywordsText);
                             const commands = parseLines(templateCommandsText);
                             if (keywords.length === 0 || commands.length === 0) {
-                              onSetTemplateNotice("请至少填写 1 条关键词与 1 条命令。");
+                              setTemplateNotice("请至少填写 1 条关键词与 1 条命令。");
                               return;
                             }
-                            onSetTemplateBusy(true);
+                            setTemplateBusy(true);
                             try {
-                              await upsertTemplate({
+                              await upsertOpsTriageTemplate({
                                 projectId: currentIteration?.projectId,
                                 category: templateCategory.trim() || "custom",
                                 keywords,
@@ -1125,12 +1124,12 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                                 note: templateNote
                               });
                               await reloadOpsTemplates();
-                              onSetTemplateNotice("模板已保存。");
-                              onSetTemplateKeywordsText("");
-                              onSetTemplateCommandsText("");
-                              onSetTemplateNote("");
+                              setTemplateNotice("模板已保存。");
+                              setTemplateKeywordsText("");
+                              setTemplateCommandsText("");
+                              setTemplateNote("");
                             } finally {
-                              onSetTemplateBusy(false);
+                              setTemplateBusy(false);
                             }
                           }}
                         >
@@ -1153,13 +1152,13 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                                     className="btn ghost mini"
                                     disabled={templateBusy}
                                     onClick={async () => {
-                                      onSetTemplateBusy(true);
+                                      setTemplateBusy(true);
                                       try {
-                                        await deleteTemplate(item.id);
+                                        await deleteOpsTriageTemplate(item.id);
                                         await reloadOpsTemplates();
-                                        onSetTemplateNotice("模板已删除。");
+                                        setTemplateNotice("模板已删除。");
                                       } finally {
-                                        onSetTemplateBusy(false);
+                                        setTemplateBusy(false);
                                       }
                                     }}
                                   >
@@ -1185,7 +1184,7 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                       <p className="hint">影响面：{versionDiffDetailed.impactScope.join("；")}</p>
                     ) : null}
                     {(versionDiffDetailed.riskPoints?.length ?? 0) > 0 ? (
-                      <p className="hint">{buildLabeledSignal("高风险点", versionDiffDetailed.riskPoints)}</p>
+                      <p className="hint">高风险点：{versionDiffDetailed.riskPoints.join("；")}</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -1227,21 +1226,21 @@ export function IterationAnalysisDrawer(props: IterationAnalysisDrawerProps) {
                 {materialRisks.length > 0 ? (
                   <div className="info-box">
                     <h3>风险提示</h3>
-                    <p>{formatSignalItems(materialRisks)}</p>
+                    <p>{materialRisks.join("；")}</p>
                   </div>
                 ) : null}
                 {materialSuggestions.length > 0 ? (
                   <div className="info-box">
                     <h3>建议动作</h3>
-                    <p>{formatSignalItems(materialSuggestions)}</p>
+                    <p>{materialSuggestions.join("；")}</p>
                   </div>
                 ) : null}
               </>
               )
             ) : null}
           </div>
-        </article>
-      </aside>
+            </article>
+          </aside>
     </>
   );
-}
+});

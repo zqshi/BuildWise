@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
-import { DuplicateAttachmentUploadError } from "../../../application/workspace/workspaceService";
+import { DuplicateAttachmentUploadError } from "../../../application/workspace/workspaceErrors";
 import { hasPermission } from "../../../application/platform/platformSupport";
 import { isIterationStatus } from "../../../application/workspace/workspaceSupport";
 import type { AttachmentReportSection, AttachmentUploadInput } from "../../../domain/workspace/types";

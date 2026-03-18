@@ -58,7 +58,10 @@ export class RuntimeState {
     }
   };
 
-  constructor(private readonly config: RuntimeConfig) {}
+  private config: RuntimeConfig;
+  constructor(config: RuntimeConfig) {
+    this.config = config;
+  }
 
   onRequest(request: FastifyRequest, reply: FastifyReply) {
     this.inFlight += 1;

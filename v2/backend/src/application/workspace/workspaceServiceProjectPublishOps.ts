@@ -39,7 +39,7 @@ export async function publishIterationToRemoteOp(
     };
   }
   const matrix = Array.isArray(normalizedIteration.changeControl?.generatedTestMatrix)
-    ? normalizedIteration.changeControl!.generatedTestMatrix
+    ? normalizedIteration.changeControl?.generatedTestMatrix
     : [];
   const failedOrBlocked = matrix.filter((item) => item.executionStatus === "failed" || item.executionStatus === "blocked");
   if (failedOrBlocked.length > 0) {
@@ -51,7 +51,7 @@ export async function publishIterationToRemoteOp(
     };
   }
   const acceptanceChecklist = Array.isArray(normalizedIteration.changeControl?.qualityArtifacts?.acceptanceChecklist)
-    ? normalizedIteration.changeControl!.qualityArtifacts.acceptanceChecklist
+    ? normalizedIteration.changeControl?.qualityArtifacts.acceptanceChecklist
     : [];
   const uncoveredAcceptanceCriteria = listUncoveredAcceptanceCriteria(normalizedIteration.scope.acceptanceCriteria, acceptanceChecklist, []);
   if (acceptanceChecklist.length === 0 || uncoveredAcceptanceCriteria.length > 0) {

@@ -1,17 +1,19 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useAppController } from "./app/useAppController";
 import { resolveSidebarViewState } from "./app/openclawNavigation";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary";
-import { LoginPage } from "./pages/auth/LoginPage";
-import { DashboardView } from "./pages/dashboard/DashboardView";
-import { PermissionSettingsPage } from "./pages/governance/PermissionSettingsPage";
+import { AppControllerContext } from "./contexts/AppControllerContext";
 import { DockSidebar } from "./pages/layout/DockSidebar";
 import { OpenclawWorkspacePanel } from "./pages/layout/OpenclawWorkspacePanel";
-import { MarketingHomePage } from "./pages/marketing/MarketingHomePage";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
 import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
 import model from "../model.json";
+
+const MarketingHomePage = lazy(() => import("./pages/marketing/MarketingHomePage").then((m) => ({ default: m.MarketingHomePage })));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
+const DashboardView = lazy(() => import("./pages/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
+const PermissionSettingsPage = lazy(() => import("./pages/governance/PermissionSettingsPage").then((m) => ({ default: m.PermissionSettingsPage })));
 
 export default function App() {
   const controller = useAppController();
@@ -33,7 +35,8 @@ export default function App() {
   };
   if (isMarketingRoute) {
     return (
-      <MarketingHomePage
+      <Suspense fallback={<div className="loading-spinner" />}>
+        <MarketingHomePage
         isAuthenticated={controller.isAuthenticated}
         onPrimaryAction={() => {
           window.location.hash = controller.isAuthenticated ? "/dashboard" : "/login";
@@ -46,12 +49,14 @@ export default function App() {
           window.location.hash = "/login";
         }}
       />
+      </Suspense>
     );
   }
 
   if (controller.route === "login" || !controller.isAuthenticated) {
     return (
-      <LoginPage
+      <Suspense fallback={<div className="loading-spinner" />}>
+        <LoginPage
         loginMode={controller.loginMode}
         loginPhone={controller.loginPhone}
         loginCode={controller.loginCode}
@@ -73,10 +78,12 @@ export default function App() {
         onPhoneBlur={() => controller.setLoginTouched((prev) => ({ ...prev, phone: true }))}
         onCodeBlur={() => controller.setLoginTouched((prev) => ({ ...prev, code: true }))}
       />
+      </Suspense>
     );
   }
 
   return (
+    <AppControllerContext.Provider value={controller}>
     <div className="workspace">
       <DockSidebar
         activeView={controller.activeView}
@@ -117,20 +124,24 @@ export default function App() {
               onBack={() => setShowOpenclawWorkspace(false)}
             />
           ) : controller.activeView === "dashboard" ? (
-            <DashboardView
-              projects={controller.projects}
-              inProgressIterations={controller.inProgressIterations}
-              completedIterations={controller.completedIterations}
-              status={controller.status}
-              progressBuckets={controller.progressBuckets}
-              iterationCount={controller.iterations.length}
-              monthlyTrend={controller.monthlyTrend}
-              currentProjectId={controller.currentProjectId}
-              currentProjectIterations={controller.iterations.length}
-              onViewProjects={() => openViewFromSidebar("projects")}
-            />
+            <Suspense fallback={<div className="loading-spinner" />}>
+              <DashboardView
+                projects={controller.projects}
+                inProgressIterations={controller.inProgressIterations}
+                completedIterations={controller.completedIterations}
+                status={controller.status}
+                progressBuckets={controller.progressBuckets}
+                iterationCount={controller.iterations.length}
+                monthlyTrend={controller.monthlyTrend}
+                currentProjectId={controller.currentProjectId}
+                currentProjectIterations={controller.iterations.length}
+                onViewProjects={() => openViewFromSidebar("projects")}
+              />
+            </Suspense>
           ) : controller.activeView === "permissions" ? (
-            <PermissionSettingsPage currentRole={controller.currentRole} />
+            <Suspense fallback={<div className="loading-spinner" />}>
+              <PermissionSettingsPage currentRole={controller.currentRole} />
+            </Suspense>
           ) : (
             <ProjectsWorkspace
               projects={controller.projects}
@@ -255,5 +266,6 @@ export default function App() {
         onSubmit={controller.handleCreateIteration}
       />
     </div>
+    </AppControllerContext.Provider>
   );
 }

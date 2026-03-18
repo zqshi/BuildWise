@@ -2,8 +2,15 @@
   "lineLimitExceptions": [
     "src/domain/workspace/analysisTypes.ts",
     "src/pages/projects/IterationWorkspacePanel.tsx",
+    "src/pages/projects/AnalysisDrawerContent.tsx",
+    "src/pages/projects/InteractionDrawerContent.tsx",
+    "src/pages/projects/ArtifactEditorWidgets.tsx",
+    "src/pages/projects/artifactEditorModel.ts",
+    "src/pages/auth/LoginPage.tsx",
+    "src/pages/layout/OpenclawWorkspacePanel.tsx",
     "backend/src/application/platform/platformService.ts",
     "backend/src/application/workspace/workspaceService.ts",
+    "backend/src/application/workspace/analysisService.ts",
     "backend/src/application/workspace/workspaceServiceAnalysisOps.ts",
     "backend/src/application/modeling/modelingService.ts",
     "backend/src/application/workspace/workspaceServiceChangeControlCoreOps.ts",
@@ -28,7 +35,6 @@
   ],
   "hardLineLimitExceptions": [
     "src/pages/projects/IterationWorkspacePanel.tsx",
-    "src/styles/workspace-interactions.css",
-    "src/app/useIterationActions.ts"
+    "src/pages/projects/AnalysisDrawerContent.tsx"
   ]
 }

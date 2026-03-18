@@ -7,6 +7,7 @@ import {
   resolveModel,
   type LlmEnv
 } from "./agentRunnerConfig";
+import { OpenClawAgentRunner } from "../../infrastructure/openclaw/openclawAgentRunner";
 
 export type LlmRuntimeStatus = {
   configured: boolean;
@@ -25,6 +26,12 @@ export type AgentRunResult = {
 export type AgentRunOptions = {
   imageDataUrls?: string[];
   modelOverride?: string;
+  /** Session context for OpenClaw Gateway session persistence. Ignored by non-OpenClaw runners. */
+  sessionContext?: {
+    projectId?: number;
+    iterationId?: number;
+    conversationId?: string;
+  };
 };
 
 export class LlmUnavailableError extends Error {
@@ -45,8 +52,14 @@ export class LlmInvocationError extends Error {
   }
 }
 
+export type ConversationMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
 export interface AgentRunner {
   run(prompt: IterationAgentPrompt, options?: AgentRunOptions): Promise<AgentRunResult>;
+  runWithHistory(systemPrompt: string, messages: ConversationMessage[], options?: AgentRunOptions): Promise<AgentRunResult>;
 }
 
 class OpenAICompatibleAgentRunner implements AgentRunner {
@@ -58,6 +71,46 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     private readonly maxOutputTokens: number = 1200
   ) {}
 
+  async runWithHistory(systemPrompt: string, messages: ConversationMessage[], _options?: AgentRunOptions): Promise<AgentRunResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const modelToUse = this.model;
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {})
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          temperature: 0.2,
+          max_tokens: this.maxOutputTokens,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...messages.map((m) => ({ role: m.role, content: m.content }))
+          ]
+        }),
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`llm_http_${response.status}${text ? `: ${text.slice(0, 160)}` : ""}`);
+      }
+      const payload = (await response.json()) as {
+        model?: string;
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = payload.choices?.[0]?.message?.content?.trim();
+      if (!content) {
+        throw new Error("llm_empty_content");
+      }
+      return { content, model: payload.model || modelToUse };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async run(prompt: IterationAgentPrompt, options?: AgentRunOptions): Promise<AgentRunResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -65,7 +118,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     const traceEnabled = ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.LLM_TRACE || "").trim() === "1";
     try {
       const imageDataUrls = Array.isArray(options?.imageDataUrls)
-        ? options!.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
+        ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
         : [];
       const userContent =
         imageDataUrls.length === 0
@@ -141,6 +194,46 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
     private readonly maxOutputTokens: number = 1200
   ) {}
 
+  async runWithHistory(systemPrompt: string, messages: ConversationMessage[], _options?: AgentRunOptions): Promise<AgentRunResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const modelToUse = this.model;
+      const response = await fetch(anthropicMessagesEndpoint(this.baseUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+          ...(this.apiKey ? { "x-api-key": this.apiKey } : {})
+        },
+        body: JSON.stringify({
+          model: modelToUse,
+          temperature: 0.2,
+          max_tokens: this.maxOutputTokens,
+          system: systemPrompt,
+          messages: messages.map((m) => ({ role: m.role, content: m.content }))
+        }),
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`llm_http_${response.status}${text ? `: ${text.slice(0, 160)}` : ""}`);
+      }
+      const payload = (await response.json()) as {
+        model?: string;
+        content?: Array<{ type?: string; text?: string }>;
+      };
+      const blocks = Array.isArray(payload.content) ? payload.content : [];
+      const content = blocks.map((item) => (typeof item.text === "string" ? item.text.trim() : "")).filter(Boolean).join("\n").trim();
+      if (!content) {
+        throw new Error("llm_empty_content");
+      }
+      return { content, model: payload.model || modelToUse };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private parseDataUrl(dataUrl: string): { mediaType: string; data: string } | null {
     const matched = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
     if (!matched) {
@@ -156,7 +249,7 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const imageDataUrls = Array.isArray(options?.imageDataUrls)
-      ? options!.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
+      ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
       : [];
     const userContent: Array<Record<string, unknown>> = [{ type: "text", text: prompt.userPrompt }];
     for (const dataUrl of imageDataUrls) {
@@ -221,11 +314,26 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
 }
 
 export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
+  const provider = resolveLlmProvider(env);
+
+  if (provider === "openclaw") {
+    const gatewayUrl = (env.OPENCLAW_GATEWAY_URL || "http://127.0.0.1:18789").trim().replace(/\/+$/, "");
+    const gatewayToken = (env.OPENCLAW_GATEWAY_TOKEN || "").trim();
+    const agentId = (env.OPENCLAW_AGENT_ID || "main").trim();
+    const timeoutMsRaw = Number(env.LLM_REQUEST_TIMEOUT_MS);
+    const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 120000;
+    return new OpenClawAgentRunner({
+      baseUrl: gatewayUrl,
+      token: gatewayToken,
+      defaultAgentId: agentId,
+      timeoutMs
+    });
+  }
+
   const baseUrl = resolveBaseUrl(env);
   if (!baseUrl) {
     return null;
   }
-  const provider = resolveLlmProvider(env);
   const model = resolveModel(env);
   const apiKey = resolveApiKey(env);
   const timeoutMsRaw = Number(env.LLM_REQUEST_TIMEOUT_MS);
@@ -239,9 +347,28 @@ export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
 
 export async function probeLlmRuntimeStatus(env: LlmEnv, timeoutMs = 3000): Promise<LlmRuntimeStatus> {
   const provider = resolveLlmProvider(env);
+  const checkedAt = new Date().toISOString();
+
+  if (provider === "openclaw") {
+    const gatewayUrl = (env.OPENCLAW_GATEWAY_URL || "http://127.0.0.1:18789").trim().replace(/\/+$/, "");
+    const runner = new OpenClawAgentRunner({
+      baseUrl: gatewayUrl,
+      token: (env.OPENCLAW_GATEWAY_TOKEN || "").trim(),
+      defaultAgentId: (env.OPENCLAW_AGENT_ID || "main").trim()
+    });
+    const probeResult = await runner.probe();
+    return {
+      configured: true,
+      reachable: probeResult.reachable,
+      baseUrl: gatewayUrl,
+      model: "openclaw",
+      checkedAt,
+      error: probeResult.error
+    };
+  }
+
   const baseUrl = resolveBaseUrl(env);
   const model = resolveModel(env);
-  const checkedAt = new Date().toISOString();
   if (!baseUrl) {
     return {
       configured: false,

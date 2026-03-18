@@ -8,7 +8,7 @@ import type {
   IterationContextPayload,
   IterationStatus
 } from "../../domain/workspace/types";
-import { buildMergedIterationPayload, normalizeIteration, normalizeProject, statusTransitions } from "./workspaceSupport";
+import { buildMergedIterationPayload, normalizeIteration, normalizeProject, allowedTransitionsFrom } from "./workspaceSupport";
 import { buildDefaultIterationCodeLink, defaultIterationChangeControl, hasProject, writeAuditLog } from "./workspaceServiceCommon";
 import { buildGitRequirementIntakePrompt, hasGitRequirementIntakeTarget } from "./workspaceServiceGitRequirementIntakeOps";
 import { normalizeIterationMessageContent } from "./workspaceMessageSanitizer";
@@ -214,7 +214,7 @@ export function getStateMachineOp(repo: WorkspaceRepository, iterationId: number
   return {
     iterationId: normalized.id,
     currentStatus,
-    allowedTransitions: statusTransitions[currentStatus] || [],
+    allowedTransitions: allowedTransitionsFrom(currentStatus),
     transitionHistory: repo.listTransitions(iterationId).map((item) => ({
       ...item,
       note: item.note || item.reason || "",

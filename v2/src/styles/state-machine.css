@@ -37,27 +37,27 @@
 }
 
 .status-pill.planned {
-  background:#f1f5f9;
+  background:var(--bg-slate-100);
   color:#334155;
 }
 
 .status-pill.in-progress {
-  background:#e0f2fe;
+  background:var(--sky-50);
   color:#075985;
 }
 
 .status-pill.review {
-  background:#fef3c7;
+  background:var(--amber-50);
   color:#92400e;
 }
 
 .status-pill.blocked {
-  background:#fee2e2;
+  background:var(--danger-50);
   color:#991b1b;
 }
 
 .status-pill.completed {
-  background:#dcfce7;
+  background:var(--success-50);
   color:#166534;
 }
 

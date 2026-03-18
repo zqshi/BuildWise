@@ -168,6 +168,51 @@ export function confirmIterationAnalysisOp(
   }
   repo.updateIteration(normalized);
   writeAuditLog(repo, "iteration_analysis_confirmed", `iteration:${iterationId}`, `confirmedBy=${normalized.changeControl.confirmedBy}`);
+
+  // 知识沉淀：将 domainKnowledgeEntries 回写到 ProjectKnowledgeBase
+  const domainEntries = normalized.changeControl.domainKnowledgeEntries;
+  if (Array.isArray(domainEntries) && domainEntries.length > 0) {
+    const project = repo.findProject(normalized.projectId);
+    if (project) {
+      const kb = project.knowledgeBase ?? {
+        ontologyTerms: [],
+        stableRules: [],
+        componentInventory: [],
+        codeMap: [],
+        decisionLog: [],
+        knownRisks: [],
+        changePatterns: [],
+        updatedAt: ""
+      };
+      const existingTerms = new Set(kb.ontologyTerms.map((item) => item.term));
+      for (const entry of domainEntries) {
+        if (entry.term && !existingTerms.has(entry.term)) {
+          kb.ontologyTerms.push({
+            term: entry.term,
+            aliases: [],
+            definition: entry.definition || "",
+            evidence: entry.evidence || ""
+          });
+          existingTerms.add(entry.term);
+        }
+      }
+      // 从 executableConstraints 提取 stableRules
+      const constraints = normalized.changeControl.executableConstraints;
+      if (constraints?.acceptanceChecks) {
+        const existingRules = new Set(kb.stableRules.map((item) => item.rule));
+        for (const check of constraints.acceptanceChecks) {
+          if (check && !existingRules.has(check)) {
+            kb.stableRules.push({ rule: check, rationale: "从验收标准自动沉淀", source: `iteration:${iterationId}` });
+            existingRules.add(check);
+          }
+        }
+      }
+      kb.updatedAt = now;
+      repo.updateProject({ ...project, knowledgeBase: kb });
+      writeAuditLog(repo, "project_knowledge_base_updated", `project:${normalized.projectId}`, `terms=${kb.ontologyTerms.length};rules=${kb.stableRules.length}`);
+    }
+  }
+
   return { ok: true as const, data: normalized.changeControl };
 }
 

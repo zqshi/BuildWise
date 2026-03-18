@@ -26,7 +26,7 @@ export function nowIso() {
 }
 
 export function randomToken(prefix = "") {
-  return `${prefix}${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}${crypto.randomUUID().slice(0, 8)}`;
 }
 
 export const projectTemplates = [

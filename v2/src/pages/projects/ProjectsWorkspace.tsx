@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent, type RefObject } from "react";
+import { memo, useMemo, useState, type ChangeEvent, type RefObject } from "react";
 import type { DeploymentRecord, OpsMetricsPayload, TemplateRunHistory, VersionSnapshot } from "../../domain/workspace/platformTypes";
 import type {
   AttachmentAnalysisReport,
@@ -115,7 +115,7 @@ type ProjectsWorkspaceProps = {
   onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
 };
 
-export function ProjectsWorkspace({
+export const ProjectsWorkspace = memo(function ProjectsWorkspace({
   projects,
   currentProjectId,
   currentRole,
@@ -337,4 +337,4 @@ export function ProjectsWorkspace({
       )}
     </section>
   );
-}
+});

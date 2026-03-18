@@ -134,7 +134,7 @@ export function buildIterationAgentPlan(params: {
     : "";
   const requireInfoCompletion =
     Boolean(attachmentSignals) &&
-    (attachmentSignals!.hasPrototypeEvidence || attachmentSignals!.hasDocumentEvidence || attachmentSignals!.sourceType === "folder");
+    (attachmentSignals?.hasPrototypeEvidence || attachmentSignals?.hasDocumentEvidence || attachmentSignals?.sourceType === "folder");
   const infoCompletionHint = requireInfoCompletion
     ? "本轮必须先执行信息完善：融合文档与原型信息，补全缺失约束后再进入任务拆解。"
     : "";

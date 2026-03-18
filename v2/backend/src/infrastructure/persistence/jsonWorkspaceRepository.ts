@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   AssessmentSnapshot,
@@ -59,7 +59,11 @@ function toArray<T>(value: unknown): T[] {
 }
 
 export class JsonWorkspaceRepository implements WorkspaceRepository {
-  constructor(private readonly dataFile: string) {}
+  private readonly dataFile: string;
+  private writing = false;
+  constructor(dataFile: string) {
+    this.dataFile = dataFile;
+  }
 
   read(): WorkspaceStore {
     if (!existsSync(this.dataFile)) {
@@ -90,7 +94,17 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   }
 
   write(data: WorkspaceStore) {
-    writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
+    if (this.writing) {
+      throw new Error("Concurrent write detected on JsonWorkspaceRepository");
+    }
+    this.writing = true;
+    try {
+      const tmpFile = `${this.dataFile}.tmp`;
+      writeFileSync(tmpFile, JSON.stringify(data, null, 2), "utf-8");
+      renameSync(tmpFile, this.dataFile);
+    } finally {
+      this.writing = false;
+    }
   }
 
   nextId(items: { id: number }[]) {

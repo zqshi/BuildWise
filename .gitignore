@@ -9,14 +9,15 @@
 **/.vite/
 *.tsbuildinfo
 
+# Environment files (global)
+**/.env
+**/.env.*
+!**/.env.example
+
 # Runtime workspace data
-v2/backend/.env
+**/*.runtime.json
 v2/backend/data.json
-v2/backend/data.runtime.json
 backend/data.json
-backend/data.runtime.json
-v2/backend/openclaw-global.runtime.json
-v2/backend/continuous-modeling.runtime.json
 v2/backend/backups/
 
 # Runtime recordings and temporary artifacts
@@ -33,7 +34,7 @@ autoboot/reports/*.md
 autoboot/plans/*.json
 autoboot/state.json
 autoboot/state/*.json
-autoboot/__pycache__/
+**/__pycache__/
 *.pyc
 
 # IDE / editor

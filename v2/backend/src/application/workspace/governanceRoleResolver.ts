@@ -48,7 +48,7 @@ export function inferWorkspaceRoleFromPermissions(
     return "owner";
   }
   const owner = governanceRoles.find((item) => item.id === "owner");
-  if (owner && owner.permissions.every((item) => granted.has(item))) {
+  if (owner?.permissions.every((item) => granted.has(item))) {
     return "owner";
   }
   let bestRole: GovernanceRole["id"] = "viewer";

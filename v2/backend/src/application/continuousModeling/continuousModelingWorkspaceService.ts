@@ -1,7 +1,7 @@
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import type { IterationModelingInput } from "../../domain/continuousModeling/types";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-import { ContinuousModelingService } from "./continuousModelingService";
+import type { ContinuousModelingService } from "./continuousModelingService";
 import { buildProjectModelView } from "./continuousModelingProjectView";
 
 export class ContinuousModelingWorkspaceService {
@@ -37,6 +37,14 @@ export class ContinuousModelingWorkspaceService {
       return planned;
     }
     return { ok: true as const, data: this.modelingService.saveCandidate(planned.data) };
+  }
+
+  publishSnapshot(snapshotId: string, projectId: number) {
+    const project = this.workspaceRepo.findProject(projectId);
+    if (!project) {
+      return { ok: false as const, reason: "project_not_found" };
+    }
+    return this.modelingService.publishSnapshot(snapshotId, projectId);
   }
 
   getProjectModelView(projectId: number, iterationId?: number) {

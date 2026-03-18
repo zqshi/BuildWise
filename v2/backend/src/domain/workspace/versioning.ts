@@ -24,6 +24,46 @@ function compareVersionTriplet(left: VersionTriplet, right: VersionTriplet) {
   return left.patch - right.patch;
 }
 
+/** Value object for semantic versioning */
+export class SemanticVersion {
+  readonly major: number;
+  readonly minor: number;
+  readonly patch: number;
+
+  private constructor(major: number, minor: number, patch: number) {
+    this.major = major;
+    this.minor = minor;
+    this.patch = patch;
+  }
+
+  static parse(input: string | undefined): SemanticVersion | null {
+    const parsed = parseVersionTriplet(input);
+    return parsed ? new SemanticVersion(parsed.major, parsed.minor, parsed.patch) : null;
+  }
+
+  static initial(): SemanticVersion {
+    return new SemanticVersion(1, 0, 0);
+  }
+
+  bump(type: IterationVersionType): SemanticVersion {
+    if (type === "major") return new SemanticVersion(this.major + 1, 0, 0);
+    if (type === "minor") return new SemanticVersion(this.major, this.minor + 1, 0);
+    return new SemanticVersion(this.major, this.minor, this.patch + 1);
+  }
+
+  compareTo(other: SemanticVersion): number {
+    return compareVersionTriplet(this, other);
+  }
+
+  isNewerThan(other: SemanticVersion): boolean {
+    return this.compareTo(other) > 0;
+  }
+
+  toString(): string {
+    return `${this.major}.${this.minor}.${this.patch}`;
+  }
+}
+
 export function nextThreePartVersion(existing: Array<{ version?: string }>, versionType: IterationVersionType = "patch") {
   let latest: VersionTriplet | null = null;
   for (const item of existing) {

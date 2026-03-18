@@ -289,7 +289,7 @@ export function runOpenclawSkillChainForCoach(params: {
     checklist: selection.checklist,
     risks: selection.risks,
     evidence: [
-      `skills_mode=agent_led_progressive_loading`,
+      "skills_mode=agent_led_progressive_loading",
       `available_skills=${entries.map((item) => item.id).join("|")}`,
       `selected_skills=${selection.selectedSkills.join("|") || "none"}`,
       `selection_reasons=${selection.selectionReasons.join(" | ") || "none"}`,

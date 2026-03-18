@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ContinuousModelingService } from "../src/application/continuousModeling/continuousModelingService.ts";
+const { ContinuousModelingService } = await import("../dist/application/continuousModeling/continuousModelingService.js");
 
 test("ContinuousModelingService builds candidate snapshot from baseline and flags new terms", () => {
   const saved = [];

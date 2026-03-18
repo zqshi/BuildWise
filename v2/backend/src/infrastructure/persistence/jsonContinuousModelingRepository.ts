@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
-import type { ModelSnapshot } from "../../domain/continuousModeling/types";
+import type { ModelSnapshot, SnapshotStatus } from "../../domain/continuousModeling/types";
 
 type ContinuousModelingStore = {
   snapshots: ModelSnapshot[];
@@ -12,6 +12,7 @@ function asSnapshots(value: unknown) {
 
 export class JsonContinuousModelingRepository implements ContinuousModelingRepository {
   private readonly dataFile: string;
+  private writing = false;
   constructor(dataFile: string) {
     this.dataFile = dataFile;
   }
@@ -30,7 +31,15 @@ export class JsonContinuousModelingRepository implements ContinuousModelingRepos
   }
 
   private writeStore(data: ContinuousModelingStore) {
-    writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
+    if (this.writing) {
+      throw new Error("Concurrent write detected on JsonContinuousModelingRepository");
+    }
+    this.writing = true;
+    try {
+      writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
+    } finally {
+      this.writing = false;
+    }
   }
 
   listSnapshots(projectId: number) {
@@ -51,5 +60,16 @@ export class JsonContinuousModelingRepository implements ContinuousModelingRepos
     remaining.push(snapshot);
     data.snapshots = remaining.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
     this.writeStore(data);
+  }
+
+  updateSnapshotStatus(snapshotId: string, status: SnapshotStatus) {
+    const data = this.readStore();
+    const target = data.snapshots.find((item) => item.id === snapshotId);
+    if (!target) {
+      return false;
+    }
+    target.status = status;
+    this.writeStore(data);
+    return true;
   }
 }

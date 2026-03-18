@@ -1,11 +1,14 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
 
-const smsCodeStore = new Map<string, { code: string; expireAt: number; createdAt: number }>();
+const smsCodeStore = new Map<string, { code: string; expireAt: number; createdAt: number; failedAttempts: number }>();
+const smsRateStore = new Map<string, number>();
 const SMS_CODE_MAX_AGE_MS = 10 * 60 * 1000;
 const SMS_CODE_MAX_STORE_SIZE = 1000;
+const SMS_RATE_LIMIT_MS = 60 * 1000;
+const SMS_MAX_FAILED_ATTEMPTS = 5;
 
 setInterval(() => {
   const now = Date.now();
@@ -37,11 +40,17 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(503);
       return { message: "sms code store is full, please try later" };
     }
-    const code = `${Math.floor(100000 + Math.random() * 900000)}`;
+    const lastSentAt = smsRateStore.get(phone);
     const now = Date.now();
+    if (lastSentAt && now - lastSentAt < SMS_RATE_LIMIT_MS) {
+      reply.code(429);
+      return { message: "请稍后再试，每60秒只能发送一次验证码" };
+    }
+    const code = `${randomInt(100000, 999999)}`;
     const expireAt = now + 5 * 60 * 1000;
-    smsCodeStore.set(phone, { code, expireAt, createdAt: now });
-    return { ok: true, expireAt: new Date(expireAt).toISOString(), ...(process.env.NODE_ENV !== "production" ? { debugCode: code } : {}) };
+    smsCodeStore.set(phone, { code, expireAt, createdAt: now, failedAttempts: 0 });
+    smsRateStore.set(phone, now);
+    return { ok: true, expireAt: new Date(expireAt).toISOString() };
   });
 
   app.post("/api/auth/sms/verify", async (request, reply) => {
@@ -57,8 +66,14 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "invalid or expired code" };
     }
+    if (saved.failedAttempts >= SMS_MAX_FAILED_ATTEMPTS) {
+      smsCodeStore.delete(phone);
+      reply.code(429);
+      return { message: "验证码已失效，失败次数过多，请重新获取" };
+    }
     const codeMatch = saved.code.length === code.length && timingSafeEqual(Buffer.from(saved.code), Buffer.from(code));
     if (!codeMatch) {
+      saved.failedAttempts += 1;
       reply.code(400);
       return { message: "invalid or expired code" };
     }
@@ -222,7 +237,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       return { message: "message is required" };
     }
     try {
-      return service.openclawDirectChatGlobal(message);
+      return await service.openclawDirectChatGlobal(message);
     } catch (error) {
       reply.code(500);
       return { message: error instanceof Error ? error.message : "openclaw chat failed" };

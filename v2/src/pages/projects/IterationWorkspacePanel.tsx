@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
-import { deleteOpsTriageTemplate, fetchOpsTriageTemplates, upsertOpsTriageTemplate } from "../../app/workspaceApi";
+import { AnalysisDrawerContent } from "./AnalysisDrawerContent";
+import { InteractionDrawerContent } from "./InteractionDrawerContent";
+import { deleteOpsTriageTemplate, upsertOpsTriageTemplate } from "../../app/workspaceApi";
+import { useDrawerResize } from "./useDrawerResize";
+import { useOpsTemplates } from "./useOpsTemplates";
+import { usePrototypeInteraction } from "./usePrototypeInteraction";
 import {
   buildIterationChatDisplayItems,
   compactArtifactCardSummary,
@@ -85,6 +90,15 @@ export function IterationWorkspacePanel({
     { id: "primary-cta", page: "首页", component: "Actions", label: "创建迭代", background: "#2563eb", color: "#ffffff", visible: true, emphasized: true, width: 220, height: 44 },
     { id: "task-card", page: "首页", component: "Cards", label: "卡片：待澄清问题", background: "#ffffff", color: "#0f172a", visible: true, emphasized: false, width: 460, height: 92 }
   ];
+  // ── Extracted hooks (order-independent) ──
+  const {
+    interactionDrawerWidth, setInteractionDrawerWidth,
+    artifactDrawerWidth, setArtifactDrawerWidth,
+    handleInteractionDrawerResizePointerDown,
+    handleArtifactDrawerResizePointerDown,
+  } = useDrawerResize();
+  const { opsTemplates, setOpsTemplates, reloadOpsTemplates, buildOpsCommandTemplates } = useOpsTemplates(currentIteration?.projectId);
+
   const [onlyHighValue, setOnlyHighValue] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [showUploadMenu, setShowUploadMenu] = useState(false);
@@ -101,7 +115,6 @@ export function IterationWorkspacePanel({
   const [changeControlBusy, setChangeControlBusy] = useState(false);
   const [changeControlNotice, setChangeControlNotice] = useState("");
   const [opsCopyNotice, setOpsCopyNotice] = useState("");
-  const [opsTemplates, setOpsTemplates] = useState<OpsTriageTemplate[]>([]);
   const [templateBusy, setTemplateBusy] = useState(false);
   const [templateNotice, setTemplateNotice] = useState("");
   const [templateCategory, setTemplateCategory] = useState("custom");
@@ -112,62 +125,35 @@ export function IterationWorkspacePanel({
   const [testMatrixNoteMap, setTestMatrixNoteMap] = useState<Record<string, string>>({});
   const [showInteractionPanel, setShowInteractionPanel] = useState(false);
   const [interactionEditMode, setInteractionEditMode] = useState(false);
+  // ── Extracted hook (depends on interactionEditMode) ──
+  const {
+    selectedImagePoint, setSelectedImagePoint,
+    selectedImageRegion, setSelectedImageRegion,
+    dragImageRegion, setDragImageRegion,
+    imageWrapRef,
+    toPercentPoint,
+    handleImagePointerDown, handleImagePointerMove,
+    handleImagePointerUp, handleImagePointerCancel,
+    finalizeImageSelection,
+    applyPrototypeInstruction: applyPrototypeInstructionHook,
+  } = usePrototypeInteraction(interactionEditMode);
   const [selectedHtmlPreviewPath, setSelectedHtmlPreviewPath] = useState("");
   const [selectedPrototypeElementId, setSelectedPrototypeElementId] = useState("page-title");
   const [prototypeElements, setPrototypeElements] = useState<PrototypeElement[]>(defaultPrototypeElements);
   const [prototypeLastPlan, setPrototypeLastPlan] = useState<string[]>([]);
   const [prototypeHistory, setPrototypeHistory] = useState<PrototypeChangeHistoryItem[]>([]);
-  const [hoveredHtmlElement, setHoveredHtmlElement] = useState<HtmlPreviewInteractionPayload | null>(null);
-  const [selectedHtmlElement, setSelectedHtmlElement] = useState<HtmlPreviewInteractionPayload | null>(null);
   const [selectedImagePreviewPath, setSelectedImagePreviewPath] = useState("");
-  const [selectedImagePoint, setSelectedImagePoint] = useState<{ xPercent: number; yPercent: number } | null>(null);
-  const [selectedImageRegion, setSelectedImageRegion] = useState<ImageSelectionRegion | null>(null);
-  const [dragImageRegion, setDragImageRegion] = useState<ImageSelectionRegion | null>(null);
   const [interactionInstruction, setInteractionInstruction] = useState("");
   const [artifactEditorValue, setArtifactEditorValue] = useState("");
   const [artifactEditorDirty, setArtifactEditorDirty] = useState(false);
   const [artifactEditorBusy, setArtifactEditorBusy] = useState(false);
   const [artifactEditorMode, setArtifactEditorMode] = useState<"view" | "edit">("view");
-  const [interactionDrawerWidth, setInteractionDrawerWidth] = useState(() => {
-    if (typeof window === "undefined") {
-      return 680;
-    }
-    try {
-      const raw = window.localStorage.getItem("buildwise:interaction-drawer-width");
-      const parsed = Number(raw);
-      const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
-      if (!Number.isFinite(parsed)) {
-        return Math.min(680, max);
-      }
-      return Math.max(min, Math.min(max, parsed));
-    } catch {
-      return 680;
-    }
-  });
-  const [artifactDrawerWidth, setArtifactDrawerWidth] = useState(() => {
-    if (typeof window === "undefined") {
-      return 760;
-    }
-    try {
-      const raw = window.localStorage.getItem("buildwise:artifact-drawer-width");
-      const parsed = Number(raw);
-      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
-      if (!Number.isFinite(parsed)) {
-        return Math.max(min, Math.min(max, Math.round(window.innerWidth * 0.42)));
-      }
-      return Math.max(min, Math.min(max, parsed));
-    } catch {
-      return 760;
-    }
-  });
+  const [hoveredHtmlElement, setHoveredHtmlElement] = useState<HtmlPreviewInteractionPayload | null>(null);
+  const [selectedHtmlElement, setSelectedHtmlElement] = useState<HtmlPreviewInteractionPayload | null>(null);
   const [htmlPreviewHistory, setHtmlPreviewHistory] = useState<HtmlPreviewHistoryItem[]>([]);
-  const imageWrapRef = useRef<HTMLButtonElement | null>(null);
   const htmlPreviewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const artifactHtmlPreviewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const chatComposerInputRef = useRef<HTMLInputElement | null>(null);
-  const imageDragStartRef = useRef<{ x: number; y: number } | null>(null);
-  const interactionDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const artifactDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const scopeInCount = contextData?.scope.inScope.length ?? 0;
   const scopeOutCount = contextData?.scope.outOfScope.length ?? 0;
   const acceptanceCount = contextData?.scope.acceptanceCriteria.length ?? 0;
@@ -335,11 +321,6 @@ export function IterationWorkspacePanel({
     setAnalysisDrawerArtifactId(null);
   }, [currentIteration?.id]);
 
-  useEffect(() => {
-    if (!selectedDrawerArtifact) {
-      return;
-    }
-  }, [selectedDrawerArtifact?.id, selectedDrawerArtifact?.updatedAt]);
 
   useEffect(() => {
     const matrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
@@ -393,90 +374,6 @@ export function IterationWorkspacePanel({
     setSelectedImageRegion(null);
     setDragImageRegion(null);
   }, [interactionEditMode]);
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      const resizeState = interactionDrawerResizeRef.current;
-      if (!resizeState) {
-        return;
-      }
-      const delta = resizeState.startX - event.clientX;
-      const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
-      const next = Math.max(min, Math.min(max, resizeState.startWidth + delta));
-      setInteractionDrawerWidth(next);
-    };
-    const onPointerUp = () => {
-      interactionDrawerResizeRef.current = null;
-    };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      const resizeState = artifactDrawerResizeRef.current;
-      if (!resizeState) {
-        return;
-      }
-      const delta = resizeState.startX - event.clientX;
-      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
-      const next = Math.max(min, Math.min(max, resizeState.startWidth + delta));
-      setArtifactDrawerWidth(next);
-    };
-    const onPointerUp = () => {
-      artifactDrawerResizeRef.current = null;
-    };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => {
-      const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
-      setInteractionDrawerWidth((prev) => Math.max(min, Math.min(max, prev)));
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => {
-      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
-      setArtifactDrawerWidth((prev) => Math.max(min, Math.min(max, prev)));
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    try {
-      window.localStorage.setItem("buildwise:interaction-drawer-width", String(interactionDrawerWidth));
-    } catch {
-      // ignore storage failure
-    }
-  }, [interactionDrawerWidth]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    try {
-      window.localStorage.setItem("buildwise:artifact-drawer-width", String(artifactDrawerWidth));
-    } catch {
-      // ignore storage failure
-    }
-  }, [artifactDrawerWidth]);
 
   useEffect(() => {
     const previews = uploadedFile?.imagePreviews ?? [];
@@ -550,77 +447,11 @@ export function IterationWorkspacePanel({
     }
   }, [uploadedFile?.iterationId, uploadedFile?.hasPrototypeAssets, uploadedFile?.prototypeItems]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchOpsTriageTemplates(currentIteration?.projectId)
-      .then((payload) => {
-        if (!cancelled) {
-          setOpsTemplates(payload.templates || []);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setOpsTemplates([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentIteration?.projectId]);
-
   const parseLines = (value: string) =>
     value
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean);
-
-  const reloadOpsTemplates = async () => {
-    const payload = await fetchOpsTriageTemplates(currentIteration?.projectId);
-    setOpsTemplates(payload.templates || []);
-  };
-
-  const buildOpsCommandTemplates = (step: string, projectId: number, templates: OpsTriageTemplate[]) => {
-    const lowered = step.toLowerCase();
-    const matched = templates.filter((template) => template.keywords.some((keyword) => lowered.includes(keyword.toLowerCase())));
-    if (matched.length > 0) {
-      const applyVars = (command: string) =>
-        command
-          .split("{{projectId}}")
-          .join(String(projectId))
-          .split("{{apiBase}}")
-          .join("http://127.0.0.1:5055")
-          .split("{{backendDir}}")
-          .join("backend");
-      return Array.from(
-        new Set(
-          matched
-            .flatMap((template) => template.commands)
-            .map((command) => applyVars(command))
-        )
-      ).slice(0, 6);
-    }
-    const commands: string[] = [];
-    if (lowered.includes("健康") || lowered.includes("health") || lowered.includes("就绪") || lowered.includes("ready")) {
-      commands.push("curl -sS http://127.0.0.1:5055/health");
-      commands.push("curl -sS http://127.0.0.1:5055/ready");
-    }
-    if (lowered.includes("指标") || lowered.includes("metric") || lowered.includes("错误率") || lowered.includes("延迟")) {
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/metrics");
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/runtime");
-    }
-    if (lowered.includes("发布") || lowered.includes("deploy")) {
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/deployments");
-      commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
-    }
-    if (lowered.includes("回滚") || lowered.includes("rollback")) {
-      commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
-    }
-    if (commands.length === 0) {
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/runtime");
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/metrics");
-    }
-    return Array.from(new Set(commands)).slice(0, 4);
-  };
 
   const copyText = async (text: string) => {
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -738,196 +569,9 @@ export function IterationWorkspacePanel({
     openArtifactPreviewById(matched.id);
   };
 
-  const applyPrototypeInstruction = (instruction: string) => {
-    const selected = selectedPrototypeElement;
-    const normalized = instruction.trim();
-    if (!selected || !normalized) {
-      return { applied: false, summary: "未识别有效修改。", plan: [] as string[] };
-    }
-    const colorMap: Record<string, { background: string; color: string }> = {
-      蓝色: { background: "#2563eb", color: "#ffffff" },
-      绿色: { background: "#16a34a", color: "#ffffff" },
-      橙色: { background: "#ea580c", color: "#ffffff" },
-      红色: { background: "#dc2626", color: "#ffffff" },
-      灰色: { background: "#475569", color: "#ffffff" }
-    };
-    const quotedText = normalized.match(/["“](.+?)["”]/)?.[1];
-    const renamedText =
-      quotedText ||
-      normalized.match(/(?:改成|改为|改名为|文案改为)\s*[:：]?\s*(.+)$/)?.[1]?.trim() ||
-      "";
-    const next = { ...selected };
-    const plan: string[] = [];
-    if (renamedText && renamedText !== selected.label) {
-      next.label = renamedText;
-      plan.push(`文案 → ${renamedText}`);
-    }
-    if (/隐藏|删除|移除/.test(normalized) && selected.visible) {
-      next.visible = false;
-      plan.push("可见性 → 隐藏");
-    }
-    if (/显示|恢复/.test(normalized) && !selected.visible) {
-      next.visible = true;
-      plan.push("可见性 → 显示");
-    }
-    if (/加粗|强调/.test(normalized) && !selected.emphasized) {
-      next.emphasized = true;
-      plan.push("强调状态 → 开启");
-    }
-    if (/取消加粗|去强调/.test(normalized) && selected.emphasized) {
-      next.emphasized = false;
-      plan.push("强调状态 → 关闭");
-    }
-    const widthMatch = normalized.match(/宽(?:度)?\s*(\d{2,4})/);
-    if (widthMatch) {
-      const width = Math.max(120, Math.min(900, Number(widthMatch[1])));
-      if (width !== selected.width) {
-        next.width = width;
-        plan.push(`宽度 → ${width}`);
-      }
-    }
-    const heightMatch = normalized.match(/高(?:度)?\s*(\d{2,4})/);
-    if (heightMatch) {
-      const height = Math.max(32, Math.min(600, Number(heightMatch[1])));
-      if (height !== selected.height) {
-        next.height = height;
-        plan.push(`高度 → ${height}`);
-      }
-    }
-    if (/变大|放大/.test(normalized)) {
-      const width = Math.min(900, next.width + 40);
-      const height = Math.min(600, next.height + 10);
-      if (width !== next.width || height !== next.height) {
-        next.width = width;
-        next.height = height;
-        plan.push(`尺寸 → ${width}×${height}`);
-      }
-    }
-    if (/变小|缩小/.test(normalized)) {
-      const width = Math.max(120, next.width - 40);
-      const height = Math.max(32, next.height - 10);
-      if (width !== next.width || height !== next.height) {
-        next.width = width;
-        next.height = height;
-        plan.push(`尺寸 → ${width}×${height}`);
-      }
-    }
-    for (const [key, color] of Object.entries(colorMap)) {
-      if (normalized.includes(key) && (next.background !== color.background || next.color !== color.color)) {
-        next.background = color.background;
-        next.color = color.color;
-        plan.push(`配色 → ${key}`);
-      }
-    }
-    if (plan.length === 0) {
-      setPrototypeLastPlan(["未识别到可执行属性变更（可尝试：文案、颜色、宽高、显隐、强调）。"]);
-      return { applied: false, summary: "未识别有效修改。", plan: [] as string[] };
-    }
-    setPrototypeElements((prev) => prev.map((item) => (item.id === selected.id ? next : item)));
-    setPrototypeLastPlan(plan);
-    const summary = plan.join("；");
-    const historyItem: PrototypeChangeHistoryItem = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      targetId: selected.id,
-      targetLabel: selected.label,
-      instruction: normalized,
-      summary,
-      before: selected,
-      after: next,
-      at: new Date().toISOString()
-    };
-    setPrototypeHistory((prev) => [historyItem, ...prev].slice(0, 20));
-    return { applied: true, summary, plan };
-  };
+  const applyPrototypeInstruction = (instruction: string) =>
+    applyPrototypeInstructionHook(instruction, selectedPrototypeElement, setPrototypeElements, setPrototypeLastPlan, setPrototypeHistory);
 
-  const toPercentPoint = (clientX: number, clientY: number) => {
-    const el = imageWrapRef.current;
-    if (!el) {
-      return null;
-    }
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      return null;
-    }
-    const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
-    return {
-      xPercent: (x / rect.width) * 100,
-      yPercent: (y / rect.height) * 100
-    };
-  };
-
-  const handleImagePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!interactionEditMode) {
-      return;
-    }
-    const point = toPercentPoint(event.clientX, event.clientY);
-    if (!point) {
-      return;
-    }
-    imageDragStartRef.current = { x: point.xPercent, y: point.yPercent };
-    setDragImageRegion({
-      xPercent: point.xPercent,
-      yPercent: point.yPercent,
-      widthPercent: 0,
-      heightPercent: 0
-    });
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleImagePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!interactionEditMode || !imageDragStartRef.current) {
-      return;
-    }
-    const point = toPercentPoint(event.clientX, event.clientY);
-    if (!point) {
-      return;
-    }
-    const start = imageDragStartRef.current;
-    const xPercent = Math.min(start.x, point.xPercent);
-    const yPercent = Math.min(start.y, point.yPercent);
-    const widthPercent = Math.abs(point.xPercent - start.x);
-    const heightPercent = Math.abs(point.yPercent - start.y);
-    setDragImageRegion({ xPercent, yPercent, widthPercent, heightPercent });
-  };
-
-  const finalizeImageSelection = (clientX: number, clientY: number) => {
-    const point = toPercentPoint(clientX, clientY);
-    const start = imageDragStartRef.current;
-    const draft = dragImageRegion;
-    imageDragStartRef.current = null;
-    setDragImageRegion(null);
-    if (!point || !start) {
-      return;
-    }
-    if (draft && (draft.widthPercent >= 1.2 || draft.heightPercent >= 1.2)) {
-      setSelectedImageRegion(draft);
-      setSelectedImagePoint(null);
-      return;
-    }
-    setSelectedImagePoint(point);
-    setSelectedImageRegion(null);
-  };
-
-  const handleImagePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!interactionEditMode) {
-      return;
-    }
-    finalizeImageSelection(event.clientX, event.clientY);
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleImagePointerCancel = () => {
-    if (!interactionEditMode) {
-      return;
-    }
-    imageDragStartRef.current = null;
-    setDragImageRegion(null);
-  };
 
   const applyActionsToHtmlContent = (source: string, selector: string, result: IterationVisualEditResponse) => {
     if (!source.trim() || result.actions.length === 0) {
@@ -1125,22 +769,6 @@ export function IterationWorkspacePanel({
     void sendInteractionInstruction(chatInput);
   };
 
-  const handleInteractionDrawerResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    interactionDrawerResizeRef.current = {
-      startX: event.clientX,
-      startWidth: interactionDrawerWidth
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleArtifactDrawerResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    artifactDrawerResizeRef.current = {
-      startX: event.clientX,
-      startWidth: artifactDrawerWidth
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
   const handleSaveArtifactEditor = async () => {
     if (!selectedDrawerArtifact || !artifactEditorDirty || artifactEditorBusy) {
       return;
@@ -1235,52 +863,6 @@ export function IterationWorkspacePanel({
     selectedDrawerArtifact && selectedDrawerArtifact.outputVersion > 0 && selectedDrawerArtifact.gateStatus !== "passed"
   );
   const canEditSelectedTextArtifact = isEditableTextArtifact && selectedDrawerArtifact?.editCapability !== "none";
-  const renderTextArtifactActions = () => (
-    <>
-      {artifactEditorMode === "edit" ? (
-        <>
-          <button
-            type="button"
-            className="btn ghost mini"
-            onClick={() => {
-              setArtifactEditorValue(artifactEditorSource);
-              setArtifactEditorDirty(false);
-              setArtifactEditorMode("view");
-            }}
-            disabled={artifactEditorBusy}
-          >
-            结束编辑
-          </button>
-          <button
-            type="button"
-            className="btn ghost mini"
-            onClick={() => {
-              setArtifactEditorValue(artifactEditorSource);
-              setArtifactEditorDirty(false);
-            }}
-            disabled={!artifactEditorDirty || artifactEditorBusy}
-          >
-            重置
-          </button>
-          <button
-            type="button"
-            className="btn primary mini"
-            onClick={() => void handleSaveArtifactEditor()}
-            disabled={!artifactEditorDirty || artifactEditorBusy}
-          >
-            {artifactEditorBusy ? "保存中..." : "保存草稿"}
-          </button>
-        </>
-      ) : canEditSelectedTextArtifact ? (
-        <button type="button" className="btn ghost mini" onClick={() => setArtifactEditorMode("edit")} disabled={artifactEditorBusy}>
-          编辑
-        </button>
-      ) : null}
-      <button type="button" className="btn ghost mini" onClick={() => void handleSubmitArtifactForReview()} disabled={artifactEditorBusy}>
-        提交确认
-      </button>
-    </>
-  );
 
   return (
     <>
@@ -1531,1208 +1113,152 @@ export function IterationWorkspacePanel({
       ) : null}
 
       {showAnalysisPanel ? (
-        <>
-          <div className="analysis-drawer-mask open" onClick={onCloseAnalysisPanel} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") onCloseAnalysisPanel(); }} aria-label="关闭" aria-hidden={false} />
-          <aside
-            className="panel preview-panel context-panel artifact-preview-panel analysis-drawer open"
-            style={{ width: `min(${artifactDrawerWidth}px, 100vw)` }}
-          >
-            <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
-          <button
-            type="button"
-            className="artifact-drawer-resize-handle"
-            aria-label="拖拽调整交付物抽屉宽度"
-            title="拖拽调整交付物抽屉宽度"
-            onPointerDown={handleArtifactDrawerResizePointerDown}
-          />
-          <div className="panel-head analysis-drawer-head">
-            <div>
-              <h2>{selectedDrawerArtifact ? `${selectedDrawerArtifact.title}` : "分析报告抽屉"}</h2>
-            </div>
-            <div className="chat-tools">
-              <button type="button" className="visual-align-hidden-trigger" onClick={openInteractionPanel}>
-                交互界面
-              </button>
-              <button type="button" className="icon-btn" aria-label="关闭报告抽屉" onClick={onCloseAnalysisPanel}>
-                ✕
-              </button>
-            </div>
-          </div>
-          <div
-            ref={analysisScrollRef}
-            className="preview-scroll"
-          >
-            {selectedDrawerArtifact ? (
-              <div className="deliverable-preview-focus">
-                {selectedArtifactKind === "analysis-report" ? (
-                  artifactDraftContent.trim() ? (
-                    <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} readOnly showTitle={false} />
-                  ) : (
-                    <div className="artifact-drawer-structured-content">
-                    {analysisDraftSections.length > 0 ? (
-                      <>
-                        <div className="deliverable-kv-grid">
-                          {analysisDraftSections.slice(0, 4).map((section) => (
-                            <div key={`analysis-section-${section.title}`}>
-                              <span>{section.title}</span>
-                              <strong>{section.content || (section.bullets[0] ?? "-")}</strong>
-                            </div>
-                          ))}
-                        </div>
-                        {analysisDraftSections.slice(4).map((section, index) => (
-                          <section key={`analysis-draft-${section.title}-${index}`} className="deliverable-section">
-                            <h4>{section.title}</h4>
-                            {section.content ? <p style={{ whiteSpace: "pre-wrap" }}>{section.content}</p> : null}
-                            {section.bullets.length > 0 ? (
-                              <ul className="history-list">
-                                {section.bullets.map((item, bulletIndex) => (
-                                  <li key={`${section.title}-${bulletIndex}`} className="history-item">
-                                    <p>{item}</p>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </section>
-                        ))}
-                      </>
-                    ) : analysisReport ? (
-                      <>
-                        <div className="deliverable-kv-grid">
-                          <div>
-                            <span>项目识别</span>
-                            <strong>{analysisReport.projectDetection?.projectName || "-"}</strong>
-                          </div>
-                          <div>
-                            <span>产品</span>
-                            <strong>{analysisReport.projectDetection?.productName || "-"}</strong>
-                          </div>
-                          <div>
-                            <span>项目类型</span>
-                            <strong>{analysisReport.projectDetection?.projectCategory || "-"}</strong>
-                          </div>
-                          <div>
-                            <span>分析时间</span>
-                            <strong>{analysisReport.analyzedAt ? new Date(analysisReport.analyzedAt).toLocaleString("zh-CN") : "-"}</strong>
-                          </div>
-                        </div>
-                        <section className="deliverable-section">
-                          <h4>理解摘要</h4>
-                          <p>{analysisReport.understanding || selectedDrawerArtifact.summary || "-"}</p>
-                        </section>
-                        <section className="deliverable-section">
-                          <h4>高优先级发现</h4>
-                          {analysisReport.prioritizedFindings?.length ? (
-                            <ul className="history-list">
-                              {analysisReport.prioritizedFindings.slice(0, 6).map((item, index) => (
-                                <li key={`${item.priority}-${index}`} className="history-item">
-                                  <strong>[{item.priority}] {item.content}</strong>
-                                  <p className="hint">原因：{item.reason || "-"}</p>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="hint">暂无结构化发现。</p>
-                          )}
-                        </section>
-                        <section className="deliverable-section">
-                          <h4>下一步建议</h4>
-                          {analysisReport.nextActions?.length ? (
-                            <ul className="history-list">
-                              {analysisReport.nextActions.slice(0, 6).map((item, index) => (
-                                <li key={`next-${index}`} className="history-item">
-                                  <p>{item}</p>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="hint">暂无下一步建议。</p>
-                          )}
-                        </section>
-                      </>
-                    ) : (
-                      <p className="hint">当前迭代暂无分析报告内容。</p>
-                    )}
-                    </div>
-                  )
-                ) : null}
-                {selectedArtifactKind === "product-requirements-doc" ? (
-                  <ArtifactTextEditor
-                    title={`PRD · v${selectedDrawerArtifact.outputVersion}`}
-                    value={artifactEditorValue}
-                    profile="prd"
-                    readOnly={artifactEditorMode !== "edit"}
-                    showTitle={false}
-                    onChange={(value) => {
-                      setArtifactEditorValue(value);
-                      setArtifactEditorDirty(value !== artifactEditorSource);
-                    }}
-                    actions={renderTextArtifactActions()}
-                  />
-                ) : null}
-                {selectedArtifactKind === "html-prototype" ? (
-                  <div className="artifact-drawer-composer artifact-drawer-composer-prototype">
-                    <div className="artifact-prototype-toolbar">
-                      <span className="hint">
-                        数据源：{artifactDraftContent.trim() ? "交付物草稿" : selectedHtmlPreview ? `上传预览（${selectedHtmlPreview.name}）` : "暂无可渲染原型"}
-                      </span>
-                      <div className="chat-tools">
-                        <button type="button" className={`btn ghost mini ${interactionEditMode ? "is-active" : ""}`} onClick={() => setInteractionEditMode((prev) => !prev)}>
-                          {interactionEditMode ? "退出选中" : "选择元素"}
-                        </button>
-                        <button type="button" className="btn ghost mini" onClick={handleUndoHtmlPreview} disabled={htmlPreviewHistory.length === 0}>
-                          撤销
-                        </button>
-                      </div>
-                    </div>
-                    {selectedArtifactHtmlPreview ? (
-                      <div className="artifact-prototype-editor">
-                        <iframe
-                          ref={artifactHtmlPreviewFrameRef}
-                          title={`${selectedDrawerArtifact.title}-preview`}
-                          sandbox="allow-scripts allow-same-origin"
-                          srcDoc={selectedArtifactHtmlPreview}
-                          className="artifact-prototype-frame"
-                        />
-                        <div className="interaction-inline-editor artifact-inline-editor">
-                          <span className="interaction-target-chip">{selectedHtmlElement?.selector || "未选中元素"}</span>
-                          <input
-                            value={interactionInstruction}
-                            onChange={(event) => setInteractionInstruction(event.target.value)}
-                            placeholder={interactionEditMode ? "先点选原型元素，再用自然语言描述想修改的文案、尺寸或样式" : "点击“选择元素”后再描述想修改的内容"}
-                          />
-                          <button
-                            type="button"
-                            className="btn primary mini"
-                            onClick={() => {
-                              void sendInteractionInstruction(interactionInstruction);
-                              setInteractionInstruction("");
-                            }}
-                            disabled={!interactionInstruction.trim() || !selectedHtmlElement}
-                          >
-                            发送
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="hint">暂无原型内容，请在主对话中要求 Agent 生成或调整当前原型交付物。</p>
-                    )}
-                    {imagePrototypePreviews.length > 0 ? (
-                      <p className="hint">已检测到图片原型 {imagePrototypePreviews.length} 份，可在交互界面中继续编辑。</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {selectedArtifactKind === "design-spec" ? (
-                  <ArtifactTextEditor
-                    title={`设计规范 · ${selectedDrawerArtifact.stage}`}
-                    value={artifactEditorValue}
-                    profile="design-spec"
-                    readOnly={artifactEditorMode !== "edit"}
-                    showTitle={false}
-                    onChange={(value) => {
-                      setArtifactEditorValue(value);
-                      setArtifactEditorDirty(value !== artifactEditorSource);
-                    }}
-                    actions={renderTextArtifactActions()}
-                  />
-                ) : null}
-                {selectedArtifactKind === "technical-architecture" ? (
-                  <ArtifactTextEditor
-                    title={`技术架构 · ${selectedDrawerArtifact.stage}`}
-                    value={artifactEditorValue}
-                    profile="technical-architecture"
-                    readOnly={artifactEditorMode !== "edit"}
-                    showTitle={false}
-                    onChange={(value) => {
-                      setArtifactEditorValue(value);
-                      setArtifactEditorDirty(value !== artifactEditorSource);
-                    }}
-                    actions={renderTextArtifactActions()}
-                  />
-                ) : null}
-                {selectedArtifactKind === "code" ? (
-                  <ArtifactCodeViewer
-                    title={selectedDrawerArtifact.title}
-                    value={stripRichTextToPlainText(artifactDraftContent || selectedDrawerArtifact.summary || "暂无代码内容")}
-                    actions={(
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(stripRichTextToPlainText(artifactDraftContent || selectedDrawerArtifact.summary || ""));
-                          setChangeControlNotice("代码内容已复制。");
-                        }}
-                      >
-                        复制代码
-                      </button>
-                    )}
-                  />
-                ) : null}
-                {selectedArtifactKind === "test-cases" ? (
-                  artifactDraftContent.trim() ? (
-                    <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} profile="test-cases" readOnly showTitle={false} />
-                  ) : generatedTestMatrix.length > 0 ? (
-                    <div className="artifact-drawer-structured-content">
-                      <ul className="history-list">
-                        {generatedTestMatrix.slice(0, 10).map((item) => (
-                          <li key={`${item.caseId}-drawer`} className="history-item">
-                            <strong>
-                              [{item.type}] {item.caseId}
-                            </strong>
-                            <p>expected：{item.expected || "-"}</p>
-                            <p className="hint">状态：{item.executionStatus}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="hint">当前无测试矩阵数据。</p>
-                  )
-                ) : null}
-                {selectedArtifactKind === "release-review" ? (
-                  artifactDraftContent.trim() ? (
-                    <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} profile="release-review" readOnly showTitle={false} />
-                  ) : (
-                    <div className="artifact-drawer-structured-content">
-                      <p>最近结论：{currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
-                      <p className="hint">说明：{currentIteration?.changeControl?.lastReleaseReviewReason || "-"}</p>
-                    </div>
-                  )
-                ) : null}
-                {selectedArtifactKind === "delivery-package" ? (
-                  artifactDraftContent.trim() ? (
-                    <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} profile="delivery-package" readOnly showTitle={false} />
-                  ) : (
-                    <div className="artifact-drawer-structured-content">
-                      <p className="hint">
-                        已落盘文件：{currentIteration?.changeControl?.qualityArtifacts?.materializedFiles?.join("；") || "暂无"}
-                      </p>
-                    </div>
-                  )
-                ) : null}
-                {selectedArtifactKind === "document" ? (
-                  <ArtifactTextEditor
-                    title={selectedDrawerArtifact.title}
-                    value={artifactEditorValue}
-                    profile="generic"
-                    readOnly={artifactEditorMode !== "edit"}
-                    showTitle={false}
-                    onChange={(value) => {
-                      setArtifactEditorValue(value);
-                      setArtifactEditorDirty(value !== artifactEditorSource);
-                    }}
-                    actions={renderTextArtifactActions()}
-                  />
-                ) : null}
-                <ArtifactImpactPanel iteration={currentIteration} artifact={selectedDrawerArtifact} />
-                <footer className="artifact-review-footer">
-                  <p>
-                    当前版本：v{selectedDrawerArtifact.outputVersion || 0} · 状态：
-                    {selectedDrawerArtifact.gateStatus === "passed"
-                      ? " 已确认"
-                      : selectedDrawerArtifact.outputVersion > 0
-                        ? " 待你确认"
-                        : " 尚未提交确认"}
-                  </p>
-                  {selectedDrawerArtifact.lastConfirmedAt ? (
-                    <p className="hint">
-                      最近确认：{selectedDrawerArtifact.lastConfirmedBy || "-"} ·{" "}
-                      {new Date(selectedDrawerArtifact.lastConfirmedAt).toLocaleString("zh-CN")}
-                    </p>
-                  ) : (
-                    <p className="hint">当前交付物还没有用户确认记录。</p>
-                  )}
-                  <div className="chat-tools">
-                    <button
-                      type="button"
-                      className="btn primary mini"
-                      onClick={() => void handleConfirmSelectedArtifact()}
-                      disabled={!selectedArtifactAwaitingConfirmation || artifactEditorBusy}
-                    >
-                      确认通过
-                    </button>
-                    <button type="button" className="btn ghost mini" onClick={handleRequestArtifactRevision}>
-                      去对话中提调整
-                    </button>
-                  </div>
-                </footer>
-              </div>
-            ) : null}
-            {!selectedDrawerArtifact ? (
-              !analysisReport ? (
-              <div className="analysis-fallback-shell">
-                <section className="analysis-fallback-section">
-                  <h3>对话推进模式</h3>
-                  <div className="info-box">
-                    <p>当前暂无结构化分析报告。请直接在聊天窗口继续描述目标、边界或阻断点，OpenClaw 会按对话上下文逐轮推进。</p>
-                    <p className="hint">建议先上传最新需求/原型/代码变更材料，再继续对话以获得更准确推进结果。</p>
-                  </div>
-                </section>
-              </div>
-              ) : (
-              <>
-                <div className="info-box">
-                  <h3>项目概要确认（避免理解偏差）</h3>
-                  <div className={`report-confirmation-banner ${reportPendingConfirmation ? "pending" : "confirmed"}`}>
-                    {reportPendingConfirmation
-                      ? "状态：待你确认（当前为初始理解）"
-                      : `状态：已确认${reportConfirmedAt ? `（${new Date(reportConfirmedAt).toLocaleString("zh-CN")}）` : ""}`}
-                  </div>
-                  <p>项目：{analysisReport.projectDetection?.projectName || analysisReport.iterationName}</p>
-                  <p>产品：{analysisReport.projectDetection?.productName || analysisReport.iterationName}</p>
-                  <p>项目类型：{analysisReport.projectDetection?.projectCategory || analysisReport.attachmentInsights.projectCategory}</p>
-                  <p>初始理解：{analysisReport.understanding}</p>
-                  {!reportPendingConfirmation ? (
-                    <p>确认后理解：{confirmedUnderstanding || analysisReport.understanding}</p>
-                  ) : null}
-                  <p className="hint">如以上定位存在偏差，请直接在 IM 输入“理解偏差：...”进行纠正，系统会按你的反馈继续收敛。</p>
-                </div>
-                <div className="info-box">
-                  <h3>项目主要内容与特点</h3>
-                  <p>项目主内容：{analysisReport.projectDetection?.projectName || analysisReport.iterationName}</p>
-                  <p>产品主线：{analysisReport.projectDetection?.productName || analysisReport.iterationName}</p>
-                  <p>附件特点：{analysisReport.attachmentInsights.artifactType || "未识别"}</p>
-                  <p>关键特征：{(analysisReport.attachmentInsights.keyCharacteristics || []).join("；") || "暂无"}</p>
-                  <p className="hint">分析时间：{new Date(analysisReport.analyzedAt).toLocaleString("zh-CN")}</p>
-                </div>
-                <div className="info-box">
-                  <h3>出发点确认（请在 IM 回复）</h3>
-                  <ul className="history-list">
-                    <li className="history-item"><p>1. 本轮核心目标是否与当前理解一致？</p></li>
-                    <li className="history-item"><p>2. 新增版本边界是否完整覆盖你要交付的内容？</p></li>
-                    <li className="history-item"><p>3. 是否有关键约束/成功标准尚未纳入？</p></li>
-                  </ul>
-                  <p className="hint">直接在 IM 输入“确认一致”或“偏差点：...”即可，系统会基于你的反馈继续收敛。</p>
-                  <div className="chat-tools">
-                    <button type="button" className="btn ghost mini" onClick={() => onChatSend({ overrideText: "确认一致" })}>
-                      发送：确认一致
-                    </button>
-                    <button type="button" className="btn ghost mini" onClick={() => onChatInputChange("偏差点：")}>
-                      填入：偏差点
-                    </button>
-                  </div>
-                </div>
-                <div className="info-box">
-                  <h3>新增版本内容边界范围</h3>
-                  <p>需求边界：{currentIteration?.changeControl?.boundary?.requirementRefs?.join("；") || "未明确（请在 IM 中继续澄清）"}</p>
-                  <p>组件边界：{currentIteration?.changeControl?.boundary?.componentRefs?.join("；") || "未明确（请在 IM 中继续澄清）"}</p>
-                  <p>代码边界：{currentIteration?.changeControl?.boundary?.codePaths?.join("；") || "未明确（请在 IM 中继续澄清）"}</p>
-                  {currentIteration?.changeControl?.boundary?.note ? <p>边界说明：{currentIteration.changeControl.boundary.note}</p> : null}
-                </div>
-                {(analysisReport.meaningfulFindings?.length ?? 0) > 0 ? (
-                  <div className="info-box">
-                    <h3>关键发现</h3>
-                    <ul className="history-list">
-                      {(analysisReport.meaningfulFindings || []).map((item, index) => (
-                        <li key={`${item}-${index}`} className="history-item">
-                          <p>{item}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {visiblePrioritizedFindings.length > 0 ? (
-                  <div className="info-box">
-                    <div className="panel-head">
-                      <h3>优先级发现</h3>
-                      <button type="button" className="btn ghost mini" onClick={() => setOnlyHighValue((prev) => !prev)}>
-                        {onlyHighValue ? "显示全部" : "仅看高价值"}
-                      </button>
-                    </div>
-                    <ul className="history-list">
-                      {visiblePrioritizedFindings.map((item, index) => (
-                        <li key={`${item.priority}-${item.content}-${index}`} className="history-item">
-                          <strong>{item.priority}</strong>
-                          <p>{item.content}</p>
-                          <p className="hint">{item.reason}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && generatedTestMatrix.length > 0 ? (
-                  <div className="info-box">
-                    <h3>测试矩阵执行</h3>
-                    <p>
-                      总数 {matrixSummary.total}，已执行 {matrixSummary.executed}，通过 {matrixSummary.passed}，失败 {matrixSummary.failed}，阻断 {matrixSummary.blocked}，
-                      覆盖率 {matrixSummary.coverage}% ，通过率 {matrixSummary.passRate}%
-                    </p>
-                    <div className="chat-tools">
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        disabled={changeControlBusy}
-                        onClick={() =>
-                          setTestMatrixStatusMap(
-                            Object.fromEntries(generatedTestMatrix.map((item) => [item.caseId, "passed"])) as Record<
-                              string,
-                              "pending" | "passed" | "failed" | "blocked" | "skipped"
-                            >
-                          )
-                        }
-                      >
-                        全部标记为 passed
-                      </button>
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        disabled={changeControlBusy}
-                        onClick={() =>
-                          setTestMatrixStatusMap(
-                            Object.fromEntries(generatedTestMatrix.map((item) => [item.caseId, "pending"])) as Record<
-                              string,
-                              "pending" | "passed" | "failed" | "blocked" | "skipped"
-                            >
-                          )
-                        }
-                      >
-                        全部重置为 pending
-                      </button>
-                    </div>
-                    <ul className="history-list">
-                      {generatedTestMatrix.map((item) => (
-                        <li key={item.caseId} className="history-item">
-                          <strong>
-                            [{item.type}] {item.caseId}
-                          </strong>
-                          <p>focus：{item.focus || "-"}</p>
-                          <p>expected：{item.expected || "-"}</p>
-                          <p className="hint">evidence：{item.evidence || "-"}</p>
-                          <div className="chat-tools">
-                            <select
-                              value={testMatrixStatusMap[item.caseId] || "pending"}
-                              onChange={(event) => {
-                                const next = event.target.value as "pending" | "passed" | "failed" | "blocked" | "skipped";
-                                setTestMatrixStatusMap((prev) => ({ ...prev, [item.caseId]: next }));
-                              }}
-                            >
-                              <option value="pending">pending</option>
-                              <option value="passed">passed</option>
-                              <option value="failed">failed</option>
-                              <option value="blocked">blocked</option>
-                              <option value="skipped">skipped</option>
-                            </select>
-                          </div>
-                          <label className="hint">
-                            执行备注
-                            <textarea
-                              rows={2}
-                              value={testMatrixNoteMap[item.caseId] || ""}
-                              onChange={(event) =>
-                                setTestMatrixNoteMap((prev) => ({
-                                  ...prev,
-                                  [item.caseId]: event.target.value
-                                }))
-                              }
-                            />
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="chat-tools">
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        disabled={changeControlBusy}
-                        onClick={async () => {
-                          const updates = generatedTestMatrix
-                            .map((item) => {
-                              const status = testMatrixStatusMap[item.caseId] || item.executionStatus;
-                              const note = (testMatrixNoteMap[item.caseId] || "").trim();
-                              const changed = status !== item.executionStatus || note !== (item.executionNote || "");
-                              return changed
-                                ? {
-                                    caseId: item.caseId,
-                                    status,
-                                    note
-                                  }
-                                : null;
-                            })
-                            .filter(Boolean) as Array<{
-                            caseId: string;
-                            status: "pending" | "passed" | "failed" | "blocked" | "skipped";
-                            note?: string;
-                          }>;
-                          if (updates.length === 0) {
-                            return;
-                          }
-                          setChangeControlBusy(true);
-                          try {
-                            await onUpdateTestMatrixExecution(updates);
-                            setChangeControlNotice(`已保存 ${updates.length} 条测试执行状态。`);
-                          } finally {
-                            setChangeControlBusy(false);
-                          }
-                        }}
-                      >
-                        保存测试执行状态
-                      </button>
-                      <button
-                        type="button"
-                        className="btn secondary"
-                        disabled={changeControlBusy}
-                        onClick={async () => {
-                          setChangeControlBusy(true);
-                          try {
-                            await onGenerateTestArtifacts(true);
-                            setChangeControlNotice("已生成测试产物计划（dry-run）。");
-                          } finally {
-                            setChangeControlBusy(false);
-                          }
-                        }}
-                      >
-                        生成测试产物（Dry Run）
-                      </button>
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        disabled={changeControlBusy}
-                        onClick={async () => {
-                          setChangeControlBusy(true);
-                          try {
-                            await onRefreshReleaseReview();
-                            setChangeControlNotice("已刷新发布前质量评审。");
-                          } finally {
-                            setChangeControlBusy(false);
-                          }
-                        }}
-                      >
-                        刷新发布评审
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-                {(analysisReport.nextActions?.length ?? 0) > 0 ? (
-                  <div className="info-box">
-                    <h3>建议确认动作</h3>
-                    <ul className="history-list">
-                      {(analysisReport.nextActions || []).map((item, index) => (
-                        <li key={`${item}-${index}`} className="history-item">
-                          <p>{item}</p>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="hint">请在 IM 中逐项确认或修正，系统会按你的反馈更新理解与边界。</p>
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && qualityArtifacts ? (
-                  <div className="info-box">
-                    <h3>测试与验收产物</h3>
-                    {(qualityArtifacts.acceptanceChecklist?.length ?? 0) > 0 ? (
-                      <p className="hint">验收清单：{qualityArtifacts.acceptanceChecklist.join("；")}</p>
-                    ) : (
-                      <p className="hint">验收清单：未生成</p>
-                    )}
-                    {(qualityArtifacts.unitTests?.length ?? 0) > 0 ? (
-                      <p className="hint">单测建议：{qualityArtifacts.unitTests.join("；")}</p>
-                    ) : null}
-                    {(qualityArtifacts.contractTests?.length ?? 0) > 0 ? (
-                      <p className="hint">契约测试建议：{qualityArtifacts.contractTests.join("；")}</p>
-                    ) : null}
-                    {(qualityArtifacts.regressionPoints?.length ?? 0) > 0 ? (
-                      <p className="hint">回归关注点：{qualityArtifacts.regressionPoints.join("；")}</p>
-                    ) : null}
-                    {(qualityArtifacts.materializedFiles?.length ?? 0) > 0 ? (
-                      <p className="hint">已落盘测试产物：{qualityArtifacts.materializedFiles.join("；")}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && traceabilityMap ? (
-                  <div className="info-box">
-                    <h3>需求-组件-代码映射</h3>
-                    <p>覆盖分：{traceabilityMap.coverageScore}%</p>
-                    <p>映射置信度：{traceabilityMap.mappingConfidence?.toUpperCase?.() || "-"}</p>
-                    {traceabilityMap.gaps.length > 0 ? <p className="hint">缺口：{traceabilityMap.gaps.join("；")}</p> : null}
-                    {(traceabilityMap.unmappedRequirements?.length ?? 0) > 0 ? (
-                      <p className="hint">未映射需求：{traceabilityMap.unmappedRequirements.join("；")}</p>
-                    ) : null}
-                    {(traceabilityMap.conflicts?.length ?? 0) > 0 ? (
-                      <p className="hint">映射冲突：{traceabilityMap.conflicts.join("；")}</p>
-                    ) : null}
-                    {(traceabilityMap.requirementToCode?.length ?? 0) > 0 ? (
-                      <ul className="history-list">
-                        {traceabilityMap.requirementToCode.slice(0, 6).map((item, index) => (
-                          <li key={`${item.requirement}-${index}`} className="history-item">
-                            <strong>{item.requirement}</strong>
-                            <p>代码路径：{item.codePaths.join("；") || "-"}</p>
-                            <p className="hint">evidence：{item.evidence || "-"}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="hint">暂无可用三向映射，请先补齐 requirement/component/codePath 边界。</p>
-                    )}
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && executableConstraints ? (
-                  <div className="info-box">
-                    <h3>可执行边界约束</h3>
-                    <p>组件白名单：{executableConstraints.componentWhitelist.join("；") || "-"}</p>
-                    <p>代码路径白名单：{executableConstraints.codePathWhitelist.join("；") || "-"}</p>
-                    <p>验收约束：{executableConstraints.acceptanceChecks.join("；") || "-"}</p>
-                    {(executableConstraints.gateRules?.length ?? 0) > 0 ? (
-                      <p className="hint">门禁规则：{executableConstraints.gateRules.join("；")}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && releaseReview ? (
-                  <div className="info-box">
-                    <h3>发布前质量评审</h3>
-                    <p>结论：{releaseReview.decision.toUpperCase()}</p>
-                    <p>原因：{releaseReview.reason || "-"}</p>
-                    <p>
-                      信号：用例 {releaseReview.qualitySignals.testCaseCount}，P0 {releaseReview.qualitySignals.p0FindingCount}，unknown{" "}
-                      {releaseReview.qualitySignals.unknownSignalCount}，边界覆盖 {releaseReview.qualitySignals.boundaryCoverage}%
-                    </p>
-                    {(releaseReview.blockers?.length ?? 0) > 0 ? <p className="hint">阻断项：{releaseReview.blockers.join("；")}</p> : null}
-                    {(releaseReview.releaseGates?.length ?? 0) > 0 ? <p className="hint">门禁：{releaseReview.releaseGates.join("；")}</p> : null}
-                    <p className="hint">
-                      回滚：{releaseReview.rollback.shouldRollback ? "建议回滚" : "暂不回滚"}
-                      {releaseReview.rollback.reason ? `（${releaseReview.rollback.reason}）` : ""}
-                    </p>
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && domainKnowledge ? (
-                  <div className="info-box">
-                    <h3>领域知识抽取</h3>
-                    {(domainKnowledge.terms?.length ?? 0) > 0 ? (
-                      <ul className="history-list">
-                        {domainKnowledge.terms.slice(0, 6).map((item, index) => (
-                          <li key={`${item.term}-${index}`} className="history-item">
-                            <strong>{item.term}</strong>
-                            <p>{item.definition}</p>
-                            <p className="hint">绑定路径：{item.mappedTo.codePaths.join("；") || "-"}</p>
-                            <p className="hint">绑定强度：{item.bindingStrength?.toUpperCase?.() || "-"}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="hint">暂无术语抽取结果。</p>
-                    )}
-                    {(domainKnowledge.unknowns?.length ?? 0) > 0 ? <p className="hint">待确认：{domainKnowledge.unknowns.join("；")}</p> : null}
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && opsTriage ? (
-                  <div className="info-box">
-                    <h3>运维辅助建议</h3>
-                    {(opsTriage.hypotheses?.length ?? 0) > 0 ? (
-                      <ul className="history-list">
-                        {opsTriage.hypotheses.slice(0, 4).map((item, index) => (
-                          <li key={`${item.priority}-${item.item}-${index}`} className="history-item">
-                            <strong>{item.priority}</strong>
-                            <p>{item.item}</p>
-                            <p className="hint">evidence：{item.evidence || "-"}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {(opsTriage.triageSteps?.length ?? 0) > 0 ? (
-                      <ul className="history-list">
-                        {opsTriage.triageSteps.slice(0, 4).map((item, index) => {
-                          const commands = buildOpsCommandTemplates(item.step, currentIteration?.projectId ?? 1, opsTemplates);
-                          return (
-                            <li key={`${item.step}-${index}`} className="history-item">
-                              <strong>步骤 {index + 1}</strong>
-                              <p>{item.step}</p>
-                              <p className="hint">期望信号：{item.expectedSignal || "-"}</p>
-                              <p className="hint">失败回退：{item.fallback || "-"}</p>
-                              <p className="hint">建议命令：{commands.join("  |  ")}</p>
-                              <div className="chat-tools">
-                                <button
-                                  type="button"
-                                  className="btn ghost mini"
-                                  onClick={async () => {
-                                    const payload = [
-                                      `排障步骤：${item.step}`,
-                                      `期望信号：${item.expectedSignal || "-"}`,
-                                      `失败回退：${item.fallback || "-"}`,
-                                      "建议命令：",
-                                      ...commands
-                                    ].join("\n");
-                                    await copyText(payload);
-                                    setOpsCopyNotice(`已复制步骤 ${index + 1} 的排障内容。`);
-                                  }}
-                                >
-                                  复制该步骤
-                                </button>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                    <div className="info-box">
-                      <h3>排障模板配置（项目级）</h3>
-                      {templateNotice ? <p className="hint">{templateNotice}</p> : null}
-                      <label className="hint">
-                        类别
-                        <input value={templateCategory} onChange={(event) => setTemplateCategory(event.target.value)} placeholder="如：db/network/cache" />
-                      </label>
-                      <label className="hint">
-                        关键词（每行一项）
-                        <textarea
-                          rows={3}
-                          value={templateKeywordsText}
-                          onChange={(event) => setTemplateKeywordsText(event.target.value)}
-                          placeholder={"例如：\n数据库\ndb\n连接超时"}
-                        />
-                      </label>
-                      <label className="hint">
-                        命令模板（每行一条，支持 {"{{projectId}}/{{apiBase}}/{{backendDir}}"}）
-                        <textarea
-                          rows={4}
-                          value={templateCommandsText}
-                          onChange={(event) => setTemplateCommandsText(event.target.value)}
-                          placeholder={"例如：\ncurl -sS {{apiBase}}/api/ops/runtime\ncd {{backendDir}} && PROJECT_ID={{projectId}} npm run ops:rollback"}
-                        />
-                      </label>
-                      <label className="hint">
-                        说明
-                        <input value={templateNote} onChange={(event) => setTemplateNote(event.target.value)} placeholder="模板用途说明" />
-                      </label>
-                      <div className="chat-tools">
-                        <button
-                          type="button"
-                          className="btn ghost mini"
-                          disabled={templateBusy}
-                          onClick={async () => {
-                            const keywords = parseLines(templateKeywordsText);
-                            const commands = parseLines(templateCommandsText);
-                            if (keywords.length === 0 || commands.length === 0) {
-                              setTemplateNotice("请至少填写 1 条关键词与 1 条命令。");
-                              return;
-                            }
-                            setTemplateBusy(true);
-                            try {
-                              await upsertOpsTriageTemplate({
-                                projectId: currentIteration?.projectId,
-                                category: templateCategory.trim() || "custom",
-                                keywords,
-                                commands,
-                                note: templateNote
-                              });
-                              await reloadOpsTemplates();
-                              setTemplateNotice("模板已保存。");
-                              setTemplateKeywordsText("");
-                              setTemplateCommandsText("");
-                              setTemplateNote("");
-                            } finally {
-                              setTemplateBusy(false);
-                            }
-                          }}
-                        >
-                          保存模板
-                        </button>
-                      </div>
-                      {(opsTemplates.filter((item) => item.source === "custom").length ?? 0) > 0 ? (
-                        <ul className="history-list">
-                          {opsTemplates
-                            .filter((item) => item.source === "custom")
-                            .slice(0, 8)
-                            .map((item) => (
-                              <li key={item.id} className="history-item">
-                                <strong>{item.category}</strong>
-                                <p className="hint">关键词：{item.keywords.join("；")}</p>
-                                <p className="hint">命令：{item.commands.join("  |  ")}</p>
-                                <div className="chat-tools">
-                                  <button
-                                    type="button"
-                                    className="btn ghost mini"
-                                    disabled={templateBusy}
-                                    onClick={async () => {
-                                      setTemplateBusy(true);
-                                      try {
-                                        await deleteOpsTriageTemplate(item.id);
-                                        await reloadOpsTemplates();
-                                        setTemplateNotice("模板已删除。");
-                                      } finally {
-                                        setTemplateBusy(false);
-                                      }
-                                    }}
-                                  >
-                                    删除
-                                  </button>
-                                </div>
-                              </li>
-                            ))}
-                        </ul>
-                      ) : (
-                        <p className="hint">当前项目暂无自定义排障模板。</p>
-                      )}
-                    </div>
-                    {opsCopyNotice ? <p className="hint">{opsCopyNotice}</p> : null}
-                    <p className="hint">{opsTriage.rollbackSuggestion}</p>
-                  </div>
-                ) : null}
-                {showAdvancedReportSections && versionDiffDetailed ? (
-                  <div className="info-box">
-                    <h3>版本差异细化评估</h3>
-                    <p>{versionDiffDetailed.summary}</p>
-                    {(versionDiffDetailed.impactScope?.length ?? 0) > 0 ? (
-                      <p className="hint">影响面：{versionDiffDetailed.impactScope.join("；")}</p>
-                    ) : null}
-                    {(versionDiffDetailed.riskPoints?.length ?? 0) > 0 ? (
-                      <p className="hint">高风险点：{versionDiffDetailed.riskPoints.join("；")}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {hasBaselineComparison ? (
-                  <>
-                    <div className="info-box">
-                      <h3>版本差异（对比上个版本）</h3>
-                      <p>基线版本：{analysisReport.versionDiff.baselineIterationName}</p>
-                      <p>新增：{diffAdded.join("、") || "无"}</p>
-                      <p>变化：{diffChanged.join("、") || "无"}</p>
-                      <p>移除：{diffRemoved.join("、") || "无"}</p>
-                    </div>
-                    <div className="info-box">
-                      <h3>差异定位（与上个版本）</h3>
-                      {diffLocations.length === 0 ? (
-                        <p>未检测到结构化差异。</p>
-                      ) : (
-                        <ul className="history-list">
-                          {diffLocations.map((item, index) => (
-                            <li key={`${item.dimension}-${item.changeType}-${item.currentItem}-${index}`} className="history-item">
-                              <strong>{item.dimension}</strong>
-                              <p>
-                                {item.changeType === "added" ? "新增" : item.changeType === "removed" ? "移除" : "变更"}：
-                                {item.baselineItem ? `${item.baselineItem} -> ` : ""}
-                                {item.currentItem}
-                              </p>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="info-box">
-                    <h3>版本差异（对比上个版本）</h3>
-                    <p className="hint">当前为首个版本或无可比较基线。</p>
-                  </div>
-                )}
-                {materialRisks.length > 0 ? (
-                  <div className="info-box">
-                    <h3>风险提示</h3>
-                    <p>{materialRisks.join("；")}</p>
-                  </div>
-                ) : null}
-                {materialSuggestions.length > 0 ? (
-                  <div className="info-box">
-                    <h3>建议动作</h3>
-                    <p>{materialSuggestions.join("；")}</p>
-                  </div>
-                ) : null}
-              </>
-              )
-            ) : null}
-          </div>
-            </article>
-          </aside>
-        </>
+        <AnalysisDrawerContent
+          analysisReport={analysisReport}
+          currentIteration={currentIteration}
+          selectedDrawerArtifact={selectedDrawerArtifact}
+          selectedArtifactKind={selectedArtifactKind}
+          artifactEditorValue={artifactEditorValue}
+          artifactEditorDirty={artifactEditorDirty}
+          artifactEditorBusy={artifactEditorBusy}
+          artifactEditorMode={artifactEditorMode}
+          artifactEditorSource={artifactEditorSource}
+          isEditableTextArtifact={isEditableTextArtifact}
+          canEditSelectedTextArtifact={canEditSelectedTextArtifact}
+          selectedArtifactAwaitingConfirmation={selectedArtifactAwaitingConfirmation}
+          analysisDraftSections={analysisDraftSections}
+          artifactDraftContent={artifactDraftContent}
+          selectedArtifactHtmlPreview={selectedArtifactHtmlPreview}
+          selectedArtifactHtmlContent={selectedArtifactHtmlContent}
+          selectedHtmlPreview={selectedHtmlPreview}
+          selectedHtmlElement={selectedHtmlElement}
+          interactionEditMode={interactionEditMode}
+          htmlPreviewHistory={htmlPreviewHistory}
+          interactionInstruction={interactionInstruction}
+          generatedTestMatrix={generatedTestMatrix}
+          testMatrixStatusMap={testMatrixStatusMap}
+          testMatrixNoteMap={testMatrixNoteMap}
+          matrixSummary={matrixSummary}
+          onlyHighValue={onlyHighValue}
+          visiblePrioritizedFindings={visiblePrioritizedFindings}
+          materialRisks={materialRisks}
+          materialSuggestions={materialSuggestions}
+          showAdvancedReportSections={showAdvancedReportSections}
+          hasBaselineComparison={hasBaselineComparison}
+          traceabilityMap={traceabilityMap}
+          executableConstraints={executableConstraints}
+          versionDiffDetailed={versionDiffDetailed}
+          releaseReview={releaseReview}
+          domainKnowledge={domainKnowledge}
+          opsTriage={opsTriage}
+          qualityArtifacts={qualityArtifacts}
+          diffLocations={diffLocations}
+          diffAdded={diffAdded}
+          diffChanged={diffChanged}
+          diffRemoved={diffRemoved}
+          reportPendingConfirmation={reportPendingConfirmation}
+          reportConfirmedAt={reportConfirmedAt}
+          confirmedUnderstanding={confirmedUnderstanding}
+          clarificationQuestions={clarificationQuestions}
+          changeControlBusy={changeControlBusy}
+          changeControlNotice={changeControlNotice}
+          opsCopyNotice={opsCopyNotice}
+          templateBusy={templateBusy}
+          templateNotice={templateNotice}
+          templateCategory={templateCategory}
+          templateKeywordsText={templateKeywordsText}
+          templateCommandsText={templateCommandsText}
+          templateNote={templateNote}
+          opsTemplates={opsTemplates}
+          imagePrototypePreviews={imagePrototypePreviews}
+          artifactDrawerWidth={artifactDrawerWidth}
+          analysisScrollRef={analysisScrollRef}
+          artifactHtmlPreviewFrameRef={artifactHtmlPreviewFrameRef}
+          onCloseAnalysisPanel={onCloseAnalysisPanel}
+          onChatInputChange={onChatInputChange}
+          onChatSend={onChatSend}
+          handleSaveArtifactEditor={handleSaveArtifactEditor}
+          handleSubmitArtifactForReview={handleSubmitArtifactForReview}
+          handleConfirmSelectedArtifact={handleConfirmSelectedArtifact}
+          handleRequestArtifactRevision={handleRequestArtifactRevision}
+          onUpdateTestMatrixExecution={onUpdateTestMatrixExecution}
+          onGenerateTestArtifacts={onGenerateTestArtifacts}
+          onRefreshReleaseReview={onRefreshReleaseReview}
+          setArtifactEditorValue={setArtifactEditorValue}
+          setArtifactEditorDirty={setArtifactEditorDirty}
+          setArtifactEditorMode={setArtifactEditorMode}
+          setArtifactEditorBusy={setArtifactEditorBusy}
+          setChangeControlBusy={setChangeControlBusy}
+          setChangeControlNotice={setChangeControlNotice}
+          setOpsCopyNotice={setOpsCopyNotice}
+          setTestMatrixStatusMap={setTestMatrixStatusMap}
+          setTestMatrixNoteMap={setTestMatrixNoteMap}
+          setOnlyHighValue={setOnlyHighValue}
+          setTemplateBusy={setTemplateBusy}
+          setTemplateNotice={setTemplateNotice}
+          setTemplateCategory={setTemplateCategory}
+          setTemplateKeywordsText={setTemplateKeywordsText}
+          setTemplateCommandsText={setTemplateCommandsText}
+          setTemplateNote={setTemplateNote}
+          setInteractionEditMode={setInteractionEditMode}
+          setInteractionInstruction={setInteractionInstruction}
+          setSelectedHtmlElement={setSelectedHtmlElement}
+          setHoveredHtmlElement={setHoveredHtmlElement}
+          setHtmlPreviewHistory={setHtmlPreviewHistory}
+          handleArtifactDrawerResizePointerDown={handleArtifactDrawerResizePointerDown}
+          handleUndoHtmlPreview={handleUndoHtmlPreview}
+          sendInteractionInstruction={sendInteractionInstruction}
+          openInteractionPanel={openInteractionPanel}
+          reloadOpsTemplates={reloadOpsTemplates}
+          buildOpsCommandTemplates={buildOpsCommandTemplates}
+        />
       ) : null}
 
-      <div
-        className={`analysis-drawer-mask interaction-drawer-mask ${showInteractionPanel ? "open" : ""}`}
-        onClick={() => setShowInteractionPanel(false)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === "Escape") setShowInteractionPanel(false); }}
-        aria-label="关闭"
-        aria-hidden={!showInteractionPanel}
-      />
-      <aside
-        className={`panel interaction-drawer ${showInteractionPanel ? "open" : ""}`}
-        style={{ width: `min(${interactionDrawerWidth}px, 100vw)` }}
-      >
-        <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
-          <button
-            type="button"
-            className="interaction-drawer-resize-handle"
-            aria-label="拖拽调整面板宽度"
-            title="拖拽调整面板宽度"
-            onPointerDown={handleInteractionDrawerResizePointerDown}
-          />
-          <div className="panel-head">
-            <h2>交互界面</h2>
-            <div className="chat-tools">
-              <button
-                type="button"
-                className={`icon-btn ${interactionEditMode ? "is-active" : ""}`}
-                aria-label={interactionEditMode ? "退出编辑模式" : "进入编辑模式"}
-                title={interactionEditMode ? "退出编辑模式" : "编辑"}
-                onClick={() => setInteractionEditMode((prev) => !prev)}
-              >
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M8 1.5L9.8 5.3L13.5 7L9.8 8.8L8 12.5L6.2 8.8L2.5 7L6.2 5.3L8 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button type="button" className="btn ghost mini" onClick={() => setShowInteractionPanel(false)}>
-                收起界面
-              </button>
-            </div>
-          </div>
-          <div className={`preview-scroll interaction-scroll ${hasRichInteractionPreview ? "is-rich-preview" : "is-legacy-preview"}`}>
-            {htmlPrototypePreviews.length > 0 && selectedHtmlPreview ? (
-              <div className="interaction-preview-grid">
-                <div className="interaction-canvas-wrap">
-                  <iframe
-                    ref={htmlPreviewFrameRef}
-                    title={`html-preview-${selectedHtmlPreview.name}`}
-                    className="interaction-html-preview"
-                    sandbox="allow-scripts allow-forms allow-modals allow-popups"
-                    srcDoc={instrumentedHtmlPreview}
-                  />
-                  {interactionEditMode ? (
-                    <div className="interaction-inline-editor">
-                      <span className="interaction-target-chip">{selectedHtmlElement?.tag || "未选中元素"}</span>
-                      <input
-                        value={interactionInstruction}
-                        onChange={(event) => setInteractionInstruction(event.target.value)}
-                        placeholder="描述想修改的逻辑或样式"
-                      />
-                      <button
-                        type="button"
-                        className="btn primary mini"
-                        onClick={() => {
-                          void sendInteractionInstruction(interactionInstruction);
-                          setInteractionInstruction("");
-                        }}
-                        disabled={!interactionInstruction.trim() || !selectedHtmlElement}
-                      >
-                        发送
-                      </button>
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        onClick={handleUndoHtmlPreview}
-                        disabled={htmlPreviewHistory.length === 0}
-                      >
-                        撤销上一步
-                      </button>
-                      <button type="button" className="btn ghost mini" onClick={() => setInteractionInstruction("")}>
-                        清空
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : imagePrototypePreviews.length > 0 && selectedImagePreview ? (
-              <div className="interaction-preview-grid">
-                <div className="interaction-canvas-wrap">
-                  <div className="info-box">
-                    <h3>截图预览</h3>
-                    <div className="interaction-tree-elements">
-                      {imagePrototypePreviews.map((item) => (
-                        <button
-                          key={item.path}
-                          type="button"
-                          className={`btn ghost mini ${selectedImagePreview.path === item.path ? "is-active" : ""}`}
-                          onClick={() => {
-                            setSelectedImagePreviewPath(item.path);
-                            setSelectedImagePoint(null);
-                            setSelectedImageRegion(null);
-                          }}
-                        >
-                          {item.name}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="hint">当前截图：{selectedImagePreview.path}</p>
-                    <p className="hint">支持单击点选与拖拽框选区域，均可作为 IM 修改指令的目标锚点。</p>
-                  </div>
-                  <button
-                    ref={imageWrapRef}
-                    type="button"
-                    className={`interaction-image-wrap ${interactionEditMode ? "is-editing" : ""}`}
-                    onPointerDown={handleImagePointerDown}
-                    onPointerMove={handleImagePointerMove}
-                    onPointerUp={handleImagePointerUp}
-                    onPointerCancel={handleImagePointerCancel}
-                  >
-                    <img className="interaction-image-preview" src={selectedImagePreview.dataUrl} alt={selectedImagePreview.name} />
-                    {selectedImageRegion ? (
-                      <span
-                        className="interaction-image-region"
-                        style={{
-                          left: `${selectedImageRegion.xPercent}%`,
-                          top: `${selectedImageRegion.yPercent}%`,
-                          width: `${selectedImageRegion.widthPercent}%`,
-                          height: `${selectedImageRegion.heightPercent}%`
-                        }}
-                      />
-                    ) : null}
-                    {dragImageRegion ? (
-                      <span
-                        className="interaction-image-region is-dragging"
-                        style={{
-                          left: `${dragImageRegion.xPercent}%`,
-                          top: `${dragImageRegion.yPercent}%`,
-                          width: `${dragImageRegion.widthPercent}%`,
-                          height: `${dragImageRegion.heightPercent}%`
-                        }}
-                      />
-                    ) : null}
-                    {selectedImagePoint ? (
-                      <span
-                        className="interaction-image-point"
-                        style={{ left: `${selectedImagePoint.xPercent}%`, top: `${selectedImagePoint.yPercent}%` }}
-                      />
-                    ) : null}
-                  </button>
-                  {interactionEditMode ? (
-                    <div className="interaction-inline-editor">
-                      <span className="interaction-target-chip">{selectedImageRegion ? "区域" : selectedImagePoint ? "点位" : "未选中"}</span>
-                      <input
-                        value={interactionInstruction}
-                        onChange={(event) => setInteractionInstruction(event.target.value)}
-                        placeholder={imageSelectionSummary || "先点选或框选，再描述想修改的逻辑或样式"}
-                      />
-                      <button
-                        type="button"
-                        className="btn primary mini"
-                        onClick={() => {
-                          sendInteractionInstruction(interactionInstruction);
-                          setInteractionInstruction("");
-                        }}
-                        disabled={!interactionInstruction.trim() || (!selectedImageRegion && !selectedImagePoint)}
-                      >
-                        发送
-                      </button>
-                      <button type="button" className="btn ghost mini" onClick={() => setInteractionInstruction("")}>
-                        清空
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="interaction-tree">
-                  {Object.entries(prototypeTree).map(([pageName, componentMap]) => (
-                    <div key={pageName} className="interaction-tree-group">
-                      <p className="hint">页面：{pageName}</p>
-                      {Object.entries(componentMap).map(([componentName, elements]) => (
-                        <div key={`${pageName}-${componentName}`} className="interaction-tree-node">
-                          <p className="hint">组件：{componentName}</p>
-                          <div className="interaction-tree-elements">
-                            {elements.map((element) => (
-                              <button
-                                key={element.id}
-                                type="button"
-                                className={`btn ghost mini ${selectedPrototypeElementId === element.id ? "is-active" : ""}`}
-                                onClick={() => setSelectedPrototypeElementId(element.id)}
-                              >
-                                {element.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-                <div className="interaction-canvas-wrap">
-                  <div className="interaction-canvas">
-                    {prototypeElements
-                      .filter((item) => item.visible)
-                      .map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`interaction-element ${selectedPrototypeElementId === item.id ? "selected" : ""}`}
-                          style={{
-                            background: item.background,
-                            color: item.color,
-                            fontWeight: item.emphasized ? 700 : 500,
-                            width: `${item.width}px`,
-                            minHeight: `${item.height}px`
-                          }}
-                          onClick={() => setSelectedPrototypeElementId(item.id)}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                  </div>
-                  <div className="info-box">
-                    <h3>属性面板</h3>
-                    <p>当前选中：{selectedPrototypeElement?.label || "未选中元素"}</p>
-                    <p className="hint">页面：{selectedPrototypeElement?.page || "-"}</p>
-                    <p className="hint">组件：{selectedPrototypeElement?.component || "-"}</p>
-                    <p className="hint">尺寸：{selectedPrototypeElement ? `${selectedPrototypeElement.width} × ${selectedPrototypeElement.height}` : "-"}</p>
-                    <div className="chat-tools">
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        onClick={() =>
-                          selectedPrototypeElement &&
-                          setPrototypeElements((prev) =>
-                            prev.map((item) => (item.id === selectedPrototypeElement.id ? { ...item, visible: !item.visible } : item))
-                          )
-                        }
-                      >
-                        {selectedPrototypeElement?.visible ? "隐藏元素" : "显示元素"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        onClick={() =>
-                          selectedPrototypeElement &&
-                          setPrototypeElements((prev) =>
-                            prev.map((item) => (item.id === selectedPrototypeElement.id ? { ...item, emphasized: !item.emphasized } : item))
-                          )
-                        }
-                      >
-                        {selectedPrototypeElement?.emphasized ? "取消强调" : "强调元素"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn ghost mini"
-                        disabled={prototypeHistory.length === 0}
-                        onClick={() => {
-                          const latest = prototypeHistory[0];
-                          if (!latest) {
-                            return;
-                          }
-                          setPrototypeElements((prev) => prev.map((item) => (item.id === latest.targetId ? latest.before : item)));
-                          setPrototypeHistory((prev) => prev.slice(1));
-                          setPrototypeLastPlan([`已撤销：${latest.summary}`]);
-                        }}
-                      >
-                        撤销上一步
-                      </button>
-                    </div>
-                    <p className="hint">在 IM 输入框中描述修改并发送。示例：文案改为“提交审批”、改成绿色、宽 520、高 56、隐藏、变大。</p>
-                    {prototypeLastPlan.length > 0 ? (
-                      <>
-                        <p className="hint">解析预览：</p>
-                        <ul className="history-list">
-                          {prototypeLastPlan.map((item) => (
-                            <li key={item} className="history-item">
-                              <p>{item}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : null}
-                    {prototypeHistory.length > 0 ? (
-                      <>
-                        <p className="hint">最近变更：</p>
-                        <ul className="history-list">
-                          {prototypeHistory.slice(0, 3).map((item) => (
-                            <li key={item.id} className="history-item">
-                              <p>{new Date(item.at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false })} · {item.summary}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </article>
-      </aside>
+
+      <InteractionDrawerContent
+          showInteractionPanel={showInteractionPanel}
+          interactionEditMode={interactionEditMode}
+          interactionDrawerWidth={interactionDrawerWidth}
+          htmlPrototypePreviews={htmlPrototypePreviews}
+          selectedHtmlPreview={selectedHtmlPreview}
+          instrumentedHtmlPreview={instrumentedHtmlPreview}
+          imagePrototypePreviews={imagePrototypePreviews}
+          selectedImagePreview={selectedImagePreview}
+          prototypeElements={prototypeElements}
+          prototypeTree={prototypeTree}
+          selectedPrototypeElement={selectedPrototypeElement}
+          selectedPrototypeElementId={selectedPrototypeElementId}
+          prototypeLastPlan={prototypeLastPlan}
+          prototypeHistory={prototypeHistory}
+          hasRichInteractionPreview={hasRichInteractionPreview}
+          interactionInstruction={interactionInstruction}
+          imageSelectionSummary={imageSelectionSummary}
+          selectedHtmlElement={selectedHtmlElement}
+          selectedImageRegion={selectedImageRegion}
+          selectedImagePoint={selectedImagePoint}
+          dragImageRegion={dragImageRegion}
+          htmlPreviewHistory={htmlPreviewHistory}
+          htmlPreviewFrameRef={htmlPreviewFrameRef}
+          imageWrapRef={imageWrapRef}
+          setShowInteractionPanel={setShowInteractionPanel}
+          setInteractionEditMode={setInteractionEditMode}
+          setSelectedHtmlPreviewPath={setSelectedHtmlPreviewPath}
+          setSelectedImagePreviewPath={setSelectedImagePreviewPath}
+          setSelectedPrototypeElementId={setSelectedPrototypeElementId}
+          setPrototypeElements={setPrototypeElements}
+          setPrototypeLastPlan={setPrototypeLastPlan}
+          setPrototypeHistory={setPrototypeHistory}
+          setInteractionInstruction={setInteractionInstruction}
+          setSelectedImagePoint={setSelectedImagePoint}
+          setSelectedImageRegion={setSelectedImageRegion}
+          handleInteractionDrawerResizePointerDown={handleInteractionDrawerResizePointerDown}
+          handleImagePointerDown={handleImagePointerDown}
+          handleImagePointerMove={handleImagePointerMove}
+          handleImagePointerUp={handleImagePointerUp}
+          handleImagePointerCancel={handleImagePointerCancel}
+          handleUndoHtmlPreview={handleUndoHtmlPreview}
+          sendInteractionInstruction={sendInteractionInstruction}
+        />
 
     </>
   );

@@ -14,6 +14,7 @@ import type {
 } from "../../domain/workspace/types";
 import { normalizeThreePartVersion } from "../../domain/workspace/versioning";
 import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
+import { iterationStatusTransitions, canTransitionTo, allowedTransitionsFrom, suggestNextTransition } from "../../domain/workspace/iterationStateMachine";
 
 export const iterationStatuses: IterationStatus[] = ["planned", "in-progress", "review", "blocked", "completed"];
 
@@ -21,13 +22,10 @@ export function isIterationStatus(value: string): value is IterationStatus {
   return (iterationStatuses as string[]).includes(value);
 }
 
-export const statusTransitions: Record<IterationStatus, IterationStatus[]> = {
-  planned: ["in-progress", "blocked"],
-  "in-progress": ["review", "blocked", "completed"],
-  review: ["in-progress", "completed", "blocked"],
-  blocked: ["in-progress", "review"],
-  completed: []
-};
+/** @deprecated Use canTransitionTo / allowedTransitionsFrom from domain layer */
+export const statusTransitions: Record<IterationStatus, IterationStatus[]> = iterationStatusTransitions;
+
+export { canTransitionTo, allowedTransitionsFrom, suggestNextTransition };
 export function fallbackScope(goals: string[]): IterationScope {
   return {
     inScope: goals,
@@ -111,13 +109,13 @@ export function normalizeProject(project: Project): Project {
   return {
     ...project,
     knowledgeBase: {
-      ontologyTerms: Array.isArray(project.knowledgeBase?.ontologyTerms) ? project.knowledgeBase!.ontologyTerms : [],
-      stableRules: Array.isArray(project.knowledgeBase?.stableRules) ? project.knowledgeBase!.stableRules : [],
-      componentInventory: Array.isArray(project.knowledgeBase?.componentInventory) ? project.knowledgeBase!.componentInventory : [],
-      codeMap: Array.isArray(project.knowledgeBase?.codeMap) ? project.knowledgeBase!.codeMap : [],
-      decisionLog: Array.isArray(project.knowledgeBase?.decisionLog) ? project.knowledgeBase!.decisionLog : [],
-      knownRisks: Array.isArray(project.knowledgeBase?.knownRisks) ? project.knowledgeBase!.knownRisks : [],
-      changePatterns: Array.isArray(project.knowledgeBase?.changePatterns) ? project.knowledgeBase!.changePatterns : [],
+      ontologyTerms: Array.isArray(project.knowledgeBase?.ontologyTerms) ? project.knowledgeBase?.ontologyTerms : [],
+      stableRules: Array.isArray(project.knowledgeBase?.stableRules) ? project.knowledgeBase?.stableRules : [],
+      componentInventory: Array.isArray(project.knowledgeBase?.componentInventory) ? project.knowledgeBase?.componentInventory : [],
+      codeMap: Array.isArray(project.knowledgeBase?.codeMap) ? project.knowledgeBase?.codeMap : [],
+      decisionLog: Array.isArray(project.knowledgeBase?.decisionLog) ? project.knowledgeBase?.decisionLog : [],
+      knownRisks: Array.isArray(project.knowledgeBase?.knownRisks) ? project.knowledgeBase?.knownRisks : [],
+      changePatterns: Array.isArray(project.knowledgeBase?.changePatterns) ? project.knowledgeBase?.changePatterns : [],
       updatedAt: typeof project.knowledgeBase?.updatedAt === "string" ? project.knowledgeBase.updatedAt : ""
     },
     repository: {
@@ -260,18 +258,18 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
     lastAttachmentIngestJobId: control?.lastAttachmentIngestJobId || "",
     lastAttachmentAnalysisJobId: control?.lastAttachmentAnalysisJobId || "",
     lastAttachmentReportId: control?.lastAttachmentReportId || "",
-    clarificationRounds: Number.isInteger(control?.clarificationRounds) ? control!.clarificationRounds : 0,
-    clarificationQuestions: Array.isArray(control?.clarificationQuestions) ? control!.clarificationQuestions : [],
+    clarificationRounds: Number.isInteger(control?.clarificationRounds) ? control!.clarificationRounds! : 0,
+    clarificationQuestions: Array.isArray(control?.clarificationQuestions) ? control?.clarificationQuestions : [],
     clarificationDraftResolvedQuestions: Array.isArray(control?.clarificationDraftResolvedQuestions)
-      ? control!.clarificationDraftResolvedQuestions
+      ? control?.clarificationDraftResolvedQuestions
       : [],
     clarificationDraftUpdatedAt: control?.clarificationDraftUpdatedAt || "",
     lastClarificationResolution: {
       resolvedQuestions: Array.isArray(control?.lastClarificationResolution?.resolvedQuestions)
-        ? control!.lastClarificationResolution.resolvedQuestions
+        ? control?.lastClarificationResolution.resolvedQuestions
         : [],
       unresolvedQuestions: Array.isArray(control?.lastClarificationResolution?.unresolvedQuestions)
-        ? control!.lastClarificationResolution.unresolvedQuestions
+        ? control?.lastClarificationResolution.unresolvedQuestions
         : [],
       updatedAt: control?.lastClarificationResolution?.updatedAt || ""
     },
@@ -279,7 +277,7 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
     confirmedAt: control?.confirmedAt || "",
     confirmedBy: control?.confirmedBy || "",
     generatedTestMatrix: Array.isArray(control?.generatedTestMatrix)
-      ? control!.generatedTestMatrix
+      ? control?.generatedTestMatrix
           .map((item) => ({
             type: typeof item?.type === "string" ? item.type : "",
             caseId: typeof item?.caseId === "string" ? item.caseId : "",
@@ -296,33 +294,33 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
     generatedTestMatrixUpdatedAt: control?.generatedTestMatrixUpdatedAt || "",
     testMatrixExecutionUpdatedAt: control?.testMatrixExecutionUpdatedAt || "",
     qualityArtifacts: {
-      unitTests: Array.isArray(control?.qualityArtifacts?.unitTests) ? control!.qualityArtifacts.unitTests : [],
-      contractTests: Array.isArray(control?.qualityArtifacts?.contractTests) ? control!.qualityArtifacts.contractTests : [],
+      unitTests: Array.isArray(control?.qualityArtifacts?.unitTests) ? control?.qualityArtifacts.unitTests : [],
+      contractTests: Array.isArray(control?.qualityArtifacts?.contractTests) ? control?.qualityArtifacts.contractTests : [],
       acceptanceChecklist: Array.isArray(control?.qualityArtifacts?.acceptanceChecklist)
-        ? control!.qualityArtifacts.acceptanceChecklist
+        ? control?.qualityArtifacts.acceptanceChecklist
         : [],
-      regressionPoints: Array.isArray(control?.qualityArtifacts?.regressionPoints) ? control!.qualityArtifacts.regressionPoints : [],
-      materializedFiles: Array.isArray(control?.qualityArtifacts?.materializedFiles) ? control!.qualityArtifacts.materializedFiles : [],
+      regressionPoints: Array.isArray(control?.qualityArtifacts?.regressionPoints) ? control?.qualityArtifacts.regressionPoints : [],
+      materializedFiles: Array.isArray(control?.qualityArtifacts?.materializedFiles) ? control?.qualityArtifacts.materializedFiles : [],
       updatedAt: typeof control?.qualityArtifacts?.updatedAt === "string" ? control.qualityArtifacts.updatedAt : ""
     },
     uxArtifacts: {
       informationArchitecture: Array.isArray(control?.uxArtifacts?.informationArchitecture)
-        ? control!.uxArtifacts.informationArchitecture
+        ? control?.uxArtifacts.informationArchitecture
         : [],
-      interactionFlows: Array.isArray(control?.uxArtifacts?.interactionFlows) ? control!.uxArtifacts.interactionFlows : [],
-      uiStates: Array.isArray(control?.uxArtifacts?.uiStates) ? control!.uxArtifacts.uiStates : [],
-      uxConstraints: Array.isArray(control?.uxArtifacts?.uxConstraints) ? control!.uxArtifacts.uxConstraints : [],
+      interactionFlows: Array.isArray(control?.uxArtifacts?.interactionFlows) ? control?.uxArtifacts.interactionFlows : [],
+      uiStates: Array.isArray(control?.uxArtifacts?.uiStates) ? control?.uxArtifacts.uiStates : [],
+      uxConstraints: Array.isArray(control?.uxArtifacts?.uxConstraints) ? control?.uxArtifacts.uxConstraints : [],
       updatedAt: typeof control?.uxArtifacts?.updatedAt === "string" ? control.uxArtifacts.updatedAt : ""
     },
     executableConstraints: {
       componentWhitelist: Array.isArray(control?.executableConstraints?.componentWhitelist)
-        ? control!.executableConstraints.componentWhitelist
+        ? control?.executableConstraints.componentWhitelist
         : [],
       codePathWhitelist: Array.isArray(control?.executableConstraints?.codePathWhitelist)
-        ? control!.executableConstraints.codePathWhitelist
+        ? control?.executableConstraints.codePathWhitelist
         : [],
       acceptanceChecks: Array.isArray(control?.executableConstraints?.acceptanceChecks)
-        ? control!.executableConstraints.acceptanceChecks
+        ? control?.executableConstraints.acceptanceChecks
         : [],
       generatedAt: typeof control?.executableConstraints?.generatedAt === "string" ? control.executableConstraints.generatedAt : ""
     },
@@ -337,13 +335,13 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
           ? control.traceabilitySnapshot.mappingConfidence
           : "low",
       unmappedRequirements: Array.isArray(control?.traceabilitySnapshot?.unmappedRequirements)
-        ? control!.traceabilitySnapshot.unmappedRequirements
+        ? control?.traceabilitySnapshot.unmappedRequirements
         : [],
-      conflicts: Array.isArray(control?.traceabilitySnapshot?.conflicts) ? control!.traceabilitySnapshot.conflicts : [],
+      conflicts: Array.isArray(control?.traceabilitySnapshot?.conflicts) ? control?.traceabilitySnapshot.conflicts : [],
       generatedAt: typeof control?.traceabilitySnapshot?.generatedAt === "string" ? control.traceabilitySnapshot.generatedAt : ""
     },
     domainKnowledgeEntries: Array.isArray(control?.domainKnowledgeEntries)
-      ? control!.domainKnowledgeEntries
+      ? control?.domainKnowledgeEntries
           .map((item) => ({
             term: typeof item?.term === "string" ? item.term : "",
             definition: typeof item?.definition === "string" ? item.definition : "",
@@ -379,7 +377,7 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
       activeStage: normalizeArtifactStage(control?.artifactWorkflow?.activeStage || defaultWorkflow.activeStage),
       updatedAt: typeof control?.artifactWorkflow?.updatedAt === "string" ? control.artifactWorkflow.updatedAt : "",
       items: Array.isArray(control?.artifactWorkflow?.items)
-        ? control!.artifactWorkflow.items
+        ? control?.artifactWorkflow.items
             .map((item) => ({
               id: typeof item?.id === "string" ? item.id : "",
               stage: normalizeArtifactStage(item?.stage),
@@ -451,17 +449,17 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
           ? control.changeSource.type
           : "unknown",
       rawInput: typeof control?.changeSource?.rawInput === "string" ? control.changeSource.rawInput : "",
-      attachments: Array.isArray(control?.changeSource?.attachments) ? control!.changeSource.attachments.filter((item) => typeof item === "string") : [],
-      references: Array.isArray(control?.changeSource?.references) ? control!.changeSource.references.filter((item) => typeof item === "string") : [],
+      attachments: Array.isArray(control?.changeSource?.attachments) ? control?.changeSource.attachments.filter((item) => typeof item === "string") : [],
+      references: Array.isArray(control?.changeSource?.references) ? control?.changeSource.references.filter((item) => typeof item === "string") : [],
       updatedAt: typeof control?.changeSource?.updatedAt === "string" ? control.changeSource.updatedAt : ""
     },
-    knowledgeHits: Array.isArray(control?.knowledgeHits) ? control!.knowledgeHits.filter((item) => typeof item === "string") : [],
-    knowledgeConflicts: Array.isArray(control?.knowledgeConflicts) ? control!.knowledgeConflicts.filter((item) => typeof item === "string") : [],
+    knowledgeHits: Array.isArray(control?.knowledgeHits) ? control?.knowledgeHits.filter((item) => typeof item === "string") : [],
+    knowledgeConflicts: Array.isArray(control?.knowledgeConflicts) ? control?.knowledgeConflicts.filter((item) => typeof item === "string") : [],
     normalizedFunctionalPoints: Array.isArray(control?.normalizedFunctionalPoints)
-      ? control!.normalizedFunctionalPoints.filter((item) => typeof item === "string")
+      ? control?.normalizedFunctionalPoints.filter((item) => typeof item === "string")
       : [],
     mappingAuditTrail: Array.isArray(control?.mappingAuditTrail)
-      ? control!.mappingAuditTrail
+      ? control?.mappingAuditTrail
           .map((item) => ({
             id: typeof item?.id === "string" ? item.id : "",
             sourceType:

@@ -1,12 +1,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { IterationCodeRewriteResponse } from "../../domain/workspace/types";
+import { buildProjectModelView, summarizeProjectModelView } from "../continuousModeling/continuousModelingProjectView";
 import { LlmUnavailableError, type AgentRunner } from "./agentRunner";
 import { assertBoundaryWhitelist, resolveBoundaryFileCandidates } from "./boundaryGuard";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
-import { normalizeRelPath } from "../../interfaces/http/routes/workspaceRouteUtils";
+import { normalizeRelPath } from "./workspaceServiceCommon";
 
 function pickString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -46,7 +48,8 @@ export async function rewriteCodeInBoundaryOp(
   repo: WorkspaceRepository,
   agentRunner: AgentRunner | null,
   iterationId: number,
-  input: { instruction: string; dryRun?: boolean; maxFiles?: number; role?: "delivery-engineer" | "frontend-developer" | "backend-developer" }
+  input: { instruction: string; dryRun?: boolean; maxFiles?: number; role?: "delivery-engineer" | "frontend-developer" | "backend-developer" },
+  modelingRepo?: ContinuousModelingRepository | null
 ): Promise<IterationCodeRewriteResponse | null> {
   const iteration = repo.findIteration(iterationId);
   if (!iteration) {
@@ -93,6 +96,10 @@ export async function rewriteCodeInBoundaryOp(
     throw new Error("rewrite boundary is not ready: no editable files found in boundary codePaths");
   }
 
+  const modelViewSummary = modelingRepo
+    ? summarizeProjectModelView(buildProjectModelView(repo, modelingRepo, normalizedIteration.projectId, iterationId))
+    : "";
+
   const prompt = {
     agentId: `agent-bounded-rewrite-${role}-1`,
     role: role as "delivery-engineer" | "frontend-developer" | "backend-developer",
@@ -103,12 +110,14 @@ export async function rewriteCodeInBoundaryOp(
       "你是 BuildWise 增量改写器。",
       "严格遵守边界白名单 codePaths；不得输出边界外路径。",
       "你必须将验收标准作为硬约束优先满足，不能仅当备注处理。",
+      modelViewSummary ? "你必须遵守以下统一模型视图中的术语和规则约束，确保改写产物与业务模型一致。" : "",
       "仅输出 JSON，不要 markdown。",
       "content 必须是目标文件完整内容（不是 diff）。",
       "如果无法安全改写，返回空 edits 并在 warnings 说明。"
-    ].join("\n"),
+    ].filter(Boolean).join("\n"),
     userPrompt: [
       `用户指令：${instruction}`,
+      modelViewSummary ? `\n${modelViewSummary}` : "",
       `白名单 codePaths：${boundaryCodePaths.join(" | ")}`,
       `验收标准(scope.acceptanceCriteria)：${acceptanceCriteria.join(" | ") || "-"}`,
       `执行验收约束(executableConstraints.acceptanceChecks)：${acceptanceChecks.join(" | ") || "-"}`,
@@ -121,10 +130,10 @@ export async function rewriteCodeInBoundaryOp(
   const llmResult = await agentRunner.run(prompt);
   const parsed = safeJsonParse(llmResult.content);
   const warnings = Array.isArray(parsed?.warnings)
-    ? parsed!.warnings.map((item) => pickString(item)).filter(Boolean).slice(0, 12)
+    ? parsed?.warnings.map((item) => pickString(item)).filter(Boolean).slice(0, 12)
     : [];
   const summary = pickString(parsed?.summary) || "已完成边界内改写建议。";
-  const rawEdits = Array.isArray(parsed?.edits) ? parsed!.edits : [];
+  const rawEdits = Array.isArray(parsed?.edits) ? parsed?.edits : [];
   if (rawEdits.length === 0) {
     throw new Error("rewrite payload empty: no edits returned by LLM");
   }
