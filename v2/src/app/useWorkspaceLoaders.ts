@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AssessmentPayload,
@@ -27,6 +27,7 @@ import type {
   VersionSnapshot
 } from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
+import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import {
   fetchCollaboration,
   fetchGovernance,
@@ -38,8 +39,7 @@ import {
 } from "./workspaceApi";
 import { nowIsoString } from "./workspaceHelpers";
 
-const rawApiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5055";
-const API_BASE = rawApiBase.endsWith("/api") ? rawApiBase.slice(0, -4) : rawApiBase;
+import { API_BASE, API_PREFIX } from "./workspaceApiCore";
 const BOOT_RETRY_DELAYS_MS = [0, 500, 1200, 2500];
 const STATUS_POLL_INTERVAL_MS = 15000;
 
@@ -64,7 +64,7 @@ async function fetchStatusWithRetry() {
       await wait(delay);
     }
     try {
-      return await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
+      return await fetchJSON<StatusPayload>(`${API_BASE}${API_PREFIX}/status`);
     } catch (error) {
       lastError = error;
     }
@@ -133,21 +133,36 @@ export function useWorkspaceLoaders({
   setOpsMetrics,
   setDeployments
 }: UseWorkspaceLoadersParams) {
+  const statusRef = useRef<StatusPayload | null>(null);
   const toOfflineMessage = (raw: string) =>
     raw.includes("network unavailable") || raw.includes("request timeout")
       ? `后端服务不可用（${apiBaseLabel()}）。请先启动：npm --prefix v2/backend run dev`
       : raw;
 
+  const isBackendError = (msg: string | null) =>
+    !!msg &&
+    (msg.includes("后端服务不可用") ||
+      msg.includes("后端服务不可达") ||
+      msg.includes("network unavailable") ||
+      msg.includes("too many requests"));
+
+  const isAuthError = (msg: string) =>
+    msg.includes("401") || msg.includes("unauthorized") || msg.includes("bearer token");
+
   const probeStatus = async () => {
     try {
-      const statusData = await fetchJSON<StatusPayload>(`${API_BASE}/api/status`);
+      const statusData = await fetchJSON<StatusPayload>(`${API_BASE}${API_PREFIX}/status`);
+      const wasOffline = statusRef.current?.status === "offline";
       setStatus(statusData);
-      setError((prev) => (prev?.includes("后端服务不可用") ? null : prev));
-      return { ok: true as const };
+      statusRef.current = statusData;
+      setError((prev) => (isBackendError(prev) ? null : prev));
+      return { ok: true as const, recovered: wasOffline };
     } catch (err) {
-      const raw = err instanceof Error ? err.message : "Unknown error";
-      setStatus({ status: "offline", service: "buildwise-v2-backend" });
-      return { ok: false as const, raw };
+      const raw = resolveErrorMessage(err);
+      const offlineStatus = { status: "offline" as const, service: "buildwise-v2-backend" };
+      setStatus(offlineStatus);
+      statusRef.current = offlineStatus;
+      return { ok: false as const, raw, recovered: false };
     }
   };
 
@@ -215,7 +230,10 @@ export function useWorkspaceLoaders({
       setOpsMetrics(reports.opsMetrics);
       setDeployments(reports.deployments);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const msg = resolveErrorMessage(err);
+      if (!isAuthError(msg)) {
+        setError(msg);
+      }
     } finally {
       setModelOpsLoading(false);
     }
@@ -227,7 +245,10 @@ export function useWorkspaceLoaders({
       setGovernanceRoles(data.roles);
       setAuditLogs(data.auditLogs);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const msg = resolveErrorMessage(err);
+      if (!isAuthError(msg)) {
+        setError(msg);
+      }
     }
   };
 
@@ -237,7 +258,10 @@ export function useWorkspaceLoaders({
       setVersionSnapshots(data.snapshots);
       setProjectShares(data.shares);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const msg = resolveErrorMessage(err);
+      if (!isAuthError(msg)) {
+        setError(msg);
+      }
     }
   };
 
@@ -250,13 +274,16 @@ export function useWorkspaceLoaders({
           return;
         }
         setStatus(statusData);
+        statusRef.current = statusData;
         setError(null);
       } catch (err) {
         if (stopped) {
           return;
         }
-        setStatus({ status: "offline", service: "buildwise-v2-backend" });
-        const raw = err instanceof Error ? err.message : "Unknown error";
+        const offlineStatus = { status: "offline" as const, service: "buildwise-v2-backend" };
+        setStatus(offlineStatus);
+        statusRef.current = offlineStatus;
+        const raw = resolveErrorMessage(err);
         setError(toOfflineMessage(raw));
         return;
       }
@@ -267,8 +294,21 @@ export function useWorkspaceLoaders({
         if (stopped) {
           return;
         }
-        const raw = err instanceof Error ? err.message : "Unknown error";
-        setError(raw);
+        // 401 意味着未认证，auth-expired 事件会跳转登录页，不需要重试
+        const errMsg = resolveErrorMessage(err);
+        if (errMsg.includes("401")) {
+          return;
+        }
+        // 首次加载失败可能是后端刚启动或 token 尚未就绪，3秒后静默重试一次
+        await new Promise((r) => setTimeout(r, 3000));
+        if (stopped) return;
+        try {
+          await Promise.all([loadProjects(), loadGovernance()]);
+        } catch (retryErr) {
+          if (!stopped) {
+            setError(resolveErrorMessage(retryErr));
+          }
+        }
       }
     };
     bootstrap();
@@ -276,7 +316,7 @@ export function useWorkspaceLoaders({
       const result = await probeStatus();
       if (!result.ok) {
         setError((prev) => {
-          if (prev && !prev.includes("后端服务不可用")) {
+          if (prev && !isBackendError(prev)) {
             return prev;
           }
           return toOfflineMessage(result.raw);
@@ -286,7 +326,13 @@ export function useWorkspaceLoaders({
       if (stopped) {
         return;
       }
-      setError((prev) => (prev?.includes("后端服务不可用") ? null : prev));
+      if (result.recovered) {
+        try {
+          await Promise.all([loadProjects(), loadGovernance()]);
+        } catch {
+          /* recovery best-effort */
+        }
+      }
     }, STATUS_POLL_INTERVAL_MS);
     return () => {
       stopped = true;

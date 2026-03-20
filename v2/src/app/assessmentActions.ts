@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { Iteration } from "../domain/workspace/types";
 import { recomputeAssessment, restoreAssessment } from "./workspaceApi";
+import { withBusyAction } from "../shared/withBusyAction";
 
 export type AssessmentActionDeps = {
   currentIteration: Iteration | null;
@@ -16,33 +17,23 @@ export const handleRecomputeAssessment = async (deps: AssessmentActionDeps) => {
   if (!deps.currentIteration) {
     return;
   }
-  try {
-    deps.setBusy(true);
-    await recomputeAssessment(deps.currentIteration.id);
-    await deps.loadIterationDetail(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    await recomputeAssessment(deps.currentIteration!.id);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     await deps.loadGovernance();
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleRestoreSnapshot = async (snapshotId: number, deps: AssessmentActionDeps) => {
   if (!deps.currentIteration) {
     return;
   }
-  try {
-    deps.setBusy(true);
-    await restoreAssessment(deps.currentIteration.id, snapshotId);
+  await withBusyAction(deps, async () => {
+    await restoreAssessment(deps.currentIteration!.id, snapshotId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-    await deps.loadIterationDetail(deps.currentIteration.id);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     await deps.loadGovernance();
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };

@@ -6,7 +6,7 @@ import { currentRole } from "./workspaceRouteUtils";
 const allowedExecutionStatuses = new Set(["pending", "passed", "failed", "blocked", "skipped"]);
 
 export function registerWorkspaceIterationChangeControlQualityRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.post("/api/iterations/:id/change-control/test-matrix/execution", async (request, reply) => {
+  app.post("/iterations/:id/change-control/test-matrix/execution", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -55,7 +55,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/test-artifacts/generate", async (request, reply) => {
+  app.post("/iterations/:id/change-control/test-artifacts/generate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -75,7 +75,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     return result;
   });
 
-  app.get("/api/iterations/:id/release-review", async (request, reply) => {
+  app.get("/iterations/:id/release-review", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {

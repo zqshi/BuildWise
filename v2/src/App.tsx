@@ -3,6 +3,13 @@ import { useAppController } from "./app/useAppController";
 import { resolveSidebarViewState } from "./app/openclawNavigation";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary";
 import { AppControllerContext } from "./contexts/AppControllerContext";
+import { NavigationProvider } from "./contexts/NavigationContext";
+import { ProjectProvider } from "./contexts/ProjectContext";
+import { IterationProvider } from "./contexts/IterationContext";
+import { ChatProvider } from "./contexts/ChatContext";
+import { AnalysisProvider } from "./contexts/AnalysisContext";
+import { ModelOpsProvider } from "./contexts/ModelOpsContext";
+import { PlatformProvider } from "./contexts/PlatformContext";
 import { DockSidebar } from "./pages/layout/DockSidebar";
 import { OpenclawWorkspacePanel } from "./pages/layout/OpenclawWorkspacePanel";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
@@ -15,7 +22,36 @@ const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ def
 const DashboardView = lazy(() => import("./pages/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
 const PermissionSettingsPage = lazy(() => import("./pages/governance/PermissionSettingsPage").then((m) => ({ default: m.PermissionSettingsPage })));
 
-export default function App() {
+/**
+ * Nests all 7 domain-specific Context providers.
+ * Lightweight when the authenticated workspace is not active — the providers
+ * simply hold default (empty) state that nothing reads.
+ */
+function DomainProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <NavigationProvider>
+      <ProjectProvider>
+        <IterationProvider>
+          <ChatProvider>
+            <AnalysisProvider>
+              <ModelOpsProvider>
+                <PlatformProvider>
+                  {children}
+                </PlatformProvider>
+              </ModelOpsProvider>
+            </AnalysisProvider>
+          </ChatProvider>
+        </IterationProvider>
+      </ProjectProvider>
+    </NavigationProvider>
+  );
+}
+
+/**
+ * Inner app shell.  Lives _inside_ DomainProviders so useAppController()
+ * (which now consumes the 7 contexts via useWorkspaceState) works correctly.
+ */
+function AppInner() {
   const controller = useAppController();
   const backendOffline = controller.status?.status === "offline";
   const isMarketingRoute = controller.route === "marketing" || (!controller.isAuthenticated && controller.route !== "login");
@@ -179,8 +215,8 @@ export default function App() {
               lastUploadFailed={controller.lastUploadFailed}
               uploadAnalysisProgress={controller.uploadAnalysisProgress}
               uploadToastMessage={controller.uploadToastMessage}
-              onShowCreateProject={() => controller.setShowCreateProject(true)}
-              onShowCreateIteration={() => controller.setShowCreateIteration(true)}
+              onShowCreateProject={() => { controller.setError(null); controller.setShowCreateProject(true); }}
+              onShowCreateIteration={() => { controller.setError(null); controller.setShowCreateIteration(true); }}
               onDeleteProject={controller.handleDeleteProject}
               onUploadClick={controller.handleUploadClick}
               onOpenAnalysisPanel={() => controller.setShowAnalysisPanel(true)}
@@ -271,5 +307,13 @@ export default function App() {
       />
     </div>
     </AppControllerContext.Provider>
+  );
+}
+
+export default function App() {
+  return (
+    <DomainProviders>
+      <AppInner />
+    </DomainProviders>
   );
 }

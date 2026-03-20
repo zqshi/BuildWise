@@ -247,7 +247,7 @@ export function normalizeRichTextContent(value: string) {
   if (!text) {
     return "<p></p>";
   }
-  if (/<[a-z][\s\S]*>/i.test(text)) {
+  if (looksLikeHtmlDocument(text)) {
     return text;
   }
   return text
@@ -256,12 +256,20 @@ export function normalizeRichTextContent(value: string) {
     .join("");
 }
 
+function looksLikeHtmlDocument(text: string) {
+  if (/^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text)) {
+    return true;
+  }
+  const blockHtmlTags = text.match(/<\/?(?:div|section|article|header|footer|main|nav|aside|table|thead|tbody|tr|td|th|ul|ol|li|h[1-6]|p|blockquote|form|pre|figure|figcaption|details|summary)[\s>/]/gi);
+  return (blockHtmlTags?.length ?? 0) >= 3;
+}
+
 export function detectDocumentFormat(value: string) {
   const text = extractArtifactDocumentContent(value).trim();
   if (!text) {
     return "markdown" as const;
   }
-  if (/<[a-z][\s\S]*>/i.test(text)) {
+  if (looksLikeHtmlDocument(text)) {
     return "html" as const;
   }
   return "markdown" as const;

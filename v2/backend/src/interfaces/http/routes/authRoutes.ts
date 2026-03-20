@@ -2,7 +2,7 @@ import { randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import type { RuntimeConfig } from "../../../infrastructure/runtime/runtimeConfig";
-import { createTokenPair, verifyJwt } from "../../../infrastructure/runtime/jwt";
+import { createTokenPair, verifyJwt, isTokenRevoked, revokeToken } from "../../../infrastructure/runtime/jwt";
 import { createLogger } from "../../../infrastructure/runtime/logger";
 
 const log = createLogger("auth");
@@ -29,7 +29,7 @@ function isValidPhone(phone: string) {
 
 export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceService, config: RuntimeConfig) {
   // POST /api/auth/sms/request
-  app.post("/api/auth/sms/request", async (request, reply) => {
+  app.post("/auth/sms/request", async (request, reply) => {
     const body = request.body as { phone?: string } | null;
     const phone = (body?.phone || "").trim();
     if (!isValidPhone(phone)) {
@@ -50,11 +50,11 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     const expireAt = now + 5 * 60 * 1000;
     smsCodeStore.set(phone, { code, expireAt, createdAt: now, failedAttempts: 0 });
     smsRateStore.set(phone, now);
-    return { ok: true, expireAt: new Date(expireAt).toISOString(), debugCode: config.nodeEnv !== "production" ? code : undefined };
+    return { ok: true, expireAt: new Date(expireAt).toISOString(), debugCode: config.nodeEnv === "development" ? code : undefined };
   });
 
   // POST /api/auth/sms/verify
-  app.post("/api/auth/sms/verify", async (request, reply) => {
+  app.post("/auth/sms/verify", async (request, reply) => {
     const body = request.body as { phone?: string; code?: string } | null;
     const phone = (body?.phone || "").trim();
     const code = (body?.code || "").trim();
@@ -111,7 +111,7 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
   });
 
   // POST /api/auth/refresh — 刷新 token
-  app.post("/api/auth/refresh", async (request, reply) => {
+  app.post("/auth/refresh", async (request, reply) => {
     if (config.authMode !== "jwt") {
       reply.code(404);
       return { message: "token refresh is only available in jwt auth mode" };
@@ -121,6 +121,10 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     if (!refreshToken) {
       reply.code(400);
       return { message: "missing refreshToken" };
+    }
+    if (isTokenRevoked(refreshToken)) {
+      reply.code(401);
+      return { message: "refresh token has been revoked" };
     }
     let payload;
     try {
@@ -139,6 +143,8 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       reply.code(403);
       return { message: "user no longer registered" };
     }
+    // Revoke the old refresh token (rotation)
+    revokeToken(refreshToken, payload.exp);
     const latestRole = service.resolveWorkspaceRole(binding.role);
     const tokens = createTokenPair(payload.sub, latestRole, config.jwtSecret, config.jwtAccessTtlSec, config.jwtRefreshTtlSec);
     log.info("jwt refreshed", { sub: payload.sub.slice(0, 3) + "****" + payload.sub.slice(7), role: latestRole });

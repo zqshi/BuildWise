@@ -24,17 +24,11 @@ function parseBearerToken(value: unknown) {
 }
 
 function devRoleFromHeader(request: FastifyRequest) {
-  const log = createLogger("auth");
   const raw = request.headers["x-role"];
   if (typeof raw === "string" && raw.trim()) {
-    const role = raw.trim().toLowerCase();
-    if (role === "owner") {
-      log.warn("x-role=owner downgraded to editor in authMode=off");
-      return "editor";
-    }
-    return role;
+    return raw.trim().toLowerCase();
   }
-  return "viewer";
+  return "owner";
 }
 
 function unauthorized(reply: FastifyReply, message: string) {
@@ -49,6 +43,11 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
   }
 
   app.addHook("onRequest", async (request, reply) => {
+    // CORS preflight 必须在 auth 之前放行
+    if (request.method === "OPTIONS") {
+      return;
+    }
+
     const path = toPath(request.url);
 
     if (config.authMode === "off") {

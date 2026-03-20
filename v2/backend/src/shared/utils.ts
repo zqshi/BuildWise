@@ -17,3 +17,8 @@ export function pickStringList(value: unknown, max = 8): string[] {
 export function pickString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value.trim() || fallback : fallback;
 }
+
+/** Extract an error message from an unknown thrown value. */
+export function resolveErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Unknown error";
+}

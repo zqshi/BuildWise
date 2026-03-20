@@ -2,19 +2,19 @@ import type { Project } from "../../domain/workspace/projectTypes";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Iteration, IterationCoachChatResponse } from "../../domain/workspace/types";
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
+import { runWithContinuation } from "./agentContinuation";
 import { loadAgentPromptTemplate } from "./agentAssetRegistry";
-import { dedupeActions, isMechanicalSimilarReply, parseRecentSuggestedActions } from "./workspaceCoachReplyGuard";
+import { dedupeActions, parseRecentSuggestedActions } from "./workspaceCoachReplyGuard";
 import { normalizeIterationMessageContent } from "./workspaceMessageSanitizer";
 import { normalizeIteration } from "./workspaceSupport";
 import {
-  buildImpactAssessmentFallbackReply,
-  hasImpactAssessmentReply,
   isRequirementChangeMessage
 } from "./workspaceCoachImpactAssessment";
 import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitIntakeOps";
 import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
 import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
 import { buildCoachContractContext } from "./workspaceCoachInteractionContract";
+import { buildUpstreamExcerpts, formatUpstreamContext } from "./artifactDependencyGraph";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import {
   appendPolicyExecutionLogOp,
@@ -178,6 +178,44 @@ function summarizeChangeIntelligence(iteration: Iteration) {
   return parts;
 }
 
+const ARTIFACT_KEYWORD_MAP: Record<string, string[]> = {
+  "analysis-report": ["分析报告", "需求分析", "analysis report"],
+  "product-requirements-doc": ["需求文档", "PRD", "产品需求", "requirements"],
+  "boundary-confirmation": ["边界确认", "边界", "boundary"],
+  "prototype-preview": ["原型", "prototype", "交互原型"],
+  "design-spec": ["设计规范", "design spec", "视觉规范"],
+  "technical-architecture": ["技术架构", "架构", "architecture"],
+  "api-specification": ["接口设计", "API", "接口文档", "api spec"],
+  "database-design": ["数据库", "数据模型", "表结构", "database"],
+  "frontend-code": ["前端代码", "前端", "frontend", "React"],
+  "backend-code": ["后端代码", "后端", "backend"],
+  "test-matrix": ["测试矩阵", "测试", "test matrix"],
+  "acceptance-checklist": ["验收清单", "验收", "acceptance"],
+  "release-review": ["发布评审", "发布", "release review"],
+  "deployment-plan": ["部署方案", "部署", "deployment"],
+  "delivery-package": ["交付归档", "归档", "delivery"]
+};
+
+function inferTargetArtifact(userMessage: string): string | null {
+  const msg = userMessage.toLowerCase();
+  for (const [artifactId, keywords] of Object.entries(ARTIFACT_KEYWORD_MAP)) {
+    if (keywords.some((kw) => msg.includes(kw.toLowerCase()))) {
+      return artifactId;
+    }
+  }
+  return null;
+}
+
+function buildArtifactUpstreamContextForCoach(iteration: Iteration, userMessage: string): string {
+  const targetArtifactId = inferTargetArtifact(userMessage);
+  if (!targetArtifactId) return "";
+  const items = iteration.changeControl?.artifactWorkflow?.items ?? [];
+  if (items.length === 0) return "";
+  const excerpts = buildUpstreamExcerpts(targetArtifactId, items);
+  if (excerpts.length === 0) return "";
+  return formatUpstreamContext(excerpts);
+}
+
 function buildCoachContext(iteration: Iteration, previous: Iteration | null, project: Project | null, userMessage: string) {
   const boundary = iteration.changeControl?.boundary;
   const unresolved = iteration.changeControl?.lastClarificationResolution?.unresolvedQuestions ?? [];
@@ -222,7 +260,8 @@ function buildCoachContext(iteration: Iteration, previous: Iteration | null, pro
       previousIterationName: previous?.name || "",
       userMessage
     }),
-    buildCoachContractContext(!previous)
+    buildCoachContractContext(!previous),
+    buildArtifactUpstreamContextForCoach(iteration, userMessage)
   ];
   return contextParts.filter(Boolean).join("\n");
 }
@@ -243,7 +282,6 @@ export async function coachIterationConversationOp(
     .listMessages(iterationId)
     .slice(-8)
     .map((item) => ({ role: item.role, content: normalizeIterationMessageContent(item.role, item.content) }));
-  const recentAssistantReply = [...recentMessages].reverse().find((item) => item.role === "assistant")?.content || "";
   const recentSuggestedActions = parseRecentSuggestedActions(recentMessages);
   const intent = inferIntent(normalized, message);
   const requiresImpactAssessment = isRequirementChangeMessage(message);
@@ -321,7 +359,7 @@ export async function coachIterationConversationOp(
       ? "重要：用户正在提出新增或修改需求。在 reply 中先聊清楚这个变更可能影响哪些业务流程、功能模块和规则，说清楚你已知的和待确认的，不要反过来问用户「你觉得影响了什么」。"
       : "",
     recentMessages.length > 0
-      ? `最近的对话：\n${recentMessages.map((item, idx) => `  ${idx + 1}. ${item.role === "user" ? "用户" : "教练"}：${item.content.slice(0, 120).replace(/\s+/g, " ")}`).join("\n")}`
+      ? `最近的对话：\n${recentMessages.map((item, idx) => `  ${idx + 1}. ${item.role === "user" ? "用户" : "教练"}：${item.content.slice(0, 400).replace(/\s+/g, " ")}`).join("\n")}`
       : "",
     recentSuggestedActions.length > 0
       ? `上轮已建议的行动（避免重复）：${recentSuggestedActions.join("、")}`
@@ -351,12 +389,18 @@ export async function coachIterationConversationOp(
   };
 
   try {
-    const result = await agentRunner.run(prompt, {
+    const continuationResult = await runWithContinuation(agentRunner, prompt, {
       sessionContext: {
         projectId: normalized.projectId,
         iterationId: normalized.id
       }
-    });
+    }, { maxContinuations: 2 });
+    const result = {
+      content: continuationResult.content,
+      model: continuationResult.model,
+      continuations: continuationResult.continuations,
+      contentComplete: continuationResult.complete
+    };
     const parsed = safeJsonParse(result.content);
     const modelIntent = pickString(parsed?.intent) as IterationCoachChatResponse["intent"];
     const guidance = (parsed?.guidance ?? {}) as Record<string, unknown>;
@@ -387,16 +431,9 @@ export async function coachIterationConversationOp(
     const fallbackSuggestedActions =
       skillChain.suggestedActions.length > 0
         ? skillChain.suggestedActions
-        : ["继续当前交付物确认，再推进下一阶段"];
-    const reply = isMechanicalSimilarReply(generatedReply, recentAssistantReply)
-      ? `我理解你的关注点。基于当前迭代「${normalized.name}」，我们先推进一个最关键动作：${
-          (normalized.changeControl?.clarificationQuestions ?? [])[0] || "确认本轮边界与验收口径"
-        }。`
-      : generatedReply;
-    const replyWithAssessment =
-      requiresImpactAssessment && !hasImpactAssessmentReply(reply)
-        ? `${buildImpactAssessmentFallbackReply(normalized)}\n\n${reply}`
-        : reply;
+        : [];
+    const reply = generatedReply;
+    const replyWithAssessment = reply;
     const validIntentSet = new Set<IterationCoachChatResponse["intent"]>([
       "collect-attachment",
       "clarify",
@@ -433,7 +470,9 @@ export async function coachIterationConversationOp(
         used: true,
         model: result.model || "",
         degraded: false,
-        reason: ""
+        reason: "",
+        continuations: result.continuations,
+        contentComplete: result.contentComplete
       }
     };
     if (activePolicy) {

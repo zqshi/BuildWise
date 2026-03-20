@@ -1,45 +1,32 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AnalysisDrawerContent } from "./AnalysisDrawerContent";
 import { InteractionDrawerContent } from "./InteractionDrawerContent";
-import { deleteOpsTriageTemplate, upsertOpsTriageTemplate } from "../../app/workspaceApi";
+// deleteOpsTriageTemplate, upsertOpsTriageTemplate reserved for future use
 import { useDrawerResize } from "./useDrawerResize";
 import { useOpsTemplates } from "./useOpsTemplates";
 import { usePrototypeInteraction } from "./usePrototypeInteraction";
-import {
-  buildIterationChatDisplayItems,
-  compactArtifactCardSummary,
-  parseArtifactReferenceMessage,
-  shouldSuppressArtifactTextMessage
-} from "../../app/workspaceChatMessagePresentation";
-import { buildAnalysisArtifactPreview, parseAnalysisArtifactSections } from "./analysisArtifactPresenter";
-import { ArtifactCodeViewer, ArtifactTextEditor } from "./ArtifactEditorWidgets";
+import { useChangeControlForm } from "../../hooks/useChangeControlForm";
+import { useTestMatrixForm } from "../../hooks/useTestMatrixForm";
+import { useOpsTemplateForm } from "../../hooks/useOpsTemplateForm";
+import { useArtifactEditorState } from "../../hooks/useArtifactEditorState";
+import { useHtmlPreviewInteraction } from "../../hooks/useHtmlPreviewInteraction";
+import { IterationStatusStrip } from "./IterationStatusStrip";
+import { ChatMessageList, getMsgKind } from "./ChatMessageList";
+import { UploadProgressBar } from "./UploadProgressBar";
+import { ChatComposer } from "./ChatComposer";
 import {
   buildArtifactCommitSummary,
   buildArtifactRevisionPrompt,
-  extractArtifactPrototypeHtml,
   resolveArtifactActionErrorMessage,
   shouldCloseDrawerAfterRevisionRequest,
-  stripRichTextToPlainText
 } from "./artifactEditorModel";
-import { ArtifactImpactPanel } from "./IterationChangeIntelligencePanel";
+// ArtifactImpactPanel reserved for future use
 import type {
-  ArtifactPreviewKind,
   PrototypeElement,
   PrototypeChangeHistoryItem,
-  HtmlPreviewInteractionPayload,
-  ImageSelectionRegion,
-  HtmlPreviewHistoryItem,
   IterationWorkspacePanelProps,
-  IterationMessage,
-  IterationStatus,
-  IterationVisualEditResponse,
-  IterationArtifactStage,
 } from "./iterationWorkspacePanelTypes";
 import {
-  resolveArtifactPreviewKind,
-  getInteractionDrawerWidthBounds,
-  getArtifactDrawerWidthBounds,
   instrumentHtmlPreview
 } from "./iterationWorkspacePanelUtils";
 
@@ -68,17 +55,17 @@ export function IterationWorkspacePanel({
   onRetryUpload,
   onChatInputChange,
   onChatSend,
-  onUpdateClarificationDraft,
-  onConfirmIterationAnalysis,
-  onUpdateIterationBoundary,
+  onUpdateClarificationDraft: _onUpdateClarificationDraft,
+  onConfirmIterationAnalysis: _onConfirmIterationAnalysis,
+  onUpdateIterationBoundary: _onUpdateIterationBoundary,
   onUpdateTestMatrixExecution,
   onGenerateTestArtifacts,
   onRefreshReleaseReview,
   onSaveArtifactDraft,
   onCommitArtifact,
   onConfirmArtifact,
-  onAppendArtifactToChat,
-  onTransitionArtifactStage,
+  onAppendArtifactToChat: _onAppendArtifactToChat,
+  onTransitionArtifactStage: _onTransitionArtifactStage,
   onTransitionState,
   onSwitchToProjectPanel,
   onPatchUploadedHtmlPreview
@@ -90,111 +77,138 @@ export function IterationWorkspacePanel({
     { id: "primary-cta", page: "首页", component: "Actions", label: "创建迭代", background: "#2563eb", color: "#ffffff", visible: true, emphasized: true, width: 220, height: 44 },
     { id: "task-card", page: "首页", component: "Cards", label: "卡片：待澄清问题", background: "#ffffff", color: "#0f172a", visible: true, emphasized: false, width: 460, height: 92 }
   ];
-  // ── Extracted hooks (order-independent) ──
+
+  // ── Extracted hooks ──
   const {
-    interactionDrawerWidth, setInteractionDrawerWidth,
-    artifactDrawerWidth, setArtifactDrawerWidth,
+    interactionDrawerWidth, setInteractionDrawerWidth: _setInteractionDrawerWidth,
+    artifactDrawerWidth, setArtifactDrawerWidth: _setArtifactDrawerWidth,
     handleInteractionDrawerResizePointerDown,
     handleArtifactDrawerResizePointerDown,
   } = useDrawerResize();
-  const { opsTemplates, setOpsTemplates, reloadOpsTemplates, buildOpsCommandTemplates } = useOpsTemplates(currentIteration?.projectId);
+  const { opsTemplates, setOpsTemplates: _setOpsTemplates, reloadOpsTemplates, buildOpsCommandTemplates } = useOpsTemplates(currentIteration?.projectId);
+
+  const {
+    changeControlBusy, setChangeControlBusy,
+    changeControlNotice, setChangeControlNotice,
+  } = useChangeControlForm(currentIteration);
+
+  const {
+    testMatrixStatusMap, setTestMatrixStatusMap,
+    testMatrixNoteMap, setTestMatrixNoteMap,
+  } = useTestMatrixForm(currentIteration);
+
+  const {
+    templateBusy, setTemplateBusy,
+    templateNotice, setTemplateNotice,
+    templateCategory, setTemplateCategory,
+    templateKeywordsText, setTemplateKeywordsText,
+    templateCommandsText, setTemplateCommandsText,
+    templateNote, setTemplateNote,
+    opsCopyNotice, setOpsCopyNotice,
+  } = useOpsTemplateForm();
 
   const [onlyHighValue, setOnlyHighValue] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [showUploadMenu, setShowUploadMenu] = useState(false);
-  const analysisScrollRef = useRef<HTMLDivElement | null>(null);
-  const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const uploadTriggerRef = useRef<HTMLDivElement | null>(null);
-  const folderPickerAttrs = { webkitdirectory: "", directory: "" } as unknown as Record<string, string>;
-  const [resolvedQuestions, setResolvedQuestions] = useState<string[]>([]);
-  const [boundaryRequirementRefsText, setBoundaryRequirementRefsText] = useState("");
-  const [boundaryComponentRefsText, setBoundaryComponentRefsText] = useState("");
-  const [boundaryCodePathsText, setBoundaryCodePathsText] = useState("");
-  const [boundaryNote, setBoundaryNote] = useState("");
-  const [confirmNote, setConfirmNote] = useState("");
-  const [changeControlBusy, setChangeControlBusy] = useState(false);
-  const [changeControlNotice, setChangeControlNotice] = useState("");
-  const [opsCopyNotice, setOpsCopyNotice] = useState("");
-  const [templateBusy, setTemplateBusy] = useState(false);
-  const [templateNotice, setTemplateNotice] = useState("");
-  const [templateCategory, setTemplateCategory] = useState("custom");
-  const [templateKeywordsText, setTemplateKeywordsText] = useState("");
-  const [templateCommandsText, setTemplateCommandsText] = useState("");
-  const [templateNote, setTemplateNote] = useState("");
-  const [testMatrixStatusMap, setTestMatrixStatusMap] = useState<Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped">>({});
-  const [testMatrixNoteMap, setTestMatrixNoteMap] = useState<Record<string, string>>({});
+  const chatBodyRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll chat to bottom when messages change
+  useEffect(() => {
+    const el = chatBodyRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [chatMessages]);
   const [showInteractionPanel, setShowInteractionPanel] = useState(false);
   const [interactionEditMode, setInteractionEditMode] = useState(false);
+
+  const {
+    interactionInstruction, setInteractionInstruction,
+    hoveredHtmlElement: _hoveredHtmlElement, setHoveredHtmlElement,
+    selectedHtmlElement, setSelectedHtmlElement,
+    htmlPreviewHistory, setHtmlPreviewHistory,
+    htmlPreviewFrameRef,
+    artifactHtmlPreviewFrameRef,
+    selectedHtmlPreview,
+    selectedHtmlPreviewPath: _selectedHtmlPreviewPath, setSelectedHtmlPreviewPath,
+    htmlPrototypePreviews,
+    applyActionsToHtmlContent,
+    getActiveHtmlPreviewWindow,
+    applyHtmlActionsToPreview,
+  } = useHtmlPreviewInteraction(uploadedFile, interactionEditMode);
+
   // ── Extracted hook (depends on interactionEditMode) ──
   const {
     selectedImagePoint, setSelectedImagePoint,
     selectedImageRegion, setSelectedImageRegion,
     dragImageRegion, setDragImageRegion,
     imageWrapRef,
-    toPercentPoint,
+    toPercentPoint: _toPercentPoint,
     handleImagePointerDown, handleImagePointerMove,
     handleImagePointerUp, handleImagePointerCancel,
-    finalizeImageSelection,
+    finalizeImageSelection: _finalizeImageSelection,
     applyPrototypeInstruction: applyPrototypeInstructionHook,
   } = usePrototypeInteraction(interactionEditMode);
-  const [selectedHtmlPreviewPath, setSelectedHtmlPreviewPath] = useState("");
+
   const [selectedPrototypeElementId, setSelectedPrototypeElementId] = useState("page-title");
   const [prototypeElements, setPrototypeElements] = useState<PrototypeElement[]>(defaultPrototypeElements);
   const [prototypeLastPlan, setPrototypeLastPlan] = useState<string[]>([]);
   const [prototypeHistory, setPrototypeHistory] = useState<PrototypeChangeHistoryItem[]>([]);
   const [selectedImagePreviewPath, setSelectedImagePreviewPath] = useState("");
-  const [interactionInstruction, setInteractionInstruction] = useState("");
-  const [artifactEditorValue, setArtifactEditorValue] = useState("");
-  const [artifactEditorDirty, setArtifactEditorDirty] = useState(false);
-  const [artifactEditorBusy, setArtifactEditorBusy] = useState(false);
-  const [artifactEditorMode, setArtifactEditorMode] = useState<"view" | "edit">("view");
-  const [hoveredHtmlElement, setHoveredHtmlElement] = useState<HtmlPreviewInteractionPayload | null>(null);
-  const [selectedHtmlElement, setSelectedHtmlElement] = useState<HtmlPreviewInteractionPayload | null>(null);
-  const [htmlPreviewHistory, setHtmlPreviewHistory] = useState<HtmlPreviewHistoryItem[]>([]);
-  const htmlPreviewFrameRef = useRef<HTMLIFrameElement | null>(null);
-  const artifactHtmlPreviewFrameRef = useRef<HTMLIFrameElement | null>(null);
+
+  const {
+    artifactItems,
+    activeArtifactStage,
+    analysisDrawerArtifactId: _analysisDrawerArtifactId, setAnalysisDrawerArtifactId,
+    selectedDrawerArtifact,
+    selectedArtifactKind,
+    artifactDraftContent,
+    isEditableTextArtifact,
+    artifactEditorSource,
+    artifactEditorValue, setArtifactEditorValue,
+    artifactEditorDirty, setArtifactEditorDirty,
+    artifactEditorBusy, setArtifactEditorBusy,
+    artifactEditorMode, setArtifactEditorMode,
+    selectedArtifactHtmlContent,
+    selectedArtifactHtmlPreview,
+    analysisDraftSections,
+    selectedArtifactAwaitingConfirmation,
+    canEditSelectedTextArtifact,
+  } = useArtifactEditorState(currentIteration, selectedHtmlPreview, interactionEditMode);
+
   const chatComposerInputRef = useRef<HTMLInputElement | null>(null);
-  const scopeInCount = contextData?.scope.inScope.length ?? 0;
-  const scopeOutCount = contextData?.scope.outOfScope.length ?? 0;
-  const acceptanceCount = contextData?.scope.acceptanceCriteria.length ?? 0;
-  const getRoleLabel = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "BuildWise AI" : "系统");
-  const getRoleAvatar = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "AI" : "系");
-  const getMsgKind = (msg: IterationMessage) => {
-    if (msg.role === "system" && (msg.content.startsWith("已上传附件") || msg.content.startsWith("已上传文件夹"))) {
-      return "event-upload";
+  const analysisScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const imagePrototypePreviews = uploadedFile?.imagePreviews ?? [];
+  const selectedImagePreview =
+    imagePrototypePreviews.find((item) => item.path === selectedImagePreviewPath) || imagePrototypePreviews[0] || null;
+  const hasRichInteractionPreview = Boolean(
+    (htmlPrototypePreviews.length > 0 && selectedHtmlPreview) || (imagePrototypePreviews.length > 0 && selectedImagePreview)
+  );
+  const instrumentedHtmlPreview = useMemo(
+    () => (selectedHtmlPreview ? instrumentHtmlPreview(selectedHtmlPreview.content, interactionEditMode) : ""),
+    [selectedHtmlPreview?.path, selectedHtmlPreview?.content, interactionEditMode]
+  );
+  const imageSelectionSummary = selectedImageRegion
+    ? `区域 x=${selectedImageRegion.xPercent.toFixed(1)}% y=${selectedImageRegion.yPercent.toFixed(1)}% w=${selectedImageRegion.widthPercent.toFixed(
+        1
+      )}% h=${selectedImageRegion.heightPercent.toFixed(1)}%`
+    : selectedImagePoint
+      ? `点位 x=${selectedImagePoint.xPercent.toFixed(1)}% y=${selectedImagePoint.yPercent.toFixed(1)}%`
+      : "";
+  const selectedPrototypeElement = prototypeElements.find((item) => item.id === selectedPrototypeElementId) || null;
+  const prototypeTree = prototypeElements.reduce<Record<string, Record<string, PrototypeElement[]>>>((acc, item) => {
+    if (!acc[item.page]) {
+      acc[item.page] = {};
     }
-    if (
-      msg.role === "assistant" &&
-      (msg.content.includes("附件已完成大模型分析") || msg.content.includes("查看分析报告"))
-    ) {
-      return "event-analysis";
+    if (!acc[item.page][item.component]) {
+      acc[item.page][item.component] = [];
     }
-    return "";
-  };
-  const getMsgTheme = (msg: IterationMessage) => {
-    const content = msg.content.toLowerCase();
-    if (content.includes("风险") || content.includes("阻塞")) {
-      return "theme-risk";
-    }
-    if (content.includes("完成") || content.includes("通过") || content.includes("success")) {
-      return "theme-success";
-    }
-    if (content.includes("分析") || content.includes("差异") || content.includes("附件")) {
-      return "theme-analysis";
-    }
-    return "theme-default";
-  };
-  const formatTime = (value: string) =>
-    new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
-  const displayMessages = useMemo(() => buildIterationChatDisplayItems(chatMessages), [chatMessages]);
-  const statusLabelMap: Record<IterationStatus, string> = {
-    planned: "规划中",
-    "in-progress": "进行中",
-    review: "评审中",
-    blocked: "阻塞中",
-    completed: "已完成"
-  };
-  const renderStatusLabel = (status: IterationStatus) => statusLabelMap[status] ?? status;
+    acc[item.page][item.component].push(item);
+    return acc;
+  }, {});
+  const showInteractionEntry = true;
+
+  // ── derived report data ──
   const diffLocations = analysisReport?.diffLocations ?? [];
   const diffAdded = analysisReport?.versionDiff?.added ?? [];
   const diffChanged = analysisReport?.versionDiff?.changed ?? [];
@@ -203,9 +217,6 @@ export function IterationWorkspacePanel({
     analysisReport?.versionDiff?.baselineIterationName && analysisReport?.versionDiff?.baselineIterationName !== analysisReport?.iterationName
   );
   const showAdvancedReportSections = Boolean(analysisReport);
-  const allowedTransitions = stateMachine?.allowedTransitions ?? [];
-  const transitionHistory = stateMachine?.transitionHistory ?? [];
-  const hasStateMachineActions = allowedTransitions.length > 0;
   const hasAnalysisEntryInChat = chatMessages.some((msg) => getMsgKind(msg) === "event-analysis");
   const lastUploadMessageId = [...chatMessages].reverse().find((msg) => getMsgKind(msg) === "event-upload")?.id;
   const canOpenAnalysisPanel = !isAnalyzingAttachment && (Boolean(analysisReport) || hasAnalysisEntryInChat);
@@ -225,7 +236,6 @@ export function IterationWorkspacePanel({
     ? prioritizedFindings.filter((item) => item.priority === "P0" || item.priority === "P1")
     : prioritizedFindings;
   const clarificationQuestions = currentIteration?.changeControl?.clarificationQuestions ?? analysisReport?.clarificationQuestions ?? [];
-  const pendingHumanConfirmation = currentIteration?.changeControl?.pendingHumanConfirmation ?? false;
   const generatedTestMatrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
   const matrixSummary = (() => {
     const total = generatedTestMatrix.length;
@@ -239,182 +249,11 @@ export function IterationWorkspacePanel({
     const passRate = executed === 0 ? (total === 0 ? 100 : 0) : Math.round((passed / executed) * 100);
     return { total, executed, passed, failed, blocked, skipped, coverage, passRate };
   })();
-  const selectedPrototypeElement = prototypeElements.find((item) => item.id === selectedPrototypeElementId) || null;
-  const prototypeTree = prototypeElements.reduce<Record<string, Record<string, PrototypeElement[]>>>((acc, item) => {
-    if (!acc[item.page]) {
-      acc[item.page] = {};
-    }
-    if (!acc[item.page][item.component]) {
-      acc[item.page][item.component] = [];
-    }
-    acc[item.page][item.component].push(item);
-    return acc;
-  }, {});
-  const showInteractionEntry = true;
-  const htmlPrototypePreviews = uploadedFile?.htmlPreviews ?? [];
-  const htmlPreviewPathsKey = htmlPrototypePreviews.map((item) => item.path).join("|");
-  const imagePrototypePreviews = uploadedFile?.imagePreviews ?? [];
-  const selectedHtmlPreview =
-    htmlPrototypePreviews.find((item) => item.path === selectedHtmlPreviewPath) || htmlPrototypePreviews[0] || null;
-  const selectedImagePreview =
-    imagePrototypePreviews.find((item) => item.path === selectedImagePreviewPath) || imagePrototypePreviews[0] || null;
-  const hasRichInteractionPreview = Boolean(
-    (htmlPrototypePreviews.length > 0 && selectedHtmlPreview) || (imagePrototypePreviews.length > 0 && selectedImagePreview)
-  );
-  const instrumentedHtmlPreview = useMemo(
-    () => (selectedHtmlPreview ? instrumentHtmlPreview(selectedHtmlPreview.content, interactionEditMode) : ""),
-    [selectedHtmlPreview?.path, selectedHtmlPreview?.content, interactionEditMode]
-  );
-  const imageSelectionSummary = selectedImageRegion
-    ? `区域 x=${selectedImageRegion.xPercent.toFixed(1)}% y=${selectedImageRegion.yPercent.toFixed(1)}% w=${selectedImageRegion.widthPercent.toFixed(
-        1
-      )}% h=${selectedImageRegion.heightPercent.toFixed(1)}%`
-    : selectedImagePoint
-      ? `点位 x=${selectedImagePoint.xPercent.toFixed(1)}% y=${selectedImagePoint.yPercent.toFixed(1)}%`
-      : "";
   const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
   const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
   const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
-  const artifactItems = currentIteration?.changeControl?.artifactWorkflow?.items || [];
-  const activeArtifactStage = currentIteration?.changeControl?.artifactWorkflow?.activeStage || "clarification";
-  const [analysisDrawerArtifactId, setAnalysisDrawerArtifactId] = useState<string | null>(null);
-  const artifactMap = useMemo(() => new Map(artifactItems.map((item) => [item.id, item])), [artifactItems]);
-  const selectedDrawerArtifact = analysisDrawerArtifactId ? artifactMap.get(analysisDrawerArtifactId) || null : null;
-  const selectedArtifactKind = selectedDrawerArtifact ? resolveArtifactPreviewKind(selectedDrawerArtifact.id) : null;
-  const artifactDraftContent = selectedDrawerArtifact?.draft?.content || "";
-  const editableTextArtifactKinds: ArtifactPreviewKind[] = [
-    "product-requirements-doc",
-    "design-spec",
-    "technical-architecture",
-    "document"
-  ];
-  const isEditableTextArtifact = selectedArtifactKind ? editableTextArtifactKinds.includes(selectedArtifactKind) : false;
-  const artifactEditorSource = isEditableTextArtifact ? artifactDraftContent || selectedDrawerArtifact?.summary || "" : artifactDraftContent;
-  const extractedArtifactPrototypeHtml = useMemo(() => extractArtifactPrototypeHtml(artifactDraftContent), [artifactDraftContent]);
-  const selectedArtifactHtmlContent =
-    selectedArtifactKind === "html-prototype" ? (extractedArtifactPrototypeHtml || selectedHtmlPreview?.content || "") : "";
-  const selectedArtifactHtmlPreview = useMemo(
-    () => (selectedArtifactKind === "html-prototype" && selectedArtifactHtmlContent ? instrumentHtmlPreview(selectedArtifactHtmlContent, interactionEditMode) : ""),
-    [selectedArtifactKind, selectedArtifactHtmlContent, interactionEditMode]
-  );
-  const analysisDraftSections = useMemo(
-    () => (selectedArtifactKind === "analysis-report" ? parseAnalysisArtifactSections(artifactDraftContent) : []),
-    [selectedArtifactKind, artifactDraftContent]
-  );
-  useEffect(() => {
-    const boundary = currentIteration?.changeControl?.boundary;
-    setResolvedQuestions(currentIteration?.changeControl?.clarificationDraftResolvedQuestions ?? []);
-    setBoundaryRequirementRefsText((boundary?.requirementRefs ?? []).join("\n"));
-    setBoundaryComponentRefsText((boundary?.componentRefs ?? []).join("\n"));
-    setBoundaryCodePathsText((boundary?.codePaths ?? []).join("\n"));
-    setBoundaryNote(boundary?.note ?? "");
-    setConfirmNote(currentIteration?.changeControl?.lastClarificationNote ?? "");
-  }, [currentIteration?.id, currentIteration?.changeControl?.boundary?.updatedAt, currentIteration?.changeControl?.clarificationDraftUpdatedAt]);
 
-  useEffect(() => {
-    setArtifactEditorValue(artifactEditorSource);
-    setArtifactEditorDirty(false);
-    setArtifactEditorMode("view");
-  }, [selectedDrawerArtifact?.id, artifactEditorSource]);
-
-  useEffect(() => {
-    setAnalysisDrawerArtifactId(null);
-  }, [currentIteration?.id]);
-
-
-  useEffect(() => {
-    const matrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
-    const nextStatusMap: Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped"> = {};
-    const nextNoteMap: Record<string, string> = {};
-    for (const item of matrix) {
-      nextStatusMap[item.caseId] = item.executionStatus;
-      nextNoteMap[item.caseId] = item.executionNote || "";
-    }
-    setTestMatrixStatusMap(nextStatusMap);
-    setTestMatrixNoteMap(nextNoteMap);
-  }, [currentIteration?.id, currentIteration?.changeControl?.generatedTestMatrixUpdatedAt, currentIteration?.changeControl?.testMatrixExecutionUpdatedAt]);
-
-  useEffect(() => {
-    if (!showUploadMenu) {
-      return;
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!uploadTriggerRef.current || !target) {
-        setShowUploadMenu(false);
-        return;
-      }
-      if (!uploadTriggerRef.current.contains(target)) {
-        setShowUploadMenu(false);
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [showUploadMenu]);
-
-  useEffect(() => {
-    const previews = uploadedFile?.htmlPreviews ?? [];
-    if (previews.length === 0) {
-      setSelectedHtmlPreviewPath("");
-      setSelectedHtmlElement(null);
-      setHoveredHtmlElement(null);
-      setHtmlPreviewHistory([]);
-      return;
-    }
-    setSelectedHtmlPreviewPath((prev) => (previews.some((item) => item.path === prev) ? prev : previews[0].path));
-  }, [uploadedFile?.iterationId, htmlPreviewPathsKey]);
-
-  useEffect(() => {
-    if (interactionEditMode) {
-      return;
-    }
-    setSelectedHtmlElement(null);
-    setHoveredHtmlElement(null);
-    setSelectedImagePoint(null);
-    setSelectedImageRegion(null);
-    setDragImageRegion(null);
-  }, [interactionEditMode]);
-
-  useEffect(() => {
-    const previews = uploadedFile?.imagePreviews ?? [];
-    if (previews.length === 0) {
-      setSelectedImagePreviewPath("");
-      setSelectedImagePoint(null);
-      setSelectedImageRegion(null);
-      return;
-    }
-    setSelectedImagePreviewPath((prev) => (previews.some((item) => item.path === prev) ? prev : previews[0].path));
-  }, [uploadedFile?.iterationId, uploadedFile?.imagePreviews]);
-
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data as
-        | {
-            source?: string;
-            type?: "hover" | "select";
-            payload?: HtmlPreviewInteractionPayload;
-          }
-        | null
-        | undefined;
-      if (!data || data.source !== "buildwise-html-preview") {
-        return;
-      }
-      if (!interactionEditMode || !data.payload) {
-        return;
-      }
-      if (data.type === "hover") {
-        setHoveredHtmlElement(data.payload as HtmlPreviewInteractionPayload);
-        return;
-      }
-      if (data.type === "select") {
-        setSelectedHtmlElement(data.payload as HtmlPreviewInteractionPayload);
-        setHoveredHtmlElement(data.payload as HtmlPreviewInteractionPayload);
-      }
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [interactionEditMode]);
-
+  // ── Prototype mapping effect ──
   useEffect(() => {
     if (!uploadedFile?.hasPrototypeAssets) {
       return;
@@ -447,106 +286,29 @@ export function IterationWorkspacePanel({
     }
   }, [uploadedFile?.iterationId, uploadedFile?.hasPrototypeAssets, uploadedFile?.prototypeItems]);
 
-  const parseLines = (value: string) =>
-    value
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const copyText = async (text: string) => {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
+  useEffect(() => {
+    const previews = uploadedFile?.imagePreviews ?? [];
+    if (previews.length === 0) {
+      setSelectedImagePreviewPath("");
+      setSelectedImagePoint(null);
+      setSelectedImageRegion(null);
       return;
     }
-    if (typeof document === "undefined") {
+    setSelectedImagePreviewPath((prev) => (previews.some((item) => item.path === prev) ? prev : previews[0].path));
+  }, [uploadedFile?.iterationId, uploadedFile?.imagePreviews]);
+
+  // ── Interaction-mode clearing ──
+  useEffect(() => {
+    if (interactionEditMode) {
       return;
     }
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  };
+    setSelectedImagePoint(null);
+    setSelectedImageRegion(null);
+    setDragImageRegion(null);
+  }, [interactionEditMode]);
 
-  const resolveGuidanceText = (content: string) => {
-    if (content.startsWith("操作建议JSON:")) {
-      const raw = content.replace(/^操作建议JSON:/, "").trim();
-      try {
-        const parsed = JSON.parse(raw) as {
-          uploadRecommended?: boolean;
-          actions?: string[];
-          checklist?: string[];
-          prerequisites?: string[];
-        };
-        const parts: string[] = [];
-        if (parsed.uploadRecommended) {
-          parts.push("建议先上传本轮相关材料。");
-        }
-        const actions = Array.isArray(parsed.actions)
-          ? parsed.actions.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 3)
-          : [];
-        if (actions.length > 0) {
-          parts.push(`下一步可执行：${actions.join("；")}。`);
-        }
-        const checklist = Array.isArray(parsed.checklist)
-          ? parsed.checklist.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 2)
-          : [];
-        if (checklist.length > 0) {
-          parts.push(`优先确认：${checklist.join("；")}。`);
-        }
-        const prerequisites = Array.isArray(parsed.prerequisites)
-          ? parsed.prerequisites.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 2)
-          : [];
-        if (prerequisites.length > 0) {
-          parts.push(`前置条件：${prerequisites.join("；")}。`);
-        }
-        return parts.length > 0 ? `继续推进建议：${parts.join("")}` : "继续推进建议：请在当前会话中明确下一步目标与边界。";
-      } catch {
-        return "继续推进建议：请在当前会话中明确下一步目标与边界。";
-      }
-    }
-    if (content.startsWith("操作建议：")) {
-      const items = content
-        .replace(/^操作建议：/, "")
-        .split("；")
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .slice(0, 4);
-      return items.length > 0 ? `补充建议：${items.join("；")}。` : "补充建议：请继续在会话中确认下一步。";
-    }
-    return "";
-  };
-
-  const resolveDeliverableCardData = (content: string) => {
-    const deliverable = parseArtifactReferenceMessage(content);
-    if (!deliverable) {
-      return null;
-    }
-    const matchedArtifact = artifactItems.find((item) => item.title === deliverable.title);
-    if (!matchedArtifact) {
-      return deliverable;
-    }
-    const matchedKind = resolveArtifactPreviewKind(matchedArtifact.id);
-    if (matchedKind !== "analysis-report") {
-      return {
-        ...deliverable,
-        summary: compactArtifactCardSummary(matchedArtifact.summary || deliverable.summary, deliverable.summary),
-        evidence: deliverable.evidence.length > 0 ? deliverable.evidence : matchedArtifact.evidence || []
-      };
-    }
-    const preview = buildAnalysisArtifactPreview(matchedArtifact.draft?.content || "");
-    return {
-      ...deliverable,
-      summary: compactArtifactCardSummary(preview.summary || matchedArtifact.summary || deliverable.summary, deliverable.summary),
-      evidence: preview.evidence.length > 0 ? preview.evidence : deliverable.evidence
-    };
-  };
-
-  const findPreferredArtifactForStage = (stage: IterationArtifactStage) =>
+  // ── Artifact helpers ──
+  const findPreferredArtifactForStage = (stage: typeof activeArtifactStage) =>
     artifactItems.find((item) => item.stage === stage) || artifactItems[0] || null;
 
   const openAnalysisDrawer = () => {
@@ -572,73 +334,12 @@ export function IterationWorkspacePanel({
   const applyPrototypeInstruction = (instruction: string) =>
     applyPrototypeInstructionHook(instruction, selectedPrototypeElement, setPrototypeElements, setPrototypeLastPlan, setPrototypeHistory);
 
-
-  const applyActionsToHtmlContent = (source: string, selector: string, result: IterationVisualEditResponse) => {
-    if (!source.trim() || result.actions.length === 0) {
-      return source;
-    }
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(source, "text/html");
-      const target = selector ? doc.querySelector(selector) : null;
-      if (!target) {
-        return source;
-      }
-      for (const action of result.actions) {
-        if (action.op === "set-text") {
-          target.textContent = action.value;
-          continue;
-        }
-        if (action.op === "set-style" || action.op === "resize") {
-          if (action.property) {
-            (target as HTMLElement).style.setProperty(
-              action.property.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`),
-              action.value
-            );
-          }
-          continue;
-        }
-        if (action.op === "toggle-visibility") {
-          (target as HTMLElement).style.display = action.value === "hidden" ? "none" : "";
-        }
-      }
-      return doc.documentElement.outerHTML;
-    } catch {
-      return source;
-    }
-  };
-
-  const getActiveHtmlPreviewWindow = () => {
-    if (showAnalysisPanel && selectedArtifactKind === "html-prototype") {
-      return artifactHtmlPreviewFrameRef.current?.contentWindow || null;
-    }
-    return htmlPreviewFrameRef.current?.contentWindow || null;
-  };
-
-  const applyHtmlActionsToPreview = (selector: string, result: IterationVisualEditResponse) => {
-    const frameWindow = getActiveHtmlPreviewWindow();
-    if (!frameWindow || result.actions.length === 0) {
-      return;
-    }
-    frameWindow.postMessage(
-      {
-        source: "buildwise-visual-edit-host",
-        type: "apply-actions",
-        payload: {
-          selector,
-          actions: result.actions
-        }
-      },
-      "*"
-    );
-  };
-
   const handleUndoHtmlPreview = () => {
     const latest = htmlPreviewHistory[0];
     if (!latest) {
       return;
     }
-    const frameWindow = getActiveHtmlPreviewWindow();
+    const frameWindow = getActiveHtmlPreviewWindow(showAnalysisPanel, selectedArtifactKind);
     if (!frameWindow) {
       return;
     }
@@ -730,7 +431,7 @@ export function IterationWorkspacePanel({
           },
           ...prev
         ].slice(0, 20));
-        applyHtmlActionsToPreview(selectedHtmlElement.selector, result);
+        applyHtmlActionsToPreview(selectedHtmlElement.selector, result, showAnalysisPanel, selectedArtifactKind);
       }
       return;
     }
@@ -859,11 +560,6 @@ export function IterationWorkspacePanel({
     setShowInteractionPanel(true);
   };
 
-  const selectedArtifactAwaitingConfirmation = Boolean(
-    selectedDrawerArtifact && selectedDrawerArtifact.outputVersion > 0 && selectedDrawerArtifact.gateStatus !== "passed"
-  );
-  const canEditSelectedTextArtifact = isEditableTextArtifact && selectedDrawerArtifact?.editCapability !== "none";
-
   return (
     <>
       <article
@@ -888,27 +584,17 @@ export function IterationWorkspacePanel({
             {error}
           </div>
         ) : null}
-        <div className="iteration-status-strip">
-          <span className={`status-pill ${stateMachine?.currentStatus || currentIteration?.status || "planned"}`}>
-            {renderStatusLabel(stateMachine?.currentStatus || currentIteration?.status || "planned")}
-          </span>
-          <span>继承：{contextData?.previous ? contextData.previous.name : "首个版本"}</span>
-          <span>范围 in/out：{scopeInCount}/{scopeOutCount}</span>
-          <span>验收：{acceptanceCount} 项</span>
-          {hasStateMachineActions ? (
-            <div className="chat-tools">
-              {allowedTransitions.slice(0, 2).map((status) => (
-                <button key={status} type="button" className="btn ghost mini" onClick={() => onTransitionState(status)}>
-                  流转到 {renderStatusLabel(status)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <IterationStatusStrip
+          currentIteration={currentIteration}
+          stateMachine={stateMachine}
+          contextData={contextData}
+          onTransitionState={onTransitionState}
+        />
         <div className="iteration-workbench-grid">
           <div className="iteration-chat-main">
             <div
               className={`chat-body ${dragOver ? "drop-active" : ""}`}
+              ref={chatBodyRef}
               onDragOver={(event) => {
                 event.preventDefault();
                 setDragOver(true);
@@ -923,183 +609,35 @@ export function IterationWorkspacePanel({
                 }
               }}
             >
-              {chatMessages.length === 0 ? (
-                <div className="empty-state">暂无消息，输入需求后开始沟通。</div>
-              ) : (
-                displayMessages.map((item) => {
-                  const msg = item.leadMessage;
-                  const cardMessage = item.cardMessage;
-                  const deliverable = cardMessage ? resolveDeliverableCardData(cardMessage.content) : null;
-                  const textMessage = item.textMessage;
-                  const resolvedCardSummary = deliverable ? compactArtifactCardSummary(deliverable.summary || "") : "";
-                  const rawTextContent = textMessage ? resolveGuidanceText(textMessage.content) || textMessage.content : "";
-                  const shouldHideTextContent =
-                    Boolean(textMessage && deliverable && shouldSuppressArtifactTextMessage(rawTextContent, resolvedCardSummary, deliverable.title));
-                  const textContent = shouldHideTextContent ? "" : rawTextContent;
-                  return (
-                  <div key={item.key} className={`msg-row msg-row-${msg.role}`}>
-                    {msg.role !== "user" ? (
-                      <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
-                        {getRoleAvatar(msg.role)}
-                      </div>
-                    ) : null}
-                    <div className={`msg msg-${msg.role} ${getMsgKind(msg)} ${getMsgTheme(msg)}`}>
-                      <div className="msg-meta">
-                        <span>{getRoleLabel(msg.role)}</span>
-                        <time dateTime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
-                      </div>
-                      {textMessage && textContent ? <p className={cardMessage ? "msg-mixed-copy" : undefined}>{textContent}</p> : null}
-                      {deliverable ? (
-                        <div className="deliverable-msg-card">
-                          <div className="deliverable-msg-head">
-                            <strong>{deliverable.title}</strong>
-                            <span className="hint">待你确认</span>
-                          </div>
-                          {resolvedCardSummary ? <p>{resolvedCardSummary}</p> : null}
-                          {deliverable.evidence.length > 0 ? (
-                            <ul className="deliverable-plain-list">
-                              {deliverable.evidence.map((entry) => (
-                                <li key={entry}>{entry}</li>
-                              ))}
-                            </ul>
-                          ) : null}
-                          <div className="msg-inline-actions">
-                            <button type="button" className="btn ghost mini" onClick={() => openArtifactPreviewByTitle(deliverable.title)}>
-                              查看交付物
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {!textMessage && !deliverable ? <p>{resolveGuidanceText(msg.content) || msg.content}</p> : null}
-                      {getMsgKind(msg) === "event-upload" && msg.id === lastUploadMessageId ? (
-                        <div className="msg-inline-actions">
-                          {canOpenAnalysisPanel ? (
-                            <button type="button" className="btn ghost mini attachment-report-entry" onClick={openAnalysisDrawer}>
-                              查看分析报告
-                            </button>
-                          ) : null}
-                          {showInteractionEntry ? (
-                            <button type="button" className="btn ghost mini" onClick={openInteractionPanel}>
-                              交互界面
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                    {msg.role === "user" ? (
-                      <div className={`msg-avatar avatar-${msg.role}`} aria-hidden="true">
-                        {getRoleAvatar(msg.role)}
-                      </div>
-                    ) : null}
-                  </div>
-                )})
-              )}
+              <ChatMessageList
+                chatMessages={chatMessages}
+                artifactItems={artifactItems}
+                canOpenAnalysisPanel={canOpenAnalysisPanel}
+                showInteractionEntry={showInteractionEntry}
+                lastUploadMessageId={lastUploadMessageId}
+                openAnalysisDrawer={openAnalysisDrawer}
+                openInteractionPanel={openInteractionPanel}
+                openArtifactPreviewByTitle={openArtifactPreviewByTitle}
+              />
             </div>
-            {uploadAnalysisProgress ? (
-              <div className={`upload-analysis-status stage-${uploadAnalysisProgress.stage}`} role="status" aria-live="polite">
-                <div className="upload-analysis-status-head">
-                  <strong>{uploadAnalysisProgress.label}</strong>
-                  <span>{Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%</span>
-                </div>
-                <p>{uploadAnalysisProgress.detail}</p>
-                <div className="progress-bar">
-                  <div className="progress-value" style={{ width: `${Math.max(0, Math.min(100, uploadAnalysisProgress.percent))}%` }} />
-                </div>
-              </div>
-            ) : null}
-            {lastUploadFailed ? (
-              <div className="chat-tools upload-tip">
-                <button type="button" className="btn ghost mini" onClick={() => void onRetryUpload()}>
-                  重新尝试上传
-                </button>
-              </div>
-            ) : null}
-            <div className="chat-input-row">
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden-input"
-                onChange={onUpload}
-                multiple
-              />
-              <input
-                ref={folderInputRef}
-                type="file"
-                className="hidden-input"
-                multiple
-                {...folderPickerAttrs}
-                onChange={(event) => {
-                  const files = Array.from(event.target.files || []);
-                  void onUploadFiles(files);
-                  event.target.value = "";
-                }}
-              />
-              <div className="upload-trigger" ref={uploadTriggerRef}>
-                <button
-                  type="button"
-                  className="icon-btn upload-icon-btn"
-                  onClick={() => setShowUploadMenu((prev) => !prev)}
-                  disabled={!currentIteration || isAnalyzingAttachment}
-                  aria-label={isAnalyzingAttachment ? "附件分析中" : "发送附件"}
-                  title={isAnalyzingAttachment ? "分析中..." : "发送附件/文件夹（支持拖拽）"}
-                >
-                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path
-                      d="M6.2 8.6L3.9 10.9C3 11.8 3 13.2 3.9 14.1C4.8 15 6.2 15 7.1 14.1L11.9 9.3C13.1 8.1 13.1 6.2 11.9 5C10.7 3.8 8.8 3.8 7.6 5L2.8 9.8"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                {showUploadMenu ? (
-                  <div className="upload-menu" role="menu">
-                    <button
-                      type="button"
-                      className="btn ghost mini"
-                      onClick={() => {
-                        setShowUploadMenu(false);
-                        onUploadClick();
-                      }}
-                    >
-                      选择文件
-                    </button>
-                    <button
-                      type="button"
-                      className="btn ghost mini"
-                      onClick={() => {
-                        setShowUploadMenu(false);
-                        folderInputRef.current?.click();
-                      }}
-                    >
-                      选择文件夹
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <input
-                ref={chatComposerInputRef}
-                value={chatInput}
-                onChange={(event) => onChatInputChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    handleComposedSend();
-                  }
-                }}
-                onFocus={() => setShowUploadMenu(false)}
-                placeholder="输入需求或指令，例如：完成: 接口联调"
-                aria-label="需求输入框"
-              />
-              <button type="button" className="btn primary" onClick={handleComposedSend} disabled={!chatInput.trim()}>
-                发送
-              </button>
-            </div>
-            {chatSendStatus === "sending" || chatSendStatus === "failed" ? (
-              <p className={`chat-send-status status-${chatSendStatus}`}>
-                {chatSendStatus === "sending" ? "发送中..." : "发送失败，请重试"}
-              </p>
-            ) : null}
+            <UploadProgressBar
+              uploadAnalysisProgress={uploadAnalysisProgress}
+              lastUploadFailed={lastUploadFailed}
+              onRetryUpload={onRetryUpload}
+            />
+            <ChatComposer
+              currentIteration={currentIteration}
+              chatInput={chatInput}
+              chatSendStatus={chatSendStatus}
+              fileInputRef={fileInputRef}
+              isAnalyzingAttachment={isAnalyzingAttachment}
+              onUpload={onUpload}
+              onUploadFiles={onUploadFiles}
+              onUploadClick={onUploadClick}
+              onChatInputChange={onChatInputChange}
+              onComposedSend={handleComposedSend}
+              chatComposerInputRef={chatComposerInputRef}
+            />
           </div>
         </div>
       </article>

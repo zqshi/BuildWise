@@ -128,9 +128,9 @@ export const ProjectsWorkspace = memo(function ProjectsWorkspace({
   modelRuleCount,
   modelEntityCount,
   modelRelations = [],
-  versionSnapshots = [],
-  templateRuns = [],
-  deployments = [],
+  versionSnapshots: _versionSnapshots = [],
+  templateRuns: _templateRuns = [],
+  deployments: _deployments = [],
   opsMetrics = null,
   status,
   error,
@@ -174,8 +174,8 @@ export const ProjectsWorkspace = memo(function ProjectsWorkspace({
   onAppendArtifactToChat,
   onTransitionArtifactStage,
   onTransitionState,
-  onCreateDeployment,
-  onTransitionDeployment,
+  onCreateDeployment: _onCreateDeployment,
+  onTransitionDeployment: _onTransitionDeployment,
   onPatchUploadedHtmlPreview
 }: ProjectsWorkspaceProps) {
   const hasProjects = projects.length > 0;
@@ -188,9 +188,7 @@ export const ProjectsWorkspace = memo(function ProjectsWorkspace({
     }
     return projects.filter((item) => `${item.name} ${item.description || ""}`.toLowerCase().includes(keyword));
   }, [projects, projectSearch]);
-  const backendUnavailable =
-    status?.status === "offline" ||
-    Boolean(error && (error.includes("后端服务不可达") || error.includes("后端服务不可用") || error.includes("network unavailable")));
+  const backendUnavailable = status?.status === "offline";
   return (
     <section className="projects-view">
       {showWorkspaceHero ? (

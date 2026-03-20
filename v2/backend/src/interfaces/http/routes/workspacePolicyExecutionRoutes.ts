@@ -1,13 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
-
-function isAdmin(role: string) {
-  return role === "owner";
-}
+import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.post("/api/projects/:id/openclaw/chat", async (request, reply) => {
+  app.post("/projects/:id/openclaw/chat", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -29,11 +25,11 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
       return await service.openclawDirectChat(projectId, message);
     } catch (error) {
       reply.code(500);
-      return { message: error instanceof Error ? error.message : "openclaw chat failed" };
+      return { message: "Internal server error" };
     }
   });
 
-  app.get("/api/iterations/:id/policy-log", async (request, reply) => {
+  app.get("/iterations/:id/policy-log", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -43,7 +39,12 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     return service.listPolicyExecutionLogs(iterationId);
   });
 
-  app.post("/api/iterations/:id/policy-execute", async (request, reply) => {
+  app.post("/iterations/:id/policy-execute", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {

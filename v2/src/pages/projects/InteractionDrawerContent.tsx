@@ -105,7 +105,7 @@ export const InteractionDrawerContent = memo(function InteractionDrawerContent({
   imageWrapRef,
   setShowInteractionPanel,
   setInteractionEditMode,
-  setSelectedHtmlPreviewPath,
+  setSelectedHtmlPreviewPath: _setSelectedHtmlPreviewPath,
   setSelectedImagePreviewPath,
   setSelectedPrototypeElementId,
   setPrototypeElements,

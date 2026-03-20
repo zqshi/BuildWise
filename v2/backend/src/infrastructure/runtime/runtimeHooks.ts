@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { RuntimeState } from "./runtimeState";
+import type { RuntimeConfig } from "./runtimeConfig";
 import { createLogger } from "./logger";
 
-export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState) {
+export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, config: RuntimeConfig) {
   const log = createLogger("http");
   app.addHook("onRequest", async (request, reply) => {
     state.onRequest(request, reply);
@@ -10,6 +11,13 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState) 
 
   app.addHook("onResponse", async (request, reply) => {
     state.onResponse(request, reply);
+    log.info("request completed", {
+      method: request.method,
+      url: request.url,
+      statusCode: reply.statusCode,
+      responseTime: reply.elapsedTime,
+      requestId: request.id
+    });
   });
 
   app.setNotFoundHandler(async (request, reply) => {
@@ -27,7 +35,7 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState) 
     if (!isKnown && statusCode >= 500) {
       log.error("unhandled request error", { requestId: request.id, error: error.message });
     }
-    const isDev = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !== "production";
+    const isDev = config.nodeEnv === "development";
     return reply.code(statusCode).send({
       error: statusCode >= 500 ? "internal_error" : "request_error",
       message: statusCode >= 500 ? (isDev ? error.message : "Internal server error") : error.message,

@@ -9,14 +9,14 @@ function currentUserId(headers: Record<string, unknown>) {
 }
 
 export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/api/governance/orchestration/policies", async () => {
+  app.get("/governance/orchestration/policies", async () => {
     return {
       active: service.getActiveGlobalOrchestrationPolicy(),
       items: service.listGlobalOrchestrationPolicies()
     };
   });
 
-  app.post("/api/governance/orchestration/policies", async (request, reply) => {
+  app.post("/governance/orchestration/policies", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -27,7 +27,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return service.createGlobalOrchestrationPolicyDraft(actor, body?.strategy);
   });
 
-  app.post("/api/governance/orchestration/policies/:version/activate", async (request, reply) => {
+  app.post("/governance/orchestration/policies/:version/activate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -48,7 +48,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return activated;
   });
 
-  app.post("/api/governance/orchestration/policies/restore-initial", async (request, reply) => {
+  app.post("/governance/orchestration/policies/restore-initial", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -63,7 +63,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return restored;
   });
 
-  app.get("/api/projects/:id/policies", async (request, reply) => {
+  app.get("/projects/:id/policies", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -76,7 +76,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     };
   });
 
-  app.post("/api/projects/:id/policies", async (request, reply) => {
+  app.post("/projects/:id/policies", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -93,7 +93,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return service.createProjectPolicyDraft(projectId, actor, body?.strategy);
   });
 
-  app.post("/api/projects/:id/policies/:version/activate", async (request, reply) => {
+  app.post("/projects/:id/policies/:version/activate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -115,7 +115,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return activated;
   });
 
-  app.post("/api/projects/:id/policies/restore-initial", async (request, reply) => {
+  app.post("/projects/:id/policies/restore-initial", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -136,7 +136,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return restored;
   });
 
-  app.post("/api/projects/:id/workspace/bind", async (request, reply) => {
+  app.post("/projects/:id/workspace/bind", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -171,7 +171,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     });
   });
 
-  app.get("/api/projects/:id/roles", async (request, reply) => {
+  app.get("/projects/:id/roles", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -181,7 +181,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return service.listProjectRoleBindings(projectId);
   });
 
-  app.post("/api/projects/:id/roles", async (request, reply) => {
+  app.post("/projects/:id/roles", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -205,7 +205,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     });
   });
 
-  app.delete("/api/projects/:id/roles/:userId", async (request, reply) => {
+  app.delete("/projects/:id/roles/:userId", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);

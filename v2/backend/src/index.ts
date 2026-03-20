@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import { ModelingService } from "./application/modeling/modelingService";
 import { ContinuousModelingService } from "./application/continuousModeling/continuousModelingService";
 import { ContinuousModelingWorkspaceService } from "./application/continuousModeling/continuousModelingWorkspaceService";
@@ -26,6 +28,8 @@ import { registerRepositoryTraceRoutes } from "./interfaces/http/routes/reposito
 import { registerSystemRoutes } from "./interfaces/http/routes/systemRoutes";
 import { registerAuthRoutes } from "./interfaces/http/routes/authRoutes";
 import { registerWorkspaceRoutes } from "./interfaces/http/routes/workspaceRoutes";
+import { setRevokedTokenStore } from "./infrastructure/runtime/jwt";
+import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevokedTokenStore";
 
 function loadEnvFileIntoProcessEnv() {
   const log = createLogger("env-load");
@@ -72,17 +76,26 @@ async function bootstrap() {
   });
   const runtime = new RuntimeState(config);
   const app = Fastify({
-    logger: {
-      level: config.nodeEnv === "production" ? "info" : "debug"
-    }
+    logger: false
   });
-  registerRuntimeHooks(app, runtime);
+  registerRuntimeHooks(app, runtime, config);
+  // Security headers
+  await app.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+  });
+  // CORS must be registered BEFORE auth so that 401 responses also carry CORS headers
+  await app.register(cors, { origin: config.corsOrigins });
+  // Global rate limit
+  await app.register(rateLimit, {
+    max: config.rateLimitMax,
+    timeWindow: config.rateLimitWindowMs
+  });
   registerRuntimeAuth(app, config);
   registerGracefulShutdown(app, runtime, config, (globalThis as { process?: { on: (event: string, handler: () => void) => void; exit: (code?: number) => void } }).process ?? {
     on: () => {},
     exit: () => {}
   });
-  await app.register(cors, { origin: config.corsOrigins });
   app.get("/", async () => ({
     service: config.serviceName,
     version: config.version,
@@ -90,7 +103,7 @@ async function bootstrap() {
     links: {
       health: "/health",
       ready: "/ready",
-      status: "/api/status"
+      status: "/api/v1/status"
     }
   }));
 
@@ -107,6 +120,10 @@ async function bootstrap() {
     config.storageBackend === "sqlite"
       ? new SqliteWorkspaceRepository(config.workspaceDbFile, dataFile)
       : new JsonWorkspaceRepository(dataFile);
+  // Inject persistent revoked-token store when using SQLite
+  if (config.storageBackend === "sqlite" && workspaceRepo instanceof SqliteWorkspaceRepository) {
+    setRevokedTokenStore(new SqliteRevokedTokenStore((workspaceRepo as SqliteWorkspaceRepository).getDb()));
+  }
   const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
   const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo);
   const modelRepo = new JsonModelRepository(modelFile);
@@ -163,18 +180,28 @@ async function bootstrap() {
     });
   });
 
+  // Infrastructure routes stay at root level (no version prefix)
   await registerSystemRoutes(app, {
     serviceName: config.serviceName,
     version: config.version,
     getRuntime: () => runtime.snapshot(),
     isReady: () => runtime.isReady()
   });
-  registerAuthRoutes(app, workspaceService, config);
-  await registerWorkspaceRoutes(app, workspaceService);
-  await registerRepositoryTraceRoutes(app, workspaceService);
-  await registerAutobootRoutes(app, modelService);
-  await registerContinuousModelingRoutes(app, continuousModelingWorkspaceService);
-  await registerPlatformRoutes(app, platformService, workspaceService);
+
+  // All business routes under /api/v1
+  app.register(async (v1) => {
+    // Auth routes get stricter rate limiting (10 req/min for SMS endpoints)
+    v1.register(async (authScope) => {
+      await authScope.register(rateLimit, { max: 10, timeWindow: 60_000 });
+      registerAuthRoutes(authScope, workspaceService, config);
+    });
+
+    await registerWorkspaceRoutes(v1, workspaceService);
+    await registerRepositoryTraceRoutes(v1, workspaceService);
+    await registerAutobootRoutes(v1, modelService);
+    await registerContinuousModelingRoutes(v1, continuousModelingWorkspaceService);
+    await registerPlatformRoutes(v1, platformService, workspaceService);
+  }, { prefix: "/api/v1" });
 
   await app.listen({ port: config.port, host: config.host });
   log.info("server started", { host: config.host, port: config.port });

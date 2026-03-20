@@ -1,25 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
-import { DuplicateAttachmentUploadError } from "../../../application/workspace/workspaceErrors";
 import { hasPermission } from "../../../application/platform/platformSupport";
 import { isIterationStatus } from "../../../application/workspace/workspaceSupport";
 import type { AttachmentReportSection, AttachmentUploadInput } from "../../../domain/workspace/types";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
-
-function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
-  if (error instanceof LlmUnavailableError) {
-    return 503;
-  }
-  if (error instanceof LlmInvocationError) {
-    return 502;
-  }
-  const message = error instanceof Error ? error.message : "";
-  if (/^llm_http_\d+/i.test(message) || /^llm_/i.test(message)) {
-    return 502;
-  }
-  return null;
-}
+import { currentRole, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
 
 function parseAttachmentUploadInput(body: {
   fileName?: string;
@@ -129,7 +113,7 @@ function parseUploadInitBody(body: {
 }
 
 export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/api/iterations/:id/messages", async (request, reply) => {
+  app.get("/iterations/:id/messages", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -139,7 +123,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return service.listMessages(iterationId);
   });
 
-  app.post("/api/iterations/:id/messages", async (request, reply) => {
+  app.post("/iterations/:id/messages", async (request, reply) => {
     const authRole = currentRole(request.authRole);
     if (authRole === "viewer") {
       reply.code(403);
@@ -161,7 +145,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return service.createMessage(iterationId, role, content);
   });
 
-  app.post("/api/iterations/:id/interaction-state", async (request, reply) => {
+  app.post("/iterations/:id/interaction-state", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -194,7 +178,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return { ok: true, iterationId: updated.id, interactionState: updated.interactionState };
   });
 
-  app.post("/api/iterations/:id/agent-chat", async (request, reply) => {
+  app.post("/iterations/:id/agent-chat", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -216,10 +200,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.coachIterationConversation(iterationId, message);
     } catch (error) {
-      const status = resolveLlmErrorStatus(error);
-      if (status) {
-        reply.code(status);
-        return { message: error instanceof Error ? error.message : "llm_error" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -230,7 +214,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.post("/api/iterations/:id/visual-edit/execute", async (request, reply) => {
+  app.post("/iterations/:id/visual-edit/execute", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -265,10 +249,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.executeVisualEditInstruction(iterationId, message, body?.target);
     } catch (error) {
-      const status = resolveLlmErrorStatus(error);
-      if (status) {
-        reply.code(status);
-        return { message: error instanceof Error ? error.message : "llm_error" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -279,7 +263,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.post("/api/iterations/:id/code-rewrite", async (request, reply) => {
+  app.post("/iterations/:id/code-rewrite", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -305,10 +289,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
         maxFiles: typeof body?.maxFiles === "number" ? body.maxFiles : undefined
       });
     } catch (error) {
-      const status = resolveLlmErrorStatus(error);
-      if (status) {
-        reply.code(status);
-        return { message: error instanceof Error ? error.message : "llm_error" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -319,7 +303,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.post("/api/iterations/:id/analysis", async (request, reply) => {
+  app.post("/iterations/:id/analysis", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -341,14 +325,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       result = await service.analyzeAttachment(iterationId, parsed.input);
     } catch (error) {
-      if (error instanceof DuplicateAttachmentUploadError) {
-        reply.code(409);
-        return { message: "duplicate_upload" };
-      }
-      const status = resolveLlmErrorStatus(error);
-      if (status) {
-        reply.code(status);
-        return { message: error instanceof Error ? error.message : "llm_error" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -359,7 +339,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.post("/api/iterations/:id/full-cycle", async (request, reply) => {
+  app.post("/iterations/:id/full-cycle", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -421,14 +401,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
         publish: body?.publish
       });
     } catch (error) {
-      if (error instanceof DuplicateAttachmentUploadError) {
-        reply.code(409);
-        return { message: "duplicate_upload" };
-      }
-      const status = resolveLlmErrorStatus(error);
-      if (status) {
-        reply.code(status);
-        return { message: error instanceof Error ? error.message : "llm_error" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -439,7 +415,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.post("/api/iterations/:id/uploads/init", async (request, reply) => {
+  app.post("/iterations/:id/uploads/init", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -475,7 +451,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     };
   });
 
-  app.put("/api/iterations/:id/uploads/:uploadId/files/:fileId/chunks/:chunkIndex", async (request, reply) => {
+  app.put("/iterations/:id/uploads/:uploadId/files/:fileId/chunks/:chunkIndex", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -510,7 +486,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return null;
   });
 
-  app.post("/api/iterations/:id/uploads/:uploadId/complete", async (request, reply) => {
+  app.post("/iterations/:id/uploads/:uploadId/complete", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -534,7 +510,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     };
   });
 
-  app.post("/api/iterations/:id/analysis/jobs", async (request, reply) => {
+  app.post("/iterations/:id/analysis/jobs", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -556,9 +532,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       created = service.submitAttachmentAnalysisJob(iterationId, parsed.input);
     } catch (error) {
-      if (error instanceof DuplicateAttachmentUploadError) {
-        reply.code(409);
-        return { message: "duplicate_upload" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -570,7 +547,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return created;
   });
 
-  app.post("/api/iterations/:id/analysis/jobs/by-upload", async (request, reply) => {
+  app.post("/iterations/:id/analysis/jobs/by-upload", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -592,9 +569,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       created = service.submitAttachmentAnalysisJobFromUpload(iterationId, uploadId, body?.schemaVersion || "v2");
     } catch (error) {
-      if (error instanceof DuplicateAttachmentUploadError) {
-        reply.code(409);
-        return { message: "duplicate_upload" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -606,7 +584,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return created;
   });
 
-  app.post("/api/iterations/:id/analysis/jobs/retry-latest", async (request, reply) => {
+  app.post("/iterations/:id/analysis/jobs/retry-latest", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -622,9 +600,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     try {
       created = service.retryLatestFailedAttachmentAnalysisJob(iterationId);
     } catch (error) {
-      if (error instanceof DuplicateAttachmentUploadError) {
-        reply.code(409);
-        return { message: "duplicate_upload" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -636,7 +615,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return created;
   });
 
-  app.post("/api/iterations/:id/analysis/jobs/:jobId/retry", async (request, reply) => {
+  app.post("/iterations/:id/analysis/jobs/:jobId/retry", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -656,9 +635,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
         scope: body?.scope === "batch" ? "batch" : "job"
       });
     } catch (error) {
-      if (error instanceof DuplicateAttachmentUploadError) {
-        reply.code(409);
-        return { message: "duplicate_upload" };
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
       }
       throw error;
     }
@@ -670,7 +650,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return created;
   });
 
-  app.get("/api/iterations/:id/analysis/jobs/:jobId", async (request, reply) => {
+  app.get("/iterations/:id/analysis/jobs/:jobId", async (request, reply) => {
     const params = request.params as { id: string; jobId: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -690,7 +670,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return job;
   });
 
-  app.get("/api/iterations/:id/analysis/jobs/:jobId/report-index", async (request, reply) => {
+  app.get("/iterations/:id/analysis/jobs/:jobId/report-index", async (request, reply) => {
     const params = request.params as { id: string; jobId: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -705,7 +685,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return report;
   });
 
-  app.get("/api/reports/:reportId/sections/:sectionKey", async (request, reply) => {
+  app.get("/reports/:reportId/sections/:sectionKey", async (request, reply) => {
     const params = request.params as { reportId: string; sectionKey: AttachmentReportSection["sectionKey"] };
     const query = request.query as { cursor?: string; limit?: string };
     const cursor = Number.parseInt((query?.cursor || "").trim(), 10);
@@ -723,7 +703,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return section;
   });
 
-  app.get("/api/iterations/:id/context", async (request, reply) => {
+  app.get("/iterations/:id/context", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -738,7 +718,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return context;
   });
 
-  app.get("/api/iterations/:id/state-machine", async (request, reply) => {
+  app.get("/iterations/:id/state-machine", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -753,7 +733,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return stateMachine;
   });
 
-  app.post("/api/iterations/:id/state/transition", async (request, reply) => {
+  app.post("/iterations/:id/state/transition", async (request, reply) => {
     const role = currentRole(request.authRole);
     const grantedPermissions = service.resolveRolePermissions(role);
     if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
@@ -814,7 +794,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return transition.data;
   });
 
-  app.get("/api/iterations/:id/assessment", async (request, reply) => {
+  app.get("/iterations/:id/assessment", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -829,7 +809,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.get("/api/iterations/:id/assessment/history", async (request, reply) => {
+  app.get("/iterations/:id/assessment/history", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -839,7 +819,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return service.listAssessmentSnapshots(iterationId);
   });
 
-  app.post("/api/iterations/:id/assessment/recompute", async (request, reply) => {
+  app.post("/iterations/:id/assessment/recompute", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -859,7 +839,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     return result;
   });
 
-  app.post("/api/iterations/:id/assessment/restore/:snapshotId", async (request, reply) => {
+  app.post("/iterations/:id/assessment/restore/:snapshotId", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);

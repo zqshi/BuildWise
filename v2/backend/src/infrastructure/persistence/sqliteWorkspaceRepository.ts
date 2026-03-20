@@ -30,6 +30,11 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     this.core = new SqliteWorkspaceCore(dbFile, seedDataFile);
   }
 
+  /** Expose the underlying DatabaseSync for cross-cutting concerns (e.g. revoked-token store). */
+  getDb() {
+    return this.core.db;
+  }
+
   read(): WorkspaceStore {
     return this.core.readStore();
   }

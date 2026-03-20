@@ -10,6 +10,7 @@ import {
   generateIterationTestArtifacts,
   updateIterationTestMatrixExecution
 } from "./workspaceApi";
+import { withBusyAction } from "../shared/withBusyAction";
 
 export type QualityActionDeps = {
   currentIteration: Iteration | null;
@@ -28,25 +29,19 @@ export const handleUpdateTestMatrixExecution = async (
   if (!deps.currentIteration || updates.length === 0) {
     return;
   }
-  try {
-    deps.setBusy(true);
-    await updateIterationTestMatrixExecution(deps.currentIteration.id, updates);
-    await deps.loadIterationDetail(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    await updateIterationTestMatrixExecution(deps.currentIteration!.id, updates);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     await deps.loadGovernance();
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleGenerateTestArtifacts = async (deps: QualityActionDeps) => {
   if (!deps.currentIteration) {
     return;
   }
-  try {
-    deps.setBusy(true);
-    const result = await generateIterationTestArtifacts(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    const result = await generateIterationTestArtifacts(deps.currentIteration!.id);
     deps.setAnalysisReport((prev) =>
       prev
         ? {
@@ -59,27 +54,22 @@ export const handleGenerateTestArtifacts = async (deps: QualityActionDeps) => {
         : prev
     );
     const created = await createIterationMessage(
-      deps.currentIteration.id,
+      deps.currentIteration!.id,
       "assistant",
       `${result.summary}\n产物文件：${result.generatedFiles.join("；") || "无"}`
     );
     deps.setChatMessages((prev) => [...prev, created]);
-    await deps.loadIterationDetail(deps.currentIteration.id);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     await deps.loadGovernance();
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleRefreshReleaseReview = async (deps: QualityActionDeps) => {
   if (!deps.currentIteration) {
     return;
   }
-  try {
-    deps.setBusy(true);
-    const review = await fetchIterationReleaseReview(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    const review = await fetchIterationReleaseReview(deps.currentIteration!.id);
     deps.setAnalysisReport((prev) =>
       prev
         ? {
@@ -102,15 +92,11 @@ export const handleRefreshReleaseReview = async (deps: QualityActionDeps) => {
         : prev
     );
     const created = await createIterationMessage(
-      deps.currentIteration.id,
+      deps.currentIteration!.id,
       "assistant",
       `发布评审刷新：${review.decision.toUpperCase()}（score=${review.score}）`
     );
     deps.setChatMessages((prev) => [...prev, created]);
     await deps.loadGovernance();
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };

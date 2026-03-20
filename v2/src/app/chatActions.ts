@@ -16,7 +16,7 @@ import {
   rewriteIterationCode,
   runIterationFullCycle
 } from "./workspaceApi";
-import { buildCoachFollowupMessage } from "./coachConversationGuide";
+import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import { normalizeUserChatInput } from "./workspaceChatMessagePresentation";
 import { presentCoachReply } from "./workspaceChatReplyPresenter";
 import { buildAutoFullCycleAnalysisInput } from "./uploadActions";
@@ -24,7 +24,7 @@ import { buildAutoFullCycleAnalysisInput } from "./uploadActions";
 /* ── pure helper ─────────────────────────────────────────────────────── */
 
 export const resolveCoachErrorMessage = (error: unknown) => {
-  const raw = error instanceof Error ? error.message : "Unknown error";
+  const raw = resolveErrorMessage(error);
   if (raw.includes("API error: 503")) {
     return "对话引导当前未接入 AI 服务。请联系管理员完成配置后再发送消息。";
   }
@@ -58,7 +58,12 @@ export type ChatActionDeps = {
 /* ── shared helper ───────────────────────────────────────────────────── */
 
 export const appendMessageLocal = (message: IterationMessage, setChatMessages: Dispatch<SetStateAction<IterationMessage[]>>) => {
-  setChatMessages((prev) => [...prev, message]);
+  setChatMessages((prev) => {
+    if (prev.some((m) => m.id === message.id)) {
+      return prev;
+    }
+    return [...prev, message];
+  });
 };
 
 export const createMessage = async (
@@ -129,7 +134,10 @@ export const handleSend = async (
     const coach = await coachIterationMessage(currentIteration.id, text);
     const presentedReply = presentCoachReply(coach.reply);
     if (presentedReply) {
-      await createMessage(currentIteration.id, "assistant", presentedReply, deps.setChatMessages);
+      const truncationWarning = coach.llm?.contentComplete === false
+        ? "\n\n\u26A0\uFE0F 以上内容可能不完整，AI 输出被截断。如需完整内容，请发送\u201C请继续\u201D。"
+        : "";
+      await createMessage(currentIteration.id, "assistant", presentedReply + truncationWarning, deps.setChatMessages);
     }
     if (coach.execution?.action === "rewrite") {
       const instruction = (coach.execution.instruction || text).trim();
@@ -229,7 +237,7 @@ export const handleSend = async (
         deps.setChatMessages
       );
     }
-    const followup = buildCoachFollowupMessage(coach);
+    const followup = "";  // followup 已由 LLM 回复自身覆盖，不再机械追加
     if (followup) {
       await createMessage(currentIteration.id, "assistant", followup, deps.setChatMessages);
     }

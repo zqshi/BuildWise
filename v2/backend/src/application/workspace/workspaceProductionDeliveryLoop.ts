@@ -66,7 +66,8 @@ export function deriveProductionDeliveryLoop(
   const items = Array.isArray(control.artifactWorkflow?.items) ? control.artifactWorkflow.items : [];
   const prototype = findArtifact(items, "prototype-preview");
   const architecture = findArtifact(items, "technical-architecture");
-  const codeDelivery = findArtifact(items, "code-delivery");
+  const frontendCode = findArtifact(items, "frontend-code");
+  const backendCode = findArtifact(items, "backend-code");
   const testMatrixArtifact = findArtifact(items, "test-matrix");
   const acceptanceChecklistArtifact = findArtifact(items, "acceptance-checklist");
   const matrix = summarizeMatrix(control);
@@ -93,12 +94,12 @@ export function deriveProductionDeliveryLoop(
     );
   }
 
-  if (!isArtifactReady(codeDelivery)) {
+  if (!isArtifactReady(frontendCode) || !isArtifactReady(backendCode)) {
     return buildLoopResult(
       "implementing",
-      ["代码交付尚未达到 ready 状态。"],
-      ["围绕已确认原型和技术架构继续完成 code-delivery，并补齐代码路径映射。"],
-      [codeDelivery?.summary ?? "code-delivery 未 ready", architecture?.summary ?? "technical-architecture ready"],
+      ["前后端代码交付尚未达到 ready 状态。"],
+      ["围绕已确认原型和技术架构继续完成 frontend-code 和 backend-code，并补齐代码路径映射。"],
+      [frontendCode?.summary ?? "frontend-code 未 ready", backendCode?.summary ?? "backend-code 未 ready", architecture?.summary ?? "technical-architecture ready"],
       now
     );
   }
@@ -113,7 +114,7 @@ export function deriveProductionDeliveryLoop(
       ],
       [
         "先修复 failed/blocked 用例，再重新执行完整测试矩阵。",
-        "修复后同步更新 code-delivery、test-matrix 和 acceptance-checklist 证据。"
+        "修复后同步更新 frontend-code、backend-code、test-matrix 和 acceptance-checklist 证据。"
       ],
       [
         `test-matrix coverage=${matrix.coverage}%`,
@@ -153,7 +154,8 @@ export function deriveProductionDeliveryLoop(
     [
       prototype?.summary ?? "prototype-preview ready",
       architecture?.summary ?? "technical-architecture ready",
-      codeDelivery?.summary ?? "code-delivery ready",
+      frontendCode?.summary ?? "frontend-code ready",
+      backendCode?.summary ?? "backend-code ready",
       `test-matrix coverage=${matrix.coverage}%`,
       `traceability coverage=${traceabilityCoverage}%`,
       `acceptance-checklist count=${acceptanceChecklistCount}`

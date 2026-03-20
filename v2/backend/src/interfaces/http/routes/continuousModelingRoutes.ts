@@ -154,7 +154,7 @@ function parseInput(body: Record<string, unknown>): IterationModelingInput | nul
 }
 
 export async function registerContinuousModelingRoutes(app: FastifyInstance, service: ContinuousModelingWorkspaceService) {
-  app.get("/api/projects/:id/model-snapshots", async (request, reply) => {
+  app.get("/projects/:id/model-snapshots", async (request, reply) => {
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -169,7 +169,7 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return snapshots;
   });
 
-  app.post("/api/projects/:id/model-snapshots/plan", async (request, reply) => {
+  app.post("/projects/:id/model-snapshots/plan", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -203,7 +203,7 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     };
   });
 
-  app.post("/api/projects/:id/model-snapshots/candidate", async (request, reply) => {
+  app.post("/projects/:id/model-snapshots/candidate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -229,7 +229,7 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return saved.data;
   });
 
-  app.post("/api/projects/:id/model-snapshots/:snapshotId/publish", async (request, reply) => {
+  app.post("/projects/:id/model-snapshots/:snapshotId/publish", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -255,7 +255,7 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return result;
   });
 
-  app.get("/api/projects/:id/model-view", async (request, reply) => {
+  app.get("/projects/:id/model-view", async (request, reply) => {
     const params = request.params as { id?: string };
     const query = request.query as { iterationId?: string } | undefined;
     const projectId = parsePositiveInt(params.id);

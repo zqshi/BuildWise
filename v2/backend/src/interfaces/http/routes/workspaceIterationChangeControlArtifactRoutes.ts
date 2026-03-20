@@ -4,7 +4,7 @@ import { resolveArtifactId, resolveIterationId } from "./workspaceIterationChang
 import { currentRole } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlArtifactRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/api/iterations/:id/change-control/artifacts", async (request, reply) => {
+  app.get("/iterations/:id/change-control/artifacts", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -18,7 +18,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/artifacts/:artifactId/draft", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/draft", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -52,7 +52,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/artifacts/:artifactId/commit", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/commit", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -82,7 +82,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/artifacts/:artifactId/confirm", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/confirm", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -111,7 +111,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/artifacts/:artifactId/add-to-chat", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/add-to-chat", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -139,7 +139,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/stage/transition", async (request, reply) => {
+  app.post("/iterations/:id/change-control/stage/transition", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);

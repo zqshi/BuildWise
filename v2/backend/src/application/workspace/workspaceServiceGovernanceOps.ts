@@ -8,7 +8,7 @@ const GOVERNANCE_PERMISSION_POINTS: GovernancePermissionPoint[] = [
   { key: "workspace:read", title: "查看项目与成员信息", module: "workspace", sourceType: "api", source: "workspace read APIs" },
   { key: "workspace:write", title: "编辑项目与迭代配置", module: "workspace", sourceType: "api", source: "workspace write APIs" },
   { key: "workspace:*", title: "项目管理全权限", module: "workspace", sourceType: "api", source: "workspace all APIs" },
-  { key: "iteration:transition", title: "推进迭代流程状态", module: "iteration", sourceType: "api", source: "POST /api/iterations/:id/state/transition" },
+  { key: "iteration:transition", title: "推进迭代流程状态", module: "iteration", sourceType: "api", source: "POST /api/v1/iterations/:id/state/transition" },
   {
     key: "iteration:transition:complete",
     title: "执行迭代完成态流转",
@@ -19,16 +19,16 @@ const GOVERNANCE_PERMISSION_POINTS: GovernancePermissionPoint[] = [
   { key: "model:read", title: "查看模型结构与规则", module: "model", sourceType: "api", source: "model read APIs" },
   { key: "model:write", title: "编辑模型结构与规则", module: "model", sourceType: "api", source: "model write APIs" },
   { key: "model:*", title: "模型管理全权限", module: "model", sourceType: "api", source: "model all APIs" },
-  { key: "trace:read", title: "查看追溯分析报告", module: "trace", sourceType: "api", source: "GET /api/trace*" },
-  { key: "assessment:recompute", title: "重算质量评估", module: "assessment", sourceType: "api", source: "POST /api/iterations/:id/assessment/recompute" },
-  { key: "governance:*", title: "权限治理全权限", module: "governance", sourceType: "api", source: "/api/governance/*" },
-  { key: "policy:read", title: "查看策略与门禁", module: "policy", sourceType: "api", source: "GET /api/projects/:id/policies" },
-  { key: "collab:read", title: "查看协作快照与共享", module: "collab", sourceType: "api", source: "GET /api/collab/*" },
-  { key: "collab:write", title: "创建快照与共享链接", module: "collab", sourceType: "api", source: "POST /api/collab/*" },
-  { key: "template:run", title: "执行平台模板", module: "template", sourceType: "api", source: "POST /api/templates/:id/run" },
-  { key: "deploy:read", title: "查看部署与运维指标", module: "deploy", sourceType: "api", source: "GET /api/ops/*" },
-  { key: "deploy:write", title: "创建部署与运维动作", module: "deploy", sourceType: "api", source: "POST /api/ops/deployments*" },
-  { key: "deploy:transition", title: "推进部署状态", module: "deploy", sourceType: "api", source: "POST /api/ops/deployments/:id/transition" }
+  { key: "trace:read", title: "查看追溯分析报告", module: "trace", sourceType: "api", source: "GET /api/v1/trace*" },
+  { key: "assessment:recompute", title: "重算质量评估", module: "assessment", sourceType: "api", source: "POST /api/v1/iterations/:id/assessment/recompute" },
+  { key: "governance:*", title: "权限治理全权限", module: "governance", sourceType: "api", source: "/api/v1/governance/*" },
+  { key: "policy:read", title: "查看策略与门禁", module: "policy", sourceType: "api", source: "GET /api/v1/projects/:id/policies" },
+  { key: "collab:read", title: "查看协作快照与共享", module: "collab", sourceType: "api", source: "GET /api/v1/collab/*" },
+  { key: "collab:write", title: "创建快照与共享链接", module: "collab", sourceType: "api", source: "POST /api/v1/collab/*" },
+  { key: "template:run", title: "执行平台模板", module: "template", sourceType: "api", source: "POST /api/v1/templates/:id/run" },
+  { key: "deploy:read", title: "查看部署与运维指标", module: "deploy", sourceType: "api", source: "GET /api/v1/ops/*" },
+  { key: "deploy:write", title: "创建部署与运维动作", module: "deploy", sourceType: "api", source: "POST /api/v1/ops/deployments*" },
+  { key: "deploy:transition", title: "推进部署状态", module: "deploy", sourceType: "api", source: "POST /api/v1/ops/deployments/:id/transition" }
 ];
 
 export function listGovernanceRolesOp(): GovernanceRole[] {

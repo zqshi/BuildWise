@@ -54,7 +54,7 @@ async function must(label, fn) {
 }
 
 async function postMessage(iterationId, role, content) {
-  return must(`message#${iterationId}`, () => req(`/api/iterations/${iterationId}/messages`, {
+  return must(`message#${iterationId}`, () => req(`/api/v1/iterations/${iterationId}/messages`, {
     method: 'POST',
     body: JSON.stringify({ role, content })
   }));
@@ -68,19 +68,19 @@ function runSkill(skill, input) {
 
 async function processArtifacts(iterationId, prefix) {
   for (const aid of ARTIFACT_IDS) {
-    await req(`/api/iterations/${iterationId}/change-control/artifacts/${aid}/draft`, {
+    await req(`/api/v1/iterations/${iterationId}/change-control/artifacts/${aid}/draft`, {
       method: 'POST',
       body: JSON.stringify({ actor: 'openclaw-bridge', content: `<p>${prefix}-${aid} draft</p>`, media: [] })
     });
-    await req(`/api/iterations/${iterationId}/change-control/artifacts/${aid}/commit`, {
+    await req(`/api/v1/iterations/${iterationId}/change-control/artifacts/${aid}/commit`, {
       method: 'POST',
       body: JSON.stringify({ actor: 'openclaw-bridge', summary: `${prefix}-${aid} committed`, source: 'openclaw+skills drill', evidence: ['chat', 'skill-output'] })
     });
-    await req(`/api/iterations/${iterationId}/change-control/artifacts/${aid}/confirm`, {
+    await req(`/api/v1/iterations/${iterationId}/change-control/artifacts/${aid}/confirm`, {
       method: 'POST',
       body: JSON.stringify({ actor: 'openclaw-bridge', passed: true, note: `${prefix}-${aid} confirmed` })
     });
-    await req(`/api/iterations/${iterationId}/change-control/artifacts/${aid}/add-to-chat`, {
+    await req(`/api/v1/iterations/${iterationId}/change-control/artifacts/${aid}/add-to-chat`, {
       method: 'POST',
       body: JSON.stringify({ actor: 'openclaw-bridge', prompt: `请基于${aid}继续推进。` })
     });
@@ -98,7 +98,7 @@ async function main() {
     checks: []
   };
 
-  const project = await must('createProject', () => req('/api/projects', {
+  const project = await must('createProject', () => req('/api/v1/projects', {
     method: 'POST',
     body: JSON.stringify({
       name: `OpenClaw+Skills真实演练-${STAMP}`,
@@ -107,7 +107,7 @@ async function main() {
   }));
   report.projectId = project.id;
 
-  await must('scaffold', () => req(`/api/projects/${project.id}/repository/scaffold`, {
+  await must('scaffold', () => req(`/api/v1/projects/${project.id}/repository/scaffold`, {
     method: 'POST',
     body: JSON.stringify({ initializeGit: true, createInitialCommit: true, dryRun: false })
   }));
@@ -146,7 +146,7 @@ async function main() {
 
   for (let i = 0; i < scenarios.length; i += 1) {
     const s = scenarios[i];
-    const iteration = await must(`createIteration#${i + 1}`, () => req(`/api/projects/${project.id}/iterations`, {
+    const iteration = await must(`createIteration#${i + 1}`, () => req(`/api/v1/projects/${project.id}/iterations`, {
       method: 'POST',
       body: JSON.stringify({ name: s.name, goal: s.goal, notes: `openclaw-skills-drill-${STAMP}` })
     }));
@@ -166,16 +166,16 @@ async function main() {
     }
 
     await processArtifacts(iteration.id, `iter${i + 1}`);
-    await req(`/api/iterations/${iteration.id}/state/transition`, {
+    await req(`/api/v1/iterations/${iteration.id}/state/transition`, {
       method: 'POST',
       body: JSON.stringify({ toStatus: 'review', reason: 'skills chain completed' })
     });
-    await req(`/api/iterations/${iteration.id}/state/transition`, {
+    await req(`/api/v1/iterations/${iteration.id}/state/transition`, {
       method: 'POST',
       body: JSON.stringify({ toStatus: 'completed', reason: 'release gate passed in drill' })
     });
 
-    const messages = await must(`messages#${iteration.id}`, () => req(`/api/iterations/${iteration.id}/messages`));
+    const messages = await must(`messages#${iteration.id}`, () => req(`/api/v1/iterations/${iteration.id}/messages`));
     const refs = messages.filter((m) => typeof m.content === 'string' && m.content.includes('【交付物引用】')).length;
     const skillMsgs = messages.filter((m) => typeof m.content === 'string' && m.content.startsWith('技能执行：')).length;
     report.checks.push({ iterationId: iteration.id, messageCount: messages.length, deliverableRefs: refs, skillMessages: skillMsgs });

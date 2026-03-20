@@ -237,8 +237,9 @@ export function runOpenclawSkillChainForCoach(params: {
   project?: Project | null;
   previousIterationName: string;
   userMessage: string;
+  openclawSkillsEnabled?: boolean;
 }): OpenclawSkillChainRun {
-  const enabled = (process.env.BUILDWISE_OPENCLAW_SKILLS_ENABLED || "1").trim() !== "0";
+  const enabled = params.openclawSkillsEnabled ?? (process.env.BUILDWISE_OPENCLAW_SKILLS_ENABLED || "1").trim() !== "0";
   if (!enabled) {
     return {
       enabled: false,

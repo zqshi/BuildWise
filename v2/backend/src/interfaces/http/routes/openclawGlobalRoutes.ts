@@ -1,15 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import type { OpenclawGlobalService } from "../../../application/openclawGlobal/openclawGlobalService";
+import { resolveErrorMessage } from "../../../shared/utils";
 import { currentRole, isAdmin } from "./workspaceRouteUtils";
 
 export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service: OpenclawGlobalService) {
   // ---- 对话列表 ----
-  app.get("/api/openclaw/conversations", async () => {
+  app.get("/openclaw/conversations", async () => {
     return service.listConversations();
   });
 
   // ---- 创建对话 ----
-  app.post("/api/openclaw/conversations", async (request, reply) => {
+  app.post("/openclaw/conversations", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -20,7 +21,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 查询对话消息 ----
-  app.get("/api/openclaw/conversations/:id/messages", async (request, reply) => {
+  app.get("/openclaw/conversations/:id/messages", async (request, reply) => {
     const params = request.params as { id?: string };
     const conversationId = (params.id || "").trim();
     if (!conversationId) {
@@ -36,7 +37,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 发送消息 ----
-  app.post("/api/openclaw/conversations/:id/messages", async (request, reply) => {
+  app.post("/openclaw/conversations/:id/messages", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -58,23 +59,23 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
       const [userMsg, assistantMsg] = await service.sendMessage(conversationId, content);
       return { userMessage: userMsg, assistantMessage: assistantMsg };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown_error";
+      const message = resolveErrorMessage(error);
       if (message.startsWith("conversation_not_found")) {
         reply.code(404);
         return { message: "conversation not found" };
       }
       reply.code(500);
-      return { message };
+      return { message: "Internal server error" };
     }
   });
 
   // ---- Skill 列表 ----
-  app.get("/api/openclaw/skills", async () => {
+  app.get("/openclaw/skills", async () => {
     return service.listSkills();
   });
 
   // ---- 激活 Skill ----
-  app.post("/api/openclaw/skills/:id/activate", async (request, reply) => {
+  app.post("/openclaw/skills/:id/activate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -95,7 +96,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 废弃 Skill ----
-  app.post("/api/openclaw/skills/:id/deprecate", async (request, reply) => {
+  app.post("/openclaw/skills/:id/deprecate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -116,12 +117,12 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 策略状态 ----
-  app.get("/api/openclaw/strategy", async () => {
+  app.get("/openclaw/strategy", async () => {
     return service.getStrategyState();
   });
 
   // ---- 恢复初始配置 ----
-  app.post("/api/openclaw/strategy/restore-initial", async (request, reply) => {
+  app.post("/openclaw/strategy/restore-initial", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);

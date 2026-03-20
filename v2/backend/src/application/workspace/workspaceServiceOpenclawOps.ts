@@ -60,12 +60,12 @@ function runtimeConfigPath() {
   return resolve(process.cwd(), "openclaw", "runtime.config.json");
 }
 
-function resolveOpenclawHome(runtime: OpenclawRuntimeConfig) {
+function resolveOpenclawHome(runtime: OpenclawRuntimeConfig, envOpenclawHome = "") {
   const fromRuntime = (runtime.openclaw?.homePath || "").trim();
   if (fromRuntime) {
     return fromRuntime;
   }
-  const fromEnv = (process.env.OPENCLAW_HOME || "").trim();
+  const fromEnv = envOpenclawHome || (process.env.OPENCLAW_HOME || "").trim();
   if (fromEnv) {
     return fromEnv;
   }
@@ -85,12 +85,12 @@ function ensureOpenclawHomeWritable(homePath: string) {
   }
 }
 
-function resolveRuntimePaths(runtime: OpenclawRuntimeConfig) {
+function resolveRuntimePaths(runtime: OpenclawRuntimeConfig, envConfig?: { openclawHome?: string }) {
   const openclawRoot = runtime.openclaw?.sourcePath?.trim() || "";
   const openclawEntry = resolve(openclawRoot || ".", runtime.openclaw?.entry?.trim() || "openclaw.mjs");
   const profile = runtime.openclaw?.profile?.trim() || "buildwise-local";
   const agentId = runtime.openclaw?.agentId?.trim() || "main";
-  const openclawHome = resolveOpenclawHome(runtime);
+  const openclawHome = resolveOpenclawHome(runtime, envConfig?.openclawHome);
   const openclawHomeWritable = ensureOpenclawHomeWritable(openclawHome);
   return {
     openclawRoot,
@@ -102,11 +102,11 @@ function resolveRuntimePaths(runtime: OpenclawRuntimeConfig) {
   };
 }
 
-function profileStateRoot(profile: string, openclawHome = "") {
+function profileStateRoot(profile: string, openclawHome = "", homeDir = "") {
   if (openclawHome) {
     return resolve(openclawHome, `.openclaw-${profile}`);
   }
-  return resolve(process.env.HOME || "", `.openclaw-${profile}`);
+  return resolve(homeDir || process.env.HOME || "", `.openclaw-${profile}`);
 }
 
 function ensureFallbackStateFromDefault(profile: string, agentId: string) {
@@ -178,10 +178,10 @@ function runOpenclawCommand(
   }
 }
 
-function authProfilePath(profile: string, agentId: string, openclawHome: string) {
+function authProfilePath(profile: string, agentId: string, openclawHome: string, homeDir = "") {
   const profileDir = openclawHome
     ? resolve(openclawHome, `.openclaw-${profile}`)
-    : resolve(process.env.HOME || "", `.openclaw-${profile}`);
+    : resolve(homeDir || process.env.HOME || "", `.openclaw-${profile}`);
   return resolve(profileDir, "agents", agentId, "agent", "auth-profiles.json");
 }
 

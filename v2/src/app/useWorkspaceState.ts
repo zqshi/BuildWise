@@ -1,244 +1,148 @@
-import { useRef, useState } from "react";
-import type { IterationVersionType } from "../domain/workspace/iterationTypes";
-import type {
-  AttachmentAnalysisReport,
-  AssessmentPayload,
-  AssessmentSnapshot,
-  Iteration,
-  IterationContextPayload,
-  IterationStateMachinePayload,
-  IterationMessage,
-  ChatSendStatus,
-  ModelRelationPayload,
-  ModelSummaryPayload,
-  RoadmapPayload,
-  Project,
-  RuleBindPayload,
-  RuleCompilePayload,
-  StatusPayload,
-  SyncReportPayload,
-  TracePayload
-} from "../domain/workspace/types";
-import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
-import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
-import type {
-  DeploymentRecord,
-  OpsMetricsPayload,
-  ProjectShare,
-  ShareAccessPayload,
-  TemplateItem,
-  TemplateRunHistory,
-  TemplateRunResult,
-  VersionSnapshot
-} from "../domain/workspace/platformTypes";
-
-function readStorageString(key: string): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function readStorageNumber(key: string): number | null {
-  const raw = readStorageString(key);
-  if (!raw) {
-    return null;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function readStorageRole(key: string): "owner" | "pm" | "developer" | "qa" | "viewer" {
-  const raw = readStorageString(key);
-  if (raw === "owner" || raw === "pm" || raw === "developer" || raw === "qa" || raw === "viewer") {
-    return raw;
-  }
-  return "viewer";
-}
+/**
+ * Legacy facade: aggregates the 7 domain-specific contexts into the flat shape
+ * that useAppController and other callsites still expect.
+ *
+ * No useState calls live here any more — every piece of state is owned by one
+ * of the dedicated Context providers.
+ */
+import { useNavigationContext } from "../contexts/NavigationContext";
+import { useProjectContext } from "../contexts/ProjectContext";
+import { useIterationContext } from "../contexts/IterationContext";
+import { useChatContext } from "../contexts/ChatContext";
+import { useAnalysisContext } from "../contexts/AnalysisContext";
+import { useModelOpsContext } from "../contexts/ModelOpsContext";
+import { usePlatformContext } from "../contexts/PlatformContext";
 
 export function useWorkspaceState() {
-  const [activeView, setActiveView] = useState<"dashboard" | "projects" | "permissions">(() => {
-    const cached = readStorageString("buildwise:active-view");
-    if (cached === "projects" || cached === "permissions") {
-      return cached;
-    }
-    return "dashboard";
-  });
-  const [projectPanelMode, setProjectPanelMode] = useState<"project" | "iteration">(() => {
-    const cached = readStorageString("buildwise:project-panel-mode");
-    return cached === "iteration" ? "iteration" : "project";
-  });
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [currentRole, setCurrentRole] = useState<"owner" | "pm" | "developer" | "qa" | "viewer">(
-    () => readStorageRole("buildwise:auth-role")
-  );
-  const [status, setStatus] = useState<StatusPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [currentProjectId, setCurrentProjectId] = useState<number | null>(() => readStorageNumber("buildwise:current-project-id"));
-  const [iterations, setIterations] = useState<Iteration[]>([]);
-  const [currentIterationId, setCurrentIterationId] = useState<number | null>(() => readStorageNumber("buildwise:current-iteration-id"));
-  const [showCreateIteration, setShowCreateIteration] = useState(false);
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const [projectName, setProjectName] = useState("");
-  const [projectDesc, setProjectDesc] = useState("");
-  const [iterName, setIterName] = useState("");
-  const [iterDesc, setIterDesc] = useState("");
-  const [iterGoals, setIterGoals] = useState("");
-  const [iterInScope, setIterInScope] = useState("");
-  const [iterOutScope, setIterOutScope] = useState("");
-  const [iterAcceptance, setIterAcceptance] = useState("");
-  const [iterVersionType, setIterVersionType] = useState<IterationVersionType>("patch");
-
-  const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<IterationMessage[]>([]);
-  const [chatSendStatus, setChatSendStatus] = useState<ChatSendStatus>("idle");
-  const [uploadedFile, setUploadedFile] = useState<UploadedAttachmentMeta | null>(null);
-  const [contextData, setContextData] = useState<IterationContextPayload | null>(null);
-  const [assessmentData, setAssessmentData] = useState<AssessmentPayload | null>(null);
-  const [assessmentHistory, setAssessmentHistory] = useState<AssessmentSnapshot[]>([]);
-  const [stateMachine, setStateMachine] = useState<IterationStateMachinePayload | null>(null);
-  const [analysisReport, setAnalysisReport] = useState<AttachmentAnalysisReport | null>(null);
-  const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
-  const [isAnalyzingAttachment, setIsAnalyzingAttachment] = useState(false);
-  const [uploadAnalysisProgress, setUploadAnalysisProgress] = useState<UploadAnalysisProgress | null>(null);
-  const [uploadToastMessage, setUploadToastMessage] = useState<string | null>(null);
-  const [modelSummary, setModelSummary] = useState<ModelSummaryPayload | null>(null);
-  const [modelRelations, setModelRelations] = useState<ModelRelationPayload[]>([]);
-  const [ruleCompile, setRuleCompile] = useState<RuleCompilePayload | null>(null);
-  const [ruleBind, setRuleBind] = useState<RuleBindPayload | null>(null);
-  const [syncReport, setSyncReport] = useState<SyncReportPayload | null>(null);
-  const [traceReport, setTraceReport] = useState<TracePayload | null>(null);
-  const [roadmapReports, setRoadmapReports] = useState<RoadmapPayload[]>([]);
-  const [modelOpsLoading, setModelOpsLoading] = useState(false);
-  const [governanceRoles, setGovernanceRoles] = useState<GovernanceRole[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [versionSnapshots, setVersionSnapshots] = useState<VersionSnapshot[]>([]);
-  const [projectShares, setProjectShares] = useState<ProjectShare[]>([]);
-  const [templates, setTemplates] = useState<TemplateItem[]>([]);
-  const [templateRuns, setTemplateRuns] = useState<TemplateRunHistory[]>([]);
-  const [latestTemplateRun, setLatestTemplateRun] = useState<TemplateRunResult | null>(null);
-  const [opsMetrics, setOpsMetrics] = useState<OpsMetricsPayload | null>(null);
-  const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
-  const [shareAccess, setShareAccess] = useState<ShareAccessPayload | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const nav = useNavigationContext();
+  const proj = useProjectContext();
+  const iter = useIterationContext();
+  const chat = useChatContext();
+  const analysis = useAnalysisContext();
+  const modelOps = useModelOpsContext();
+  const platform = usePlatformContext();
 
   return {
-    activeView,
-    setActiveView,
-    projectPanelMode,
-    setProjectPanelMode,
-    showUserMenu,
-    setShowUserMenu,
-    currentRole,
-    setCurrentRole,
-    status,
-    setStatus,
-    error,
-    setError,
-    projects,
-    setProjects,
-    currentProjectId,
-    setCurrentProjectId,
-    iterations,
-    setIterations,
-    currentIterationId,
-    setCurrentIterationId,
-    showCreateIteration,
-    setShowCreateIteration,
-    showCreateProject,
-    setShowCreateProject,
-    busy,
-    setBusy,
-    projectName,
-    setProjectName,
-    projectDesc,
-    setProjectDesc,
-    iterName,
-    setIterName,
-    iterDesc,
-    setIterDesc,
-    iterGoals,
-    setIterGoals,
-    iterInScope,
-    setIterInScope,
-    iterOutScope,
-    setIterOutScope,
-    iterAcceptance,
-    setIterAcceptance,
-    iterVersionType,
-    setIterVersionType,
-    chatInput,
-    setChatInput,
-    chatMessages,
-    setChatMessages,
-    chatSendStatus,
-    setChatSendStatus,
-    uploadedFile,
-    setUploadedFile,
-    contextData,
-    setContextData,
-    assessmentData,
-    setAssessmentData,
-    assessmentHistory,
-    setAssessmentHistory,
-    stateMachine,
-    setStateMachine,
-    analysisReport,
-    setAnalysisReport,
-    showAnalysisPanel,
-    setShowAnalysisPanel,
-    isAnalyzingAttachment,
-    setIsAnalyzingAttachment,
-    uploadAnalysisProgress,
-    setUploadAnalysisProgress,
-    uploadToastMessage,
-    setUploadToastMessage,
-    modelSummary,
-    setModelSummary,
-    modelRelations,
-    setModelRelations,
-    ruleCompile,
-    setRuleCompile,
-    ruleBind,
-    setRuleBind,
-    syncReport,
-    setSyncReport,
-    traceReport,
-    setTraceReport,
-    roadmapReports,
-    setRoadmapReports,
-    modelOpsLoading,
-    setModelOpsLoading,
-    governanceRoles,
-    setGovernanceRoles,
-    auditLogs,
-    setAuditLogs,
-    versionSnapshots,
-    setVersionSnapshots,
-    projectShares,
-    setProjectShares,
-    templates,
-    setTemplates,
-    templateRuns,
-    setTemplateRuns,
-    latestTemplateRun,
-    setLatestTemplateRun,
-    opsMetrics,
-    setOpsMetrics,
-    deployments,
-    setDeployments,
-    shareAccess,
-    setShareAccess,
-    fileInputRef,
-    userMenuRef
+    // NavigationContext
+    activeView: nav.activeView,
+    setActiveView: nav.setActiveView,
+    projectPanelMode: nav.projectPanelMode,
+    setProjectPanelMode: nav.setProjectPanelMode,
+    showUserMenu: nav.showUserMenu,
+    setShowUserMenu: nav.setShowUserMenu,
+    currentRole: nav.currentRole,
+    setCurrentRole: nav.setCurrentRole,
+    status: nav.status,
+    setStatus: nav.setStatus,
+    error: nav.error,
+    setError: nav.setError,
+    busy: nav.busy,
+    setBusy: nav.setBusy,
+    userMenuRef: nav.userMenuRef,
+
+    // ProjectContext
+    projects: proj.projects,
+    setProjects: proj.setProjects,
+    currentProjectId: proj.currentProjectId,
+    setCurrentProjectId: proj.setCurrentProjectId,
+    showCreateProject: proj.showCreateProject,
+    setShowCreateProject: proj.setShowCreateProject,
+    projectName: proj.projectName,
+    setProjectName: proj.setProjectName,
+    projectDesc: proj.projectDesc,
+    setProjectDesc: proj.setProjectDesc,
+
+    // IterationContext
+    iterations: iter.iterations,
+    setIterations: iter.setIterations,
+    currentIterationId: iter.currentIterationId,
+    setCurrentIterationId: iter.setCurrentIterationId,
+    showCreateIteration: iter.showCreateIteration,
+    setShowCreateIteration: iter.setShowCreateIteration,
+    iterName: iter.iterName,
+    setIterName: iter.setIterName,
+    iterDesc: iter.iterDesc,
+    setIterDesc: iter.setIterDesc,
+    iterGoals: iter.iterGoals,
+    setIterGoals: iter.setIterGoals,
+    iterInScope: iter.iterInScope,
+    setIterInScope: iter.setIterInScope,
+    iterOutScope: iter.iterOutScope,
+    setIterOutScope: iter.setIterOutScope,
+    iterAcceptance: iter.iterAcceptance,
+    setIterAcceptance: iter.setIterAcceptance,
+    iterVersionType: iter.iterVersionType,
+    setIterVersionType: iter.setIterVersionType,
+
+    // ChatContext
+    chatInput: chat.chatInput,
+    setChatInput: chat.setChatInput,
+    chatMessages: chat.chatMessages,
+    setChatMessages: chat.setChatMessages,
+    chatSendStatus: chat.chatSendStatus,
+    setChatSendStatus: chat.setChatSendStatus,
+    contextData: chat.contextData,
+    setContextData: chat.setContextData,
+
+    // AnalysisContext
+    uploadedFile: analysis.uploadedFile,
+    setUploadedFile: analysis.setUploadedFile,
+    analysisReport: analysis.analysisReport,
+    setAnalysisReport: analysis.setAnalysisReport,
+    showAnalysisPanel: analysis.showAnalysisPanel,
+    setShowAnalysisPanel: analysis.setShowAnalysisPanel,
+    isAnalyzingAttachment: analysis.isAnalyzingAttachment,
+    setIsAnalyzingAttachment: analysis.setIsAnalyzingAttachment,
+    uploadAnalysisProgress: analysis.uploadAnalysisProgress,
+    setUploadAnalysisProgress: analysis.setUploadAnalysisProgress,
+    uploadToastMessage: analysis.uploadToastMessage,
+    setUploadToastMessage: analysis.setUploadToastMessage,
+    assessmentData: analysis.assessmentData,
+    setAssessmentData: analysis.setAssessmentData,
+    assessmentHistory: analysis.assessmentHistory,
+    setAssessmentHistory: analysis.setAssessmentHistory,
+    stateMachine: analysis.stateMachine,
+    setStateMachine: analysis.setStateMachine,
+    fileInputRef: analysis.fileInputRef,
+
+    // ModelOpsContext
+    modelSummary: modelOps.modelSummary,
+    setModelSummary: modelOps.setModelSummary,
+    modelRelations: modelOps.modelRelations,
+    setModelRelations: modelOps.setModelRelations,
+    ruleCompile: modelOps.ruleCompile,
+    setRuleCompile: modelOps.setRuleCompile,
+    ruleBind: modelOps.ruleBind,
+    setRuleBind: modelOps.setRuleBind,
+    syncReport: modelOps.syncReport,
+    setSyncReport: modelOps.setSyncReport,
+    traceReport: modelOps.traceReport,
+    setTraceReport: modelOps.setTraceReport,
+    roadmapReports: modelOps.roadmapReports,
+    setRoadmapReports: modelOps.setRoadmapReports,
+    modelOpsLoading: modelOps.modelOpsLoading,
+    setModelOpsLoading: modelOps.setModelOpsLoading,
+    opsMetrics: modelOps.opsMetrics,
+    setOpsMetrics: modelOps.setOpsMetrics,
+
+    // PlatformContext
+    governanceRoles: platform.governanceRoles,
+    setGovernanceRoles: platform.setGovernanceRoles,
+    auditLogs: platform.auditLogs,
+    setAuditLogs: platform.setAuditLogs,
+    versionSnapshots: platform.versionSnapshots,
+    setVersionSnapshots: platform.setVersionSnapshots,
+    projectShares: platform.projectShares,
+    setProjectShares: platform.setProjectShares,
+    templates: platform.templates,
+    setTemplates: platform.setTemplates,
+    templateRuns: platform.templateRuns,
+    setTemplateRuns: platform.setTemplateRuns,
+    latestTemplateRun: platform.latestTemplateRun,
+    setLatestTemplateRun: platform.setLatestTemplateRun,
+    deployments: platform.deployments,
+    setDeployments: platform.setDeployments,
+    shareAccess: platform.shareAccess,
+    setShareAccess: platform.setShareAccess,
   };
 }

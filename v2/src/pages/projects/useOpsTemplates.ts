@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
 import { fetchOpsTriageTemplates } from "../../app/workspaceApi";
+import { API_BASE } from "../../app/workspaceApiCore";
 
 export type OpsTemplatesState = {
   opsTemplates: OpsTriageTemplate[];
@@ -44,7 +45,7 @@ export function useOpsTemplates(projectId: number | undefined): OpsTemplatesStat
           .split("{{projectId}}")
           .join(String(projectId))
           .split("{{apiBase}}")
-          .join("http://127.0.0.1:5055")
+          .join(API_BASE)
           .split("{{backendDir}}")
           .join("backend");
       return Array.from(
@@ -57,23 +58,23 @@ export function useOpsTemplates(projectId: number | undefined): OpsTemplatesStat
     }
     const commands: string[] = [];
     if (lowered.includes("健康") || lowered.includes("health") || lowered.includes("就绪") || lowered.includes("ready")) {
-      commands.push("curl -sS http://127.0.0.1:5055/health");
-      commands.push("curl -sS http://127.0.0.1:5055/ready");
+      commands.push(`curl -sS ${API_BASE}/health`);
+      commands.push(`curl -sS ${API_BASE}/ready`);
     }
     if (lowered.includes("指标") || lowered.includes("metric") || lowered.includes("错误率") || lowered.includes("延迟")) {
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/metrics");
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/runtime");
+      commands.push(`curl -sS ${API_BASE}/api/v1/ops/metrics`);
+      commands.push(`curl -sS ${API_BASE}/api/v1/ops/runtime`);
     }
     if (lowered.includes("发布") || lowered.includes("deploy")) {
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/deployments");
+      commands.push(`curl -sS ${API_BASE}/api/v1/ops/deployments`);
       commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
     }
     if (lowered.includes("回滚") || lowered.includes("rollback")) {
       commands.push(`cd backend && PROJECT_ID=${projectId} npm run ops:rollback`);
     }
     if (commands.length === 0) {
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/runtime");
-      commands.push("curl -sS http://127.0.0.1:5055/api/ops/metrics");
+      commands.push(`curl -sS ${API_BASE}/api/v1/ops/runtime`);
+      commands.push(`curl -sS ${API_BASE}/api/v1/ops/metrics`);
     }
     return Array.from(new Set(commands)).slice(0, 4);
   };
