@@ -1,5 +1,6 @@
 import type { IterationAgentPrompt } from "../../domain/workspace/types";
 import { createLogger } from "../../infrastructure/runtime/logger";
+import { resolveErrorMessage } from "../../shared/utils";
 import {
   anthropicMessagesEndpoint,
   resolveApiKey,
@@ -24,6 +25,8 @@ export type LlmRuntimeStatus = {
 export type AgentRunResult = {
   content: string;
   model?: string;
+  finishReason?: string;
+  truncated?: boolean;
 };
 
 export type AgentRunOptions = {
@@ -102,13 +105,14 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
       }
       const payload = (await response.json()) as {
         model?: string;
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
       };
       const content = payload.choices?.[0]?.message?.content?.trim();
       if (!content) {
         throw new Error("llm_empty_content");
       }
-      return { content, model: payload.model || modelToUse };
+      const finishReason = payload.choices?.[0]?.finish_reason || undefined;
+      return { content, model: payload.model || modelToUse, finishReason, truncated: finishReason === "length" };
     } finally {
       clearTimeout(timer);
     }
@@ -161,22 +165,25 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
       }
       const payload = (await response.json()) as {
         model?: string;
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
       };
       const content = payload.choices?.[0]?.message?.content?.trim();
       if (!content) {
         throw new Error("llm_empty_content");
       }
+      const finishReason = payload.choices?.[0]?.finish_reason || undefined;
       if (traceEnabled) {
         log.info("done", { model: payload.model || modelToUse, role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt });
       }
       return {
         content,
-        model: payload.model || modelToUse
+        model: payload.model || modelToUse,
+        finishReason,
+        truncated: finishReason === "length"
       };
     } catch (error) {
       if (traceEnabled) {
-        const message = error instanceof Error ? error.message : "unknown_error";
+        const message = resolveErrorMessage(error);
         log.info("fail", { role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt, error: message });
       }
       throw error;
@@ -222,6 +229,7 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
       }
       const payload = (await response.json()) as {
         model?: string;
+        stop_reason?: string;
         content?: Array<{ type?: string; text?: string }>;
       };
       const blocks = Array.isArray(payload.content) ? payload.content : [];
@@ -229,7 +237,8 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
       if (!content) {
         throw new Error("llm_empty_content");
       }
-      return { content, model: payload.model || modelToUse };
+      const finishReason = payload.stop_reason || undefined;
+      return { content, model: payload.model || modelToUse, finishReason, truncated: finishReason === "max_tokens" };
     } finally {
       clearTimeout(timer);
     }
@@ -291,6 +300,7 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
       }
       const payload = (await response.json()) as {
         model?: string;
+        stop_reason?: string;
         content?: Array<{ type?: string; text?: string; thinking?: string }>;
       };
       const blocks = Array.isArray(payload.content) ? payload.content : [];
@@ -304,9 +314,12 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
       if (!content) {
         throw new Error("llm_empty_content");
       }
+      const finishReason = payload.stop_reason || undefined;
       return {
         content,
-        model: payload.model || modelToUse
+        model: payload.model || modelToUse,
+        finishReason,
+        truncated: finishReason === "max_tokens"
       };
     } finally {
       clearTimeout(timer);

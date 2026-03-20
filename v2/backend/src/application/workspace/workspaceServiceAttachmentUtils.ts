@@ -187,11 +187,38 @@ export function safeJsonParse(value: string) {
       try {
         return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
       } catch {
-        return null;
+        // fall through to truncated JSON repair
       }
     }
+    return tryRepairTruncatedJson(text);
+  }
+}
+
+/**
+ * Attempt to extract `reply` field from truncated JSON output.
+ * When LLM output is cut off mid-JSON, the closing braces are missing,
+ * but we can still extract the reply value via regex.
+ */
+function tryRepairTruncatedJson(text: string): Record<string, unknown> | null {
+  const replyMatch = text.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/s);
+  if (!replyMatch) {
     return null;
   }
+  let reply = replyMatch[1];
+  try {
+    reply = JSON.parse(`"${reply}"`);
+  } catch {
+    reply = reply.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+  if (!reply || reply.length < 10) {
+    return null;
+  }
+  const intentMatch = text.match(/"intent"\s*:\s*"([^"]+)"/);
+  return {
+    reply,
+    intent: intentMatch?.[1] || "general",
+    _repaired: true
+  };
 }
 
 export { mergeAttachmentReports };

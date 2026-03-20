@@ -6,7 +6,8 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   // 如果有 token 且不是认证路由，确保 token 新鲜并注入 Bearer header
-  const isAuthRoute = url.includes("/api/auth/");
+  const isAuthRoute = url.includes("/api/v1/auth/");
+  const isPublicRoute = url.includes("/api/v1/status") || url.includes("/api/v1/collab/share/");
   const token = getAccessToken();
   if (token && !isAuthRoute) {
     await ensureFreshToken();
@@ -37,32 +38,38 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
   }
 
   // 401 自动重试：尝试刷新 token 后重试一次
-  if (res.status === 401 && freshToken && !isAuthRoute) {
-    const refreshed = await ensureFreshToken();
-    if (refreshed) {
-      const retryToken = getAccessToken();
-      const retryHeaders = new Headers(options?.headers);
-      if (retryToken) {
-        retryHeaders.set("Authorization", `Bearer ${retryToken}`);
-      }
-      const retryController = new AbortController();
-      const retryTimeout = setTimeout(() => retryController.abort(), timeoutMs);
-      try {
-        const retryRes = await fetch(url, { ...options, headers: retryHeaders, signal: retryController.signal });
-        clearTimeout(retryTimeout);
-        if (retryRes.ok) {
-          const contentType = retryRes.headers.get("content-type") || "";
-          if (!contentType.includes("application/json")) {
-            throw new Error("API error: invalid response format");
-          }
-          return (await retryRes.json()) as T;
+  if (res.status === 401 && !isAuthRoute) {
+    if (freshToken) {
+      const refreshed = await ensureFreshToken();
+      if (refreshed) {
+        const retryToken = getAccessToken();
+        const retryHeaders = new Headers(options?.headers);
+        if (retryToken) {
+          retryHeaders.set("Authorization", `Bearer ${retryToken}`);
         }
-        // 重试仍然失败，走正常错误处理
-        res = retryRes;
-      } catch (retryError) {
-        clearTimeout(retryTimeout);
-        throw retryError;
+        const retryController = new AbortController();
+        const retryTimeout = setTimeout(() => retryController.abort(), timeoutMs);
+        try {
+          const retryRes = await fetch(url, { ...options, headers: retryHeaders, signal: retryController.signal });
+          clearTimeout(retryTimeout);
+          if (retryRes.ok) {
+            const contentType = retryRes.headers.get("content-type") || "";
+            if (!contentType.includes("application/json")) {
+              throw new Error("API error: invalid response format");
+            }
+            return (await retryRes.json()) as T;
+          }
+          // 重试仍然失败，走正常错误处理
+          res = retryRes;
+        } catch (retryError) {
+          clearTimeout(retryTimeout);
+          throw retryError;
+        }
       }
+    }
+    // 无 token 或 refresh 失败 → 触发 auth-expired，让用户重新登录
+    if (!isPublicRoute) {
+      window.dispatchEvent(new CustomEvent("buildwise:auth-expired"));
     }
   }
 

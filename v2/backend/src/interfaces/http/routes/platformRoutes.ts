@@ -14,7 +14,7 @@ function ensurePermission(authRole: string | undefined, permission: string, work
 }
 
 export async function registerPlatformRoutes(app: FastifyInstance, service: PlatformService, workspaceService: WorkspaceService) {
-  app.get("/api/collab/snapshots", async (request, reply) => {
+  app.get("/collab/snapshots", async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     if (projectId === null) {
@@ -24,7 +24,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listVersionSnapshots(projectId);
   });
 
-  app.post("/api/collab/snapshots", async (request, reply) => {
+  app.post("/collab/snapshots", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -46,7 +46,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return created;
   });
 
-  app.post("/api/collab/snapshots/:id/restore", async (request, reply) => {
+  app.post("/collab/snapshots/:id/restore", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -66,7 +66,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result;
   });
 
-  app.get("/api/collab/shares", async (request, reply) => {
+  app.get("/collab/shares", async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     if (projectId === null) {
@@ -76,7 +76,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listProjectShares(projectId);
   });
 
-  app.post("/api/collab/shares", async (request, reply) => {
+  app.post("/collab/shares", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -97,11 +97,11 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return created;
   });
 
-  app.get("/api/templates", async () => {
+  app.get("/templates", async () => {
     return service.listTemplates();
   });
 
-  app.post("/api/templates/:id/run", async (request, reply) => {
+  app.post("/templates/:id/run", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "template:run", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -122,13 +122,13 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result;
   });
 
-  app.get("/api/templates/runs", async (request) => {
+  app.get("/templates/runs", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
     return service.listTemplateRuns(projectId || undefined);
   });
 
-  app.get("/api/collab/share/:token", async (request, reply) => {
+  app.get("/collab/share/:token", async (request, reply) => {
     const params = request.params as { token: string };
     const access = service.accessShare(params.token);
     if (!access.ok) {
@@ -138,7 +138,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return access.data;
   });
 
-  app.post("/api/collab/share/:token/comments", async (request, reply) => {
+  app.post("/collab/share/:token/comments", async (request, reply) => {
     const params = request.params as { token: string };
     const body = request.body as { content?: string } | null;
     const content = body?.content?.trim() || "";
@@ -160,17 +160,17 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.get("/api/openapi/export", async () => {
+  app.get("/openapi/export", async () => {
     return service.exportOpenApi();
   });
 
-  app.get("/api/ops/deployments", async (request) => {
+  app.get("/ops/deployments", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
     return service.listDeployments(projectId || undefined);
   });
 
-  app.post("/api/ops/deployments", async (request, reply) => {
+  app.post("/ops/deployments", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -210,7 +210,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return created.data;
   });
 
-  app.post("/api/ops/deployments/:id/transition", async (request, reply) => {
+  app.post("/ops/deployments/:id/transition", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:transition", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -235,17 +235,17 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.get("/api/ops/metrics", async () => {
+  app.get("/ops/metrics", async () => {
     return service.getOpsMetrics();
   });
 
-  app.get("/api/ops/triage-templates", async (request) => {
+  app.get("/ops/triage-templates", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
     return service.listOpsTriageTemplatesByProject(projectId || undefined);
   });
 
-  app.post("/api/ops/triage-templates", async (request, reply) => {
+  app.post("/ops/triage-templates", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -277,7 +277,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.delete("/api/ops/triage-templates/:id", async (request, reply) => {
+  app.delete("/ops/triage-templates/:id", async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -297,7 +297,12 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return { ok: true };
   });
 
-  app.post("/api/ops/triage/analyze", async (request, reply) => {
+  app.post("/ops/triage/analyze", async (request, reply) => {
+    const permit = ensurePermission(request.authRole, "ops:triage", workspaceService);
+    if (!permit.ok) {
+      reply.code(403);
+      return { message: `permission denied for role ${permit.role}` };
+    }
     const body = request.body as {
       projectId?: number;
       severity?: "low" | "medium" | "high" | "critical";

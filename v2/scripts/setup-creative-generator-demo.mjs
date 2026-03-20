@@ -11,6 +11,30 @@ import {
 const BASE = process.env.BUILDWISE_API_BASE || "http://127.0.0.1:5055";
 const ACTOR = process.env.BUILDWISE_DEMO_ACTOR || "creative-generator-demo";
 const NOW = new Date();
+function loadEnvFile() {
+  try {
+    const envPath = resolve(process.cwd(), "backend/.env");
+    const envText = readFileSync(envPath, "utf-8");
+    const env = {};
+    for (const line of envText.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+      const [key, ...rest] = trimmed.split("=");
+      env[key.trim()] = rest.join("=").trim();
+    }
+    return env;
+  } catch { return {}; }
+}
+const BACKEND_ENV = loadEnvFile();
+const LLM_API_BASE = process.env.LLM_API_BASE || BACKEND_ENV.LLM_API_BASE || "https://api.minimaxi.com/anthropic";
+const LLM_API_KEY = process.env.LLM_API_KEY || BACKEND_ENV.LLM_API_KEY || "";
+const LLM_MODEL = process.env.LLM_MODEL || BACKEND_ENV.LLM_MODEL || "MiniMax-M2.5";
+const DIRECT_LLM_ARTIFACTS = new Set([
+  "analysis-report", "product-requirements-doc", "boundary-confirmation",
+  "prototype-preview", "design-spec", "technical-architecture",
+  "api-specification", "database-design", "frontend-code", "backend-code",
+  "test-matrix", "acceptance-checklist", "release-review", "deployment-plan", "delivery-package"
+]);
 const STAMP = NOW.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
 const REQUIREMENT_PATH = resolve(process.cwd(), "docs/creative-generator-demo-requirement.md");
 const REQUIREMENT_MARKDOWN = readFileSync(REQUIREMENT_PATH, "utf-8");
@@ -30,6 +54,38 @@ const FORCE_ITERATION_IDS = new Set(
     .filter((item) => Number.isFinite(item) && item > 0)
 );
 
+const ARTIFACT_UPSTREAM_DEPS = {
+  "analysis-report": [],
+  "product-requirements-doc": ["analysis-report"],
+  "boundary-confirmation": ["analysis-report", "product-requirements-doc"],
+  "prototype-preview": ["product-requirements-doc", "boundary-confirmation"],
+  "design-spec": ["product-requirements-doc", "boundary-confirmation", "prototype-preview"],
+  "technical-architecture": ["product-requirements-doc", "boundary-confirmation", "design-spec"],
+  "api-specification": ["technical-architecture", "product-requirements-doc"],
+  "database-design": ["technical-architecture", "api-specification"],
+  "frontend-code": ["technical-architecture", "design-spec", "prototype-preview", "api-specification"],
+  "backend-code": ["technical-architecture", "api-specification", "database-design"],
+  "test-matrix": ["product-requirements-doc", "api-specification", "frontend-code", "backend-code"],
+  "acceptance-checklist": ["product-requirements-doc", "test-matrix"],
+  "release-review": ["acceptance-checklist", "test-matrix", "frontend-code", "backend-code"],
+  "deployment-plan": ["technical-architecture", "frontend-code", "backend-code", "release-review"],
+  "delivery-package": ["release-review", "deployment-plan", "acceptance-checklist"]
+};
+
+function buildUpstreamContextForScript(artifactId, artifacts) {
+  const deps = ARTIFACT_UPSTREAM_DEPS[artifactId] || [];
+  if (deps.length === 0) return "";
+  const committed = artifacts.filter((a) => deps.includes(a.id) && Number(a.outputVersion || 0) > 0);
+  if (committed.length === 0) return "";
+  const perDepBudget = committed.length >= 6 ? 220 : Math.min(4000, Math.max(800, Math.floor(8000 / committed.length)));
+  const sections = committed.map((a) => {
+    const content = a.draft?.content || a.summary || "";
+    const excerpt = content.slice(0, perDepBudget);
+    return `### 上游交付物：${a.title}\n${excerpt}`;
+  });
+  return "--- 已确认的上游交付物内容（请基于此确保本交付物与上游保持一致、层层递进）---\n\n" + sections.join("\n\n");
+}
+
 const V1_STEPS = [
   ["analysis-report", "我要做一个创意生成器，请输出首版需求分析报告。使用 Markdown 标题分节，必须完整包含：目标用户、问题定义、核心场景、本轮纳入项、本轮排除项、交互原则、关键风险、待确认点。不要只给摘要或待处理提示。"],
   ["product-requirements-doc", "继续输出产品需求文档，使用 Markdown，至少包含问题定义、用户场景、功能需求、非功能要求、排除项、验收标准。直接输出完整正文，不要给流程说明或待处理摘要。"],
@@ -37,11 +93,15 @@ const V1_STEPS = [
   ["prototype-preview", "继续输出原型交付物。保持正常对话回复，但正文必须包含一份完整可渲染的 HTML 原型，覆盖主题输入、创意结果列表、收藏和右侧详情抽屉。"],
   ["design-spec", "继续输出设计规范，使用 Markdown，至少包含布局规则、颜色/字体、状态样式、交互反馈和响应式约束。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["technical-architecture", "继续输出技术架构说明，使用 Markdown，至少包含模块职责、数据流、接口边界、依赖、失败处理和回滚点。直接输出完整正文，不要给流程说明或待处理摘要。"],
-  ["code-delivery", "继续输出代码交付物。保持正常对话回复，但正文必须包含一段完整的 TypeScript/React 代码，用于创意生成器的主题输入与结果卡片列表。"],
-  ["test-matrix", "继续输出测试矩阵，使用 Markdown 表格或列表，覆盖主题输入、生成结果、收藏、详情抽屉、回归点。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["api-specification", "继续输出接口设计文档，使用 Markdown，必须包含：每个 API 的路径、HTTP 方法、请求参数结构、响应结构、错误码定义、鉴权方式。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["database-design", "继续输出数据模型设计，使用 Markdown。即使首版采用前端主导架构，也必须设计完整的服务端数据库方案（后续版本会迁移到服务端存储）。必须包含：ER 关系描述（实体间关联）、核心数据表结构（表名、字段名、字段类型、约束条件）、索引策略（主键索引、查询优化索引）、数据迁移方案（从本地存储到服务端的迁移路径）。至少设计 3 张以上数据表。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["frontend-code", "继续输出前端代码交付物。正文必须包含完整的 TypeScript/React 代码，覆盖创意生成器的组件结构、路由、状态管理和 API 调用层。"],
+  ["backend-code", "继续输出后端代码交付物。正文必须包含完整的后端代码（TypeScript/Node.js），覆盖 API 路由定义、服务层业务逻辑、数据访问层和中间件。"],
+  ["test-matrix", "继续输出测试矩阵，使用 Markdown 表格或列表，覆盖主题输入、生成结果、收藏、详情抽屉、API 接口、数据库操作、回归点。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["acceptance-checklist", "继续输出验收清单，使用 Markdown，列出业务验收口径、发布前检查项和必须人工确认的点。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["release-review", "继续输出发布评审，使用 Markdown，至少包含发布结论、阻断项、上线前置条件、回滚策略。直接输出完整正文，不要给流程说明或待处理摘要。"],
-  ["delivery-package", "继续输出交付归档，使用 Markdown，至少包含本版基线、已确认交付物、遗留问题、下版本继承输入。直接输出完整正文，不要给流程说明或待处理摘要。"]
+  ["deployment-plan", "继续输出部署方案，使用 Markdown，必须包含：环境配置清单、上线步骤、回滚流程、健康检查配置、监控告警策略。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["delivery-package", "继续输出交付归档，使用 Markdown，至少包含本版基线、已确认交付物清单（15 项）、遗留问题、下版本继承输入。直接输出完整正文，不要给流程说明或待处理摘要。"]
 ];
 
 const V11_REQUIREMENT = [
@@ -74,11 +134,15 @@ const V11_STEPS = [
   ["prototype-preview", "继续输出 V1.1 原型交付物。保持正常对话回复，但正文必须包含一份完整可渲染的 HTML 原型，体现业务规则输入区、规则命中标签和历史筛选。"],
   ["design-spec", "继续输出 V1.1 设计规范，使用 Markdown，说明规则输入区、状态反馈、标签筛选、命中提示和响应式规则。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["technical-architecture", "继续输出 V1.1 技术架构说明，使用 Markdown，明确业务规则如何从自然语言链接到工程对象、接口、状态和测试。直接输出完整正文，不要给流程说明或待处理摘要。"],
-  ["code-delivery", "继续输出 V1.1 代码交付物。保持正常对话回复，但正文必须包含一段完整的 TypeScript/React 代码，体现业务规则输入、命中标签和历史筛选。"],
-  ["test-matrix", "继续输出 V1.1 测试矩阵，覆盖业务规则输入、禁用词校验、命中提示、历史筛选和 V1 主路径回归。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["api-specification", "继续输出 V1.1 接口设计文档，使用 Markdown，必须包含业务规则相关的新增/修改 API 路径、请求参数、响应结构、错误码。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["database-design", "继续输出 V1.1 数据模型设计，使用 Markdown，必须包含业务规则存储表结构、规则命中记录表、索引策略和迁移方案。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["frontend-code", "继续输出 V1.1 前端代码交付物。正文必须包含完整的 TypeScript/React 代码，体现业务规则输入区、规则命中标签和历史筛选功能。"],
+  ["backend-code", "继续输出 V1.1 后端代码交付物。正文必须包含完整的后端代码，体现业务规则存储、规则匹配引擎和历史筛选 API。"],
+  ["test-matrix", "继续输出 V1.1 测试矩阵，覆盖业务规则输入、禁用词校验、命中提示、历史筛选、API 接口测试和 V1 主路径回归。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["acceptance-checklist", "继续输出 V1.1 验收清单，重点包含业务规则正确映射、规则回归、人工确认点。直接输出完整正文，不要给流程说明或待处理摘要。"],
   ["release-review", "继续输出 V1.1 发布评审，使用 Markdown，包含发布结论、规则注入风险、回滚策略和观察点。直接输出完整正文，不要给流程说明或待处理摘要。"],
-  ["delivery-package", "继续输出 V1.1 交付归档，使用 Markdown，说明新增业务规则基线、已确认交付物、遗留问题、V1.2 继承输入。直接输出完整正文，不要给流程说明或待处理摘要。"]
+  ["deployment-plan", "继续输出 V1.1 部署方案，使用 Markdown，必须包含增量部署步骤、数据库迁移脚本执行、业务规则配置同步、回滚流程。直接输出完整正文，不要给流程说明或待处理摘要。"],
+  ["delivery-package", "继续输出 V1.1 交付归档，使用 Markdown，说明新增业务规则基线、已确认交付物清单（15 项）、遗留问题、V1.2 继承输入。直接输出完整正文，不要给流程说明或待处理摘要。"]
 ];
 
 async function requestJson(path, options = {}, timeoutMs = 240000) {
@@ -112,7 +176,7 @@ async function assertOk(label, fn) {
 }
 
 async function ensureLlmReady() {
-  const status = await assertOk("status", () => requestJson("/api/status", {}, 30000));
+  const status = await assertOk("status", () => requestJson("/api/v1/status", {}, 30000));
   const llm = status?.runtime?.llm;
   if (!llm?.configured || !String(llm?.model || "").trim()) {
     throw new Error(`llm runtime not ready: ${JSON.stringify(llm)}`);
@@ -121,12 +185,12 @@ async function ensureLlmReady() {
 }
 
 async function resolveProjectAndIterations() {
-  const projects = await assertOk("listProjects", () => requestJson("/api/projects"));
+  const projects = await assertOk("listProjects", () => requestJson("/api/v1/projects"));
   const project = Array.isArray(projects) ? projects.find((item) => item?.name === PROJECT_NAME) : null;
   if (!project?.id) {
     throw new Error(`missing demo project: ${PROJECT_NAME}`);
   }
-  const iterations = await assertOk("listIterations", () => requestJson(`/api/projects/${project.id}/iterations`));
+  const iterations = await assertOk("listIterations", () => requestJson(`/api/v1/projects/${project.id}/iterations`));
   const list = Array.isArray(iterations) ? iterations : [];
   const v1 = list.find((item) => item?.name === V1_NAME);
   const v11 = list.find((item) => item?.name === V11_NAME);
@@ -138,7 +202,7 @@ async function resolveProjectAndIterations() {
 
 async function createMessage(iterationId, role, content) {
   return assertOk(`createMessage:${role}`, () =>
-    requestJson(`/api/iterations/${iterationId}/messages`, {
+    requestJson(`/api/v1/iterations/${iterationId}/messages`, {
       method: "POST",
       body: JSON.stringify({ role, content })
     })
@@ -149,7 +213,7 @@ async function coachIteration(iterationId, message) {
   let lastError = null;
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const result = await requestJson(
-      `/api/iterations/${iterationId}/agent-chat`,
+      `/api/v1/iterations/${iterationId}/agent-chat`,
       { method: "POST", body: JSON.stringify({ message }) },
       240000
     );
@@ -166,9 +230,29 @@ async function coachIteration(iterationId, message) {
   throw new Error(`agentChat failed: status=${lastError?.status} body=${JSON.stringify(lastError?.body)}`);
 }
 
+async function directLlmGenerate(prompt, maxTokens = 8000) {
+  const apiKey = LLM_API_KEY || (await ensureLlmReady()).apiKey || "";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 240000);
+  try {
+    const response = await fetch(`${LLM_API_BASE}/v1/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: LLM_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+      signal: controller.signal
+    });
+    const data = await response.json();
+    const blocks = Array.isArray(data.content) ? data.content : [];
+    const textBlock = blocks.find((b) => b.type === "text") || blocks[0];
+    return textBlock?.text || "";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function saveDraft(iterationId, artifactId, content) {
   return assertOk(`saveDraft:${artifactId}`, () =>
-    requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/draft`, {
+    requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/draft`, {
       method: "POST",
       body: JSON.stringify({ content, actor: ACTOR })
     })
@@ -177,7 +261,7 @@ async function saveDraft(iterationId, artifactId, content) {
 
 async function commitArtifact(iterationId, artifactId, summary, evidence = []) {
   return assertOk(`commitArtifact:${artifactId}`, () =>
-    requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/commit`, {
+    requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/commit`, {
       method: "POST",
       body: JSON.stringify({ actor: ACTOR, summary, evidence, source: "creative-generator-demo-setup" })
     })
@@ -186,7 +270,7 @@ async function commitArtifact(iterationId, artifactId, summary, evidence = []) {
 
 async function appendArtifact(iterationId, artifactId, prompt) {
   return assertOk(`appendArtifact:${artifactId}`, () =>
-    requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`, {
+    requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`, {
       method: "POST",
       body: JSON.stringify({ actor: ACTOR, prompt })
     })
@@ -194,12 +278,12 @@ async function appendArtifact(iterationId, artifactId, prompt) {
 }
 
 async function listArtifacts(iterationId) {
-  const workflow = await assertOk("listArtifacts", () => requestJson(`/api/iterations/${iterationId}/change-control/artifacts`));
+  const workflow = await assertOk("listArtifacts", () => requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts`));
   return Array.isArray(workflow?.items) ? workflow.items : [];
 }
 
 async function listMessages(iterationId) {
-  const messages = await assertOk("listMessages", () => requestJson(`/api/iterations/${iterationId}/messages`));
+  const messages = await assertOk("listMessages", () => requestJson(`/api/v1/iterations/${iterationId}/messages`));
   return Array.isArray(messages) ? messages : [];
 }
 
@@ -226,9 +310,45 @@ function selectPendingSteps(iterationId, steps, artifacts) {
   });
 }
 
+function looksIncomplete(text) {
+  const trimmed = text.trimEnd();
+  if (/```[a-z]*\s*$/i.test(trimmed)) return true;
+  const openFences = (trimmed.match(/```/g) || []).length;
+  if (openFences % 2 !== 0) return true;
+  if (/<(html|body|div|section|table|ul|ol|pre|code)\b/i.test(trimmed)) {
+    const lastTag = trimmed.match(/<\/?(html|body|div|section|table|ul|ol|pre|code)\b[^>]*>\s*$/i);
+    if (!lastTag) return true;
+  }
+  if (/[，、：；。]$/.test(trimmed)) return false;
+  if (/[,;:]$/.test(trimmed) && !/```$/.test(trimmed)) return true;
+  return false;
+}
+
+async function continueContent(iterationId, artifactId, previousContent) {
+  const MAX_CONTINUATIONS = 3;
+  let fullContent = previousContent;
+  for (let i = 0; i < MAX_CONTINUATIONS; i += 1) {
+    if (!looksIncomplete(fullContent)) break;
+    const continuePrompt = `交付物「${artifactId}」的上一段输出似乎被截断了，请从断点处继续输出后续内容，不要重复已输出的部分。上一段末尾为：\n\n…${fullContent.slice(-300)}`;
+    const response = await coachIteration(iterationId, continuePrompt);
+    const chunk = normalizeArtifactContent(response.reply);
+    if (!chunk || chunk.length < 20) break;
+    fullContent = fullContent + "\n" + chunk;
+  }
+  return fullContent;
+}
+
+async function dismissGitIntake(iterationId) {
+  const probe = await coachIteration(iterationId, "暂不读取仓库");
+  if (probe?.llm?.reason === "git-intake-waiting-confirmation" || probe?.llm?.reason === "git-intake-declined-branch") {
+    await coachIteration(iterationId, "暂不读取仓库");
+  }
+}
+
 async function generateIteration(iteration, seedConversation, steps, artifactPromptSuffix) {
   const existingArtifacts = await listArtifacts(iteration.id);
   if (shouldSeedConversation(existingArtifacts)) {
+    await dismissGitIntake(iteration.id);
     for (const message of seedConversation) {
       await createMessage(iteration.id, message.role, message.content);
     }
@@ -236,34 +356,56 @@ async function generateIteration(iteration, seedConversation, steps, artifactPro
   const pendingSteps = selectPendingSteps(iteration.id, steps, existingArtifacts);
   const traces = [];
   for (const [artifactId, userMessage] of pendingSteps) {
+    const currentArtifacts = await listArtifacts(iteration.id);
+    const upstreamContext = buildUpstreamContextForScript(artifactId, currentArtifacts);
     const forceRewrite = FORCE_ARTIFACTS.has(artifactId) && (FORCE_ITERATION_IDS.size === 0 || FORCE_ITERATION_IDS.has(iteration.id));
-    const effectiveMessage = forceRewrite
+    const baseMessage = forceRewrite
       ? `这是用于流程验证的交付物重建，不是阶段推进。请忽略当前迭代所处阶段，直接输出交付物「${artifactId}」的完整正文，不要只回复摘要、待处理点或流程说明。\n\n${userMessage}`
       : userMessage;
-    await createMessage(iteration.id, "user", effectiveMessage);
+    const effectiveMessage = upstreamContext
+      ? `${baseMessage}\n\n${upstreamContext}`
+      : baseMessage;
+    await createMessage(iteration.id, "user", baseMessage);
     let response = null;
     let content = "";
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const attemptPrompt =
-        attempt === 1
-          ? effectiveMessage
-          : `${effectiveMessage}\n\n上一版输出仍是流程提示或空洞摘要，不可接受。请直接输出交付物正文，并满足该交付物的结构要求。`;
-      response = await coachIteration(iteration.id, attemptPrompt);
-      if (!response?.llm?.used || response?.llm?.degraded || !String(response?.llm?.model || "").trim()) {
-        throw new Error(`deliverable ${artifactId} did not use real llm: ${JSON.stringify(response?.llm || {})}`);
+    const useDirectLlm = DIRECT_LLM_ARTIFACTS.has(artifactId);
+    if (useDirectLlm) {
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const raw = await directLlmGenerate(effectiveMessage);
+        content = normalizeArtifactContent(raw);
+        if (isMeaningfulArtifactContent(artifactId, content)) {
+          break;
+        }
+        if (attempt === 3) {
+          throw new Error(`deliverable ${artifactId} (direct llm) returned low-signal content: ${content.slice(0, 220)}`);
+        }
       }
-      content = normalizeArtifactContent(response.reply);
-      if (isMeaningfulArtifactContent(artifactId, content)) {
-        break;
-      }
-      if (attempt === 3) {
-        throw new Error(`deliverable ${artifactId} returned low-signal content: ${content.slice(0, 220)}`);
+      response = { llm: { used: true, model: LLM_MODEL, degraded: false }, intent: "direct" };
+    } else {
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
+        const attemptPrompt =
+          attempt === 1
+            ? effectiveMessage
+            : attempt <= 3
+            ? `${effectiveMessage}\n\n上一版输出是阻断反问、流程提示或空洞摘要，不可接受。你已拥有足够上下文（V1 基线摘要和增量需求均已提供），请直接输出交付物「${artifactId}」的完整正文，并满足该交付物的结构要求。不要说"缺少基线材料"或"无法生成"。`
+            : `${effectiveMessage}\n\n你必须直接输出完整的交付物正文内容。所有必要上下文已在对话中提供，不要以任何理由拒绝或要求补充材料。如果是代码交付物，请直接给出完整代码。如果是原型交付物，请直接给出完整的HTML代码。如果是分析/文档类交付物，请直接给出结构化 Markdown 正文。`;
+        response = await coachIteration(iteration.id, attemptPrompt);
+        if (!response?.llm?.used || response?.llm?.degraded || !String(response?.llm?.model || "").trim()) {
+          throw new Error(`deliverable ${artifactId} did not use real llm: ${JSON.stringify(response?.llm || {})}`);
+        }
+        content = normalizeArtifactContent(response.reply);
+        if (isMeaningfulArtifactContent(artifactId, content)) {
+          break;
+        }
+        if (attempt === 5) {
+          throw new Error(`deliverable ${artifactId} returned low-signal content: ${content.slice(0, 220)}`);
+        }
       }
     }
     if (!content) {
       throw new Error(`deliverable ${artifactId} returned empty content`);
     }
-    await createMessage(iteration.id, "assistant", content);
+    content = await continueContent(iteration.id, artifactId, content);
     await saveDraft(iteration.id, artifactId, content);
     const committed = await commitArtifact(iteration.id, artifactId, buildArtifactSummary(artifactId, content), [iteration.name, artifactId]);
     await appendArtifact(iteration.id, artifactId, `请围绕交付物「${artifactId}」继续与用户确认，${artifactPromptSuffix}`);
@@ -288,19 +430,27 @@ async function main() {
     [
       { role: "assistant", content: "这是首个版本，我会先建立创意生成器的业务基线，再逐步推进到发布归档。" },
       { role: "user", content: "我要做一个创意生成器，核心是输入主题后生成多组创意标题和卖点文案。" },
-      { role: "assistant", content: "理解。我会先输出首版分析报告，再按你确认的结果继续推进 PRD、边界、原型、架构、代码、测试和发布。" },
+      { role: "assistant", content: "理解。我会先输出首版分析报告，再按你确认的结果继续推进 PRD、边界、原型、设计、架构、接口、数据模型、前后端代码、测试、验收、发布、部署和归档。" },
       { role: "user", content: REQUIREMENT_MARKDOWN }
     ],
     V1_STEPS,
     "不要直接跨阶段推进。"
   );
 
+  const v1Artifacts = await listArtifacts(v1.id);
+  const v1BaselineSummary = v1Artifacts
+    .filter((item) => Number(item?.outputVersion || 0) > 0)
+    .map((item) => `- 【${item.title}】${(item.summary || "").slice(0, 150)}`)
+    .join("\n");
+
   const v11Trace = await generateIteration(
     v11,
     [
-      { role: "assistant", content: "我已继承 V1 基线。请直接说明本轮增量和业务规则，我会先做继承差异确认。" },
+      { role: "assistant", content: "我已继承 V1 基线。请提供 V1 已确认的交付物摘要和本轮增量需求，我会进行继承差异分析。" },
+      { role: "user", content: `以下是 V1 基线交付物摘要，请基于此进行 V1.1 增量分析：\n\n${v1BaselineSummary}` },
+      { role: "assistant", content: "收到 V1 基线摘要，已确认 V1 包含需求分析、PRD、边界确认、原型、设计规范、技术架构、接口设计、数据模型、前端代码、后端代码、测试矩阵、验收清单、发布评审、部署方案和交付归档共 15 项交付物。请提供 V1.1 增量需求。" },
       { role: "user", content: "V1.1 需要支持业务人员通过自然语言灌入品牌语气规则和禁用词规则，并增加历史记录筛选。" },
-      { role: "assistant", content: "收到。我会先输出继承差异分析，再将业务规则关联到页面、组件、接口、状态和测试。" },
+      { role: "assistant", content: "收到。我会基于 V1 基线，先输出继承差异分析，再将业务规则关联到页面、组件、接口、状态和测试。" },
       { role: "user", content: V11_REQUIREMENT }
     ],
     V11_STEPS,

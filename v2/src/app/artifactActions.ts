@@ -8,6 +8,7 @@ import {
   saveIterationArtifactDraft,
   transitionIterationArtifactStage
 } from "./workspaceApi";
+import { withBusyAction } from "../shared/withBusyAction";
 
 export type ArtifactActionDeps = {
   currentIteration: Iteration | null;
@@ -25,19 +26,13 @@ export const handleSaveArtifactDraft = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
-  try {
-    deps.setBusy(true);
-    await saveIterationArtifactDraft(deps.currentIteration.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    await saveIterationArtifactDraft(deps.currentIteration!.id, artifactId, payload);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-    throw err;
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleCommitArtifact = async (
@@ -46,19 +41,13 @@ export const handleCommitArtifact = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
-  try {
-    deps.setBusy(true);
-    await commitIterationArtifact(deps.currentIteration.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    await commitIterationArtifact(deps.currentIteration!.id, artifactId, payload);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-    throw err;
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleConfirmArtifact = async (
@@ -67,19 +56,13 @@ export const handleConfirmArtifact = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
-  try {
-    deps.setBusy(true);
-    await confirmIterationArtifact(deps.currentIteration.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    await confirmIterationArtifact(deps.currentIteration!.id, artifactId, payload);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-    throw err;
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleAppendArtifactToChat = async (
@@ -88,16 +71,10 @@ export const handleAppendArtifactToChat = async (
   payload?: { actor?: string; prompt?: string }
 ) => {
   if (!deps.currentIteration) return;
-  try {
-    deps.setBusy(true);
-    const result = await appendIterationArtifactToChat(deps.currentIteration.id, artifactId, payload);
+  await withBusyAction(deps, async () => {
+    const result = await appendIterationArtifactToChat(deps.currentIteration!.id, artifactId, payload);
     deps.setChatMessages((prev) => [...prev, result.message]);
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-    throw err;
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };
 
 export const handleTransitionArtifactStage = async (
@@ -105,17 +82,12 @@ export const handleTransitionArtifactStage = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
-  try {
-    deps.setBusy(true);
-    await transitionIterationArtifactStage(deps.currentIteration.id, payload);
-    await deps.loadIterationDetail(deps.currentIteration.id);
-    await fetchIterationArtifactWorkflow(deps.currentIteration.id);
+  await withBusyAction(deps, async () => {
+    await transitionIterationArtifactStage(deps.currentIteration!.id, payload);
+    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await fetchIterationArtifactWorkflow(deps.currentIteration!.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-  } catch (err) {
-    deps.setError(err instanceof Error ? err.message : "Unknown error");
-  } finally {
-    deps.setBusy(false);
-  }
+  });
 };

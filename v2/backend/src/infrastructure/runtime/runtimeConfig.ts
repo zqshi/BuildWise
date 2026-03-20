@@ -22,6 +22,9 @@ export type RuntimeConfig = {
   workspaceDbFile: string;
   dataFile: string;
   modelFile: string;
+  openclawHome: string;
+  homeDir: string;
+  openclawSkillsEnabled: boolean;
 };
 
 function parsePositiveInt(value: string | undefined, fallback: number) {
@@ -120,19 +123,25 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
   const authPublicPathPrefixes = parsePathPrefixes(env.AUTH_PUBLIC_PATH_PREFIXES, [
     "/health",
     "/ready",
-    "/api/status",
-    "/api/collab/share/",
-    "/api/auth/"
+    "/api/v1/status",
+    "/api/v1/collab/share/",
+    "/api/v1/auth/"
   ]);
   const storageBackend = parseStorageBackend(env.STORAGE_BACKEND);
-  if (nodeEnv === "production" && corsOrigins === true) {
-    throw new Error("CORS_ORIGINS must be explicitly configured in production");
+  if (nodeEnv !== "development" && corsOrigins === true) {
+    throw new Error("CORS_ORIGINS must be explicitly configured in non-development environments");
   }
   if (nodeEnv === "production" && authMode === "off") {
     throw new Error(`AUTH_MODE must be 'token' or 'jwt' in production (current: '${authMode}')`);
   }
   if (authMode === "token" && Object.keys(authTokens).length === 0) {
     throw new Error("AUTH_MODE=token requires AUTH_TOKENS_JSON");
+  }
+  if (authMode === "token" && nodeEnv === "production") {
+    const hasPlaceholder = Object.keys(authTokens).some((key) => key.includes("change-me"));
+    if (hasPlaceholder) {
+      throw new Error("AUTH_TOKENS_JSON contains placeholder 'change-me' tokens — replace them before deploying to production");
+    }
   }
   if (authMode === "jwt") {
     const secret = (env.JWT_SECRET || "").trim();
@@ -162,6 +171,9 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     jwtAccessTtlSec: parsePositiveInt(env.JWT_ACCESS_TTL_SEC, 7200),
     jwtRefreshTtlSec: parsePositiveInt(env.JWT_REFRESH_TTL_SEC, 604800),
     dataFile: env.WORKSPACE_DATA_FILE?.trim() || defaults.dataFile,
-    modelFile: env.MODEL_FILE?.trim() || defaults.modelFile
+    modelFile: env.MODEL_FILE?.trim() || defaults.modelFile,
+    openclawHome: env.OPENCLAW_HOME?.trim() || "",
+    homeDir: env.HOME?.trim() || "",
+    openclawSkillsEnabled: parseBool(env.BUILDWISE_OPENCLAW_SKILLS_ENABLED, false)
   };
 }

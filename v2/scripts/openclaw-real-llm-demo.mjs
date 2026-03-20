@@ -48,7 +48,7 @@ async function resolveTargetIteration() {
   if (Number.isFinite(TARGET_ITERATION_ID) && TARGET_ITERATION_ID > 0) {
     return TARGET_ITERATION_ID;
   }
-  const projects = await assertOk("listProjects", () => requestJson("/api/projects"));
+  const projects = await assertOk("listProjects", () => requestJson("/api/v1/projects"));
   const projectList = Array.isArray(projects) ? projects : [];
   const targetProject =
     (Number.isFinite(TARGET_PROJECT_ID) && TARGET_PROJECT_ID > 0
@@ -57,7 +57,7 @@ async function resolveTargetIteration() {
   if (!targetProject?.id) {
     throw new Error("no project found; please seed data first");
   }
-  const iterations = await assertOk("listIterations", () => requestJson(`/api/projects/${targetProject.id}/iterations`));
+  const iterations = await assertOk("listIterations", () => requestJson(`/api/v1/projects/${targetProject.id}/iterations`));
   const iterationList = Array.isArray(iterations) ? iterations : [];
   const target = iterationList.find((item) => item?.current) || iterationList[iterationList.length - 1];
   if (!target?.id) {
@@ -67,7 +67,7 @@ async function resolveTargetIteration() {
 }
 
 async function assertLlmReady() {
-  const status = await assertOk("status", () => requestJson("/api/status", undefined, 30000));
+  const status = await assertOk("status", () => requestJson("/api/v1/status", undefined, 30000));
   const llm = status?.runtime?.llm;
   const configured = Boolean(llm?.configured);
   const reachable = Boolean(llm?.reachable);
@@ -81,7 +81,7 @@ async function assertLlmReady() {
 
 async function createMessage(iterationId, role, content) {
   await assertOk(`createMessage:${role}`, () =>
-    requestJson(`/api/iterations/${iterationId}/messages`, {
+    requestJson(`/api/v1/iterations/${iterationId}/messages`, {
       method: "POST",
       body: JSON.stringify({ role, content })
     })
@@ -90,7 +90,7 @@ async function createMessage(iterationId, role, content) {
 
 async function appendArtifactToChat(iterationId, artifactId, prompt) {
   await assertOk(`appendArtifact:${artifactId}`, () =>
-    requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`, {
+    requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`, {
       method: "POST",
       body: JSON.stringify({ actor: ACTOR, prompt })
     })
@@ -100,7 +100,7 @@ async function appendArtifactToChat(iterationId, artifactId, prompt) {
 async function runCoachStep(iterationId, step) {
   await createMessage(iterationId, "user", step.userMessage);
   const response = await assertOk(`agentChat:${step.name}`, () =>
-    requestJson(`/api/iterations/${iterationId}/agent-chat`, {
+    requestJson(`/api/v1/iterations/${iterationId}/agent-chat`, {
       method: "POST",
       body: JSON.stringify({ message: step.userMessage })
     })

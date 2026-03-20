@@ -129,21 +129,23 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
     v1 = next((item for item in iterations if str(item.get('version', '')).startswith('1.0')), iterations[0] if iterations else {})
     v11 = next((item for item in iterations if str(item.get('version', '')).startswith('1.1')), iterations[-1] if iterations else {})
     v1_name = v1.get('name', 'V1 首版本：创意生成器 MVP')
+    v1_version = v1.get('version', '1.0.0')
     v11_name = v11.get('name', 'V1.1 后续版本：业务规则注入与历史筛选')
+    v11_version = v11.get('version', '1.0.1')
     return [
         (
             'login',
             f'''先打开 http://127.0.0.1:5173/app.html#/login。
-如果看到登录页：无论“手机验证码”是否已经选中，都先点击一次“手机验证码”标签，再输入手机号 {LOGIN_PHONE}，点击“发送验证码”，等待验证码自动填入后点击“登 录”。
+如果看到登录页：无论”手机验证码”是否已经选中，都先点击一次”手机验证码”标签，再输入手机号 {LOGIN_PHONE}，点击”发送验证码”，等待验证码自动填入后点击”登 录”。
 如果已经是已登录态，也需要确认当前不在营销页。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
             'workspace_navigation',
             f'''在当前浏览器会话中继续操作。
-先在仪表盘中定位项目“{project_name}”，优先点击该项目区域附近的“查看全部”按钮展开项目版本面板。
-然后在版本列表中找到“{v11_name}”对应的“进入版本”按钮并点击。
-成功标准：页面显示“迭代内需求沟通”，且顶部能看到“{v11_name}”或其版本号，且会话区能看到 BuildWise AI 消息。
+先在仪表盘中定位项目”{project_name}”，优先点击该项目区域附近的”查看全部”按钮展开项目版本面板。
+然后在版本列表中找到版本号”{v11_version}”（名称”{v11_name}”）对应行的”进入版本”按钮并点击。注意：UI上可能只显示版本号”{v11_version}”而不显示完整名称。
+成功标准：页面显示”迭代内需求沟通”，且会话区能看到 BuildWise AI 消息。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
@@ -156,8 +158,9 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
         ),
         (
             'v11_analysis_drawer',
-            '''在会话流中找到“继承差异分析报告”交付物卡片，点击“查看交付物”。
-            确认右侧抽屉出现，并且正文不是空白提示。
+            '''先滚动到会话流顶部（分析报告是第一个生成的交付物，在最上面）。
+在会话流中找到”继承差异分析报告”交付物卡片，点击卡片上的”查看交付物”按钮。
+确认右侧抽屉出现，并且正文不是空白提示。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
@@ -174,14 +177,16 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
         ),
         (
             'switch_to_v1',
-            f'''回到版本选择或项目页，切换进入版本“{v1_name}”。
-成功标准：页面顶部出现“{v1_name}”或版本号 1.0.0，并能看到首版交付物会话卡片。
+            f'''回到版本选择或项目页，切换进入版本号”{v1_version}”（名称”{v1_name}”）。
+点击”返回项目管理”回到项目面板，然后在版本列表中找到版本号”{v1_version}”对应行的”进入版本”按钮并点击。
+成功标准：页面显示”迭代内需求沟通”，并能看到首版交付物会话卡片。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
             'v1_analysis_drawer',
-            '''在 V1 会话流中找到“首版需求分析报告”交付物卡片，点击“查看交付物”。
-确认抽屉出现，正文含有分析报告结构化内容，而不是空摘要。
+            '''先滚动到会话流顶部（分析报告是第一个生成的交付物，在最上面）。
+在 V1 会话流中找到”首版需求分析报告”交付物卡片，点击卡片上的”查看交付物”按钮。
+确认抽屉出现，正文含有分析报告结构化内容（如”目标用户”、”问题定义”等章节），而不是空摘要。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
@@ -233,8 +238,8 @@ async def run_stage(session: BrowserSession, llm, key: str, task: str) -> StageR
             include_tool_call_examples=True,
             save_conversation_path=str(ARTIFACTS_DIR / f'browser-use-{key}-{suffix}-{REPORT_STAMP}.json'),
             extend_system_message=SYSTEM_RULE,
-            max_failures=6,
-            step_timeout=180,
+            max_failures=8,
+            step_timeout=240,
         )
         history = await agent.run(max_steps=40)
         return (history.final_result() or '').strip()
@@ -271,9 +276,9 @@ async def main() -> int:
         allowed_domains=['127.0.0.1', 'localhost'],
         headless=HEADLESS,
         keep_alive=True,
-        wait_between_actions=0.8,
-        minimum_wait_page_load_time=1.0,
-        wait_for_network_idle_page_load_time=1.0,
+        wait_between_actions=1.5,
+        minimum_wait_page_load_time=2.0,
+        wait_for_network_idle_page_load_time=2.0,
     )
 
     results: list[StageResult] = []

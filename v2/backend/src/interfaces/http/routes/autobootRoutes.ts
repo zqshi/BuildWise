@@ -18,31 +18,31 @@ function normalizeMethod(value: string) {
 
 function isCoreWorkspacePath(path: string) {
   return (
-    path === "/api/projects" ||
-    path.startsWith("/api/projects/:id/iterations") ||
-    path.startsWith("/api/iterations/")
+    path === "/projects" ||
+    path.startsWith("/projects/:id/iterations") ||
+    path.startsWith("/iterations/")
   );
 }
 
 function isCorePlatformPath(path: string) {
   return (
-    path.startsWith("/api/collab/") ||
-    path.startsWith("/api/templates") ||
-    path.startsWith("/api/openapi/") ||
-    path.startsWith("/api/ops/")
+    path.startsWith("/collab/") ||
+    path.startsWith("/templates") ||
+    path.startsWith("/openapi/") ||
+    path.startsWith("/ops/")
   );
 }
 
 export async function registerAutobootRoutes(app: FastifyInstance, service: ModelingService) {
-  app.get("/api/model", async () => {
+  app.get("/model", async () => {
     return service.getModel();
   });
 
-  app.get("/api/model/entities", async () => {
+  app.get("/model/entities", async () => {
     return service.listEntities();
   });
 
-  app.post("/api/model/entities", async (request, reply) => {
+  app.post("/model/entities", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -61,13 +61,13 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     });
   });
 
-  app.get("/api/model/relations", async (request) => {
+  app.get("/model/relations", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     return service.listRelations(projectId || undefined);
   });
 
-  app.get("/api/projects/:id/model/relations", async (request, reply) => {
+  app.get("/projects/:id/model/relations", async (request, reply) => {
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -77,7 +77,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     return service.listRelations(projectId);
   });
 
-  app.get("/api/projects/:id/model/business-summary", async (request, reply) => {
+  app.get("/projects/:id/model/business-summary", async (request, reply) => {
     const params = request.params as { id?: string };
     const query = request.query as { iterationId?: string } | null;
     const projectId = parsePositiveInt(params.id);
@@ -109,7 +109,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     }
   });
 
-  app.post("/api/model/relations", async (request, reply) => {
+  app.post("/model/relations", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -155,7 +155,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     return created.value;
   });
 
-  app.delete("/api/model/relations/:id", async (request, reply) => {
+  app.delete("/model/relations/:id", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -177,45 +177,45 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     return { ok: true, id: relationId };
   });
 
-  app.get("/api/rules/compile", async () => {
+  app.get("/rules/compile", async () => {
     return service.compileRules();
   });
 
-  app.get("/api/rules/bind", async () => {
+  app.get("/rules/bind", async () => {
     return service.bindRules();
   });
 
-  app.get("/api/sync/report", async (request) => {
+  app.get("/sync/report", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     return service.buildSyncReport(projectId || undefined);
   });
 
-  app.get("/api/trace", async (request) => {
+  app.get("/trace", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     return service.buildTraceReport(projectId || undefined);
   });
 
-  app.get("/api/trace/map", async (request) => {
+  app.get("/trace/map", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     return service.buildTraceReport(projectId || undefined);
   });
 
   const roadmapPaths = [
-    "/api/roadmap-v0-1",
-    "/api/roadmap-v0-2",
-    "/api/roadmap-v0-3",
-    "/api/roadmap-v0-4",
-    "/api/roadmap-v0-5",
-    "/api/roadmap-v0-6",
-    "/api/roadmap-v0-7",
-    "/api/roadmap-v0-8",
-    "/api/roadmap-v0-9",
-    "/api/roadmap-v1-0",
-    "/api/roadmap-v1-1",
-    "/api/roadmap-v1-2"
+    "/roadmap-v0-1",
+    "/roadmap-v0-2",
+    "/roadmap-v0-3",
+    "/roadmap-v0-4",
+    "/roadmap-v0-5",
+    "/roadmap-v0-6",
+    "/roadmap-v0-7",
+    "/roadmap-v0-8",
+    "/roadmap-v0-9",
+    "/roadmap-v1-0",
+    "/roadmap-v1-1",
+    "/roadmap-v1-2"
   ] as const;
 
   for (const path of roadmapPaths) {
@@ -229,7 +229,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
     });
   }
 
-  app.get("/api/roadmaps", async () => {
+  app.get("/roadmaps", async () => {
     return roadmapPaths
       .map((path) => service.describeRoadmap(path))
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
@@ -237,24 +237,34 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
 
   const apis: ModelApi[] = service.listRoutes();
   const reserved = new Set([
-    "/api/model",
-    "/api/model/entities",
-    "/api/model/relations",
-    "/api/rules/compile",
-    "/api/rules/bind",
-    "/api/sync/report",
-    "/api/trace",
-    "/api/trace/map"
+    "/model",
+    "/model/entities",
+    "/model/relations",
+    "/rules/compile",
+    "/rules/bind",
+    "/sync/report",
+    "/trace",
+    "/trace/map",
+    "/roadmaps",
+    ...roadmapPaths
   ]);
 
   for (const api of apis) {
-    const path = typeof api.path === "string" ? api.path : "";
+    let path = typeof api.path === "string" ? api.path : "";
     if (!path) {
       continue;
+    }
+    // Strip legacy /api/ prefix — Fastify register prefix handles this now
+    if (path.startsWith("/api/")) {
+      path = path.slice(4);
     }
     const method = normalizeMethod(api.method ?? "GET");
     // Keep core workspace routes authoritative.
     if (reserved.has(path) || isCoreWorkspacePath(path) || isCorePlatformPath(path)) {
+      continue;
+    }
+    // Dynamic routes only register GET — write operations must be declared explicitly
+    if (method !== "GET") {
       continue;
     }
     const key = `${method} ${path}`;
@@ -265,7 +275,7 @@ export async function registerAutobootRoutes(app: FastifyInstance, service: Mode
       method,
       url: path,
       handler: async () => {
-        if (method === "GET" && path.startsWith("/api/roadmap-v")) {
+        if (path.startsWith("/roadmap-v")) {
           const roadmap = service.describeRoadmap(path);
           if (roadmap) {
             return roadmap;

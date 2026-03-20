@@ -1,5 +1,6 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { AttachmentAnalysisReport, UploadedAttachmentMeta } from "../domain/workspace/types";
+import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import {
   accessShare,
   commentByShare,
@@ -73,49 +74,20 @@ export function useAppController() {
     setDeployments: state.setDeployments
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("buildwise:active-view", state.activeView);
-    } catch {
-      // ignore storage failure
-    }
-  }, [state.activeView]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("buildwise:project-panel-mode", state.projectPanelMode);
-    } catch {
-      // ignore storage failure
-    }
-  }, [state.projectPanelMode]);
-
-  useEffect(() => {
-    try {
-      if (state.currentProjectId) {
-        localStorage.setItem("buildwise:current-project-id", String(state.currentProjectId));
-      } else {
-        localStorage.removeItem("buildwise:current-project-id");
-      }
-    } catch {
-      // ignore storage failure
-    }
-  }, [state.currentProjectId]);
-
-  useEffect(() => {
-    try {
-      if (state.currentIterationId) {
-        localStorage.setItem("buildwise:current-iteration-id", String(state.currentIterationId));
-      } else {
-        localStorage.removeItem("buildwise:current-iteration-id");
-      }
-    } catch {
-      // ignore storage failure
-    }
-  }, [state.currentIterationId]);
+  // NOTE: localStorage persistence for activeView, projectPanelMode,
+  // currentProjectId, and currentIterationId is now handled by the
+  // corresponding Context providers (NavigationProvider, ProjectProvider,
+  // IterationProvider).
 
   useEffect(() => {
     state.setCurrentRole(auth.workspaceRole);
   }, [auth.workspaceRole, state.setCurrentRole]);
+
+  // Guard: only load modelOps once per project switch, not on every state change
+  const modelOpsLoadedForRef = useRef<number | null>(null);
+
+  // Track whether the current project actually exists in the loaded list
+  const projectExistsInList = derived.currentProject !== null && derived.currentProject.id === state.currentProjectId;
 
   useEffect(() => {
     if (!state.currentProjectId) {
@@ -125,9 +97,10 @@ export function useAppController() {
       state.setVersionSnapshots([]);
       state.setProjectShares([]);
       state.setShareAccess(null);
+      modelOpsLoadedForRef.current = null;
       return;
     }
-    if (!derived.currentProject || derived.currentProject.id !== state.currentProjectId) {
+    if (!projectExistsInList) {
       state.setIterations([]);
       state.setCurrentIterationId(null);
       state.setVersionSnapshots([]);
@@ -136,17 +109,23 @@ export function useAppController() {
       state.setError((prev) => (prev && /^API error: 404\b/.test(prev) ? null : prev));
       return;
     }
+    modelOpsLoadedForRef.current = state.currentProjectId;
     Promise.all([
       loaders.loadIterations(state.currentProjectId),
       loaders.loadCollaboration(state.currentProjectId),
       loaders.loadModelOps(state.currentProjectId)
     ]).catch((err) => {
-      state.setError(err instanceof Error ? err.message : "Unknown error");
+      const msg = resolveErrorMessage(err);
+      if (!msg.includes("401")) {
+        state.setError(msg);
+      }
     });
-  }, [state.currentProjectId, derived.currentProject]);
+  }, [state.currentProjectId, projectExistsInList]);
+
+  const iterationExistsInList = derived.currentIteration !== null && derived.currentIteration.id === state.currentIterationId;
 
   useEffect(() => {
-    if (!state.currentIterationId || !derived.currentIteration) {
+    if (!state.currentIterationId || !iterationExistsInList) {
       state.setChatMessages([]);
       state.setChatSendStatus("idle");
       state.setUploadedFile(null);
@@ -188,7 +167,10 @@ export function useAppController() {
       // ignore broken cache and continue with backend data
     }
     loaders.loadIterationDetail(state.currentIterationId).catch(async (err) => {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveErrorMessage(err);
+      if (message.includes("401")) {
+        return;
+      }
       if (/^API error: 404\b/.test(message)) {
         if (state.currentProjectId) {
           try {
@@ -201,7 +183,7 @@ export function useAppController() {
       }
       state.setError(message);
     });
-  }, [state.currentIterationId, state.currentProjectId, derived.currentIteration]);
+  }, [state.currentIterationId, state.currentProjectId, iterationExistsInList]);
 
   useEffect(() => {
     if (!state.currentIterationId || !state.analysisReport) {
@@ -235,13 +217,34 @@ export function useAppController() {
     if (state.activeView !== "projects") {
       return;
     }
-    if (state.modelOpsLoading || (state.modelSummary && state.ruleCompile && state.traceReport)) {
+    if (state.projects.length > 0 || state.status?.status === "offline") {
       return;
     }
-    loaders.loadModelOps(state.currentProjectId ?? undefined).catch((err) => {
-      state.setError(err instanceof Error ? err.message : "Unknown error");
+    loaders.loadProjects().catch((err) => {
+      const msg = resolveErrorMessage(err);
+      if (!msg.includes("401")) {
+        state.setError(msg);
+      }
     });
-  }, [state.activeView, state.currentProjectId, state.modelOpsLoading, state.modelSummary, state.ruleCompile, state.traceReport]);
+  }, [state.activeView, state.projects.length, state.status?.status]);
+
+  // Guard: only load modelOps once per view switch (not re-triggered by state changes from loadModelOps itself)
+  useEffect(() => {
+    if (state.activeView !== "projects") {
+      return;
+    }
+    const pid = state.currentProjectId ?? -1;
+    if (modelOpsLoadedForRef.current === pid) {
+      return;
+    }
+    modelOpsLoadedForRef.current = pid;
+    loaders.loadModelOps(state.currentProjectId ?? undefined).catch((err) => {
+      const msg = resolveErrorMessage(err);
+      if (!msg.includes("401")) {
+        state.setError(msg);
+      }
+    });
+  }, [state.activeView, state.currentProjectId]);
 
   const projectActions = useProjectActions({
     currentProject: derived.currentProject,

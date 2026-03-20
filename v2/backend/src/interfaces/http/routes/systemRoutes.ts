@@ -9,7 +9,7 @@ type SystemRouteContext = {
 };
 
 export async function registerSystemRoutes(app: FastifyInstance, context: SystemRouteContext) {
-  app.get("/api/status", async () => {
+  app.get("/api/v1/status", async () => {
     return {
       status: "ok",
       service: context.serviceName,
@@ -40,7 +40,11 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
     return { status: "ready", runtime };
   });
 
-  app.get("/api/ops/runtime", async () => {
+  app.get("/api/v1/ops/runtime", async (request, reply) => {
+    if (request.authRole === "viewer") {
+      reply.code(403);
+      return { message: "permission denied" };
+    }
     return context.getRuntime();
   });
 }

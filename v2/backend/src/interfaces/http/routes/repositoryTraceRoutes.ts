@@ -3,7 +3,7 @@ import type { WorkspaceService } from "../../../application/workspace/workspaceS
 import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 
 export async function registerRepositoryTraceRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/api/projects/:id/repository", async (request, reply) => {
+  app.get("/projects/:id/repository", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -18,7 +18,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return repo;
   });
 
-  app.post("/api/projects/:id/repository/bootstrap", async (request, reply) => {
+  app.post("/projects/:id/repository/bootstrap", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -65,7 +65,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return repo.data;
   });
 
-  app.post("/api/projects/:id/repository/validate", async (request, reply) => {
+  app.post("/projects/:id/repository/validate", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -94,7 +94,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.get("/api/projects/:id/repository/status", async (request, reply) => {
+  app.get("/projects/:id/repository/status", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -109,7 +109,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return status;
   });
 
-  app.get("/api/projects/:id/repository/migration-plan", async (request, reply) => {
+  app.get("/projects/:id/repository/migration-plan", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -124,7 +124,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return plan;
   });
 
-  app.post("/api/projects/:id/repository/mode", async (request, reply) => {
+  app.post("/projects/:id/repository/mode", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -153,7 +153,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return configured;
   });
 
-  app.post("/api/projects/:id/repository/provision", async (request, reply) => {
+  app.post("/projects/:id/repository/provision", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -198,7 +198,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.post("/api/projects/:id/repository/scaffold", async (request, reply) => {
+  app.post("/projects/:id/repository/scaffold", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -228,12 +228,12 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
         return { message: "project not found" };
       }
       reply.code(500);
-      return { message: result.message || "repository scaffold failed" };
+      return { message: "repository scaffold failed" };
     }
     return result.data;
   });
 
-  app.post("/api/iterations/:id/publish", async (request, reply) => {
+  app.post("/iterations/:id/publish", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -290,7 +290,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.post("/api/iterations/:id/code-link", async (request, reply) => {
+  app.post("/iterations/:id/code-link", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -325,7 +325,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return linked;
   });
 
-  app.get("/api/iterations/:id/code-link", async (request, reply) => {
+  app.get("/iterations/:id/code-link", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -340,7 +340,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return codeLink;
   });
 
-  app.get("/api/projects/:id/code-trace", async (request, reply) => {
+  app.get("/projects/:id/code-trace", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {

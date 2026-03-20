@@ -10,6 +10,7 @@
  */
 
 import type { IterationAgentPrompt } from "../../domain/workspace/types";
+import { resolveErrorMessage } from "../../shared/utils";
 import type {
   AgentRunner,
   AgentRunResult,
@@ -76,11 +77,13 @@ export class OpenClawAgentRunner implements AgentRunner {
 
       return {
         content: result.content,
-        model: result.model
+        model: result.model,
+        finishReason: result.finishReason,
+        truncated: result.truncated
       };
     } catch (error) {
       if (traceEnabled) {
-        const message = error instanceof Error ? error.message : "unknown_error";
+        const message = resolveErrorMessage(error);
         log.info("fail", { role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt, error: message });
       }
       throw error;
@@ -109,7 +112,9 @@ export class OpenClawAgentRunner implements AgentRunner {
 
     return {
       content: result.content,
-      model: result.model
+      model: result.model,
+      finishReason: result.finishReason,
+      truncated: result.truncated
     };
   }
 

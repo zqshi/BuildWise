@@ -14,6 +14,8 @@ import {
   updateIterationInteractionState,
   createIterationMessage
 } from "./workspaceApi";
+import { resolveErrorMessage } from "../shared/resolveErrorMessage";
+import { type FileWithPath, getFilePath } from "../shared/fileTypes";
 
 /* ── pure helpers (no deps) ──────────────────────────────────────────── */
 
@@ -56,7 +58,7 @@ export const buildAutoFullCycleAnalysisInput = (
 };
 
 export const resolveUploadErrorMessage = (error: unknown) => {
-  const raw = error instanceof Error ? error.message : "Unknown error";
+  const raw = resolveErrorMessage(error);
   if (raw.includes("llm_preflight_not_configured")) {
     return "附件分析失败：AI 服务未配置。请联系管理员完成配置。";
   }
@@ -175,7 +177,7 @@ export const toUploadProgress = (job: AttachmentAnalysisJob): UploadAnalysisProg
 };
 
 export const resolveFolderName = (files: File[]) => {
-  const firstPath = ((files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || "").trim();
+  const firstPath = ((files[0] as FileWithPath).webkitRelativePath || "").trim();
   if (firstPath.includes("/")) {
     return firstPath.split("/")[0];
   }
@@ -192,11 +194,11 @@ export const hashFingerprint = (raw: string) => {
 };
 
 export const buildUploadFingerprint = (files: File[]) => {
-  const hasFolderPath = files.some((item) => Boolean((item as File & { webkitRelativePath?: string }).webkitRelativePath));
+  const hasFolderPath = files.some((item) => Boolean((item as FileWithPath).webkitRelativePath));
   const sourceType = hasFolderPath || files.length > 1 ? "folder" : "single-file";
   const normalizedFiles = files
     .map((item) => ({
-      path: ((item as File & { webkitRelativePath?: string }).webkitRelativePath || item.name || "").trim(),
+      path: (getFilePath(item) || "").trim(),
       name: (item.name || "").trim(),
       size: Number.isFinite(item.size) ? item.size : 0,
       type: (item.type || "").trim().toLowerCase(),
@@ -225,7 +227,7 @@ export const isDocumentAsset = (file: File) => {
 
 export const isPrototypeAsset = (file: File) => {
   const name = file.name.toLowerCase();
-  const path = ((file as File & { webkitRelativePath?: string }).webkitRelativePath || "").toLowerCase();
+  const path = ((file as FileWithPath).webkitRelativePath || "").toLowerCase();
   const type = (file.type || "").toLowerCase();
   const marker = `${name} ${path}`;
   return (
@@ -281,7 +283,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     iterationId: currentIteration.id,
     files: [...files]
   };
-  const hasFolderPath = files.some((item) => Boolean((item as File & { webkitRelativePath?: string }).webkitRelativePath));
+  const hasFolderPath = files.some((item) => Boolean((item as FileWithPath).webkitRelativePath));
   const isBatch = hasFolderPath || files.length > 1;
   const folderName = resolveFolderName(files);
   const uploadFingerprint = buildUploadFingerprint(files);
@@ -297,7 +299,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
   const hasPrototypeAssets = files.some(isPrototypeAsset);
   const uploadKind = hasDocumentAssets && hasPrototypeAssets ? "mixed" : hasDocumentAssets ? "documents" : hasPrototypeAssets ? "prototype" : "other";
   const prototypeItems = files
-    .map((item) => ((item as File & { webkitRelativePath?: string }).webkitRelativePath || item.name || "").trim())
+    .map((item) => (getFilePath(item) || "").trim())
     .filter((item) => item.length > 0)
     .filter((item) => /prototype|wireframe|mockup|交互|原型|界面|figma|\.fig$|\.xd$|\.sketch$|\.html?$|\.png$|\.jpg$|\.jpeg$|\.svg$/i.test(item))
     .slice(0, 12);
@@ -311,7 +313,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
             return null;
           }
           const cappedContent = content.length > 300_000 ? content.slice(0, 300_000) : content;
-          const path = ((item as File & { webkitRelativePath?: string }).webkitRelativePath || item.name || "").trim();
+          const path = (getFilePath(item) || "").trim();
           return {
             name: item.name,
             path: path || item.name,
@@ -336,7 +338,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
                 resolve(null);
                 return;
               }
-              const path = ((item as File & { webkitRelativePath?: string }).webkitRelativePath || item.name || "").trim();
+              const path = (getFilePath(item) || "").trim();
               resolve({
                 name: item.name,
                 path: path || item.name,

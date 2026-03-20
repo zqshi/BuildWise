@@ -6,7 +6,7 @@ export function resolveArtifactPreviewKind(artifactId: string): ArtifactPreviewK
   if (artifactId === "prototype-preview") return "html-prototype";
   if (artifactId === "design-spec") return "design-spec";
   if (artifactId === "technical-architecture") return "technical-architecture";
-  if (artifactId === "code-delivery") return "code";
+  if (artifactId === "code-delivery" || artifactId === "frontend-code" || artifactId === "backend-code") return "code";
   if (artifactId === "test-matrix" || artifactId === "acceptance-checklist") return "test-cases";
   if (artifactId === "release-review") return "release-review";
   if (artifactId === "delivery-package") return "delivery-package";

@@ -4,7 +4,7 @@ import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelper
 import { currentRole } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/api/iterations/:id/change-control", async (request, reply) => {
+  app.get("/iterations/:id/change-control", async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -18,7 +18,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/confirm", async (request, reply) => {
+  app.post("/iterations/:id/change-control/confirm", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -73,7 +73,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     return result.data;
   });
 
-  app.post("/api/iterations/:id/change-control/boundary", async (request, reply) => {
+  app.post("/iterations/:id/change-control/boundary", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -103,7 +103,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     return result;
   });
 
-  app.post("/api/iterations/:id/change-control/draft", async (request, reply) => {
+  app.post("/iterations/:id/change-control/draft", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);

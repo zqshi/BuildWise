@@ -13,7 +13,8 @@ import type {
   IterationCoachChatResponse
 } from "../domain/workspace/types";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
-import { API_BASE, isApiNotFound } from "./workspaceApiCore";
+import { API_BASE, API_PREFIX, isApiNotFound } from "./workspaceApiCore";
+import { type FileWithPath, getFilePath } from "../shared/fileTypes";
 
 type LlmPreflightStatus = {
   status?: string;
@@ -27,7 +28,7 @@ type LlmPreflightStatus = {
 };
 
 export async function coachIterationMessage(iterationId: number, message: string) {
-  return fetchJSON<IterationCoachChatResponse>(`${API_BASE}/api/iterations/${iterationId}/agent-chat`, {
+  return fetchJSON<IterationCoachChatResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/agent-chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message })
@@ -51,7 +52,7 @@ export async function executeIterationVisualEdit(
     };
   }
 ) {
-  return fetchJSON<IterationVisualEditResponse>(`${API_BASE}/api/iterations/${iterationId}/visual-edit/execute`, {
+  return fetchJSON<IterationVisualEditResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/visual-edit/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -63,7 +64,7 @@ export async function rewriteIterationCode(
   payload: { instruction: string; dryRun?: boolean; maxFiles?: number }
 ) {
   return fetchJSON<IterationCodeRewriteResponse>(
-    `${API_BASE}/api/iterations/${iterationId}/code-rewrite`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/code-rewrite`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -74,7 +75,7 @@ export async function rewriteIterationCode(
 }
 
 export async function runIterationFullCycle(iterationId: number, payload: IterationFullCycleRunInput) {
-  return fetchJSON<IterationFullCycleRunResponse>(`${API_BASE}/api/iterations/${iterationId}/full-cycle`, {
+  return fetchJSON<IterationFullCycleRunResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/full-cycle`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -108,11 +109,6 @@ async function readImageDataUrl(file: File, maxBytes = 220_000) {
     reader.onload = () => resolve(typeof reader.result === "string" ? reader.result.slice(0, 300000) : "");
     reader.readAsDataURL(file);
   });
-}
-
-function getFilePath(file: File) {
-  const maybePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-  return maybePath || file.name;
 }
 
 async function toAttachmentFileEntry(file: File, withExcerpt = true) {
@@ -169,7 +165,7 @@ export async function initIterationAttachmentUpload(
     files: AttachmentUploadManifestFile[];
   }
 ) {
-  return fetchJSON<AttachmentUploadInitResponse>(`${API_BASE}/api/iterations/${iterationId}/uploads/init`, {
+  return fetchJSON<AttachmentUploadInitResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/uploads/init`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -183,7 +179,7 @@ export async function uploadIterationAttachmentChunk(
   chunkIndexOneBased: number,
   chunkBytes: Uint8Array
 ) {
-  await fetchJSON<null>(`${API_BASE}/api/iterations/${iterationId}/uploads/${encodeURIComponent(uploadId)}/files/${encodeURIComponent(fileId)}/chunks/${chunkIndexOneBased}`, {
+  await fetchJSON<null>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/uploads/${encodeURIComponent(uploadId)}/files/${encodeURIComponent(fileId)}/chunks/${chunkIndexOneBased}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ dataBase64: bytesToBase64(chunkBytes) })
@@ -191,13 +187,13 @@ export async function uploadIterationAttachmentChunk(
 }
 
 export async function completeIterationAttachmentUpload(iterationId: number, uploadId: string) {
-  return fetchJSON<AttachmentUploadCompleteResponse>(`${API_BASE}/api/iterations/${iterationId}/uploads/${encodeURIComponent(uploadId)}/complete`, {
+  return fetchJSON<AttachmentUploadCompleteResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/uploads/${encodeURIComponent(uploadId)}/complete`, {
     method: "POST"
   }, 45000);
 }
 
 export async function submitAttachmentAnalysisJobByUpload(iterationId: number, uploadId: string, schemaVersion = "v2") {
-  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}/api/iterations/${iterationId}/analysis/jobs/by-upload`, {
+  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/by-upload`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ uploadId, schemaVersion })
@@ -206,7 +202,7 @@ export async function submitAttachmentAnalysisJobByUpload(iterationId: number, u
 
 export async function fetchAttachmentReportIndex(iterationId: number, jobId: string) {
   return fetchJSON<AttachmentReportIndex>(
-    `${API_BASE}/api/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}/report-index`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}/report-index`,
     undefined,
     45000
   );
@@ -220,14 +216,14 @@ export async function fetchAttachmentReportSection(
 ) {
   const query = `?cursor=${Math.max(0, Math.floor(cursor))}&limit=${Math.max(1, Math.min(200, Math.floor(limit)))}`;
   return fetchJSON<AttachmentReportSectionPage>(
-    `${API_BASE}/api/reports/${encodeURIComponent(reportId)}/sections/${encodeURIComponent(sectionKey)}${query}`,
+    `${API_BASE}${API_PREFIX}/reports/${encodeURIComponent(reportId)}/sections/${encodeURIComponent(sectionKey)}${query}`,
     undefined,
     45000
   );
 }
 
 async function submitAttachmentAnalysisJob(iterationId: number, payload: AttachmentUploadInput) {
-  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}/api/iterations/${iterationId}/analysis/jobs`, {
+  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -235,13 +231,13 @@ async function submitAttachmentAnalysisJob(iterationId: number, payload: Attachm
 }
 
 async function retryLatestAttachmentAnalysisJob(iterationId: number) {
-  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}/api/iterations/${iterationId}/analysis/jobs/retry-latest`, {
+  return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/retry-latest`, {
     method: "POST"
   }, 45000);
 }
 
 async function ensureLlmReadyForAnalysis() {
-  const status = await fetchJSON<LlmPreflightStatus>(`${API_BASE}/api/status`, undefined, 15000);
+  const status = await fetchJSON<LlmPreflightStatus>(`${API_BASE}${API_PREFIX}/status`, undefined, 15000);
   const llm = status?.runtime?.llm;
   if (!llm?.configured) {
     throw new Error(`llm_preflight_not_configured:${llm?.error || "missing_configuration"}`);
@@ -253,7 +249,7 @@ async function ensureLlmReadyForAnalysis() {
 
 async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
   return fetchJSON<AttachmentAnalysisJob>(
-    `${API_BASE}/api/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}`,
     undefined,
     45000
   );
@@ -474,7 +470,7 @@ export async function analyzeIterationAttachmentByChunkUpload(
 ) {
   await ensureLlmReadyForAnalysis();
   const normalized = files.filter((item) => item.size >= 0).slice(0, 1000);
-  const hasFolderPath = normalized.some((item) => Boolean((item as File & { webkitRelativePath?: string }).webkitRelativePath));
+  const hasFolderPath = normalized.some((item) => Boolean((item as FileWithPath).webkitRelativePath));
   const sourceType = hasFolderPath || normalized.length > 1 ? "folder" : "single-file";
   const folderName = options?.folderName?.trim() || "uploaded-folder";
   const chunkSizeBytes = 4 * 1024 * 1024;
@@ -516,7 +512,7 @@ export async function retryIterationAttachmentAnalysis(
   const createdJob =
     options?.jobId?.trim()
       ? await fetchJSON<AttachmentAnalysisJob>(
-          `${API_BASE}/api/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(options.jobId)}/retry`,
+          `${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(options.jobId)}/retry`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

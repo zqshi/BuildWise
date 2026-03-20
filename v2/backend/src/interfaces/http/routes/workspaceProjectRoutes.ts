@@ -5,15 +5,15 @@ import { currentRole, isAdmin, isValidPhone, parsePositiveInt } from "./workspac
 export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
   const validVersionTypes = new Set(["major", "minor", "patch"]);
 
-  app.get("/api/governance/roles", async () => {
+  app.get("/governance/roles", async () => {
     return service.listGovernanceRoles();
   });
 
-  app.get("/api/governance/permission-points", async () => {
+  app.get("/governance/permission-points", async () => {
     return service.listGovernancePermissionPoints();
   });
 
-  app.get("/api/governance/audit-logs", async (request, reply) => {
+  app.get("/governance/audit-logs", async (request, reply) => {
     const query = request.query as { limit?: string } | null;
     const limit = query?.limit ? Number(query.limit) : 50;
     if (!Number.isFinite(limit) || limit <= 0) {
@@ -23,11 +23,11 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.listAuditLogs(Math.min(200, Math.floor(limit)));
   });
 
-  app.get("/api/governance/platform-role-bindings", async () => {
+  app.get("/governance/platform-role-bindings", async () => {
     return service.listPlatformRoleBindings();
   });
 
-  app.post("/api/governance/platform-role-bindings", async (request, reply) => {
+  app.post("/governance/platform-role-bindings", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -54,7 +54,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.upsertPlatformRoleBinding({ userId, role: roleKey });
   });
 
-  app.delete("/api/governance/platform-role-bindings/:userId", async (request, reply) => {
+  app.delete("/governance/platform-role-bindings/:userId", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -131,11 +131,11 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return { ok: true, roleKey };
   };
 
-  app.get("/api/governance/custom-roles", listCustomRolesHandler);
-  app.post("/api/governance/custom-roles", upsertCustomRolesHandler);
-  app.delete("/api/governance/custom-roles/:roleKey", removeCustomRoleHandler);
+  app.get("/governance/custom-roles", listCustomRolesHandler);
+  app.post("/governance/custom-roles", upsertCustomRolesHandler);
+  app.delete("/governance/custom-roles/:roleKey", removeCustomRoleHandler);
 
-  app.post("/api/governance/openclaw/chat", async (request, reply) => {
+  app.post("/governance/openclaw/chat", async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -151,19 +151,24 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       return await service.openclawDirectChatGlobal(message);
     } catch (error) {
       reply.code(500);
-      return { message: error instanceof Error ? error.message : "openclaw chat failed" };
+      return { message: "Internal server error" };
     }
   });
 
-  app.get("/api/governance/openclaw/status", async () => {
+  app.get("/governance/openclaw/status", async () => {
     return service.probeOpenclawIntegration();
   });
 
-  app.get("/api/projects", async () => {
+  app.get("/projects", async () => {
     return service.listProjects();
   });
 
-  app.post("/api/projects", async (request, reply) => {
+  app.post("/projects", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const body = request.body as { name?: string; description?: string } | null;
     const name = body?.name?.trim();
     if (!name) {
@@ -176,7 +181,12 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     });
   });
 
-  app.delete("/api/projects/:id", async (request, reply) => {
+  app.delete("/projects/:id", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -195,7 +205,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     };
   });
 
-  app.get("/api/projects/:id/iterations", async (request, reply) => {
+  app.get("/projects/:id/iterations", async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -210,7 +220,12 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return items;
   });
 
-  app.post("/api/projects/:id/iterations", async (request, reply) => {
+  app.post("/projects/:id/iterations", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (role === "viewer") {
+      reply.code(403);
+      return { message: `permission denied for role ${role}` };
+    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {

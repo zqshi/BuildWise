@@ -158,7 +158,7 @@ async function runCoachWithRetry(iterationId, message, maxAttempts = 3) {
   let lastError = "";
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const result = await requestJson(
-      `/api/iterations/${iterationId}/agent-chat`,
+      `/api/v1/iterations/${iterationId}/agent-chat`,
       {
         method: "POST",
         body: JSON.stringify({ message })
@@ -181,7 +181,7 @@ async function runCoachWithRetry(iterationId, message, maxAttempts = 3) {
 
 async function postMessage(iterationId, role, content, label) {
   return assertOk(label, () =>
-    requestJson(`/api/iterations/${iterationId}/messages`, {
+    requestJson(`/api/v1/iterations/${iterationId}/messages`, {
       method: "POST",
       body: JSON.stringify({ role, content })
     })
@@ -189,7 +189,7 @@ async function postMessage(iterationId, role, content, label) {
 }
 
 async function markAllTestCasesPassed(iterationId) {
-  const cc = await assertOk(`getChangeControl#${iterationId}`, () => requestJson(`/api/iterations/${iterationId}/change-control`));
+  const cc = await assertOk(`getChangeControl#${iterationId}`, () => requestJson(`/api/v1/iterations/${iterationId}/change-control`));
   const matrix = Array.isArray(cc.generatedTestMatrix) ? cc.generatedTestMatrix : [];
   if (matrix.length === 0) {
     return { updated: 0 };
@@ -201,7 +201,7 @@ async function markAllTestCasesPassed(iterationId) {
     note: "全链路真实验证已执行"
   }));
   await assertOk(`updateTestMatrixExecution#${iterationId}`, () =>
-    requestJson(`/api/iterations/${iterationId}/change-control/test-matrix/execution`, {
+    requestJson(`/api/v1/iterations/${iterationId}/change-control/test-matrix/execution`, {
       method: "POST",
       body: JSON.stringify({ updates })
     })
@@ -210,7 +210,7 @@ async function markAllTestCasesPassed(iterationId) {
 }
 
 async function transitionWithReason(iterationId, toStatus, reason) {
-  return requestJson(`/api/iterations/${iterationId}/state/transition`, {
+  return requestJson(`/api/v1/iterations/${iterationId}/state/transition`, {
     method: "POST",
     body: JSON.stringify({ toStatus, reason })
   });
@@ -246,7 +246,7 @@ async function writeArtifactConversation(iterationId, index) {
     await safeJson(
       `artifactDraft#${iterationId}#${entry.id}`,
       () =>
-        requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${entry.id}/draft`, {
+        requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${entry.id}/draft`, {
           method: "POST",
           body: JSON.stringify({
             actor: "seed-script",
@@ -259,7 +259,7 @@ async function writeArtifactConversation(iterationId, index) {
     await safeJson(
       `artifactCommit#${iterationId}#${entry.id}`,
       () =>
-        requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${entry.id}/commit`, {
+        requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${entry.id}/commit`, {
           method: "POST",
           body: JSON.stringify({
             actor: "seed-script",
@@ -275,7 +275,7 @@ async function writeArtifactConversation(iterationId, index) {
     await safeJson(
       `artifactConfirm#${iterationId}#${entry.id}`,
       () =>
-        requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${entry.id}/confirm`, {
+        requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${entry.id}/confirm`, {
           method: "POST",
           body: JSON.stringify({
             actor: "seed-script",
@@ -288,7 +288,7 @@ async function writeArtifactConversation(iterationId, index) {
     await safeJson(
       `artifactAddToChat#${iterationId}#${entry.id}`,
       () =>
-        requestJson(`/api/iterations/${iterationId}/change-control/artifacts/${entry.id}/add-to-chat`, {
+        requestJson(`/api/v1/iterations/${iterationId}/change-control/artifacts/${entry.id}/add-to-chat`, {
           method: "POST",
           body: JSON.stringify({
             actor: "seed-script",
@@ -313,14 +313,14 @@ async function main() {
 
   let project;
   if (Number.isFinite(TARGET_PROJECT_ID) && TARGET_PROJECT_ID > 0) {
-    const projects = await assertOk("listProjects", () => requestJson("/api/projects"));
+    const projects = await assertOk("listProjects", () => requestJson("/api/v1/projects"));
     project = Array.isArray(projects) ? projects.find((item) => Number(item?.id) === TARGET_PROJECT_ID) : null;
     if (!project) {
       throw new Error(`target project not found: ${TARGET_PROJECT_ID}`);
     }
   } else {
     project = await assertOk("createProject", () =>
-      requestJson("/api/projects", {
+      requestJson("/api/v1/projects", {
         method: "POST",
         body: JSON.stringify({
           name: `全链路真实演示项目-${STAMP}`,
@@ -332,7 +332,7 @@ async function main() {
   report.project = { id: project.id, name: project.name };
 
   const scaffold = await assertOk("scaffoldProjectRepository", () =>
-    requestJson(`/api/projects/${project.id}/repository/scaffold`, {
+    requestJson(`/api/v1/projects/${project.id}/repository/scaffold`, {
       method: "POST",
       body: JSON.stringify({
         initializeGit: true,
@@ -347,7 +347,7 @@ async function main() {
     const index = scenario.seq;
     const iterationName = `${scenario.name}-${STAMP}`;
     const iteration = await assertOk(`createIteration#${index}`, () =>
-      requestJson(`/api/projects/${project.id}/iterations`, {
+      requestJson(`/api/v1/projects/${project.id}/iterations`, {
         method: "POST",
         body: JSON.stringify({
           name: iterationName,
@@ -379,7 +379,7 @@ async function main() {
     }
 
     const boundary = await assertOk(`boundary#${index}`, () =>
-      requestJson(`/api/iterations/${iteration.id}/change-control/boundary`, {
+      requestJson(`/api/v1/iterations/${iteration.id}/change-control/boundary`, {
         method: "POST",
         body: JSON.stringify({
           requirementRefs: [`版本${index}业务目标确认`, `版本${index}风险处理可追溯`],
@@ -391,7 +391,7 @@ async function main() {
     );
 
     const confirmed = await assertOk(`confirm#${index}`, () =>
-      requestJson(`/api/iterations/${iteration.id}/change-control/confirm`, {
+      requestJson(`/api/v1/iterations/${iteration.id}/change-control/confirm`, {
         method: "POST",
         body: JSON.stringify({
           accurate: true,
@@ -405,7 +405,7 @@ async function main() {
       `testArtifacts#${index}`,
       () =>
         requestJson(
-          `/api/iterations/${iteration.id}/change-control/test-artifacts/generate`,
+          `/api/v1/iterations/${iteration.id}/change-control/test-artifacts/generate`,
           {
             method: "POST",
             body: JSON.stringify({ dryRun: false })
@@ -421,7 +421,7 @@ async function main() {
     const matrixExecution = await markAllTestCasesPassed(iteration.id);
     const release = await safeJson(
       `releaseReview#${index}`,
-      () => requestJson(`/api/iterations/${iteration.id}/release-review`),
+      () => requestJson(`/api/v1/iterations/${iteration.id}/release-review`),
       {
         decision: "caution",
         score: 70,

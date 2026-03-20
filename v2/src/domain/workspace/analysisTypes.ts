@@ -529,6 +529,8 @@ export type IterationCoachChatResponse = {
     model: string;
     degraded: boolean;
     reason: string;
+    continuations?: number;
+    contentComplete?: boolean;
   };
 };
 

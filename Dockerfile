@@ -42,6 +42,7 @@ USER buildwise
 ENV NODE_ENV=production
 ENV PORT=5055
 ENV HOST=0.0.0.0
+ENV AUTH_MODE=jwt
 ENV STORAGE_BACKEND=sqlite
 ENV WORKSPACE_DB_FILE=/app/data/workspace.db
 ENV WORKSPACE_DATA_FILE=/app/data/data.runtime.json

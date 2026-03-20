@@ -10,6 +10,52 @@ export type JwtPayload = {
 
 const HEADER_B64 = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
 
+// --------------- Revoked-token store (pluggable) ---------------
+
+export interface RevokedTokenStore {
+  revoke(token: string, expiresAt: number): void;
+  isRevoked(token: string): boolean;
+}
+
+/** Default in-memory store — used when no persistent store is injected. */
+class MemoryRevokedTokenStore implements RevokedTokenStore {
+  private readonly map = new Map<string, number>();
+  revoke(token: string, expiresAt: number): void {
+    this.map.set(token, expiresAt);
+    const now = Math.floor(Date.now() / 1000);
+    if (this.map.size > 200) {
+      for (const [t, exp] of this.map) {
+        if (exp <= now) this.map.delete(t);
+      }
+    }
+  }
+  isRevoked(token: string): boolean {
+    const exp = this.map.get(token);
+    if (exp === undefined) return false;
+    const now = Math.floor(Date.now() / 1000);
+    if (exp <= now) {
+      this.map.delete(token);
+      return false;
+    }
+    return true;
+  }
+}
+
+let revokedStore: RevokedTokenStore = new MemoryRevokedTokenStore();
+
+/** Inject a persistent revoked-token store (call once at startup). */
+export function setRevokedTokenStore(store: RevokedTokenStore): void {
+  revokedStore = store;
+}
+
+export function revokeToken(token: string, expiresAt: number): void {
+  revokedStore.revoke(token, expiresAt);
+}
+
+export function isTokenRevoked(token: string): boolean {
+  return revokedStore.isRevoked(token);
+}
+
 function toBase64Url(input: string): string {
   return Buffer.from(input).toString("base64url");
 }

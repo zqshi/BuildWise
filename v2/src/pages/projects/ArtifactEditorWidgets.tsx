@@ -14,19 +14,13 @@ import "prismjs/components/prism-typescript.js";
 import "prismjs/themes/prism-tomorrow.css";
 import {
   type ArtifactDocumentProfile,
-  type ArtifactMarkdownCodeBlock,
-  type ArtifactMarkdownTable,
   buildEditorLineNumbers,
   detectCodeLanguage,
   detectDocumentFormat,
-  extractArtifactMarkdownCodeBlocks,
-  extractArtifactMarkdownTables,
-  extractArtifactOutlineSections,
   extractArtifactDocumentContent,
   normalizeMarkdownForPreview,
   normalizeRichTextContent,
   stripRichTextToPlainText,
-  summarizeArtifactStructure,
   summarizeArtifactText
 } from "./artifactEditorModel";
 
@@ -52,121 +46,7 @@ const markdown = new MarkdownIt({
   breaks: true
 });
 
-const OVERVIEW_ENABLED_PROFILES = new Set<ArtifactDocumentProfile>([
-  "design-spec",
-  "technical-architecture",
-  "test-cases",
-  "release-review",
-  "delivery-package"
-]);
 
-function renderSectionOutline(title: string, sections: ReturnType<typeof extractArtifactOutlineSections>) {
-  if (sections.length === 0) {
-    return null;
-  }
-  return (
-    <section className="deliverable-section artifact-profile-section">
-      <h4>{title}</h4>
-      <ul className="history-list">
-        {sections.map((section, index) => (
-          <li key={`${title}-${section.title}-${index}`} className="history-item">
-            <strong>{section.title}</strong>
-            {section.summary ? <p>{section.summary}</p> : null}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function renderCodeBlockCards(title: string, blocks: ArtifactMarkdownCodeBlock[]) {
-  if (blocks.length === 0) {
-    return null;
-  }
-  return (
-    <section className="deliverable-section artifact-profile-section">
-      <h4>{title}</h4>
-      <div className="artifact-profile-code-list">
-        {blocks.map((block, index) => (
-          <article key={`${block.language}-${index}`} className="artifact-profile-code-card">
-            <span>{block.language}</span>
-            <pre>{block.preview}</pre>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function renderTablePreview(title: string, tables: ArtifactMarkdownTable[]) {
-  if (tables.length === 0) {
-    return null;
-  }
-  return (
-    <section className="deliverable-section artifact-profile-section">
-      <h4>{title}</h4>
-      <div className="artifact-profile-table-list">
-        {tables.map((table, tableIndex) => (
-          <div key={`${title}-table-${tableIndex}`} className="artifact-profile-table-card">
-            <div className="artifact-profile-table-head">
-              {table.headers.map((header, headerIndex) => (
-                <strong key={`${header}-${headerIndex}`}>{header || `列${headerIndex + 1}`}</strong>
-              ))}
-            </div>
-            {table.rows.slice(0, 4).map((row, rowIndex) => (
-              <div key={`${title}-row-${rowIndex}`} className="artifact-profile-table-row">
-                {table.headers.map((header, columnIndex) => (
-                  <div key={`${header}-${columnIndex}`}>
-                    <span>{header || `列${columnIndex + 1}`}</span>
-                    <p>{row[columnIndex] || "-"}</p>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function renderProfileOverview(
-  profile: ArtifactDocumentProfile,
-  outlineSections: ReturnType<typeof extractArtifactOutlineSections>,
-  codeBlocks: ArtifactMarkdownCodeBlock[],
-  tables: ArtifactMarkdownTable[]
-) {
-  if (profile === "design-spec") {
-    const keySections = outlineSections.filter((section) => /布局|色彩|字体|状态|动效|交互|响应式/.test(section.title)).slice(0, 6);
-    return (
-      <>
-        {renderSectionOutline("设计章节导航", keySections.length > 0 ? keySections : outlineSections)}
-        {renderTablePreview("规范表格预览", tables)}
-        {renderCodeBlockCards("样式与交互片段", codeBlocks)}
-      </>
-    );
-  }
-  if (profile === "technical-architecture") {
-    const keySections = outlineSections.filter((section) => /模块|接口|数据|边界|依赖|回滚|失败|流程/.test(section.title)).slice(0, 6);
-    return (
-      <>
-        {renderSectionOutline("架构章节导航", keySections.length > 0 ? keySections : outlineSections)}
-        {renderTablePreview("接口与边界表", tables)}
-        {renderCodeBlockCards("实现与伪代码片段", codeBlocks)}
-      </>
-    );
-  }
-  if (profile === "test-cases") {
-    return (
-      <>
-        {renderTablePreview("测试用例预览", tables)}
-        {renderSectionOutline("测试章节导航", outlineSections)}
-        {renderCodeBlockCards("脚本与断言片段", codeBlocks)}
-      </>
-    );
-  }
-  return renderSectionOutline("文档结构", outlineSections);
-}
 
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
@@ -185,7 +65,7 @@ function createMarkup(value: string) {
   return sanitizeHtml(markdown.render(normalizeMarkdownForPreview(resolvedValue.trim() ? resolvedValue : "*暂无内容*")));
 }
 
-export function ArtifactTextEditor({ title, value, profile = "generic", readOnly = false, showTitle = true, onChange, actions }: ArtifactTextEditorProps) {
+export function ArtifactTextEditor({ title, value, profile: _profile = "generic", readOnly = false, showTitle = true, onChange, actions }: ArtifactTextEditorProps) {
   const resolvedValue = useMemo(() => extractArtifactDocumentContent(value), [value]);
   const documentFormat = useMemo(() => detectDocumentFormat(resolvedValue), [resolvedValue]);
   const normalizedContent = useMemo(() => normalizeRichTextContent(resolvedValue), [resolvedValue]);
@@ -194,10 +74,6 @@ export function ArtifactTextEditor({ title, value, profile = "generic", readOnly
     [documentFormat, normalizedContent, resolvedValue]
   );
   const stats = useMemo(() => summarizeArtifactText(plainText), [plainText]);
-  const structureSummary = useMemo(() => summarizeArtifactStructure(resolvedValue), [resolvedValue]);
-  const outlineSections = useMemo(() => extractArtifactOutlineSections(resolvedValue), [resolvedValue]);
-  const markdownCodeBlocks = useMemo(() => extractArtifactMarkdownCodeBlocks(resolvedValue), [resolvedValue]);
-  const markdownTables = useMemo(() => extractArtifactMarkdownTables(resolvedValue), [resolvedValue]);
   const markdownLineNumbers = useMemo(() => buildEditorLineNumbers(resolvedValue), [resolvedValue]);
   const markdownMarkup = useMemo(() => createMarkup(resolvedValue), [resolvedValue]);
   const editor = useEditor({
@@ -239,67 +115,6 @@ export function ArtifactTextEditor({ title, value, profile = "generic", readOnly
     };
   }, [documentFormat, editor, onChange, readOnly]);
 
-  const overviewConfig = useMemo(() => {
-    const configMap: Record<ArtifactDocumentProfile, { title: string; stats: Array<{ label: string; value: number }> }> = {
-      prd: {
-        title: "需求结构",
-        stats: [
-          { label: "章节数", value: structureSummary.headingCount },
-          { label: "表格行", value: structureSummary.tableRowCount },
-          { label: "清单项", value: structureSummary.checklistCount }
-        ]
-      },
-      "design-spec": {
-        title: "设计结构",
-        stats: [
-          { label: "章节数", value: structureSummary.headingCount },
-          { label: "代码示例", value: structureSummary.codeFenceCount },
-          { label: "表格行", value: structureSummary.tableRowCount }
-        ]
-      },
-      "technical-architecture": {
-        title: "架构结构",
-        stats: [
-          { label: "章节数", value: structureSummary.headingCount },
-          { label: "代码示例", value: structureSummary.codeFenceCount },
-          { label: "表格行", value: structureSummary.tableRowCount }
-        ]
-      },
-      "test-cases": {
-        title: "测试结构",
-        stats: [
-          { label: "章节数", value: structureSummary.headingCount },
-          { label: "表格行", value: structureSummary.tableRowCount },
-          { label: "清单项", value: structureSummary.checklistCount }
-        ]
-      },
-      "release-review": {
-        title: "发布结构",
-        stats: [
-          { label: "章节数", value: structureSummary.headingCount },
-          { label: "表格行", value: structureSummary.tableRowCount },
-          { label: "清单项", value: structureSummary.checklistCount }
-        ]
-      },
-      "delivery-package": {
-        title: "归档结构",
-        stats: [
-          { label: "章节数", value: structureSummary.headingCount },
-          { label: "表格行", value: structureSummary.tableRowCount },
-          { label: "清单项", value: structureSummary.checklistCount }
-        ]
-      },
-      generic: {
-        title: "文档结构",
-        stats: [{ label: "章节数", value: structureSummary.headingCount }]
-      }
-    };
-    return configMap[profile];
-  }, [profile, structureSummary.checklistCount, structureSummary.codeFenceCount, structureSummary.headingCount, structureSummary.tableRowCount]);
-  const visibleOverviewStats = overviewConfig.stats.filter((item) => item.value > 0).slice(0, 4);
-  const hasProfileOverview = outlineSections.length > 0 || visibleOverviewStats.length > 0 || markdownCodeBlocks.length > 0 || markdownTables.length > 0;
-  const shouldShowOverview = readOnly && documentFormat === "markdown" && OVERVIEW_ENABLED_PROFILES.has(profile) && hasProfileOverview;
-
   return (
     <div className={`artifact-editor-shell ${readOnly ? "is-readonly" : ""}`}>
       <div className="artifact-editor-toolbar">
@@ -319,24 +134,6 @@ export function ArtifactTextEditor({ title, value, profile = "generic", readOnly
       </div>
       {readOnly ? (
         <>
-          {shouldShowOverview ? (
-            <div className="artifact-drawer-structured-content">
-              {visibleOverviewStats.length > 0 ? (
-                <div className="deliverable-kv-grid">
-                  {visibleOverviewStats.map((item) => (
-                    <div key={`${overviewConfig.title}-${item.label}`}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {outlineSections.length > 0 ? (
-                renderProfileOverview(profile, outlineSections, markdownCodeBlocks, markdownTables)
-              ) : null}
-              {outlineSections.length === 0 ? renderProfileOverview(profile, outlineSections, markdownCodeBlocks, markdownTables) : null}
-            </div>
-          ) : null}
           <div className="artifact-markdown-preview" dangerouslySetInnerHTML={{ __html: markdownMarkup }} />
         </>
       ) : documentFormat === "html" ? (

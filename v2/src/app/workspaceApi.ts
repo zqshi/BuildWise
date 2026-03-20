@@ -35,17 +35,17 @@ import type {
 } from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
-import { API_BASE, isApiNotFound } from "./workspaceApiCore";
+import { API_BASE, API_PREFIX, isApiNotFound } from "./workspaceApiCore";
 
 export * from "./workspaceApiAgentOps";
 
 export async function fetchProjects() {
-  const projectDataRaw = await fetchJSON<unknown>(`${API_BASE}/api/projects`);
+  const projectDataRaw = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/projects`);
   return ensureArray<Project>(projectDataRaw).filter((item) => !item.deletedAt);
 }
 
 export async function createProject(payload: { name: string; description: string }) {
-  return fetchJSON<Project>(`${API_BASE}/api/projects`, {
+  return fetchJSON<Project>(`${API_BASE}${API_PREFIX}/projects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -53,7 +53,7 @@ export async function createProject(payload: { name: string; description: string
 }
 
 export async function fetchProjectRepository(projectId: number) {
-  return fetchJSON(`${API_BASE}/api/projects/${projectId}/repository`);
+  return fetchJSON(`${API_BASE}${API_PREFIX}/projects/${projectId}/repository`);
 }
 
 export async function bootstrapProjectRepository(
@@ -69,7 +69,7 @@ export async function bootstrapProjectRepository(
     requireRemoteForStaging?: boolean;
   }
 ) {
-  return fetchJSON(`${API_BASE}/api/projects/${projectId}/repository/bootstrap`, {
+  return fetchJSON(`${API_BASE}${API_PREFIX}/projects/${projectId}/repository/bootstrap`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -81,7 +81,7 @@ export async function validateProjectRepositoryRemote(projectId: number, payload
     ok: true;
     checkedAt: string;
     message: string;
-  }>(`${API_BASE}/api/projects/${projectId}/repository/validate`, {
+  }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/repository/validate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -105,7 +105,7 @@ export async function fetchProjectRepositoryStatus(projectId: number) {
     };
     remote?: unknown;
     workspace?: unknown;
-  }>(`${API_BASE}/api/projects/${projectId}/repository/status`);
+  }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/repository/status`);
 }
 
 export async function fetchProjectRepositoryMigrationPlan(projectId: number) {
@@ -122,7 +122,7 @@ export async function fetchProjectRepositoryMigrationPlan(projectId: number) {
       status: "pending" | "ready" | "done" | "blocked";
       action: string;
     }>;
-  }>(`${API_BASE}/api/projects/${projectId}/repository/migration-plan`);
+  }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/repository/migration-plan`);
 }
 
 export async function configureProjectRepositoryMode(
@@ -133,7 +133,7 @@ export async function configureProjectRepositoryMode(
     requireRemoteForStaging?: boolean;
   }
 ) {
-  return fetchJSON(`${API_BASE}/api/projects/${projectId}/repository/mode`, {
+  return fetchJSON(`${API_BASE}${API_PREFIX}/projects/${projectId}/repository/mode`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -141,7 +141,7 @@ export async function configureProjectRepositoryMode(
 }
 
 export async function deleteProject(projectId: number) {
-  return fetchJSON<{ ok: boolean; projectId: number; deletedAt: string }>(`${API_BASE}/api/projects/${projectId}`, {
+  return fetchJSON<{ ok: boolean; projectId: number; deletedAt: string }>(`${API_BASE}${API_PREFIX}/projects/${projectId}`, {
     method: "DELETE"
   });
 }
@@ -149,13 +149,13 @@ export async function deleteProject(projectId: number) {
 export async function fetchProjectModelBusinessSummary(projectId: number, iterationId?: number) {
   const endpoint =
     typeof iterationId === "number" && iterationId > 0
-      ? `${API_BASE}/api/projects/${projectId}/model/business-summary?iterationId=${iterationId}`
-      : `${API_BASE}/api/projects/${projectId}/model/business-summary`;
+      ? `${API_BASE}${API_PREFIX}/projects/${projectId}/model/business-summary?iterationId=${iterationId}`
+      : `${API_BASE}${API_PREFIX}/projects/${projectId}/model/business-summary`;
   return fetchJSON<ProjectModelBusinessSummaryPayload>(endpoint);
 }
 
 export async function fetchProjectIterations(projectId: number) {
-  const dataRaw = await fetchJSON<unknown>(`${API_BASE}/api/projects/${projectId}/iterations`);
+  const dataRaw = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/projects/${projectId}/iterations`);
   return ensureArray<Iteration>(dataRaw);
 }
 
@@ -170,7 +170,7 @@ export async function createIteration(
     aiSummary: string;
   }
 ) {
-  return fetchJSON<Iteration>(`${API_BASE}/api/projects/${projectId}/iterations`, {
+  return fetchJSON<Iteration>(`${API_BASE}${API_PREFIX}/projects/${projectId}/iterations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -179,10 +179,10 @@ export async function createIteration(
 
 export async function fetchIterationDetail(iterationId: number) {
   const [messagesRaw, context, assessment, historyRaw] = await Promise.all([
-    fetchJSON<unknown>(`${API_BASE}/api/iterations/${iterationId}/messages`),
-    fetchJSON<IterationContextPayload>(`${API_BASE}/api/iterations/${iterationId}/context`),
-    fetchJSON<AssessmentPayload>(`${API_BASE}/api/iterations/${iterationId}/assessment`),
-    fetchJSON<unknown>(`${API_BASE}/api/iterations/${iterationId}/assessment/history`)
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/messages`),
+    fetchJSON<IterationContextPayload>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/context`),
+    fetchJSON<AssessmentPayload>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/assessment`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/assessment/history`)
   ]);
   return {
     messages: ensureArray<IterationMessage>(messagesRaw),
@@ -193,12 +193,12 @@ export async function fetchIterationDetail(iterationId: number) {
 }
 
 export async function fetchIterationStateMachine(iterationId: number) {
-  return fetchJSON<IterationStateMachinePayload>(`${API_BASE}/api/iterations/${iterationId}/state-machine`);
+  return fetchJSON<IterationStateMachinePayload>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/state-machine`);
 }
 
 export async function transitionIterationState(iterationId: number, payload: { toStatus: string; note?: string }) {
   return fetchJSON<{ iterationId: number; fromStatus: string; toStatus: string }>(
-    `${API_BASE}/api/iterations/${iterationId}/state/transition`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/state/transition`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -208,7 +208,7 @@ export async function transitionIterationState(iterationId: number, payload: { t
 }
 
 export async function createIterationMessage(iterationId: number, role: ChatRole, content: string) {
-  return fetchJSON<IterationMessage>(`${API_BASE}/api/iterations/${iterationId}/messages`, {
+  return fetchJSON<IterationMessage>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role, content })
@@ -232,7 +232,7 @@ export async function updateIterationInteractionState(
       lastUpdatedAt: string;
       lastAttachmentName: string;
     };
-  }>(`${API_BASE}/api/iterations/${iterationId}/interaction-state`, {
+  }>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/interaction-state`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -256,7 +256,7 @@ export async function updateIterationTestMatrixExecution(
       coverage: number;
       passRate: number;
     };
-  }>(`${API_BASE}/api/iterations/${iterationId}/change-control/test-matrix/execution`, {
+  }>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/test-matrix/execution`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ updates })
@@ -278,7 +278,7 @@ export async function confirmIterationAnalysis(
     };
   }
 ) {
-  return fetchJSON(`${API_BASE}/api/iterations/${iterationId}/change-control/confirm`, {
+  return fetchJSON(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -294,7 +294,7 @@ export async function updateIterationBoundary(
     note?: string;
   }
 ) {
-  return fetchJSON(`${API_BASE}/api/iterations/${iterationId}/change-control/boundary`, {
+  return fetchJSON(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/boundary`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -302,7 +302,7 @@ export async function updateIterationBoundary(
 }
 
 export async function updateClarificationDraft(iterationId: number, resolvedQuestions: string[]) {
-  return fetchJSON(`${API_BASE}/api/iterations/${iterationId}/change-control/draft`, {
+  return fetchJSON(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ resolvedQuestions })
@@ -311,7 +311,7 @@ export async function updateClarificationDraft(iterationId: number, resolvedQues
 
 export async function generateIterationTestArtifacts(iterationId: number) {
   return fetchJSON<IterationTestArtifactsGenerationResponse>(
-    `${API_BASE}/api/iterations/${iterationId}/change-control/test-artifacts/generate`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/test-artifacts/generate`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -321,11 +321,11 @@ export async function generateIterationTestArtifacts(iterationId: number) {
 }
 
 export async function fetchIterationReleaseReview(iterationId: number) {
-  return fetchJSON<IterationReleaseReviewResponse>(`${API_BASE}/api/iterations/${iterationId}/release-review`);
+  return fetchJSON<IterationReleaseReviewResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/release-review`);
 }
 
 export async function fetchIterationArtifactWorkflow(iterationId: number) {
-  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts`);
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/artifacts`);
 }
 
 export async function saveIterationArtifactDraft(
@@ -333,7 +333,7 @@ export async function saveIterationArtifactDraft(
   artifactId: string,
   payload: { content: string; media?: string[]; actor?: string }
 ) {
-  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/draft`, {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -345,7 +345,7 @@ export async function commitIterationArtifact(
   artifactId: string,
   payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }
 ) {
-  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/commit`, {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -357,7 +357,7 @@ export async function confirmIterationArtifact(
   artifactId: string,
   payload: { actor?: string; passed?: boolean; note?: string }
 ) {
-  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/confirm`, {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -370,7 +370,7 @@ export async function appendIterationArtifactToChat(
   payload?: { actor?: string; prompt?: string }
 ) {
   return fetchJSON<{ workflow: IterationArtifactWorkflow; message: IterationMessage }>(
-    `${API_BASE}/api/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/artifacts/${encodeURIComponent(artifactId)}/add-to-chat`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -383,7 +383,7 @@ export async function transitionIterationArtifactStage(
   iterationId: number,
   payload: { toStage: IterationArtifactStage; actor?: string; note?: string }
 ) {
-  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}/api/iterations/${iterationId}/change-control/stage/transition`, {
+  return fetchJSON<IterationArtifactWorkflow>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/change-control/stage/transition`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -404,17 +404,17 @@ export async function fetchModelOps(_projectId?: number) {
     opsMetrics,
     deploymentsRaw
   ] = await Promise.all([
-    fetchJSON<ModelSummaryPayload>(`${API_BASE}/api/model`),
-    fetchJSON<unknown>(`${API_BASE}/api/model/relations`),
-    fetchJSON<RuleCompilePayload>(`${API_BASE}/api/rules/compile`),
-    fetchJSON<RuleBindPayload>(`${API_BASE}/api/rules/bind`),
-    fetchJSON<SyncReportPayload>(`${API_BASE}/api/sync/report`),
-    fetchJSON<TracePayload>(`${API_BASE}/api/trace`),
-    fetchJSON<unknown>(`${API_BASE}/api/roadmaps`),
-    fetchJSON<unknown>(`${API_BASE}/api/templates`),
-    fetchJSON<unknown>(`${API_BASE}/api/templates/runs`),
-    fetchJSON<OpsMetricsPayload>(`${API_BASE}/api/ops/metrics`),
-    fetchJSON<unknown>(`${API_BASE}/api/ops/deployments`)
+    fetchJSON<ModelSummaryPayload>(`${API_BASE}${API_PREFIX}/model`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/model/relations`),
+    fetchJSON<RuleCompilePayload>(`${API_BASE}${API_PREFIX}/rules/compile`),
+    fetchJSON<RuleBindPayload>(`${API_BASE}${API_PREFIX}/rules/bind`),
+    fetchJSON<SyncReportPayload>(`${API_BASE}${API_PREFIX}/sync/report`),
+    fetchJSON<TracePayload>(`${API_BASE}${API_PREFIX}/trace`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/roadmaps`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/templates`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/templates/runs`),
+    fetchJSON<OpsMetricsPayload>(`${API_BASE}${API_PREFIX}/ops/metrics`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/ops/deployments`)
   ]);
   return {
     modelSummary,
@@ -433,8 +433,8 @@ export async function fetchModelOps(_projectId?: number) {
 
 export async function fetchGovernance() {
   const [rolesRaw, auditLogsRaw] = await Promise.all([
-    fetchJSON<unknown>(`${API_BASE}/api/governance/roles`),
-    fetchJSON<unknown>(`${API_BASE}/api/governance/audit-logs?limit=30`)
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/roles`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/audit-logs?limit=30`)
   ]);
   return {
     roles: ensureArray<GovernanceRole>(rolesRaw),
@@ -444,7 +444,7 @@ export async function fetchGovernance() {
 
 export async function fetchGovernancePermissionPoints() {
   try {
-    const data = await fetchJSON<unknown>(`${API_BASE}/api/governance/permission-points`);
+    const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/permission-points`);
     return ensureArray<GovernancePermissionPoint>(data);
   } catch (error) {
     if (isApiNotFound(error)) {
@@ -456,8 +456,8 @@ export async function fetchGovernancePermissionPoints() {
 
 export async function fetchOpsTriageTemplates(projectId?: number) {
   const path = typeof projectId === "number" && projectId > 0
-    ? `${API_BASE}/api/ops/triage-templates?projectId=${projectId}`
-    : `${API_BASE}/api/ops/triage-templates`;
+    ? `${API_BASE}${API_PREFIX}/ops/triage-templates?projectId=${projectId}`
+    : `${API_BASE}${API_PREFIX}/ops/triage-templates`;
   return fetchJSON<OpsTriageTemplatePayload>(path);
 }
 
@@ -468,7 +468,7 @@ export async function analyzeOpsAlert(payload: {
   description?: string;
   signals?: string[];
 }) {
-  return fetchJSON<OpsAlertTriageResponse>(`${API_BASE}/api/ops/triage/analyze`, {
+  return fetchJSON<OpsAlertTriageResponse>(`${API_BASE}${API_PREFIX}/ops/triage/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -480,7 +480,7 @@ export async function upsertOpsTriageTemplate(
   role = "owner"
 ) {
   return fetchJSON<{ id: string; projectId?: number; category: string; keywords: string[]; commands: string[]; note: string; updatedAt: string }>(
-    `${API_BASE}/api/ops/triage-templates`,
+    `${API_BASE}${API_PREFIX}/ops/triage-templates`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-role": role },
@@ -490,7 +490,7 @@ export async function upsertOpsTriageTemplate(
 }
 
 export async function deleteOpsTriageTemplate(templateId: string, role = "owner") {
-  return fetchJSON<{ ok: boolean }>(`${API_BASE}/api/ops/triage-templates/${encodeURIComponent(templateId)}`, {
+  return fetchJSON<{ ok: boolean }>(`${API_BASE}${API_PREFIX}/ops/triage-templates/${encodeURIComponent(templateId)}`, {
     method: "DELETE",
     headers: { "x-role": role }
   });
@@ -498,8 +498,8 @@ export async function deleteOpsTriageTemplate(templateId: string, role = "owner"
 
 export async function fetchCollaboration(projectId: number) {
   const [snapshotsRaw, sharesRaw] = await Promise.all([
-    fetchJSON<unknown>(`${API_BASE}/api/collab/snapshots?projectId=${projectId}`),
-    fetchJSON<unknown>(`${API_BASE}/api/collab/shares?projectId=${projectId}`)
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/collab/snapshots?projectId=${projectId}`),
+    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/collab/shares?projectId=${projectId}`)
   ]);
   return {
     snapshots: ensureArray<VersionSnapshot>(snapshotsRaw),
@@ -514,7 +514,7 @@ export async function createModelRelation(payload: {
   type: "one_to_one" | "one_to_many" | "many_to_many";
   name?: string;
 }) {
-  return fetchJSON<ModelRelationPayload>(`${API_BASE}/api/model/relations`, {
+  return fetchJSON<ModelRelationPayload>(`${API_BASE}${API_PREFIX}/model/relations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -522,19 +522,19 @@ export async function createModelRelation(payload: {
 }
 
 export async function deleteModelRelation(relationId: string, _projectId?: number) {
-  return fetchJSON<{ ok: boolean; id: string }>(`${API_BASE}/api/model/relations/${relationId}`, {
+  return fetchJSON<{ ok: boolean; id: string }>(`${API_BASE}${API_PREFIX}/model/relations/${relationId}`, {
     method: "DELETE"
   });
 }
 
 export async function recomputeAssessment(iterationId: number) {
-  return fetchJSON<AssessmentPayload>(`${API_BASE}/api/iterations/${iterationId}/assessment/recompute`, {
+  return fetchJSON<AssessmentPayload>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/assessment/recompute`, {
     method: "POST"
   });
 }
 
 export async function restoreAssessment(iterationId: number, snapshotId: number) {
-  return fetchJSON<AssessmentPayload>(`${API_BASE}/api/iterations/${iterationId}/assessment/restore/${snapshotId}`, {
+  return fetchJSON<AssessmentPayload>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/assessment/restore/${snapshotId}`, {
     method: "POST"
   });
 }
@@ -545,7 +545,7 @@ export async function createVersionSnapshot(payload: {
   name: string;
   note?: string;
 }, role = "owner") {
-  return fetchJSON<VersionSnapshot>(`${API_BASE}/api/collab/snapshots`, {
+  return fetchJSON<VersionSnapshot>(`${API_BASE}${API_PREFIX}/collab/snapshots`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
@@ -554,13 +554,13 @@ export async function createVersionSnapshot(payload: {
 
 export async function restoreVersionSnapshot(snapshotId: number, role = "owner") {
   return fetchJSON<{ ok: boolean; snapshotId: number; iterationId: number }>(
-    `${API_BASE}/api/collab/snapshots/${snapshotId}/restore`,
+    `${API_BASE}${API_PREFIX}/collab/snapshots/${snapshotId}/restore`,
     { method: "POST", headers: { "x-role": role } }
   );
 }
 
 export async function createProjectShare(payload: { projectId: number; permission: "read" | "comment"; ttlHours?: number }, role = "owner") {
-  return fetchJSON<ProjectShare>(`${API_BASE}/api/collab/shares`, {
+  return fetchJSON<ProjectShare>(`${API_BASE}${API_PREFIX}/collab/shares`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
@@ -568,7 +568,7 @@ export async function createProjectShare(payload: { projectId: number; permissio
 }
 
 export async function runTemplate(templateId: string, projectId: number, parameters: Record<string, string>, role = "owner") {
-  return fetchJSON<TemplateRunResult>(`${API_BASE}/api/templates/${templateId}/run`, {
+  return fetchJSON<TemplateRunResult>(`${API_BASE}${API_PREFIX}/templates/${templateId}/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify({ projectId, parameters })
@@ -581,7 +581,7 @@ export async function createDeployment(payload: {
   environment: "staging" | "production";
   version: string;
 }, role = "owner") {
-  return fetchJSON<DeploymentRecord>(`${API_BASE}/api/ops/deployments`, {
+  return fetchJSON<DeploymentRecord>(`${API_BASE}${API_PREFIX}/ops/deployments`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
@@ -589,7 +589,7 @@ export async function createDeployment(payload: {
 }
 
 export async function transitionDeployment(deploymentId: number, toStatus: "running" | "success" | "failed", role = "owner") {
-  return fetchJSON<DeploymentRecord>(`${API_BASE}/api/ops/deployments/${deploymentId}/transition`, {
+  return fetchJSON<DeploymentRecord>(`${API_BASE}${API_PREFIX}/ops/deployments/${deploymentId}/transition`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify({ toStatus })
@@ -597,12 +597,12 @@ export async function transitionDeployment(deploymentId: number, toStatus: "runn
 }
 
 export async function accessShare(token: string) {
-  return fetchJSON<ShareAccessPayload>(`${API_BASE}/api/collab/share/${token}`);
+  return fetchJSON<ShareAccessPayload>(`${API_BASE}${API_PREFIX}/collab/share/${token}`);
 }
 
 export async function commentByShare(token: string, content: string) {
   return fetchJSON<{ ok: boolean; token: string; comment: string; createdAt: string }>(
-    `${API_BASE}/api/collab/share/${token}/comments`,
+    `${API_BASE}${API_PREFIX}/collab/share/${token}/comments`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -660,17 +660,17 @@ export type PolicyExecutionLogPayload = {
 };
 
 export async function fetchProjectPolicies(projectId: number) {
-  return fetchJSON<{ active: ProjectPolicyPayload | null; items: ProjectPolicyPayload[] }>(`${API_BASE}/api/projects/${projectId}/policies`);
+  return fetchJSON<{ active: ProjectPolicyPayload | null; items: ProjectPolicyPayload[] }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies`);
 }
 
 export async function fetchGlobalOrchestrationPolicies() {
   return fetchJSON<{ active: GlobalOrchestrationPolicyPayload | null; items: GlobalOrchestrationPolicyPayload[] }>(
-    `${API_BASE}/api/governance/orchestration/policies`
+    `${API_BASE}${API_PREFIX}/governance/orchestration/policies`
   );
 }
 
 export async function createGlobalOrchestrationPolicyDraft(strategy?: Record<string, unknown>, role = "owner", userId = "admin-1") {
-  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}/api/governance/orchestration/policies`, {
+  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
     body: JSON.stringify({ strategy: strategy || {} })
@@ -678,21 +678,21 @@ export async function createGlobalOrchestrationPolicyDraft(strategy?: Record<str
 }
 
 export async function activateGlobalOrchestrationPolicy(version: number, role = "owner", userId = "admin-1") {
-  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}/api/governance/orchestration/policies/${version}/activate`, {
+  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies/${version}/activate`, {
     method: "POST",
     headers: { "x-role": role, "x-user-id": userId }
   });
 }
 
 export async function restoreGlobalOrchestrationPolicyToInitialMode(role = "owner", userId = "admin-1") {
-  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}/api/governance/orchestration/policies/restore-initial`, {
+  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies/restore-initial`, {
     method: "POST",
     headers: { "x-role": role, "x-user-id": userId }
   });
 }
 
 export async function createProjectPolicyDraft(projectId: number, strategy?: Record<string, unknown>, role = "owner", userId = "admin-1") {
-  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}/api/projects/${projectId}/policies`, {
+  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
     body: JSON.stringify({ strategy: strategy || {} })
@@ -700,14 +700,14 @@ export async function createProjectPolicyDraft(projectId: number, strategy?: Rec
 }
 
 export async function activateProjectPolicy(projectId: number, version: number, role = "owner", userId = "admin-1") {
-  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}/api/projects/${projectId}/policies/${version}/activate`, {
+  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies/${version}/activate`, {
     method: "POST",
     headers: { "x-role": role, "x-user-id": userId }
   });
 }
 
 export async function restoreProjectPolicyToInitialMode(projectId: number, role = "owner", userId = "admin-1") {
-  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}/api/projects/${projectId}/policies/restore-initial`, {
+  return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies/restore-initial`, {
     method: "POST",
     headers: { "x-role": role, "x-user-id": userId }
   });
@@ -725,7 +725,7 @@ export async function bindProjectWorkspace(
   role = "owner",
   userId = "admin-1"
 ) {
-  return fetchJSON<ProjectWorkspaceBindingPayload>(`${API_BASE}/api/projects/${projectId}/workspace/bind`, {
+  return fetchJSON<ProjectWorkspaceBindingPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/workspace/bind`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
     body: JSON.stringify(payload)
@@ -733,7 +733,7 @@ export async function bindProjectWorkspace(
 }
 
 export async function fetchProjectRoleBindings(projectId: number) {
-  const data = await fetchJSON<unknown>(`${API_BASE}/api/projects/${projectId}/roles`);
+  const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/projects/${projectId}/roles`);
   return ensureArray<ProjectRoleBindingPayload>(data);
 }
 
@@ -742,7 +742,7 @@ export async function upsertProjectRoleBinding(
   payload: { userId: string; role: "admin" | "member" | "viewer" },
   role = "owner"
 ) {
-  return fetchJSON<ProjectRoleBindingPayload>(`${API_BASE}/api/projects/${projectId}/roles`, {
+  return fetchJSON<ProjectRoleBindingPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/roles`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
@@ -750,7 +750,7 @@ export async function upsertProjectRoleBinding(
 }
 
 export async function removeProjectRoleBinding(projectId: number, userId: string, role = "owner") {
-  return fetchJSON<{ ok: boolean; projectId: number; userId: string }>(`${API_BASE}/api/projects/${projectId}/roles/${encodeURIComponent(userId)}`, {
+  return fetchJSON<{ ok: boolean; projectId: number; userId: string }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/roles/${encodeURIComponent(userId)}`, {
     method: "DELETE",
     headers: { "x-role": role }
   });
@@ -764,7 +764,7 @@ export async function sendOpenclawProjectChat(projectId: number, message: string
     workspacePath: string;
     reply: string;
     at: string;
-  }>(`${API_BASE}/api/projects/${projectId}/openclaw/chat`, {
+  }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/openclaw/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify({ message })
@@ -791,12 +791,12 @@ export type GovernanceCustomRolePayload = {
 };
 
 export async function fetchPlatformRoleBindings() {
-  const data = await fetchJSON<unknown>(`${API_BASE}/api/governance/platform-role-bindings`);
+  const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/platform-role-bindings`);
   return ensureArray<PlatformRoleBindingPayload>(data);
 }
 
 export async function upsertPlatformRoleBinding(payload: { userId: string; role: string }, role = "owner") {
-  return fetchJSON<PlatformRoleBindingPayload>(`${API_BASE}/api/governance/platform-role-bindings`, {
+  return fetchJSON<PlatformRoleBindingPayload>(`${API_BASE}${API_PREFIX}/governance/platform-role-bindings`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify(payload)
@@ -804,7 +804,7 @@ export async function upsertPlatformRoleBinding(payload: { userId: string; role:
 }
 
 export async function removePlatformRoleBinding(userId: string, role = "owner") {
-  return fetchJSON<{ ok: boolean; userId: string }>(`${API_BASE}/api/governance/platform-role-bindings/${encodeURIComponent(userId)}`, {
+  return fetchJSON<{ ok: boolean; userId: string }>(`${API_BASE}${API_PREFIX}/governance/platform-role-bindings/${encodeURIComponent(userId)}`, {
     method: "DELETE",
     headers: { "x-role": role }
   });
@@ -812,11 +812,11 @@ export async function removePlatformRoleBinding(userId: string, role = "owner") 
 
 export async function fetchGovernanceCustomRoles() {
   try {
-    const data = await fetchJSON<unknown>(`${API_BASE}/api/governance/custom-roles`);
+    const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/custom-roles`);
     return ensureArray<GovernanceCustomRolePayload>(data);
   } catch (error) {
     if (isApiNotFound(error)) {
-      const legacy = await fetchJSON<unknown>(`${API_BASE}/api/governance/custom_roles`);
+      const legacy = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/custom_roles`);
       return ensureArray<GovernanceCustomRolePayload>(legacy);
     }
     throw error;
@@ -828,14 +828,14 @@ export async function upsertGovernanceCustomRole(
   role = "owner"
 ) {
   try {
-    return await fetchJSON<GovernanceCustomRolePayload>(`${API_BASE}/api/governance/custom-roles`, {
+    return await fetchJSON<GovernanceCustomRolePayload>(`${API_BASE}${API_PREFIX}/governance/custom-roles`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-role": role },
       body: JSON.stringify(payload)
     });
   } catch (error) {
     if (isApiNotFound(error)) {
-      return fetchJSON<GovernanceCustomRolePayload>(`${API_BASE}/api/governance/custom_roles`, {
+      return fetchJSON<GovernanceCustomRolePayload>(`${API_BASE}${API_PREFIX}/governance/custom_roles`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-role": role },
         body: JSON.stringify(payload)
@@ -853,7 +853,7 @@ export async function sendOpenclawGlobalChat(message: string, role = "owner") {
     workspacePath: string;
     reply: string;
     at: string;
-  }>(`${API_BASE}/api/governance/openclaw/chat`, {
+  }>(`${API_BASE}${API_PREFIX}/governance/openclaw/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-role": role },
     body: JSON.stringify({ message })
@@ -878,13 +878,13 @@ export type OpenclawIntegrationStatusPayload = {
 };
 
 export async function fetchOpenclawIntegrationStatus(role = "owner") {
-  return fetchJSON<OpenclawIntegrationStatusPayload>(`${API_BASE}/api/governance/openclaw/status`, {
+  return fetchJSON<OpenclawIntegrationStatusPayload>(`${API_BASE}${API_PREFIX}/governance/openclaw/status`, {
     headers: { "x-role": role }
   });
 }
 
 export async function requestSmsLoginCode(phone: string) {
-  return fetchJSON<{ ok: boolean; expireAt: string; debugCode?: string }>(`${API_BASE}/api/auth/sms/request`, {
+  return fetchJSON<{ ok: boolean; expireAt: string; debugCode?: string }>(`${API_BASE}${API_PREFIX}/auth/sms/request`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone })
@@ -902,7 +902,7 @@ export async function verifySmsLoginCode(phone: string, code: string) {
     accessToken?: string;
     refreshToken?: string;
     expiresIn?: number;
-  }>(`${API_BASE}/api/auth/sms/verify`, {
+  }>(`${API_BASE}${API_PREFIX}/auth/sms/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, code })
@@ -911,7 +911,7 @@ export async function verifySmsLoginCode(phone: string, code: string) {
 
 export async function executePolicyStep(iterationId: number, payload: { action?: string; message?: string }) {
   return fetchJSON<{ ok: boolean; gate: { blocked: boolean; stage: string; reason: string; requiredActions: string[] }; policyVersion: number }>(
-    `${API_BASE}/api/iterations/${iterationId}/policy-execute`,
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/policy-execute`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -921,6 +921,6 @@ export async function executePolicyStep(iterationId: number, payload: { action?:
 }
 
 export async function fetchIterationPolicyLogs(iterationId: number) {
-  const data = await fetchJSON<unknown>(`${API_BASE}/api/iterations/${iterationId}/policy-log`);
+  const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/policy-log`);
   return ensureArray<PolicyExecutionLogPayload>(data);
 }

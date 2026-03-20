@@ -4,6 +4,7 @@ import type { Project } from "../domain/workspace/types";
 import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
 import { createIteration, createProject, deleteProject } from "./workspaceApi";
 import { splitLines } from "./workspaceHelpers";
+import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 
 type UseProjectActionsParams = {
   currentProject: Project | null;
@@ -69,7 +70,7 @@ export function useProjectActions({
   loadIterations
 }: UseProjectActionsParams) {
   const resolveProjectApiError = (error: unknown) => {
-    const raw = error instanceof Error ? error.message : "Unknown error";
+    const raw = resolveErrorMessage(error);
     if (raw.includes("API error: network unavailable")) {
       return "后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev";
     }
@@ -176,7 +177,7 @@ export function useProjectActions({
         setCurrentProjectId(null);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveErrorMessage(err);
       if (/^API error: 404\b/.test(message)) {
         setError("删除接口不可用（404）。请重启后端服务后重试。");
       } else if (message.includes("API error: network unavailable")) {

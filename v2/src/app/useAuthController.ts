@@ -77,8 +77,8 @@ export function useAuthController() {
       setLoginError("");
       const result = await requestSmsLoginCode(phone);
       setCountdown(60);
-      setDebugCodeHint(result.debugCode ? `测试验证码：${result.debugCode}` : "");
-      if (result.debugCode) {
+      setDebugCodeHint(import.meta.env.DEV && result.debugCode ? `测试验证码：${result.debugCode}` : "");
+      if (import.meta.env.DEV && result.debugCode) {
         setLoginCode(result.debugCode);
       }
     } catch (error) {
@@ -120,6 +120,7 @@ export function useAuthController() {
       setLoginCode("");
       setLoginTouched({ phone: false, code: false });
       setLoginSubmitted(false);
+      localStorage.setItem("buildwise:active-view", "dashboard");
       window.location.hash = "/dashboard";
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "登录失败");

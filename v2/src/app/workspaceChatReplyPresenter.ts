@@ -34,21 +34,26 @@ export function presentCoachReply(reply: string) {
   if (lines.length === 0) {
     return "";
   }
-  const firstLine = lines[0];
-  const deliverableTitle = extractDeliverableTitle(lines) || extractDeliverableTitleFromContent(reply);
-  const looksLikeDeliverableNotice =
-    DELIVERABLE_READY_LINE.test(firstLine) ||
-    (Boolean(deliverableTitle) && lines.length > 1) ||
-    (Boolean(deliverableTitle) && lines.length >= 6 && STRUCTURED_ARTIFACT_SIGNAL.test(lines.join("\n"))) ||
-    isStructuredArtifactContent(reply);
-  if (!looksLikeDeliverableNotice) {
-    return lines.join("\n");
+  const joined = lines.join("\n");
+
+  // 检测是否为结构化交付物内容（包含 markdown 表格、标题等）
+  if (!isStructuredArtifactContent(joined)) {
+    return joined;
   }
-  const confirmationLine =
-    lines.find((line, index) => index > 0 && isNaturalLanguageConfirmationLine(line)) ||
-    "请直接查看交付物卡片并确认，若需调整可继续补充意见。";
-  const noticeLine = DELIVERABLE_READY_LINE.test(firstLine)
-    ? `${firstLine.replace(/[。；]\s*$/, "")}。`
-    : `已生成${deliverableTitle || "交付物"}。`;
-  return `${noticeLine}${confirmationLine}`;
+
+  // 提取交付物标题
+  const title = extractDeliverableTitle(lines) || extractDeliverableTitleFromContent(joined);
+  if (!title) {
+    // 有结构化信号但无法识别交付物标题，保留自然语言行
+    const naturalLines = lines.filter((line) => isNaturalLanguageConfirmationLine(line) || (!STRUCTURED_ARTIFACT_SIGNAL.test(line) && !DELIVERABLE_READY_LINE.test(line)));
+    return naturalLines.length > 0 ? naturalLines.join("\n") : joined;
+  }
+
+  // 提取确认引导行（自然语言部分）
+  const confirmationLines = lines.filter((line) => isNaturalLanguageConfirmationLine(line));
+  const readyLine = lines.find((line) => DELIVERABLE_READY_LINE.test(line));
+  const notice = readyLine || `已生成「${title}」。`;
+  const guidance = confirmationLines.length > 0 ? confirmationLines.join("\n") : "请查看交付物卡片并确认。";
+
+  return `${notice}\n${guidance}`;
 }

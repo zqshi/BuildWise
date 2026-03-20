@@ -103,13 +103,21 @@ export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType
     interaction.summary = preferSummary(interaction.summary, iteration.interactionState?.hasPrototypeAssets ? "检测到原型资产" : "未检测到原型资产");
     interaction.evidence = preferEvidence(interaction.evidence, [iteration.interactionState?.lastAttachmentName || "attachment=-"]);
   }
-  const codeDelivery = nextItems.find((item) => item.id === "code-delivery");
-  if (codeDelivery) {
+  const frontendCode = nextItems.find((item) => item.id === "frontend-code");
+  if (frontendCode) {
     const link = iteration.codeLink;
     const ready = Boolean(link?.commit || link?.pr || (link?.paths.length ?? 0) > 0);
-    codeDelivery.status = mergeArtifactStatus(codeDelivery.status, ready ? "ready" : "pending", codeDelivery);
-    codeDelivery.summary = preferSummary(codeDelivery.summary, ready ? `branch=${link?.branch || "-"};commit=${link?.commit || "-"}` : "未记录代码交付");
-    codeDelivery.evidence = preferEvidence(codeDelivery.evidence, [link?.pr || "pr=-", (link?.paths || []).slice(0, 4).join(" | ") || "paths=-"]);
+    frontendCode.status = mergeArtifactStatus(frontendCode.status, ready ? "ready" : "pending", frontendCode);
+    frontendCode.summary = preferSummary(frontendCode.summary, ready ? `branch=${link?.branch || "-"};commit=${link?.commit || "-"}` : "未记录前端代码交付");
+    frontendCode.evidence = preferEvidence(frontendCode.evidence, [link?.pr || "pr=-", (link?.paths || []).slice(0, 4).join(" | ") || "paths=-"]);
+  }
+  const backendCode = nextItems.find((item) => item.id === "backend-code");
+  if (backendCode) {
+    const link = iteration.codeLink;
+    const ready = Boolean(link?.commit || link?.pr || (link?.paths.length ?? 0) > 0);
+    backendCode.status = mergeArtifactStatus(backendCode.status, ready ? "ready" : "pending", backendCode);
+    backendCode.summary = preferSummary(backendCode.summary, ready ? `branch=${link?.branch || "-"};commit=${link?.commit || "-"}` : "未记录后端代码交付");
+    backendCode.evidence = preferEvidence(backendCode.evidence, [link?.pr || "pr=-", (link?.paths || []).slice(0, 4).join(" | ") || "paths=-"]);
   }
   const matrix = nextItems.find((item) => item.id === "test-matrix");
   if (matrix) {

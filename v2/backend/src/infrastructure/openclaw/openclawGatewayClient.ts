@@ -36,6 +36,8 @@ export type GatewayChatResult = {
   content: string;
   model: string;
   sessionKey: string;
+  finishReason?: string;
+  truncated?: boolean;
 };
 
 export class OpenClawGatewayClient {
@@ -108,7 +110,7 @@ export class OpenClawGatewayClient {
 
       const payload = (await response.json()) as {
         model?: string;
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
       };
 
       const content = payload.choices?.[0]?.message?.content?.trim();
@@ -116,10 +118,13 @@ export class OpenClawGatewayClient {
         throw new Error("openclaw_gateway_empty_content");
       }
 
+      const finishReason = payload.choices?.[0]?.finish_reason || undefined;
       return {
         content,
         model: payload.model || `openclaw/${agentId}`,
-        sessionKey
+        sessionKey,
+        finishReason,
+        truncated: finishReason === "length"
       };
     } finally {
       clearTimeout(timer);

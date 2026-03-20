@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import { resolveErrorMessage } from "../../shared/utils";
 import type {
   AttachmentAnalysisReport,
   AttachmentReportIndex,
@@ -138,7 +139,7 @@ export async function runAttachmentAnalysisJobOp(params: {
           success = true;
           break;
         } catch (error) {
-          lastBatchError = error instanceof Error ? error.message : "unknown_error";
+          lastBatchError = resolveErrorMessage(error);
           job.progress.stageHint = `batch:${batchIndex + 1}/${batches.length}:error`;
           if (attempt < analysisBatchRetryLimit) {
           }

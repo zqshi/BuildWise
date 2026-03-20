@@ -70,9 +70,9 @@ export function ProjectOverviewPanel({
   modelRuleCount,
   modelEntityCount,
   modelRelations = [],
-  opsMetrics = null,
+  opsMetrics: _opsMetrics = null,
   status,
-  error,
+  error: _error,
   backendUnavailable = false,
   onShowCreateIteration,
   onEnterIteration,
@@ -131,7 +131,7 @@ export function ProjectOverviewPanel({
   const [roleBindings, setRoleBindings] = useState<ProjectRoleBindingPayload[]>([]);
   const [policyLogs, setPolicyLogs] = useState<PolicyExecutionLogPayload[]>([]);
   const [policyBusy, setPolicyBusy] = useState(false);
-  const [policyNotice, setPolicyNotice] = useState("");
+  const [_policyNotice, setPolicyNotice] = useState("");
   const [bindingProfile, setBindingProfile] = useState("buildwise-local");
   const [bindingAgentId, setBindingAgentId] = useState("main");
   const [bindingWorkspacePath, setBindingWorkspacePath] = useState("/Users/zqs/.openclaw/workspace-buildwise-local");

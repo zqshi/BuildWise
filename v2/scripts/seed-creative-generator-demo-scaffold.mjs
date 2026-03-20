@@ -84,7 +84,22 @@ function createArtifactWorkflow(mode) {
         "release",
         "archive"
       ]),
-      createArtifact("code-delivery", "development", "代码交付", "开发实现", "沉淀新增实现、修改点、继承不变模块与影响范围。", "iteration.codeLink", "rich-text", [
+      createArtifact("api-specification", "development", "接口设计", "API 契约", "沉淀 RESTful/RPC 接口定义、请求响应结构、错误码与鉴权方式。", "iteration.apiSpec", "rich-text", [
+        "testing",
+        "release",
+        "archive"
+      ]),
+      createArtifact("database-design", "development", "数据模型设计", "数据模型", "沉淀 ER 关系、核心表结构、索引策略与数据迁移方案。", "iteration.dataModel", "rich-text", [
+        "testing",
+        "release",
+        "archive"
+      ]),
+      createArtifact("frontend-code", "development", "前端代码", "开发实现", "沉淀 TypeScript/React 组件、路由、状态管理与 API 调用层。", "iteration.frontendCode", "rich-text", [
+        "testing",
+        "release",
+        "archive"
+      ]),
+      createArtifact("backend-code", "development", "后端代码", "开发实现", "沉淀 API 路由、服务层、数据访问层与中间件。", "iteration.backendCode", "rich-text", [
         "testing",
         "release",
         "archive"
@@ -98,6 +113,9 @@ function createArtifactWorkflow(mode) {
         "archive"
       ]),
       createArtifact("release-review", "release", "发布评审", "发布评审", "输出 go/caution/block 结论与回滚策略。", "changeControl.lastReleaseReview*", "rich-text", [
+        "archive"
+      ]),
+      createArtifact("deployment-plan", "release", "部署方案", "部署运维", "沉淀环境配置、上线步骤、回滚流程、健康检查与监控告警。", "iteration.deploymentPlan", "rich-text", [
         "archive"
       ]),
       createArtifact("delivery-package", "archive", "交付归档", "交付归档", "归档版本结论、物料与下版本继承基线。", "qualityArtifacts.materializedFiles", "rich-text", [])
