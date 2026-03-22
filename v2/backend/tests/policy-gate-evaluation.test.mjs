@@ -17,7 +17,7 @@ test("no active policy → not blocked", () => {
 
 // ─── firstIterationGitReport 兼容 ───
 
-test("first iteration without git report → blocked", () => {
+test("first iteration without confirmedBy → blocked", () => {
   const repo = createInMemoryWorkspaceRepo();
   repo._store.projects.push({ id: 1, name: "P" });
   const iter = buildMinimalIteration(1, { id: 10 });
@@ -33,18 +33,25 @@ test("first iteration without git report → blocked", () => {
   });
   const result = evaluatePolicyGateForCoachOp(repo, iter, "继续", policy);
   assert.equal(result.blocked, true);
-  assert.ok(result.reason.includes("Git"));
 });
 
-test("first iteration with git report confirmed → not blocked", () => {
+test("first iteration with confirmedBy set → not blocked by git report check", () => {
   const repo = createInMemoryWorkspaceRepo();
   repo._store.projects.push({ id: 1, name: "P" });
-  const iter = buildMinimalIteration(1, { id: 10 });
+  const iter = buildMinimalIteration(1, {
+    id: 10,
+    changeControl: {
+      confirmedBy: "test-user",
+      confirmedAt: new Date().toISOString(),
+      artifactWorkflow: {
+        activeStage: "clarification",
+        items: [
+          { id: "analysis-report", stage: "clarification", status: "ready", lastConfirmedAt: new Date().toISOString(), lastConfirmedBy: "test-user" }
+        ]
+      }
+    }
+  });
   repo._store.iterations.push(iter);
-  repo._store.messages.push(
-    { id: 1, iterationId: 10, role: "assistant", content: "Git分析报告已完成，analysis-report 结果如下", createdAt: new Date().toISOString() },
-    { id: 2, iterationId: 10, role: "user", content: "确认通过", createdAt: new Date().toISOString() }
-  );
   const policy = buildMinimalPolicyRecord(1, {
     strategy: {
       stages: ["clarification"],
@@ -58,14 +65,22 @@ test("first iteration with git report confirmed → not blocked", () => {
   assert.equal(result.blocked, false);
 });
 
-// ─── gates requiredArtifacts 检查 ───
+// ─── gates requiredArtifacts 检查（基于 artifactWorkflow 结构化状态） ───
 
-test("gate with requiredArtifacts blocks when artifact missing", () => {
+test("gate with requiredArtifacts blocks when artifact missing from workflow", () => {
   const repo = createInMemoryWorkspaceRepo();
   repo._store.projects.push({ id: 1, name: "P" });
-  const iter = buildMinimalIteration(1, { id: 10 });
+  const iter = buildMinimalIteration(1, {
+    id: 10,
+    changeControl: {
+      confirmedBy: "user",
+      artifactWorkflow: {
+        activeStage: "release",
+        items: []  // release-review 不存在
+      }
+    }
+  });
   repo._store.iterations.push(iter);
-  // 不是首次迭代（有更早的迭代）
   repo._store.iterations.push(buildMinimalIteration(1, { id: 5 }));
   const policy = buildMinimalPolicyRecord(1, {
     strategy: {
@@ -83,15 +98,23 @@ test("gate with requiredArtifacts blocks when artifact missing", () => {
   assert.ok(result.reason.includes("release-review"));
 });
 
-test("gate with requiredArtifacts passes when artifact present", () => {
+test("gate with requiredArtifacts passes when artifact ready in workflow", () => {
   const repo = createInMemoryWorkspaceRepo();
   repo._store.projects.push({ id: 1, name: "P" });
-  const iter = buildMinimalIteration(1, { id: 10 });
+  const iter = buildMinimalIteration(1, {
+    id: 10,
+    changeControl: {
+      confirmedBy: "user",
+      artifactWorkflow: {
+        activeStage: "release",
+        items: [
+          { id: "release-review", stage: "release", status: "ready", lastConfirmedAt: "", lastConfirmedBy: "" }
+        ]
+      }
+    }
+  });
   repo._store.iterations.push(iter);
   repo._store.iterations.push(buildMinimalIteration(1, { id: 5 }));
-  repo._store.messages.push(
-    { id: 1, iterationId: 10, role: "assistant", content: "release-review 完成", createdAt: new Date().toISOString() }
-  );
   const policy = buildMinimalPolicyRecord(1, {
     strategy: {
       stages: ["clarification", "release"],
@@ -109,15 +132,23 @@ test("gate with requiredArtifacts passes when artifact present", () => {
 
 // ─── requireHumanConfirmation 检查 ───
 
-test("gate with requireHumanConfirmation blocks when no confirm found", () => {
+test("gate with requireHumanConfirmation blocks when no confirm on artifact", () => {
   const repo = createInMemoryWorkspaceRepo();
   repo._store.projects.push({ id: 1, name: "P" });
-  const iter = buildMinimalIteration(1, { id: 10 });
+  const iter = buildMinimalIteration(1, {
+    id: 10,
+    changeControl: {
+      confirmedBy: "user",
+      artifactWorkflow: {
+        activeStage: "scope",
+        items: [
+          { id: "boundary-confirmation", stage: "scope", status: "ready", lastConfirmedAt: "", lastConfirmedBy: "" }
+        ]
+      }
+    }
+  });
   repo._store.iterations.push(iter);
   repo._store.iterations.push(buildMinimalIteration(1, { id: 5 }));
-  repo._store.messages.push(
-    { id: 1, iterationId: 10, role: "assistant", content: "boundary-confirmation 已生成", createdAt: new Date().toISOString() }
-  );
   const policy = buildMinimalPolicyRecord(1, {
     strategy: {
       stages: ["clarification", "scope"],
@@ -134,18 +165,23 @@ test("gate with requireHumanConfirmation blocks when no confirm found", () => {
   assert.ok(result.reason.includes("人工确认"));
 });
 
-// ─── stage 推断 ───
+// ─── stage 从结构化状态读取 ───
 
-test("infers release stage from message keywords", () => {
+test("stage reads from artifactWorkflow.activeStage, not message keywords", () => {
   const repo = createInMemoryWorkspaceRepo();
-  const iter = buildMinimalIteration(1, { id: 10 });
-  const result = evaluatePolicyGateForCoachOp(repo, iter, "准备发布了", null);
+  const iter = buildMinimalIteration(1, {
+    id: 10,
+    changeControl: {
+      artifactWorkflow: { activeStage: "release", items: [] }
+    }
+  });
+  const result = evaluatePolicyGateForCoachOp(repo, iter, "随便什么消息", null);
   assert.equal(result.stage, "release");
 });
 
-test("infers testing stage from message keywords", () => {
+test("stage defaults to clarification when no activeStage set", () => {
   const repo = createInMemoryWorkspaceRepo();
   const iter = buildMinimalIteration(1, { id: 10 });
   const result = evaluatePolicyGateForCoachOp(repo, iter, "开始验收测试", null);
-  assert.equal(result.stage, "testing");
+  assert.equal(result.stage, "clarification");
 });
