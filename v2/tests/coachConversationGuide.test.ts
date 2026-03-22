@@ -25,8 +25,7 @@ test("buildCoachFollowupMessage composes natural-language followup", () => {
       clarificationChecklist: ["是否包含回滚策略"]
     }
   });
-  assert.match(message, /继续推进建议：/);
-  assert.match(message, /先补充本轮材料/);
+  assert.match(message, /材料传上来/);
   assert.match(message, /确认边界范围/);
   assert.match(message, /是否包含回滚策略/);
 });

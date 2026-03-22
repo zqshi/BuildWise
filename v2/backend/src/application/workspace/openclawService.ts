@@ -8,6 +8,7 @@ import {
   type OpenclawIntegrationStatus
 } from "./workspaceServiceOpenclawOps";
 import { buildOpenclawSkillSelectionContext } from "./workspaceOpenclawSkillsBridge";
+import { buildKnowledgeSyncContext } from "./knowledgeSyncService";
 
 export class OpenclawService {
   constructor(
@@ -107,28 +108,10 @@ export function buildGatewayProjectContext(input: GatewayContextInput): string {
   if (input.project) {
     parts.push(summarizeProjectForGateway(input.project));
 
-    const kb = input.project.knowledgeBase;
-    if (kb) {
-      const terms = kb.ontologyTerms.slice(0, 6);
-      if (terms.length > 0) {
-        parts.push(`项目关键业务概念：${terms.map((t) => t.term + (t.aliases.length > 0 ? `（${t.aliases.join("、")}）` : "")).join("、")}`);
-      }
-      const rules = kb.stableRules.slice(0, 6);
-      if (rules.length > 0) {
-        parts.push(`已确认的业务规则：${rules.map((r) => r.rule).join("；")}`);
-      }
-      const components = kb.componentInventory.slice(0, 6);
-      if (components.length > 0) {
-        parts.push(`涉及的功能模块：${components.map((c) => c.component).join("、")}`);
-      }
-      const risks = kb.knownRisks.slice(0, 4);
-      if (risks.length > 0) {
-        parts.push(`已知风险：${risks.map((r) => r.risk).join("、")}`);
-      }
-      const patterns = kb.changePatterns.slice(0, 4);
-      if (patterns.length > 0) {
-        parts.push(`常见变更模式：${patterns.map((p) => p.pattern).join("、")}`);
-      }
+    // 使用统一的 knowledgeSyncContext 替代手写序列化（覆盖全部 7 字段）
+    const knowledgeContext = buildKnowledgeSyncContext(input.project.knowledgeBase ?? null);
+    if (knowledgeContext) {
+      parts.push(knowledgeContext);
     } else {
       parts.push("项目还没有积累业务知识，需要通过分析材料来逐步沉淀。");
     }

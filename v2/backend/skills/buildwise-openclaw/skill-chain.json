@@ -3,6 +3,7 @@
   "runtime": "openclaw+bridge",
   "orchestrator": "00-orchestrator-sop",
   "sequence": [
+    "00-orchestrator-sop",
     "01-ontology-mapping",
     "10-business-rule-linking",
     "02-impact-analysis",

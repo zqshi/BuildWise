@@ -19,7 +19,7 @@ test("presentCoachReply removes internal skill notes and compresses deliverable-
   );
 });
 
-test("presentCoachReply compresses long structured artifact body into a short card-oriented notice", () => {
+test("presentCoachReply preserves natural language lines from structured artifact and strips markdown", () => {
   const reply = [
     "### 创意生成器 V1.1 继承差异分析报告",
     "## 变更目标",
@@ -30,21 +30,23 @@ test("presentCoachReply compresses long structured artifact body into a short ca
     "请查看交付物卡片并确认，若需修改可继续补充意见。"
   ].join("\n");
 
+  // 新逻辑：保留自然语言行，剥离结构化行（表格/标题等走卡片通道）
   assert.equal(
     presentCoachReply(reply),
-    "已生成「继承差异分析报告」。\n请查看交付物卡片并确认，若需修改可继续补充意见。"
+    "请查看交付物卡片并确认，若需修改可继续补充意见。"
   );
 });
 
-test("presentCoachReply compresses structured json payload into artifact notice", () => {
+test("presentCoachReply extracts natural language from structured json payload", () => {
   const reply = JSON.stringify({
     intent: "deliverable-output",
     reply: "# 创意生成器 V1.1 继承差异分析报告\n\n## 一、继承不变项\n| 模块 | 具体内容 |\n| --- | --- |"
   });
 
+  // 纯结构化内容无自然语言行时，生成简短引导
   assert.equal(
     presentCoachReply(reply),
-    "已生成「继承差异分析报告」。\n请查看交付物卡片并确认。"
+    "已生成「继承差异分析报告」，请查看交付物卡片了解详情。"
   );
 });
 

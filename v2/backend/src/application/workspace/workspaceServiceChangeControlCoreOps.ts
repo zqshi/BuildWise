@@ -2,6 +2,8 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { IterationChangeBoundary } from "../../domain/workspace/types";
 import { normalizeIteration } from "./workspaceSupport";
 import { defaultIterationChangeControl, resolveClarificationSelection, writeAuditLog } from "./workspaceServiceCommon";
+import { extractKnowledgeBaseUpdateOp } from "./ontologyService";
+import { detectOntologyCollisionsOp } from "./ontologyCollisionDetector";
 import {
   ensureArtifactWorkflow,
   markDownstreamStale,
@@ -166,10 +168,9 @@ export function confirmIterationAnalysisOp(
     analysisItem.stale = false;
     markDownstreamStale(normalized.changeControl.artifactWorkflow.items, analysisItem.id);
   }
-  repo.updateIteration(normalized);
   writeAuditLog(repo, "iteration_analysis_confirmed", `iteration:${iterationId}`, `confirmedBy=${normalized.changeControl.confirmedBy}`);
 
-  // 知识沉淀：将 domainKnowledgeEntries 回写到 ProjectKnowledgeBase
+  // 知识沉淀：通过 OntologyService 填充 KB 全部 7 字段 + 碰撞检测
   const domainEntries = normalized.changeControl.domainKnowledgeEntries;
   if (Array.isArray(domainEntries) && domainEntries.length > 0) {
     const project = repo.findProject(normalized.projectId);
@@ -184,34 +185,36 @@ export function confirmIterationAnalysisOp(
         changePatterns: [],
         updatedAt: ""
       };
-      const existingTerms = new Set(kb.ontologyTerms.map((item) => item.term));
-      for (const entry of domainEntries) {
-        if (entry.term && !existingTerms.has(entry.term)) {
-          kb.ontologyTerms.push({
-            term: entry.term,
-            aliases: [],
-            definition: entry.definition || "",
-            evidence: entry.evidence || ""
-          });
-          existingTerms.add(entry.term);
-        }
-      }
-      // 从 executableConstraints 提取 stableRules
-      const constraints = normalized.changeControl.executableConstraints;
-      if (constraints?.acceptanceChecks) {
-        const existingRules = new Set(kb.stableRules.map((item) => item.rule));
-        for (const check of constraints.acceptanceChecks) {
-          if (check && !existingRules.has(check)) {
-            kb.stableRules.push({ rule: check, rationale: "从验收标准自动沉淀", source: `iteration:${iterationId}` });
-            existingRules.add(check);
-          }
-        }
-      }
-      kb.updatedAt = now;
-      repo.updateProject({ ...project, knowledgeBase: kb });
-      writeAuditLog(repo, "project_knowledge_base_updated", `project:${normalized.projectId}`, `terms=${kb.ontologyTerms.length};rules=${kb.stableRules.length}`);
+
+      // 碰撞检测 — 填充 knowledgeHits / knowledgeConflicts
+      const collisions = detectOntologyCollisionsOp(kb, domainEntries);
+      normalized.changeControl.knowledgeHits = collisions.knowledgeHits;
+      normalized.changeControl.knowledgeConflicts = collisions.knowledgeConflicts;
+
+      // 构建 OntologyInput — 从 changeControl 中提取可用的 traceability/boundary 数据
+      const boundary = normalized.changeControl.boundary;
+      const riskAreas = (normalized.changeControl as Record<string, unknown>).knownRisks;
+      const ontologyResult = extractKnowledgeBaseUpdateOp(kb, {
+        domainKnowledgeEntries: domainEntries,
+        traceabilityMap: null,
+        boundary: {
+          codePaths: boundary?.codePaths || [],
+          requirementRefs: boundary?.requirementRefs || [],
+          riskAreas: Array.isArray(riskAreas) ? riskAreas as Array<{ risk: string; mitigation: string; trigger: string }> : undefined
+        },
+        analysisReport: null
+      });
+
+      repo.updateProject({ ...project, knowledgeBase: ontologyResult.updatedKb });
+      writeAuditLog(
+        repo,
+        "project_knowledge_base_updated",
+        `project:${normalized.projectId}`,
+        `terms=${ontologyResult.updatedKb.ontologyTerms.length};rules=${ontologyResult.updatedKb.stableRules.length};components=${ontologyResult.updatedKb.componentInventory.length};hits=${collisions.knowledgeHits.length};conflicts=${collisions.knowledgeConflicts.length}`
+      );
     }
   }
+  repo.updateIteration(normalized);
 
   return { ok: true as const, data: normalized.changeControl };
 }

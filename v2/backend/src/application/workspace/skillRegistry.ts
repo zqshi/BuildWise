@@ -76,6 +76,13 @@ export function loadFilePackSkillsWithSop(
       .map((item: unknown) => (typeof item === "string" ? item.trim() : ""))
       .filter(Boolean)
       .slice(0, 16);
+    // 确保 orchestrator 字段引用的 skill 也被加载
+    if (typeof parsed.orchestrator === "string" && parsed.orchestrator.trim()) {
+      const orchestratorId = parsed.orchestrator.trim();
+      if (!sequence.includes(orchestratorId)) {
+        sequence.unshift(orchestratorId);
+      }
+    }
   } catch {
     return [];
   }

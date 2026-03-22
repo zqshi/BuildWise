@@ -10,6 +10,7 @@ import type { AgentRunner, AgentRunResult, ConversationMessage } from "../worksp
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { parsePolicyIntentFromReply } from "./policyIntentParser";
 import { mergePolicyDeltaOp, GLOBAL_ORCHESTRATION_SCOPE_PROJECT_ID } from "../workspace/workspaceServicePolicyOps";
+import { buildKnowledgeSyncContext } from "../workspace/knowledgeSyncService";
 
 // ---------------------------------------------------------------------------
 // LLM response sanitization — strip internal model markers
@@ -147,9 +148,17 @@ export class OpenclawGlobalService {
     let replyMetadata: Record<string, unknown> = {};
 
     if (this.agentRunner) {
+      // 动态注入活跃项目的知识概要到 system prompt
+      let systemPrompt = GLOBAL_ASSISTANT_SYSTEM_PROMPT;
+      if (this.workspaceRepo) {
+        const projectsSummary = buildGlobalProjectsKnowledgeSummary(this.workspaceRepo);
+        if (projectsSummary) {
+          systemPrompt = systemPrompt + "\n\n" + projectsSummary;
+        }
+      }
       try {
         const result: AgentRunResult = await this.agentRunner.runWithHistory(
-          GLOBAL_ASSISTANT_SYSTEM_PROMPT,
+          systemPrompt,
           conversationMessages,
           { sessionContext: { conversationId } }
         );
@@ -198,8 +207,9 @@ export class OpenclawGlobalService {
           // 更新已持久化的消息 metadata
           this.repo.appendMessage({ ...assistantMsg });
         }
-      } catch {
-        // 策略回写失败不影响主流程
+      } catch (err) {
+        // 策略回写失败记录警告，不阻塞主流程
+        console.warn("[policy-write-failed]", err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -285,4 +295,33 @@ export class OpenclawGlobalService {
     this.repo.updateStrategyState(state);
     return state;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 全局对话项目知识概要 — 聚合所有活跃项目的 KB 摘要
+// ---------------------------------------------------------------------------
+
+function buildGlobalProjectsKnowledgeSummary(workspaceRepo: WorkspaceRepository): string {
+  const projects = workspaceRepo.listProjects().filter((p) => p.status === "active" || p.status === "in-progress");
+  if (projects.length === 0) return "";
+
+  const MAX_TOTAL_CHARS = 2000;
+  const summaries: string[] = [];
+  let totalChars = 0;
+
+  for (const project of projects.slice(0, 6)) {
+    const kb = project.knowledgeBase;
+    if (!kb) continue;
+
+    const kbContext = buildKnowledgeSyncContext(kb, { maxChars: 300 });
+    if (!kbContext) continue;
+
+    const entry = `[项目: ${project.name}]\n${kbContext}`;
+    if (totalChars + entry.length > MAX_TOTAL_CHARS) break;
+    summaries.push(entry);
+    totalChars += entry.length;
+  }
+
+  if (summaries.length === 0) return "";
+  return "当前活跃项目的知识概要：\n\n" + summaries.join("\n\n");
 }

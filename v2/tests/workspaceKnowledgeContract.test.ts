@@ -56,15 +56,27 @@ test("coach runtime injects project knowledge and change intelligence as context
     resolve(v2Dir, "backend", "src", "application", "workspace", "workspaceServiceCoachOps.ts"),
     "utf-8"
   );
+  const knowledgeSyncSource = readFileSync(
+    resolve(v2Dir, "backend", "src", "application", "workspace", "knowledgeSyncService.ts"),
+    "utf-8"
+  );
 
-  assert.match(coachSource, /项目中的关键业务概念/);
-  assert.match(coachSource, /已确认的业务规则/);
+  // Coach 委托 knowledgeSyncService 做统一知识注入
+  assert.match(coachSource, /buildKnowledgeSyncContext/);
+  // knowledgeSyncService 覆盖全部 7 个知识维度
+  assert.match(knowledgeSyncSource, /项目知识-业务概念/);
+  assert.match(knowledgeSyncSource, /项目知识-业务规则/);
+  assert.match(knowledgeSyncSource, /项目知识-功能模块/);
+  assert.match(knowledgeSyncSource, /项目知识-代码映射/);
+  assert.match(knowledgeSyncSource, /项目知识-已知风险/);
+  assert.match(knowledgeSyncSource, /项目知识-变更模式/);
+  // Coach 仍包含变更智能注入
   assert.match(coachSource, /变更来源是/);
   assert.match(coachSource, /与已有知识的关联/);
   assert.match(coachSource, /发现的知识冲突/);
   assert.match(coachSource, /归纳出的功能点/);
   assert.match(coachSource, /function buildFallbackCoachReply\(rawContent: string\)/);
-  assert.match(coachSource, /pickString\(parsed\?\.reply\) \|\| buildFallbackCoachReply\(result\.content\)/);
+  assert.match(coachSource, /extractCoachMarker\(result\.content\)/);
   assert.match(coachSource, /用自然沟通引导用户推进迭代澄清与边界确认/);
   assert.doesNotMatch(coachSource, /固定话术|固定回复模板/);
 });

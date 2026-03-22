@@ -1,10 +1,9 @@
 import { extractArtifactDisplayContent, extractDeliverableTitleFromContent, isStructuredArtifactContent } from "./artifactContentPresentation.ts";
 
 const INTERNAL_SKILL_LINE = /^\s*\[skills\]/i;
-const DELIVERABLE_TITLE_LINE = /(首版需求分析报告|继承差异分析报告|需求分析报告|产品需求文档|边界确认|设计规范|技术架构|代码交付|测试矩阵|发布评审|交付归档)/;
+// 容错：标准闭合、未闭合（LLM截断）、大小写
+const COACH_MARKER_RE = /<!--\s*coach:\s*\{[\s\S]*?\}\s*(?:-->|$)/i;
 const DELIVERABLE_READY_LINE = /(已输出|已生成|已整理|已形成).*(报告|文档|交付物|边界确认)/;
-const STRUCTURED_ARTIFACT_SIGNAL = /(^#{1,4}\s)|(^\|.+\|$)|(^[-*]\s)|(^\d+\.\d+\s)|(^```)|(^---$)/m;
-
 function normalizeLines(reply: string) {
   return extractArtifactDisplayContent(reply)
     .split("\n")
@@ -13,47 +12,52 @@ function normalizeLines(reply: string) {
     .filter((line) => !INTERNAL_SKILL_LINE.test(line));
 }
 
-function extractDeliverableTitle(lines: string[]) {
-  const matched = lines.find((line) => DELIVERABLE_TITLE_LINE.test(line));
-  if (!matched) {
+function isNaturalLanguageLine(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  // 结构化行：markdown表格、标题、列表项、代码块、分隔线
+  if (/^(#{1,6}\s|\|.+\|$|```|---+$)/.test(trimmed)) return false;
+  // 表格分隔行
+  if (/^\|\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|$/.test(trimmed)) return false;
+  return true;
+}
+
+/**
+ * 展示 Coach 回复：
+ * - 保留 AI 的自然语言引导和说明（用户在气泡中看到）
+ * - 剥离结构化交付物正文（markdown表格/标题等，走卡片通道展示）
+ * - 剥离内部标记（skill notes、coach marker）
+ *
+ * 设计原则：用户同时看到 AI 的对话性回复（气泡）和交付物详情（卡片），
+ * 而不是只看到一行"已生成「XX」"的通知。
+ */
+export function presentCoachReply(reply: string) {
+  if (!reply) {
     return "";
   }
-  const titleMatch = matched.match(DELIVERABLE_TITLE_LINE);
-  return titleMatch?.[0] || "";
-}
-
-function isNaturalLanguageConfirmationLine(line: string) {
-  if (!/确认|查看交付物|打开交付物|补充修改/.test(line)) {
-    return false;
-  }
-  return !/^(#{1,6}\s|\|.+\|$|\d+\.\d+\s)/.test(line.trim());
-}
-
-export function presentCoachReply(reply: string) {
-  const lines = normalizeLines(reply);
+  // 剥离尾部的 <!-- coach:{...} --> 结构化控制标记
+  const withoutMarker = reply.replace(COACH_MARKER_RE, "").trim();
+  const lines = normalizeLines(withoutMarker);
   if (lines.length === 0) {
     return "";
   }
   const joined = lines.join("\n");
 
-  // 检测是否为结构化交付物内容（包含 markdown 表格、标题等）
+  // 如果回复中没有结构化交付物内容，直接完整返回
   if (!isStructuredArtifactContent(joined)) {
     return joined;
   }
 
-  // 提取交付物标题
-  const title = extractDeliverableTitle(lines) || extractDeliverableTitleFromContent(joined);
-  if (!title) {
-    // 有结构化信号但无法识别交付物标题，保留自然语言行
-    const naturalLines = lines.filter((line) => isNaturalLanguageConfirmationLine(line) || (!STRUCTURED_ARTIFACT_SIGNAL.test(line) && !DELIVERABLE_READY_LINE.test(line)));
-    return naturalLines.length > 0 ? naturalLines.join("\n") : joined;
+  // 有结构化交付物内容：提取自然语言行保留在气泡中
+  // 结构化部分（表格、markdown标题等）交给卡片通道展示
+  const naturalLines = lines.filter((line) => isNaturalLanguageLine(line));
+
+  if (naturalLines.length === 0) {
+    // 全是结构化内容，生成一句简短引导
+    const title = extractDeliverableTitleFromContent(joined);
+    const readyLine = lines.find((line) => DELIVERABLE_READY_LINE.test(line));
+    return readyLine || (title ? `已生成「${title}」，请查看交付物卡片了解详情。` : joined);
   }
 
-  // 提取确认引导行（自然语言部分）
-  const confirmationLines = lines.filter((line) => isNaturalLanguageConfirmationLine(line));
-  const readyLine = lines.find((line) => DELIVERABLE_READY_LINE.test(line));
-  const notice = readyLine || `已生成「${title}」。`;
-  const guidance = confirmationLines.length > 0 ? confirmationLines.join("\n") : "请查看交付物卡片并确认。";
-
-  return `${notice}\n${guidance}`;
+  return naturalLines.join("\n");
 }
