@@ -58,6 +58,25 @@ function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+/**
+ * JSON-file backed workspace repository.
+ *
+ * CONCURRENCY SAFETY NOTE:
+ * All read-modify-write sequences in this class are fully synchronous
+ * (readFileSync → in-memory mutation → writeFileSync). Because Node.js is
+ * single-threaded and there are no `await` points between read and write,
+ * no other request handler can interleave. This makes the JSON backend safe
+ * for single-process deployments without an async mutex.
+ *
+ * If any method is ever refactored to use async I/O (e.g. fs/promises), an
+ * async mutex MUST be added to prevent read-modify-write races.
+ *
+ * The `writing` flag is a defensive assertion — it will throw if a bug
+ * accidentally causes re-entrant writes within the same synchronous call.
+ *
+ * For production deployments, prefer STORAGE_BACKEND=sqlite which provides
+ * proper transactional guarantees and survives concurrent-process scenarios.
+ */
 export class JsonWorkspaceRepository implements WorkspaceRepository {
   private readonly dataFile: string;
   private writing = false;
@@ -71,7 +90,14 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       return seedStore;
     }
     const raw = readFileSync(this.dataFile, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<WorkspaceStore>;
+    let parsed: Partial<WorkspaceStore>;
+    try {
+      parsed = JSON.parse(raw) as Partial<WorkspaceStore>;
+    } catch {
+      console.error(`[workspace-repo] data file corrupted, resetting to seed: ${this.dataFile}`);
+      this.write(seedStore);
+      return seedStore;
+    }
     return {
       projects: toArray<Project>(parsed.projects),
       iterations: toArray<Iteration>(parsed.iterations),

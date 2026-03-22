@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import type { ModelSnapshot, SnapshotStatus } from "../../domain/continuousModeling/types";
 
@@ -10,6 +10,19 @@ function asSnapshots(value: unknown) {
   return Array.isArray(value) ? (value as ModelSnapshot[]) : [];
 }
 
+/**
+ * JSON-file backed continuous modeling repository.
+ *
+ * CONCURRENCY SAFETY NOTE:
+ * All read-modify-write sequences are fully synchronous (readFileSync →
+ * in-memory mutation → writeFileSync) with no await points in between.
+ * Node.js single-threaded execution guarantees atomicity within each
+ * synchronous call, so no async mutex is needed for single-process deployments.
+ *
+ * If any method is refactored to use async I/O, an async mutex MUST be added.
+ * The `writing` flag is a defensive assertion against accidental re-entrant writes.
+ * For production, prefer STORAGE_BACKEND=sqlite for transactional safety.
+ */
 export class JsonContinuousModelingRepository implements ContinuousModelingRepository {
   private readonly dataFile: string;
   private writing = false;
@@ -24,7 +37,15 @@ export class JsonContinuousModelingRepository implements ContinuousModelingRepos
       return initial;
     }
     const raw = readFileSync(this.dataFile, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<ContinuousModelingStore>;
+    let parsed: Partial<ContinuousModelingStore>;
+    try {
+      parsed = JSON.parse(raw) as Partial<ContinuousModelingStore>;
+    } catch {
+      console.error(`[continuous-modeling-repo] data file corrupted, resetting: ${this.dataFile}`);
+      const initial = { snapshots: [] as ModelSnapshot[] };
+      this.writeStore(initial);
+      return initial;
+    }
     return {
       snapshots: asSnapshots(parsed.snapshots)
     };
@@ -36,7 +57,9 @@ export class JsonContinuousModelingRepository implements ContinuousModelingRepos
     }
     this.writing = true;
     try {
-      writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
+      const tmpFile = `${this.dataFile}.tmp`;
+      writeFileSync(tmpFile, JSON.stringify(data, null, 2), "utf-8");
+      renameSync(tmpFile, this.dataFile);
     } finally {
       this.writing = false;
     }

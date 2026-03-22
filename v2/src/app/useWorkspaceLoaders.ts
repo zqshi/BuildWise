@@ -7,15 +7,8 @@ import type {
   IterationContextPayload,
   IterationStateMachinePayload,
   IterationMessage,
-  ModelRelationPayload,
-  ModelSummaryPayload,
-  RoadmapPayload,
   Project,
-  RuleBindPayload,
-  RuleCompilePayload,
   StatusPayload,
-  SyncReportPayload,
-  TracePayload
 } from "../domain/workspace/types";
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 import type {
@@ -33,7 +26,7 @@ import {
   fetchGovernance,
   fetchIterationDetail,
   fetchIterationStateMachine,
-  fetchModelOps,
+  fetchPlatformOps,
   fetchProjectIterations,
   fetchProjects
 } from "./workspaceApi";
@@ -85,14 +78,6 @@ type UseWorkspaceLoadersParams = {
   setAssessmentData: Dispatch<SetStateAction<AssessmentPayload | null>>;
   setAssessmentHistory: Dispatch<SetStateAction<AssessmentSnapshot[]>>;
   setStateMachine: Dispatch<SetStateAction<IterationStateMachinePayload | null>>;
-  setModelSummary: Dispatch<SetStateAction<ModelSummaryPayload | null>>;
-  setModelRelations: Dispatch<SetStateAction<ModelRelationPayload[]>>;
-  setRuleCompile: Dispatch<SetStateAction<RuleCompilePayload | null>>;
-  setRuleBind: Dispatch<SetStateAction<RuleBindPayload | null>>;
-  setSyncReport: Dispatch<SetStateAction<SyncReportPayload | null>>;
-  setTraceReport: Dispatch<SetStateAction<TracePayload | null>>;
-  setRoadmapReports: Dispatch<SetStateAction<RoadmapPayload[]>>;
-  setModelOpsLoading: Dispatch<SetStateAction<boolean>>;
   setGovernanceRoles: Dispatch<SetStateAction<GovernanceRole[]>>;
   setAuditLogs: Dispatch<SetStateAction<AuditLog[]>>;
   setVersionSnapshots: Dispatch<SetStateAction<VersionSnapshot[]>>;
@@ -116,14 +101,6 @@ export function useWorkspaceLoaders({
   setAssessmentData,
   setAssessmentHistory,
   setStateMachine,
-  setModelSummary,
-  setModelRelations,
-  setRuleCompile,
-  setRuleBind,
-  setSyncReport,
-  setTraceReport,
-  setRoadmapReports,
-  setModelOpsLoading,
   setGovernanceRoles,
   setAuditLogs,
   setVersionSnapshots,
@@ -214,17 +191,9 @@ export function useWorkspaceLoaders({
     setStateMachine(machine);
   };
 
-  const loadModelOps = async (projectId?: number) => {
+  const loadPlatformOps = async (projectId?: number) => {
     try {
-      setModelOpsLoading(true);
-      const reports = await fetchModelOps(projectId);
-      setModelSummary(reports.modelSummary);
-      setModelRelations(reports.modelRelations);
-      setRuleCompile(reports.ruleCompile);
-      setRuleBind(reports.ruleBind);
-      setSyncReport(reports.syncReport);
-      setTraceReport(reports.traceReport);
-      setRoadmapReports(reports.roadmapReports);
+      const reports = await fetchPlatformOps(projectId);
       setTemplates(reports.templates);
       setTemplateRuns(reports.templateRuns);
       setOpsMetrics(reports.opsMetrics);
@@ -234,8 +203,6 @@ export function useWorkspaceLoaders({
       if (!isAuthError(msg)) {
         setError(msg);
       }
-    } finally {
-      setModelOpsLoading(false);
     }
   };
 
@@ -341,5 +308,5 @@ export function useWorkspaceLoaders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { loadProjects, loadIterations, loadIterationDetail, loadModelOps, loadGovernance, loadCollaboration };
+  return { loadProjects, loadIterations, loadIterationDetail, loadPlatformOps, loadGovernance, loadCollaboration };
 }

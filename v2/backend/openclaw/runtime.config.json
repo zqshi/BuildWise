@@ -1,7 +1,7 @@
 {
   "runtimeMode": "openclaw-native",
   "openclaw": {
-    "sourcePath": "/Users/zqs/Downloads/project/longxia/【0228】openclaw",
+    "sourcePath": "../../../longxia/【0228】openclaw",
     "lockRef": "2026.2.27",
     "entry": "openclaw.mjs",
     "readOnly": true,
@@ -16,13 +16,13 @@
   "sourceRegistry": [
     {
       "project": "BuildWise",
-      "sourcePath": "/Users/zqs/Downloads/project/BuildWise",
+      "sourcePath": "../..",
       "lockRef": "main",
       "enabled": true
     },
     {
       "project": "browser-use",
-      "sourcePath": "/Users/zqs/Downloads/project/browser-use",
+      "sourcePath": "../../../browser-use",
       "lockRef": "main",
       "enabled": true
     }

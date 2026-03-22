@@ -4,7 +4,7 @@ import { join, normalize, sep } from "node:path";
 import { normalizeRelPath } from "./workspaceServiceCommon";
 
 function runGit(args: string[], cwd: string) {
-  return spawnSync("git", args, { cwd, encoding: "utf-8" });
+  return spawnSync("git", args, { cwd, encoding: "utf-8", timeout: 20_000 });
 }
 
 function isPathInside(rootPath: string, targetPath: string) {

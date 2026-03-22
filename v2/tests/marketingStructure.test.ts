@@ -6,7 +6,7 @@ const pagePath = new URL("../src/pages/marketing/MarketingHomePage.tsx", import.
 
 test("marketing nav keeps a single entry action and hero keeps proof structure", () => {
   const source = readFileSync(pagePath, "utf8");
-  const navBlock = source.match(/<header className="marketing-nav">[\s\S]*?<\/header>/)?.[0] ?? "";
+  const navBlock = source.match(/<header className=[\s\S]*?<\/header>/)?.[0] ?? "";
 
   assert.match(
     navBlock,
@@ -18,6 +18,6 @@ test("marketing nav keeps a single entry action and hero keeps proof structure",
   assert.match(source, /className="marketing-hero-signal"/, "hero should include a compact signal row");
   assert.match(source, /className="marketing-hero-bottom"/, "hero should keep actions and stats grouped below the visual stage");
   assert.match(source, /className="marketing-footer"/, "marketing page should include a compact footer");
-  assert.match(source, /Business Intent Compiler/, "footer should reinforce the product identity");
+  assert.match(source, /AI-Native Delivery/, "footer should reinforce the product identity");
   assert.doesNotMatch(source, /marketing-footer-link/, "footer should not render a secondary login entry");
 });

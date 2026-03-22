@@ -89,13 +89,10 @@ function listRouteFiles(dir) {
   return results;
 }
 
-const model = JSON.parse(read("v2/model.json"));
-
 const frontendApis = extractFrontendApis(frontendSources);
 const routeFiles = listRouteFiles(path.join(workspaceRoot, "v2", "backend", "src", "interfaces", "http", "routes"));
 const backendRoutes = [
-  ...routeFiles.flatMap((file) => extractRoutePaths(readFileSync(file, "utf-8"))),
-  ...((Array.isArray(model.apis) ? model.apis : []).map((item) => item.path).filter(Boolean))
+  ...routeFiles.flatMap((file) => extractRoutePaths(readFileSync(file, "utf-8")))
 ];
 
 const uniqueBackendRoutes = [...new Set(backendRoutes)].sort();

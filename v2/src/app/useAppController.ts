@@ -5,10 +5,8 @@ import {
   accessShare,
   commentByShare,
   createDeployment,
-  createModelRelation,
   createProjectShare,
   createVersionSnapshot,
-  deleteModelRelation,
   restoreVersionSnapshot,
   runTemplate,
   transitionDeployment
@@ -56,14 +54,6 @@ export function useAppController() {
     setAssessmentData: state.setAssessmentData,
     setAssessmentHistory: state.setAssessmentHistory,
     setStateMachine: state.setStateMachine,
-    setModelSummary: state.setModelSummary,
-    setModelRelations: state.setModelRelations,
-    setRuleCompile: state.setRuleCompile,
-    setRuleBind: state.setRuleBind,
-    setSyncReport: state.setSyncReport,
-    setTraceReport: state.setTraceReport,
-    setRoadmapReports: state.setRoadmapReports,
-    setModelOpsLoading: state.setModelOpsLoading,
     setGovernanceRoles: state.setGovernanceRoles,
     setAuditLogs: state.setAuditLogs,
     setVersionSnapshots: state.setVersionSnapshots,
@@ -83,8 +73,8 @@ export function useAppController() {
     state.setCurrentRole(auth.workspaceRole);
   }, [auth.workspaceRole, state.setCurrentRole]);
 
-  // Guard: only load modelOps once per project switch, not on every state change
-  const modelOpsLoadedForRef = useRef<number | null>(null);
+  // Guard: only load platformOps once per project switch, not on every state change
+  const platformOpsLoadedForRef = useRef<number | null>(null);
 
   // Track whether the current project actually exists in the loaded list
   const projectExistsInList = derived.currentProject !== null && derived.currentProject.id === state.currentProjectId;
@@ -97,7 +87,7 @@ export function useAppController() {
       state.setVersionSnapshots([]);
       state.setProjectShares([]);
       state.setShareAccess(null);
-      modelOpsLoadedForRef.current = null;
+      platformOpsLoadedForRef.current = null;
       return;
     }
     if (!projectExistsInList) {
@@ -109,11 +99,11 @@ export function useAppController() {
       state.setError((prev) => (prev && /^API error: 404\b/.test(prev) ? null : prev));
       return;
     }
-    modelOpsLoadedForRef.current = state.currentProjectId;
+    platformOpsLoadedForRef.current = state.currentProjectId;
     Promise.all([
       loaders.loadIterations(state.currentProjectId),
       loaders.loadCollaboration(state.currentProjectId),
-      loaders.loadModelOps(state.currentProjectId)
+      loaders.loadPlatformOps(state.currentProjectId)
     ]).catch((err) => {
       const msg = resolveErrorMessage(err);
       if (!msg.includes("401")) {
@@ -228,17 +218,17 @@ export function useAppController() {
     });
   }, [state.activeView, state.projects.length, state.status?.status]);
 
-  // Guard: only load modelOps once per view switch (not re-triggered by state changes from loadModelOps itself)
+  // Guard: only load platformOps once per view switch (not re-triggered by state changes from loadPlatformOps itself)
   useEffect(() => {
     if (state.activeView !== "projects") {
       return;
     }
     const pid = state.currentProjectId ?? -1;
-    if (modelOpsLoadedForRef.current === pid) {
+    if (platformOpsLoadedForRef.current === pid) {
       return;
     }
-    modelOpsLoadedForRef.current = pid;
-    loaders.loadModelOps(state.currentProjectId ?? undefined).catch((err) => {
+    platformOpsLoadedForRef.current = pid;
+    loaders.loadPlatformOps(state.currentProjectId ?? undefined).catch((err) => {
       const msg = resolveErrorMessage(err);
       if (!msg.includes("401")) {
         state.setError(msg);
@@ -309,42 +299,9 @@ export function useAppController() {
     auth.logout();
   };
 
-  const handleCreateModelRelation = async (payload: {
-    fromEntityId: string;
-    toEntityId: string;
-    type: "one_to_one" | "one_to_many" | "many_to_many";
-    name?: string;
-  }) => {
-    if (!state.currentProjectId) {
-      state.setError("请先选择项目，再进行关系建模。");
-      return;
-    }
-    try {
-      state.setModelOpsLoading(true);
-      await createModelRelation({ ...payload, projectId: state.currentProjectId });
-      await Promise.all([loaders.loadModelOps(state.currentProjectId ?? undefined), loaders.loadGovernance()]);
-    } finally {
-      state.setModelOpsLoading(false);
-    }
-  };
-
-  const handleDeleteModelRelation = async (relationId: string) => {
-    if (!state.currentProjectId) {
-      state.setError("请先选择项目，再进行关系建模。");
-      return;
-    }
-    try {
-      state.setModelOpsLoading(true);
-      await deleteModelRelation(relationId, state.currentProjectId);
-      await Promise.all([loaders.loadModelOps(state.currentProjectId ?? undefined), loaders.loadGovernance()]);
-    } finally {
-      state.setModelOpsLoading(false);
-    }
-  };
-
-  const handleRefreshModelOps = async () => {
+  const handleRefreshPlatformOps = async () => {
     await Promise.all([
-      loaders.loadModelOps(state.currentProjectId ?? undefined),
+      loaders.loadPlatformOps(state.currentProjectId ?? undefined),
       loaders.loadGovernance(),
       state.currentProjectId ? loaders.loadCollaboration(state.currentProjectId) : Promise.resolve()
     ]);
@@ -395,7 +352,7 @@ export function useAppController() {
     }
     const result = await runTemplate(templateId, state.currentProjectId, payload, state.currentRole);
     state.setLatestTemplateRun(result);
-    await Promise.all([loaders.loadGovernance(), loaders.loadModelOps(state.currentProjectId ?? undefined)]);
+    await Promise.all([loaders.loadGovernance(), loaders.loadPlatformOps(state.currentProjectId ?? undefined)]);
   };
 
   const resolveGovernanceGate = () => {
@@ -458,12 +415,12 @@ export function useAppController() {
       },
       state.currentRole
     );
-    await Promise.all([loaders.loadModelOps(state.currentProjectId ?? undefined), loaders.loadGovernance()]);
+    await Promise.all([loaders.loadPlatformOps(state.currentProjectId ?? undefined), loaders.loadGovernance()]);
   };
 
   const handleTransitionDeployment = async (deploymentId: number, toStatus: "running" | "success" | "failed") => {
     await transitionDeployment(deploymentId, toStatus, state.currentRole);
-    await Promise.all([loaders.loadModelOps(state.currentProjectId ?? undefined), loaders.loadGovernance()]);
+    await Promise.all([loaders.loadPlatformOps(state.currentProjectId ?? undefined), loaders.loadGovernance()]);
   };
 
   const handleAccessShare = async (token: string) => {
@@ -483,9 +440,7 @@ export function useAppController() {
     dockUserLabel,
     dockUserAvatar,
     handleLogout,
-    loadModelOps: handleRefreshModelOps,
-    handleCreateModelRelation,
-    handleDeleteModelRelation,
+    loadPlatformOps: handleRefreshPlatformOps,
     handleCreateVersionSnapshot,
     handleRestoreVersionSnapshot,
     handleCreateProjectShare,

@@ -7,6 +7,36 @@ import type {
   OpenclawGlobalStrategyState
 } from "../../domain/openclawGlobal/types";
 import type { AgentRunner, AgentRunResult, ConversationMessage } from "../workspace/agentRunner";
+import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import { parsePolicyIntentFromReply } from "./policyIntentParser";
+import { mergePolicyDeltaOp, GLOBAL_ORCHESTRATION_SCOPE_PROJECT_ID } from "../workspace/workspaceServicePolicyOps";
+
+// ---------------------------------------------------------------------------
+// LLM response sanitization — strip internal model markers
+// ---------------------------------------------------------------------------
+
+/**
+ * 清洗 LLM 回复中的内部标记（如 MiniMax 的 tool_call XML、内部思考标签等）。
+ * 在存储和返回给前端之前调用。
+ */
+function sanitizeLlmReply(raw: string): string {
+  let text = raw;
+  // Strip <minimax:tool_call> / <minimax_tool_call> blocks (colon or underscore variants)
+  text = text.replace(/<minimax[_:]tool_call>[\s\S]*?<\/minimax[_:]tool_call>/gi, "");
+  // Strip <tool_call>...</tool_call> blocks (generic)
+  text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "");
+  // Strip <invoke ...>...</invoke> blocks
+  text = text.replace(/<invoke\b[^>]*>[\s\S]*?<\/invoke>/gi, "");
+  // Strip <thinking>...</thinking> blocks (some models emit internal COT)
+  text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+  // Strip any remaining XML-like model-internal tags (e.g. <search>, <function_call>)
+  text = text.replace(/<\/?(?:search|function_call|tool_use|result)[^>]*>/gi, "");
+  // Strip [skills] prefixed lines
+  text = text.replace(/^\[skills\].*$/gim, "");
+  // Collapse multiple blank lines into one
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
 
 // ---------------------------------------------------------------------------
 // System prompt 用于全局业务助手对话
@@ -28,7 +58,12 @@ const GLOBAL_ASSISTANT_SYSTEM_PROMPT = [
   "- 跨项目维度给出建议（不局限于某个具体迭代）",
   "- 当用户要求恢复初始配置时，确认后清除所有自定义 Skill 和工作流",
   "",
-  "边界：你不直接执行项目任务——具体的分析、编码、测试由各项目 Workspace 中的专业 Agent 完成。你的价值在于战略层面的思考和经验沉淀。"
+  "边界：你不直接执行项目任务——具体的分析、编码、测试由各项目 Workspace 中的专业 Agent 完成。你的价值在于战略层面的思考和经验沉淀。",
+  "",
+  "策略变更输出约定：",
+  "当你的建议涉及流程变更（如调整阶段、修改门禁、修改技能计划），在回复末尾以 HTML 注释形式输出结构化标记：",
+  '<!-- policy:{"action":"add-stage|remove-stage|add-gate|remove-gate|modify-gate|modify-skill-plan","stage":"...","gate":{...},"skillsPlan":[...]} -->',
+  "注意：这个标记对用户不可见，用于系统自动更新流程配置。每次回复最多一个策略变更标记。如果用户只是在讨论或提问，不要输出此标记。"
 ].join("\n");
 
 // ---------------------------------------------------------------------------
@@ -38,13 +73,16 @@ const GLOBAL_ASSISTANT_SYSTEM_PROMPT = [
 export class OpenclawGlobalService {
   private readonly repo: OpenclawGlobalRepository;
   private readonly agentRunner: AgentRunner | null;
+  private readonly workspaceRepo: WorkspaceRepository | null;
 
   constructor(
     repo: OpenclawGlobalRepository,
-    agentRunner: AgentRunner | null
+    agentRunner: AgentRunner | null,
+    workspaceRepo?: WorkspaceRepository | null
   ) {
     this.repo = repo;
     this.agentRunner = agentRunner;
+    this.workspaceRepo = workspaceRepo ?? null;
   }
 
   // ---- 对话 ----
@@ -95,12 +133,15 @@ export class OpenclawGlobalService {
       createdAt: now
     });
 
-    // 构建对话历史供 LLM 消费
+    // 构建对话历史供 LLM 消费（滑动窗口：最近 20 条，防止超出 context window）
     const history = this.repo.listMessages(conversationId);
-    const conversationMessages: ConversationMessage[] = history.map((m) => ({
-      role: m.role as "user" | "assistant" | "system",
-      content: m.content
-    }));
+    const recentHistory = history.slice(-20);
+    const conversationMessages: ConversationMessage[] = recentHistory
+      .filter((m) => m.role !== "system" && !m.content.startsWith("[LLM 调用失败]"))
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content
+      }));
 
     let replyContent: string;
     let replyMetadata: Record<string, unknown> = {};
@@ -112,11 +153,12 @@ export class OpenclawGlobalService {
           conversationMessages,
           { sessionContext: { conversationId } }
         );
-        replyContent = result.content;
+        replyContent = sanitizeLlmReply(result.content);
         replyMetadata = { model: result.model, source: "agent-runner" };
       } catch (error) {
-        replyContent = `[LLM 调用失败] ${error instanceof Error ? error.message : "unknown_error"}`;
-        replyMetadata = { source: "agent-runner-error" };
+        const errorDetail = error instanceof Error ? error.message : "unknown_error";
+        replyContent = `抱歉，当前 AI 服务暂时不可用，请稍后重试。`;
+        replyMetadata = { source: "agent-runner-error", error: errorDetail };
       }
     } else {
       replyContent = "当前未配置 LLM 运行时，业务助手暂时无法提供 AI 回复。请配置 LLM_API_BASE 等环境变量后重启服务。";
@@ -135,6 +177,31 @@ export class OpenclawGlobalService {
     // 更新对话时间戳
     conversation.updatedAt = new Date().toISOString();
     this.repo.updateConversation(conversation);
+
+    // ── 策略回写后处理 ──
+    if (this.workspaceRepo && replyMetadata.source === "agent-runner") {
+      try {
+        const intent = parsePolicyIntentFromReply(replyContent, conversationMessages);
+        if (intent.type !== "no-policy-change" && intent.delta) {
+          const mergeResult = mergePolicyDeltaOp(this.workspaceRepo, {
+            projectId: GLOBAL_ORCHESTRATION_SCOPE_PROJECT_ID,
+            actor: "global-assistant",
+            delta: intent.delta,
+            evidence: intent.evidence,
+          });
+          assistantMsg.metadata = {
+            ...assistantMsg.metadata,
+            policyIntent: intent.type,
+            policyAction: mergeResult.action,
+            policyVersion: mergeResult.policy.version,
+          };
+          // 更新已持久化的消息 metadata
+          this.repo.appendMessage({ ...assistantMsg });
+        }
+      } catch {
+        // 策略回写失败不影响主流程
+      }
+    }
 
     return [userMsg, assistantMsg];
   }

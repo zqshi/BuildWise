@@ -10,7 +10,6 @@ import { useProjectContext } from "../contexts/ProjectContext";
 import { useIterationContext } from "../contexts/IterationContext";
 import { useChatContext } from "../contexts/ChatContext";
 import { useAnalysisContext } from "../contexts/AnalysisContext";
-import { useModelOpsContext } from "../contexts/ModelOpsContext";
 import { usePlatformContext } from "../contexts/PlatformContext";
 
 export function useWorkspaceState() {
@@ -19,7 +18,6 @@ export function useWorkspaceState() {
   const iter = useIterationContext();
   const chat = useChatContext();
   const analysis = useAnalysisContext();
-  const modelOps = useModelOpsContext();
   const platform = usePlatformContext();
 
   return {
@@ -105,25 +103,9 @@ export function useWorkspaceState() {
     setStateMachine: analysis.setStateMachine,
     fileInputRef: analysis.fileInputRef,
 
-    // ModelOpsContext
-    modelSummary: modelOps.modelSummary,
-    setModelSummary: modelOps.setModelSummary,
-    modelRelations: modelOps.modelRelations,
-    setModelRelations: modelOps.setModelRelations,
-    ruleCompile: modelOps.ruleCompile,
-    setRuleCompile: modelOps.setRuleCompile,
-    ruleBind: modelOps.ruleBind,
-    setRuleBind: modelOps.setRuleBind,
-    syncReport: modelOps.syncReport,
-    setSyncReport: modelOps.setSyncReport,
-    traceReport: modelOps.traceReport,
-    setTraceReport: modelOps.setTraceReport,
-    roadmapReports: modelOps.roadmapReports,
-    setRoadmapReports: modelOps.setRoadmapReports,
-    modelOpsLoading: modelOps.modelOpsLoading,
-    setModelOpsLoading: modelOps.setModelOpsLoading,
-    opsMetrics: modelOps.opsMetrics,
-    setOpsMetrics: modelOps.setOpsMetrics,
+    // opsMetrics (migrated to PlatformContext)
+    opsMetrics: platform.opsMetrics,
+    setOpsMetrics: platform.setOpsMetrics,
 
     // PlatformContext
     governanceRoles: platform.governanceRoles,

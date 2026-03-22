@@ -115,7 +115,7 @@ export function commitIterationArtifactOp(
     title: item.title,
     summary: item.summary,
     evidence: item.evidence,
-    prompt: "请查看并确认该交付物；如需修改可直接在交付物抽屉编辑后再确认。"
+    prompt: `交付物「${item.title}」已提交（版本 ${item.outputVersion}），请继续推进后续环节。`
   });
   writeAuditLog(repo, "iteration_artifact_committed", `iteration:${iterationId}`, `artifact=${artifactId};version=${item.outputVersion}`);
   return workflow;

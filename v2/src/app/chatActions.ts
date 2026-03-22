@@ -132,6 +132,10 @@ export const handleSend = async (
     }
     const resolvedQuestions = currentIteration.changeControl?.clarificationDraftResolvedQuestions ?? [];
     const coach = await coachIterationMessage(currentIteration.id, text);
+    // Stale iteration check: if user switched iterations during the long LLM call, discard result
+    if (deps.currentIteration?.id !== currentIteration.id) {
+      return null;
+    }
     const presentedReply = presentCoachReply(coach.reply);
     if (presentedReply) {
       const truncationWarning = coach.llm?.contentComplete === false
@@ -236,10 +240,6 @@ export const handleSend = async (
           `可部署交付包：${deliveryPackageFiles.join("；") || "未生成"}`,
         deps.setChatMessages
       );
-    }
-    const followup = "";  // followup 已由 LLM 回复自身覆盖，不再机械追加
-    if (followup) {
-      await createMessage(currentIteration.id, "assistant", followup, deps.setChatMessages);
     }
     await deps.loadIterationDetail(currentIteration.id);
     return null;

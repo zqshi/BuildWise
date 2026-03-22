@@ -22,7 +22,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
@@ -56,7 +56,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
@@ -86,7 +86,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
@@ -115,7 +115,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
@@ -143,7 +143,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);

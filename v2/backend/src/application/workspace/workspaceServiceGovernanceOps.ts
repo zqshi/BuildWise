@@ -36,22 +36,22 @@ export function listGovernanceRolesOp(): GovernanceRole[] {
     {
       id: "owner",
       name: "系统负责人",
-      permissions: ["dashboard:view", "projects:view", "permissions:view", "workspace:*", "model:*", "governance:*"]
+      permissions: ["*", "dashboard:view", "projects:view", "permissions:view", "workspace:*", "model:*", "governance:*"]
     },
     {
       id: "pm",
       name: "产品经理",
-      permissions: ["dashboard:view", "projects:view", "workspace:read", "workspace:write", "iteration:transition", "template:run", "policy:read"]
+      permissions: ["dashboard:view", "projects:view", "workspace:read", "workspace:write", "collab:write", "collab:read", "iteration:transition", "iteration:transition:complete", "template:run", "deploy:read", "policy:read"]
     },
     {
       id: "developer",
       name: "研发工程师",
-      permissions: ["dashboard:view", "projects:view", "workspace:read", "model:read", "model:write", "template:run", "deploy:write", "deploy:read"]
+      permissions: ["dashboard:view", "projects:view", "workspace:read", "collab:read", "model:read", "model:write", "template:run", "deploy:write", "deploy:read", "iteration:transition"]
     },
     {
       id: "qa",
       name: "测试工程师",
-      permissions: ["dashboard:view", "projects:view", "workspace:read", "trace:read", "assessment:recompute", "deploy:read", "deploy:transition"]
+      permissions: ["dashboard:view", "projects:view", "workspace:read", "collab:read", "trace:read", "assessment:recompute", "deploy:read", "deploy:transition", "iteration:transition"]
     },
     { id: "viewer", name: "只读成员", permissions: ["dashboard:view", "projects:view", "workspace:read", "model:read", "collab:read", "policy:read"] }
   ];

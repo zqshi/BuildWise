@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildOpenclawSkillsPackContext } from "./workspaceOpenclawSkillsBridge";
+// buildOpenclawSkillsPackContext now delegates to SkillRegistry internally
 
 type RawCoachInteractionContract = {
   version?: unknown;

@@ -127,7 +127,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const authRole = currentRole(request.authRole);
     if (authRole === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${authRole}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -135,8 +135,11 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
-    const body = request.body as { role?: "system" | "assistant" | "user"; content?: string } | null;
-    const role = body?.role ?? "user";
+    const body = request.body as { role?: string; content?: string } | null;
+    const ALLOWED_ROLES = ["user", "assistant", "system"] as const;
+    type MessageRole = (typeof ALLOWED_ROLES)[number];
+    const rawRole = (body?.role ?? "user").trim();
+    const role: MessageRole = ALLOWED_ROLES.includes(rawRole as MessageRole) ? (rawRole as MessageRole) : "user";
     const content = body?.content?.trim();
     if (!content) {
       reply.code(400);
@@ -149,7 +152,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -182,7 +185,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -218,7 +221,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -267,7 +270,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -307,7 +310,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -343,7 +346,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -419,7 +422,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -455,7 +458,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; uploadId: string; fileId: string; chunkIndex: string };
     const iterationId = parsePositiveInt(params.id);
@@ -490,7 +493,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; uploadId: string };
     const iterationId = parsePositiveInt(params.id);
@@ -514,7 +517,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -551,7 +554,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -588,7 +591,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -619,7 +622,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; jobId: string };
     const iterationId = parsePositiveInt(params.id);
@@ -738,7 +741,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const grantedPermissions = service.resolveRolePermissions(role);
     if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -758,20 +761,16 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     }
     if (toStatus === "completed" && !hasPermission(role, "iteration:transition:complete", grantedPermissions)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
-    const reason = body?.reason?.trim() || "";
-    if (!reason) {
-      reply.code(400);
-      return { message: "reason is required" };
-    }
+    const reason = body?.reason?.trim() || "状态转换";
     const transition = service.transitionIteration(
       iterationId,
       toStatus,
       {
         source: "manual",
         reason,
-        operator: `user:${role}`,
+        operator: request.authSub ? `user:${request.authSub}` : `user:${role}`,
         operatorRole: role
       }
     );
@@ -823,7 +822,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
@@ -843,7 +842,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string; snapshotId: string };
     const iterationId = parsePositiveInt(params.id);

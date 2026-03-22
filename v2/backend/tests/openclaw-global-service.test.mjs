@@ -137,8 +137,9 @@ test("sendMessage handles agent runner error gracefully", async () => {
   const service = new OpenclawGlobalService(repo, agentRunner);
   const conv = service.createConversation("测试");
   const [, assistantMsg] = await service.sendMessage(conv.id, "你好");
-  assert.ok(assistantMsg.content.includes("LLM 超时"));
-  assert.deepEqual(assistantMsg.metadata, { source: "agent-runner-error" });
+  assert.ok(assistantMsg.content.includes("暂时不可用"));
+  assert.strictEqual(assistantMsg.metadata.source, "agent-runner-error");
+  assert.strictEqual(assistantMsg.metadata.error, "LLM 超时");
 });
 
 test("activateSkill updates skill status and strategy state", () => {
@@ -220,4 +221,47 @@ test("sendMessage updates conversation updatedAt", async () => {
   await service.sendMessage(conv.id, "触发更新");
   const updated = service.findConversation(conv.id);
   assert.ok(updated.updatedAt >= beforeUpdate);
+});
+
+// ─── 策略回写后处理 ───
+
+import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
+
+test("sendMessage with policy marker triggers policy writeback", async () => {
+  const repo = createInMemoryRepo();
+  const workspaceRepo = createInMemoryWorkspaceRepo();
+  const policyReply = [
+    "好的，我帮你跳过原型阶段。",
+    '<!-- policy:{"action":"remove-stage","stage":"prototype"} -->'
+  ].join("\n");
+  const agentRunner = createMockAgentRunner(policyReply);
+  const service = new OpenclawGlobalService(repo, agentRunner, workspaceRepo);
+  const conv = service.createConversation("策略测试");
+  const [, assistantMsg] = await service.sendMessage(conv.id, "跳过原型阶段");
+  assert.equal(assistantMsg.metadata.policyIntent, "remove-stage");
+  assert.ok(assistantMsg.metadata.policyVersion);
+  const policies = workspaceRepo._store.projectPolicies.filter((p) => p.status === "active");
+  assert.equal(policies.length, 1);
+});
+
+test("sendMessage without policy marker does not create policy", async () => {
+  const repo = createInMemoryRepo();
+  const workspaceRepo = createInMemoryWorkspaceRepo();
+  const agentRunner = createMockAgentRunner("好的，继续推进。");
+  const service = new OpenclawGlobalService(repo, agentRunner, workspaceRepo);
+  const conv = service.createConversation("普通对话");
+  const [, assistantMsg] = await service.sendMessage(conv.id, "你好");
+  assert.equal(assistantMsg.metadata.policyIntent, undefined);
+  assert.equal(workspaceRepo._store.projectPolicies.length, 0);
+});
+
+test("sendMessage without workspaceRepo skips policy writeback", async () => {
+  const repo = createInMemoryRepo();
+  const policyReply = '跳过 <!-- policy:{"action":"remove-stage","stage":"prototype"} -->';
+  const agentRunner = createMockAgentRunner(policyReply);
+  const service = new OpenclawGlobalService(repo, agentRunner);
+  const conv = service.createConversation("无 workspace");
+  const [, assistantMsg] = await service.sendMessage(conv.id, "跳过原型");
+  // 不会崩溃，只是不执行回写
+  assert.equal(assistantMsg.metadata.policyIntent, undefined);
 });

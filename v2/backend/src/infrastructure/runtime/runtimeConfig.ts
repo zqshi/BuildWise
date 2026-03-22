@@ -21,7 +21,6 @@ export type RuntimeConfig = {
   storageBackend: "json" | "sqlite";
   workspaceDbFile: string;
   dataFile: string;
-  modelFile: string;
   openclawHome: string;
   homeDir: string;
   openclawSkillsEnabled: boolean;
@@ -115,7 +114,7 @@ function parseBool(value: string | undefined, fallback = false) {
   return fallback;
 }
 
-export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; modelFile: string }): RuntimeConfig {
+export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string }): RuntimeConfig {
   const nodeEnv = parseNodeEnv(env.NODE_ENV);
   const corsOrigins = parseCorsOrigins(env.CORS_ORIGINS);
   const authMode = parseAuthMode(env.AUTH_MODE);
@@ -125,7 +124,9 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     "/ready",
     "/api/v1/status",
     "/api/v1/collab/share/",
-    "/api/v1/auth/"
+    "/api/v1/auth/sms/",
+    "/api/v1/auth/refresh",
+    "/api/v1/auth/logout"
   ]);
   const storageBackend = parseStorageBackend(env.STORAGE_BACKEND);
   if (nodeEnv !== "development" && corsOrigins === true) {
@@ -150,6 +151,16 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     }
   }
 
+  // --- Storage backend safety checks ---
+  if (nodeEnv === "production" && storageBackend === "json") {
+    console.warn(
+      "[runtimeConfig] WARNING: STORAGE_BACKEND=json is not recommended for production. " +
+        "JSON file storage relies on Node.js single-threaded synchronous I/O for atomicity " +
+        "and does not support multi-process or clustered deployments. " +
+        "Set STORAGE_BACKEND=sqlite for transactional safety."
+    );
+  }
+
   return {
     serviceName: env.SERVICE_NAME?.trim() || "buildwise-v2-backend",
     version: env.SERVICE_VERSION?.trim() || "0.1.0",
@@ -171,7 +182,6 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string; mod
     jwtAccessTtlSec: parsePositiveInt(env.JWT_ACCESS_TTL_SEC, 7200),
     jwtRefreshTtlSec: parsePositiveInt(env.JWT_REFRESH_TTL_SEC, 604800),
     dataFile: env.WORKSPACE_DATA_FILE?.trim() || defaults.dataFile,
-    modelFile: env.MODEL_FILE?.trim() || defaults.modelFile,
     openclawHome: env.OPENCLAW_HOME?.trim() || "",
     homeDir: env.HOME?.trim() || "",
     openclawSkillsEnabled: parseBool(env.BUILDWISE_OPENCLAW_SKILLS_ENABLED, false)

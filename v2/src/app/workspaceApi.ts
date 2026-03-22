@@ -9,15 +9,8 @@ import type {
   IterationContextPayload,
   IterationStateMachinePayload,
   IterationMessage,
-  ModelSummaryPayload,
-  ModelRelationPayload,
   ProjectModelBusinessSummaryPayload,
-  RoadmapPayload,
   Project,
-  RuleBindPayload,
-  RuleCompilePayload,
-  SyncReportPayload,
-  TracePayload
 } from "../domain/workspace/types";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";
 import type { IterationArtifactStage, IterationArtifactWorkflow } from "../domain/workspace/iterationTypes";
@@ -196,7 +189,7 @@ export async function fetchIterationStateMachine(iterationId: number) {
   return fetchJSON<IterationStateMachinePayload>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/state-machine`);
 }
 
-export async function transitionIterationState(iterationId: number, payload: { toStatus: string; note?: string }) {
+export async function transitionIterationState(iterationId: number, payload: { toStatus: string; reason?: string }) {
   return fetchJSON<{ iterationId: number; fromStatus: string; toStatus: string }>(
     `${API_BASE}${API_PREFIX}/iterations/${iterationId}/state/transition`,
     {
@@ -390,40 +383,19 @@ export async function transitionIterationArtifactStage(
   });
 }
 
-export async function fetchModelOps(_projectId?: number) {
+export async function fetchPlatformOps(_projectId?: number) {
   const [
-    modelSummary,
-    modelRelationsRaw,
-    ruleCompile,
-    ruleBind,
-    syncReport,
-    traceReport,
-    roadmapReportsRaw,
     templatesRaw,
     templateRunsRaw,
     opsMetrics,
     deploymentsRaw
   ] = await Promise.all([
-    fetchJSON<ModelSummaryPayload>(`${API_BASE}${API_PREFIX}/model`),
-    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/model/relations`),
-    fetchJSON<RuleCompilePayload>(`${API_BASE}${API_PREFIX}/rules/compile`),
-    fetchJSON<RuleBindPayload>(`${API_BASE}${API_PREFIX}/rules/bind`),
-    fetchJSON<SyncReportPayload>(`${API_BASE}${API_PREFIX}/sync/report`),
-    fetchJSON<TracePayload>(`${API_BASE}${API_PREFIX}/trace`),
-    fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/roadmaps`),
     fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/templates`),
     fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/templates/runs`),
     fetchJSON<OpsMetricsPayload>(`${API_BASE}${API_PREFIX}/ops/metrics`),
     fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/ops/deployments`)
   ]);
   return {
-    modelSummary,
-    modelRelations: ensureArray<ModelRelationPayload>(modelRelationsRaw),
-    ruleCompile,
-    ruleBind,
-    syncReport,
-    traceReport,
-    roadmapReports: ensureArray<RoadmapPayload>(roadmapReportsRaw),
     templates: ensureArray<TemplateItem>(templatesRaw),
     templateRuns: ensureArray<TemplateRunHistory>(templateRunsRaw),
     opsMetrics,
@@ -505,26 +477,6 @@ export async function fetchCollaboration(projectId: number) {
     snapshots: ensureArray<VersionSnapshot>(snapshotsRaw),
     shares: ensureArray<ProjectShare>(sharesRaw)
   };
-}
-
-export async function createModelRelation(payload: {
-  projectId?: number;
-  fromEntityId: string;
-  toEntityId: string;
-  type: "one_to_one" | "one_to_many" | "many_to_many";
-  name?: string;
-}) {
-  return fetchJSON<ModelRelationPayload>(`${API_BASE}${API_PREFIX}/model/relations`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function deleteModelRelation(relationId: string, _projectId?: number) {
-  return fetchJSON<{ ok: boolean; id: string }>(`${API_BASE}${API_PREFIX}/model/relations/${relationId}`, {
-    method: "DELETE"
-  });
 }
 
 export async function recomputeAssessment(iterationId: number) {
@@ -811,16 +763,8 @@ export async function removePlatformRoleBinding(userId: string, role = "owner") 
 }
 
 export async function fetchGovernanceCustomRoles() {
-  try {
-    const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/custom-roles`);
-    return ensureArray<GovernanceCustomRolePayload>(data);
-  } catch (error) {
-    if (isApiNotFound(error)) {
-      const legacy = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/custom_roles`);
-      return ensureArray<GovernanceCustomRolePayload>(legacy);
-    }
-    throw error;
-  }
+  const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/governance/custom-roles`);
+  return ensureArray<GovernanceCustomRolePayload>(data);
 }
 
 export async function upsertGovernanceCustomRole(
@@ -843,21 +787,6 @@ export async function upsertGovernanceCustomRole(
     }
     throw error;
   }
-}
-
-export async function sendOpenclawGlobalChat(message: string, role = "owner") {
-  return fetchJSON<{
-    mode: "openclaw-native";
-    profile: string;
-    agentId: string;
-    workspacePath: string;
-    reply: string;
-    at: string;
-  }>(`${API_BASE}${API_PREFIX}/governance/openclaw/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-role": role },
-    body: JSON.stringify({ message })
-  }, 130000);
 }
 
 export type OpenclawIntegrationStatusPayload = {
@@ -900,12 +829,18 @@ export async function verifySmsLoginCode(phone: string, code: string) {
       workspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer";
     };
     accessToken?: string;
-    refreshToken?: string;
     expiresIn?: number;
   }>(`${API_BASE}${API_PREFIX}/auth/sms/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, code })
+  });
+}
+
+export async function logoutSession() {
+  return fetch(`${API_BASE}${API_PREFIX}/auth/logout`, {
+    method: "POST",
+    credentials: "include"
   });
 }
 
@@ -923,4 +858,55 @@ export async function executePolicyStep(iterationId: number, payload: { action?:
 export async function fetchIterationPolicyLogs(iterationId: number) {
   const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/policy-log`);
   return ensureArray<PolicyExecutionLogPayload>(data);
+}
+
+// ---------------------------------------------------------------------------
+// OpenClaw Global Conversations (业务助手持久化对话)
+// ---------------------------------------------------------------------------
+
+export type OpenclawConversationPayload = {
+  id: string;
+  title: string;
+  status: "active" | "archived";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpenclawGlobalMessagePayload = {
+  id: string;
+  conversationId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export async function fetchOpenclawConversations() {
+  const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/openclaw/conversations`);
+  return ensureArray<OpenclawConversationPayload>(data);
+}
+
+export async function createOpenclawConversation(title?: string) {
+  return fetchJSON<OpenclawConversationPayload>(`${API_BASE}${API_PREFIX}/openclaw/conversations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title })
+  });
+}
+
+export async function fetchOpenclawConversationMessages(conversationId: string) {
+  const data = await fetchJSON<unknown>(`${API_BASE}${API_PREFIX}/openclaw/conversations/${conversationId}/messages`);
+  return ensureArray<OpenclawGlobalMessagePayload>(data);
+}
+
+export async function sendOpenclawConversationMessage(conversationId: string, content: string) {
+  return fetchJSON<{ userMessage: OpenclawGlobalMessagePayload; assistantMessage: OpenclawGlobalMessagePayload }>(
+    `${API_BASE}${API_PREFIX}/openclaw/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content })
+    },
+    180000
+  );
 }

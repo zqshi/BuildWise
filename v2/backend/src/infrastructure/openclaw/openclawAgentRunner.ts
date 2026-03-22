@@ -96,17 +96,20 @@ export class OpenClawAgentRunner implements AgentRunner {
       ...messages.map((m) => ({ role: m.role, content: m.content }))
     ];
 
-    // Prefer explicit session context from caller, else fallback to hash-based key
+    // Dynamic agentId: sessionContext.agentId overrides default
     const ctx = options?.sessionContext;
+    const effectiveAgentId = ctx?.agentId ? String(ctx.agentId) : this.agentId;
+
+    // Prefer explicit session context from caller, else fallback to hash-based key
     const sessionKey = ctx?.conversationId
-      ? OpenClawGatewayClient.deriveGlobalSessionKey(this.agentId, ctx.conversationId)
+      ? OpenClawGatewayClient.deriveGlobalSessionKey(effectiveAgentId, ctx.conversationId)
       : ctx?.projectId
-        ? OpenClawGatewayClient.deriveProjectSessionKey(this.agentId, ctx.projectId)
-        : `agent:${this.agentId}:history-${simpleHash(systemPrompt)}`;
+        ? OpenClawGatewayClient.deriveProjectSessionKey(effectiveAgentId, ctx.projectId)
+        : `agent:${effectiveAgentId}:history-${simpleHash(systemPrompt)}`;
 
     const result = await this.client.chat({
       messages: gatewayMessages,
-      agentId: this.agentId,
+      agentId: effectiveAgentId,
       sessionKey
     });
 

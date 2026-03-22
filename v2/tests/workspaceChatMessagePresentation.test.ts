@@ -97,7 +97,7 @@ test("hasAssistantImpactAssessment only matches explicit agent assessment and co
 });
 
 test("iteration workspace renders test-case and delivery drawers from artifact draft content", () => {
-  const source = readFileSync(new URL("../src/pages/projects/IterationWorkspacePanel.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/pages/projects/ArtifactPreviewPanel.tsx", import.meta.url), "utf8");
   assert.match(source, /selectedArtifactKind === "test-cases"/);
   assert.match(source, /selectedArtifactKind === "analysis-report"[\s\S]*value=\{artifactDraftContent\} readOnly showTitle=\{false\}/);
   assert.match(source, /selectedArtifactKind === "release-review"[\s\S]*artifactDraftContent\.trim\(\)/);

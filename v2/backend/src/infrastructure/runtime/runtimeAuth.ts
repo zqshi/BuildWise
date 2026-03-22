@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { RuntimeConfig } from "./runtimeConfig";
 import { createLogger } from "./logger";
-import { verifyJwt } from "./jwt";
+import { verifyJwt, isTokenRevoked } from "./jwt";
 
 function toPath(url: string) {
   const index = url.indexOf("?");
@@ -65,6 +65,9 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
       const token = parseBearerToken(request.headers.authorization);
       if (!token) {
         return unauthorized(reply, "missing bearer token");
+      }
+      if (isTokenRevoked(token)) {
+        return unauthorized(reply, "token has been revoked");
       }
       try {
         const payload = verifyJwt(token, config.jwtSecret);

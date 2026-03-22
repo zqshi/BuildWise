@@ -7,7 +7,7 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
@@ -43,7 +43,7 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);

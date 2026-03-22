@@ -17,23 +17,13 @@
 # Runtime workspace data
 **/*.runtime.json
 v2/backend/data.json
-backend/data.json
 v2/backend/backups/
 
 # Runtime recordings and temporary artifacts
 v2/.artifacts/
 v2/backend/.runtime/
 v2/stitch/
-backend/.runtime/
 tmp/
-
-# Local automation runtime artifacts
-autoboot/runs/
-autoboot/archive/
-autoboot/reports/*.md
-autoboot/plans/*.json
-autoboot/state.json
-autoboot/state/*.json
 **/__pycache__/
 *.pyc
 

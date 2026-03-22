@@ -16,7 +16,8 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, 
       url: request.url,
       statusCode: reply.statusCode,
       responseTime: reply.elapsedTime,
-      requestId: request.id
+      requestId: request.id,
+      authSub: request.authSub || "-"
     });
   });
 
@@ -24,7 +25,7 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, 
     reply.code(404);
     return {
       error: "not_found",
-      message: `Route not found: ${request.method} ${request.url}`,
+      message: `Route not found: ${request.method} ${request.routeOptions?.url || request.url.split("?")[0]}`,
       requestId: request.id
     };
   });

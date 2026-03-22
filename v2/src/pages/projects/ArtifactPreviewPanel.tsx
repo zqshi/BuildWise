@@ -248,7 +248,7 @@ export function ArtifactPreviewPanel({
               <iframe
                 ref={artifactHtmlPreviewFrameRef}
                 title={`${selectedDrawerArtifact.title}-preview`}
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts"
                 srcDoc={selectedArtifactHtmlPreview}
                 className="artifact-prototype-frame"
               />

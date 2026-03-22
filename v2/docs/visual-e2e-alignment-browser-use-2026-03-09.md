@@ -2,8 +2,8 @@
 
 - 日期：2026-03-09
 - 入口：`http://127.0.0.1:5173`
-- 设计基线：`/Users/zqs/Downloads/project/BuildWise/v2/stitch/buildwise_1..7/screen.png`
-- 执行工具：`/Users/zqs/Downloads/project/browser-use/.venv/bin/python`
+- 设计基线：`../stitch/buildwise_1..7/screen.png`
+- 执行工具：`../../../browser-use/.venv/bin/python`
 
 ## 已执行脚本
 
@@ -14,9 +14,9 @@
 
 ## 关键产物（最新）
 
-1. 逐屏截图目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_124309`
-2. 对比报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_124309/report.json`
-3. 录屏：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_124309/069ae4fd-e9bd-72b6-8000-de22d80782f1.mp4`
+1. 逐屏截图目录：`../backend/.runtime/recordings/visual-align-20260309_124309`
+2. 对比报告：`../backend/.runtime/recordings/visual-align-20260309_124309/report.json`
+3. 录屏：`../backend/.runtime/recordings/visual-align-20260309_124309/069ae4fd-e9bd-72b6-8000-de22d80782f1.mp4`
 
 ## 结果（stitch vs actual）
 
@@ -54,8 +54,8 @@
 
 ## 继续修复记录（13:09-13:10）
 
-1. 新回归目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_130913`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_130913/report.json`
+1. 新回归目录：`../backend/.runtime/recordings/visual-align-20260309_130913`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_130913/report.json`
 3. 分值：
 
 | 设计稿 | Similarity |
@@ -75,8 +75,8 @@
 
 ## 继续修复记录（13:21-13:28）
 
-1. 新回归目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_132853`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_132853/report.json`
+1. 新回归目录：`../backend/.runtime/recordings/visual-align-20260309_132853`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_132853/report.json`
 3. 分值：
 
 | 设计稿 | Similarity |
@@ -98,8 +98,8 @@
 
 ## 继续修复记录（13:38-14:15）
 
-1. 新回归目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_141559`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_141559/report.json`
+1. 新回归目录：`../backend/.runtime/recordings/visual-align-20260309_141559`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_141559/report.json`
 3. 分值：
 
 | 设计稿 | Similarity |
@@ -120,8 +120,8 @@
 
 ## 继续修复记录（15:40-15:46）
 
-1. 新回归目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_154647`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_154647/report.json`
+1. 新回归目录：`../backend/.runtime/recordings/visual-align-20260309_154647`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_154647/report.json`
 3. 分值：
 
 | 设计稿 | Similarity |
@@ -142,9 +142,9 @@
 
 ## 继续修复记录（18:24-18:36）
 
-1. 新回归目录（中间态，交互抽屉路径排障）：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_182702`
-2. 新回归目录（当前最佳）：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_183612`
-3. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_183612/report.json`
+1. 新回归目录（中间态，交互抽屉路径排障）：`../backend/.runtime/recordings/visual-align-20260309_182702`
+2. 新回归目录（当前最佳）：`../backend/.runtime/recordings/visual-align-20260309_183612`
+3. 报告：`../backend/.runtime/recordings/visual-align-20260309_183612/report.json`
 4. 分值（当前最佳）：
 
 | 设计稿 | Similarity |
@@ -164,12 +164,12 @@
    - `IterationWorkspacePanel`：分析抽屉头部恢复“交互界面 / 收起报告”操作，保证用户路径与脚本路径一致。
    - `base.css`：登录页右侧登录卡整体下移（`auth-card` 顶部内边距上调），`buildwise_1` 小幅提升并未引入其他页退化。
    - `IterationWorkspacePanel` + `workspace-analysis.css`：将分析抽屉“交互界面”入口改为仅脚本可触发的隐藏按钮，视觉头部回归设计稿（仅保留关闭按钮）。
-6. 追加验证（隐藏触发入口改造后）：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_183818/report.json`，平均值保持 `0.8325`（未退化）。
+6. 追加验证（隐藏触发入口改造后）：`../backend/.runtime/recordings/visual-align-20260309_183818/report.json`，平均值保持 `0.8325`（未退化）。
 
 ## 继续修复记录（18:45-18:50）
 
-1. 新基线报告（可复现）：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_184712/report.json`
-2. 复验报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_184855/report.json`
+1. 新基线报告（可复现）：`../backend/.runtime/recordings/visual-align-20260309_184712/report.json`
+2. 复验报告：`../backend/.runtime/recordings/visual-align-20260309_184855/report.json`
 3. 分值（当前最佳）：
 
 | 设计稿 | Similarity |
@@ -193,15 +193,15 @@
 
 ## 继续修复记录（18:52）
 
-1. 验证目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_185233`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_185233/report.json`
+1. 验证目录：`../backend/.runtime/recordings/visual-align-20260309_185233`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_185233/report.json`
 3. 结果：`avgSimilarity = 0.8345`（与当前最佳持平）
 4. 本轮改动：分析抽屉 fallback 文案标点对齐（`(AI 总结)`、`(仅 2.1:1)`），验证无退化。
 
 ## 继续修复记录（19:00-19:01）
 
-1. 新基线报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_190013/report.json`
-2. 复验报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_190105/report.json`
+1. 新基线报告：`../backend/.runtime/recordings/visual-align-20260309_190013/report.json`
+2. 复验报告：`../backend/.runtime/recordings/visual-align-20260309_190105/report.json`
 3. 分值（当前最高）：
 
 | 设计稿 | Similarity |
@@ -223,8 +223,8 @@
 
 ## 继续修复记录（19:13-19:30）
 
-1. 采样目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_193023`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_193023/report.json`
+1. 采样目录：`../backend/.runtime/recordings/visual-align-20260309_193023`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_193023/report.json`
 3. 当前分值（本轮末）：
 
 | 设计稿 | Similarity |
@@ -245,12 +245,12 @@
 
 5. 历史最优基线（仍保留）：
    - `avgSimilarity = 0.8346`
-   - 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_190105/report.json`
+   - 报告：`../backend/.runtime/recordings/visual-align-20260309_190105/report.json`
 
 ## 继续修复记录（19:33-19:46）
 
-1. 采样目录：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_194658`
-2. 报告：`/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_194658/report.json`
+1. 采样目录：`../backend/.runtime/recordings/visual-align-20260309_194658`
+2. 报告：`../backend/.runtime/recordings/visual-align-20260309_194658/report.json`
 3. 分值：
 
 | 设计稿 | Similarity |
@@ -272,10 +272,10 @@
 ## 继续修复记录（20:02-21:44）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_200200/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_214109/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_214144/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260309_214441/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260309_200200/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260309_214109/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260309_214144/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260309_214441/report.json`
 2. 当前最高（已复验稳定）：
 
 | 设计稿 | Similarity |
@@ -299,9 +299,9 @@
 ## 继续修复记录（2026-03-10 10:22-10:26）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_102250/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_102356/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_102635/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_102250/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_102356/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_102635/report.json`
 2. 当前最高（已复验）：
 
 | 设计稿 | Similarity |
@@ -324,9 +324,9 @@
 ## 继续修复记录（2026-03-10 10:32-10:39）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_103607/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_103845/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_103935/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_103607/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_103845/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_103935/report.json`
 2. 当前最高（已复验）：
 
 | 设计稿 | Similarity |
@@ -348,8 +348,8 @@
 ## 继续修复记录（2026-03-10 11:45-11:48）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_114522/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_114827/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_114522/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_114827/report.json`
 2. 当前最高（持续保持）：
 
 | 设计稿 | Similarity |
@@ -372,8 +372,8 @@
 ## 继续修复记录（2026-03-10 11:57-12:01）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_115815/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_120131/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_115815/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_120131/report.json`
 2. 当前最高（持续保持）：
 
 | 设计稿 | Similarity |
@@ -396,8 +396,8 @@
 ## 继续修复记录（2026-03-10 12:04-12:06）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_120431/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_120644/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_120431/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_120644/report.json`
 2. 当前最高（持续保持）：
 
 | 设计稿 | Similarity |
@@ -418,8 +418,8 @@
 ## 继续修复记录（2026-03-10 12:17-12:22）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_122205/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_122259/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_122205/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_122259/report.json`
 2. 最新最高：
 
 | 设计稿 | Similarity |
@@ -441,8 +441,8 @@
 ## 继续修复记录（2026-03-10 12:21-12:28）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_122110/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_122815/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_122110/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_122815/report.json`
 2. 当前稳定基线：
 
 | 设计稿 | Similarity |
@@ -464,9 +464,9 @@
 ## 继续修复记录（2026-03-10 12:31-12:34）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_123102/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_123248/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_123406/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_123102/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_123248/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_123406/report.json`
 2. 当前最高（已复验）：
 
 | 设计稿 | Similarity |
@@ -486,8 +486,8 @@
 ## 继续修复记录（2026-03-10 12:35-12:41）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_123555/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_124117/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_123555/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_124117/report.json`
 2. 当前稳定最高：
 
 | 设计稿 | Similarity |
@@ -508,8 +508,8 @@
 ## 继续修复记录（2026-03-10 12:51-12:53）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_125226/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_125308/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_125226/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_125308/report.json`
 2. 当前稳定基线：
 
 | 设计稿 | Similarity |
@@ -529,12 +529,12 @@
 ## 继续修复记录（2026-03-10 14:03-14:11）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_140330/report.json`（基线）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_140656/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_141029/report.json`（当前新高）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_141149/report.json`（复验）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_141336/report.json`（亮色遮罩失败样本）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_141512/report.json`（回退后复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_140330/report.json`（基线）
+   - `../backend/.runtime/recordings/visual-align-20260310_140656/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_141029/report.json`（当前新高）
+   - `../backend/.runtime/recordings/visual-align-20260310_141149/report.json`（复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_141336/report.json`（亮色遮罩失败样本）
+   - `../backend/.runtime/recordings/visual-align-20260310_141512/report.json`（回退后复验）
 2. 当前稳定最高：
 
 | 设计稿 | Similarity |
@@ -567,13 +567,13 @@
 ## 继续修复记录（2026-03-10 14:24-15:05）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_142431/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_144233/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_144338/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_144513/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_144619/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_145454/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_150548/report.json`（当前复验新高）
+   - `../backend/.runtime/recordings/visual-align-20260310_142431/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_144233/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_144338/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_144513/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_144619/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_145454/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_150548/report.json`（当前复验新高）
 2. 当前稳定区间（本轮）：
 
 | 设计稿 | Similarity |
@@ -602,10 +602,10 @@
 ## 继续修复记录（2026-03-10 15:16-15:24）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_151918/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_152314/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_152408/report.json`（本轮峰值）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_152445/report.json`（复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_151918/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_152314/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_152408/report.json`（本轮峰值）
+   - `../backend/.runtime/recordings/visual-align-20260310_152445/report.json`（复验）
 2. 当前稳定区间（累计）：
 
 | 设计稿 | Similarity |
@@ -630,14 +630,14 @@
 ## 继续修复记录（2026-03-10 15:27-15:36）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_152701/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_152800/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153010/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153115/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153258/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153402/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153507/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153614/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_152701/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_152800/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_153010/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_153115/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_153258/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_153402/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_153507/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_153614/report.json`
 2. 本轮结论：
    - `workspace-interactions.css`：标题字号 `38px` 在多轮中可触达 `buildwise_4 0.8122` 与 `avg 0.8432`，当前保留为探索上界参数。
    - 但 `buildwise_3/4` 存在跨轮抖动（同一参数下 `buildwise_4` 在 `0.8110~0.8122`），推断主要受截图底层数据态波动影响，而非纯 CSS。
@@ -651,11 +651,11 @@
 ## 继续修复记录（2026-03-10 15:39-15:44）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_153930/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_154046/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_154151/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_154335/report.json`（本轮峰值）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_154424/report.json`（复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_153930/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_154046/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_154151/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_154335/report.json`（本轮峰值）
+   - `../backend/.runtime/recordings/visual-align-20260310_154424/report.json`（复验）
 2. 本轮结论：
    - 登录页纵向参数微调（`auth-brand-panel` 顶部内边距、`auth-mini-badge` 上边距）对 `buildwise_1` 有轻微正向（可到 `0.8337~0.8338`），但整体均值仍在 `0.8431~0.8432` 平台区间。
    - 当前主要瓶颈仍是 `buildwise_4` 与 `buildwise_3/4` 的跨轮抖动，而非登录页参数本身。
@@ -667,15 +667,15 @@
 ## 继续修复记录（2026-03-10 15:50-16:02）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_155124/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_155218/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_155316/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_155506/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_155605/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_155713/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_160002/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_160118/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_160209/report.json`（当前复验新高）
+   - `../backend/.runtime/recordings/visual-align-20260310_155124/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_155218/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_155316/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_155506/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_155605/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_155713/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_160002/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_160118/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_160209/report.json`（当前复验新高）
 2. 当前稳定最高（累计）：
 
 | 设计稿 | Similarity |
@@ -698,17 +698,17 @@
 ## 继续修复记录（2026-03-10 16:13-16:27）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_161940/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162032/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162138/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162229/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162331/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162411/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162505/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162546/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162704/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162833/report.json`（`padding-top 106px` 失败）
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_162920/report.json`（当前稳定新高复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_161940/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162032/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162138/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162229/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162331/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162411/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162505/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162546/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162704/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_162833/report.json`（`padding-top 106px` 失败）
+   - `../backend/.runtime/recordings/visual-align-20260310_162920/report.json`（当前稳定新高复验）
 
 2. 当前稳定最高（累计）：
 
@@ -734,12 +734,12 @@
 ## 继续修复记录（2026-03-10 16:33-16:46）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_163600/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_164136/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_164219/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_164438/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_164613/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_164731/report.json`（当前复验新高）
+   - `../backend/.runtime/recordings/visual-align-20260310_163600/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_164136/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_164219/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_164438/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_164613/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_164731/report.json`（当前复验新高）
 
 2. 本轮结论：
    - 发现并确认回归截图存在 1x/2x DPR 混用，导致分项评分跨轮抖动，尤其影响 `buildwise_2`。
@@ -755,10 +755,10 @@
 ## 继续修复记录（2026-03-10 16:50-17:10）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_165508/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_170642/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_170723/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_171001/report.json`（本轮复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_165508/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_170642/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_170723/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_171001/report.json`（本轮复验）
 
 2. 本轮新增有效改动（保留）：
    - `visual-align-browser-use.py`：新增 `normalize_saved_screenshot`，对每张截图保存后统一归一化到 `1600x1280`，消除 `3200x2560` / `1600x1280` 混用导致的回归抖动。
@@ -778,9 +778,9 @@
 ## 继续修复记录（2026-03-10 17:12-17:17）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_171256/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_171348/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_171714/report.json`（本轮复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_171256/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_171348/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_171714/report.json`（本轮复验）
 
 2. 本轮结论：
    - `buildwise_6` 低分区仍主要集中在分析抽屉右下区域，当前稳定链路下继续保持 `0.8394` 左右。
@@ -794,8 +794,8 @@
 ## 继续修复记录（2026-03-10 17:18-17:21）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_172046/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_172121/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_172046/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_172121/report.json`
 
 2. 本轮新增有效改动（保留）：
    - `visual-align-browser-use.py`：新增 `set_visual_target_mode`，在 `buildwise_6` 截图前强制隐藏 interaction drawer 影响层、在 `buildwise_7` 截图前恢复，减少抽屉状态串扰。
@@ -809,9 +809,9 @@
 ## 继续修复记录（2026-03-10 17:23-17:30）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_172357/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_172503/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_173058/report.json`（本轮基线复验）
+   - `../backend/.runtime/recordings/visual-align-20260310_172357/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_172503/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_173058/report.json`（本轮基线复验）
 
 2. 本轮结论：
    - `buildwise_6` 仍是主要瓶颈，当前稳定在 `0.8390` 附近。
@@ -825,8 +825,8 @@
 ## 继续修复记录（2026-03-10 17:34-17:41）
 
 1. 关键报告：
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_173736/report.json`
-   - `/Users/zqs/Downloads/project/BuildWise/v2/backend/.runtime/recordings/visual-align-20260310_174113/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_173736/report.json`
+   - `../backend/.runtime/recordings/visual-align-20260310_174113/report.json`
 
 2. 本轮新增有效改动（保留）：
    - `visual-align-browser-use.py`：保留 `set_visual_target_mode`，用于 `buildwise_6` 截图时隔离 interaction-drawer 影响层。

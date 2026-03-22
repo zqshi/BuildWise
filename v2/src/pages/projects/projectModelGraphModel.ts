@@ -1,4 +1,4 @@
-import type { ModelRelationPayload } from "../../domain/workspace/types";
+import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 
 export type RelationGraphNode = {
   id: string;

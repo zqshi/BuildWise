@@ -4,7 +4,7 @@
 - 目标：采用单 Agent + skills，构建可治理、可追溯、可跨版本继承的研发闭环。
 - 运行模式：优先 OpenClaw Runtime；不可用时走 BuildWise OpenClaw Bridge（不改业务治理语义）。
 - 约束：
-  - 本地 OpenClaw 源码路径锁定为只读参考：`/Users/zqs/Downloads/project/dependencies/openclaw`
+  - 本地 OpenClaw 源码路径锁定为只读参考：`(external: openclaw source)`
   - 禁止修改该路径下代码。
   - 当前项目作为应用宿主，可持续迭代。
 

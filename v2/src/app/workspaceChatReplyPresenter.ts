@@ -1,4 +1,4 @@
-import { extractArtifactDisplayContent, extractDeliverableTitleFromContent, isStructuredArtifactContent } from "./artifactContentPresentation";
+import { extractArtifactDisplayContent, extractDeliverableTitleFromContent, isStructuredArtifactContent } from "./artifactContentPresentation.ts";
 
 const INTERNAL_SKILL_LINE = /^\s*\[skills\]/i;
 const DELIVERABLE_TITLE_LINE = /(首版需求分析报告|继承差异分析报告|需求分析报告|产品需求文档|边界确认|设计规范|技术架构|代码交付|测试矩阵|发布评审|交付归档)/;

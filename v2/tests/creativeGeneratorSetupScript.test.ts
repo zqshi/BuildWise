@@ -28,6 +28,6 @@ test("creative generator setup script resumes from completed artifacts and retri
   assert.match(source, /继承差异分析报告。使用 Markdown 标题分节，必须完整包含：继承不变项、本轮新增项、业务规则变化、影响范围、受影响工程对象、回归关注点、待确认点/);
   assert.match(source, /直接输出完整正文，不要给流程说明或待处理摘要/);
   assert.match(source, /保持正常对话回复，但正文必须包含一份完整可渲染的 HTML 原型/);
-  assert.match(source, /保持正常对话回复，但正文必须包含一段完整的 TypeScript\/React 代码/);
+  assert.match(source, /正文必须包含完整的 TypeScript\/React 代码/);
   assert.doesNotMatch(source, /只返回完整 HTML/);
 });

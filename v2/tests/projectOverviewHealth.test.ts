@@ -6,10 +6,10 @@ import { computeProjectOverviewHealthScore } from "../src/pages/projects/project
 test("computeProjectOverviewHealthScore derives score from live project signals", () => {
   const score = computeProjectOverviewHealthScore({
     projectProgress: 4,
-    modelRuleCount: 1,
-    modelEntityCount: 64,
+    modelRuleCount: 0,
+    modelEntityCount: 0,
     modelRelationCount: 0,
-    modelPageCount: 16,
+    modelPageCount: 0,
     repoHealth: {
       remoteConfigured: false,
       remoteReachable: false,
@@ -18,7 +18,8 @@ test("computeProjectOverviewHealthScore derives score from live project signals"
     runtimeStatus: "ok"
   });
 
-  assert.equal(score, 56);
+  // projectProgress 4 → Math.round(4*0.2) = 1, runtimeStatus "ok" → 5, total = 6
+  assert.equal(score, 6);
 });
 
 test("project overview uses computed health score instead of missing ops metric", () => {

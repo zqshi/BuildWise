@@ -8,19 +8,17 @@ import { ProjectProvider } from "./contexts/ProjectContext";
 import { IterationProvider } from "./contexts/IterationContext";
 import { ChatProvider } from "./contexts/ChatContext";
 import { AnalysisProvider } from "./contexts/AnalysisContext";
-import { ModelOpsProvider } from "./contexts/ModelOpsContext";
 import { PlatformProvider } from "./contexts/PlatformContext";
 import { DockSidebar } from "./pages/layout/DockSidebar";
 import { OpenclawWorkspacePanel } from "./pages/layout/OpenclawWorkspacePanel";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
-import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
-import model from "../model.json";
 
 const MarketingHomePage = lazy(() => import("./pages/marketing/MarketingHomePage").then((m) => ({ default: m.MarketingHomePage })));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
 const DashboardView = lazy(() => import("./pages/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
 const PermissionSettingsPage = lazy(() => import("./pages/governance/PermissionSettingsPage").then((m) => ({ default: m.PermissionSettingsPage })));
+const ProjectsWorkspace = lazy(() => import("./pages/projects/ProjectsWorkspace").then((m) => ({ default: m.ProjectsWorkspace })));
 
 /**
  * Nests all 7 domain-specific Context providers.
@@ -34,11 +32,9 @@ function DomainProviders({ children }: { children: React.ReactNode }) {
         <IterationProvider>
           <ChatProvider>
             <AnalysisProvider>
-              <ModelOpsProvider>
                 <PlatformProvider>
                   {children}
                 </PlatformProvider>
-              </ModelOpsProvider>
             </AnalysisProvider>
           </ChatProvider>
         </IterationProvider>
@@ -151,7 +147,9 @@ function AppInner() {
       >
         {backendOffline ? (
           <section className="backend-offline-banner" role="status" aria-live="polite">
-            后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run dev`
+            {import.meta.env.DEV
+              ? "后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run dev`"
+              : "服务暂时不可用，请稍后重试"}
           </section>
         ) : null}
         <ViewErrorBoundary
@@ -183,6 +181,7 @@ function AppInner() {
               <PermissionSettingsPage currentRole={controller.currentRole} />
             </Suspense>
           ) : (
+            <Suspense fallback={<div className="loading-spinner" />}>
             <ProjectsWorkspace
               projects={controller.projects}
               currentProjectId={controller.currentProjectId}
@@ -192,10 +191,6 @@ function AppInner() {
               iterations={controller.iterations}
               projectPanelMode={controller.projectPanelMode}
               projectProgress={controller.projectProgress}
-              modelPageCount={model.pages.length}
-              modelRuleCount={model.rules.length}
-              modelEntityCount={model.entities.length}
-              modelRelations={controller.modelRelations}
               versionSnapshots={controller.versionSnapshots}
               templateRuns={controller.templateRuns}
               deployments={controller.deployments}
@@ -267,6 +262,7 @@ function AppInner() {
                 });
               }}
             />
+            </Suspense>
           )}
         </ViewErrorBoundary>
       </main>
@@ -312,8 +308,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <DomainProviders>
-      <AppInner />
-    </DomainProviders>
+    <ViewErrorBoundary viewKey="root" viewLabel="应用">
+      <DomainProviders>
+        <AppInner />
+      </DomainProviders>
+    </ViewErrorBoundary>
   );
 }

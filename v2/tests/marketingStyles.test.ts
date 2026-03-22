@@ -34,7 +34,7 @@ test("marketing page keeps premium feature and journey layouts", () => {
   const styles = readFileSync(stylesPath, "utf8");
 
   assert.match(styles, /\.marketing-feature-grid\s*\{[\s\S]*?repeat\(auto-fit,\s*minmax\(220px,\s*1fr\)\)/);
-  assert.match(styles, /\.marketing-feature-icon\s*\{[\s\S]*?linear-gradient\(135deg,\s*#0b63f3,\s*#2f7cff\)/);
+  assert.match(styles, /\.marketing-feature-icon\s*\{[\s\S]*?linear-gradient\(135deg,\s*var\(--brand-500\),\s*#2f7cff\)/);
   assert.match(styles, /\.marketing-journey-row\s*\{[\s\S]*?grid-template-columns:\s*220px 1fr/);
   assert.match(styles, /\.marketing-journey-row \+ \.marketing-journey-row\s*\{[\s\S]*?border-top:\s*1px solid/);
   assert.match(styles, /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*?\.marketing-journey-row:hover/);

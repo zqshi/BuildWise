@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { resolveAppRoute, type AppRoute } from "./authRouting";
-import { requestSmsLoginCode, verifySmsLoginCode } from "./workspaceApi";
+import { requestSmsLoginCode, verifySmsLoginCode, logoutSession } from "./workspaceApi";
 import { getDefaultLoginMode, getLoginModeSubmitError, type LoginMode } from "./authLoginMode";
 import { saveTokens, clearTokens } from "../infrastructure/auth/tokenStore";
+import { ensureFreshToken } from "../infrastructure/auth/tokenRefresh";
 
 export function useAuthController() {
   const [route, setRoute] = useState<AppRoute>(() => resolveAppRoute(window.location.hash));
+  // Only check the persistent auth flag — the in-memory access token will be
+  // restored via refresh cookie in the useEffect below.
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => localStorage.getItem("buildwise:auth") === "logged_in"
   );
@@ -31,17 +34,35 @@ export function useAuthController() {
   const loginPhoneRef = useRef<HTMLInputElement | null>(null);
   const loginCodeRef = useRef<HTMLInputElement | null>(null);
 
+  // On page load, if the persistent auth flag says "logged_in" but the
+  // in-memory access token is gone (page refresh), silently re-acquire
+  // the token via the httpOnly refresh cookie.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    ensureFreshToken().then((ok) => {
+      if (cancelled) return;
+      if (!ok) {
+        // Refresh cookie expired or invalid — force re-login
+        clearTokens();
+        localStorage.setItem("buildwise:auth", "logged_out");
+        localStorage.removeItem("buildwise:auth-role");
+        setIsAuthenticated(false);
+        setWorkspaceRole("viewer");
+        window.location.hash = "/login";
+      }
+    });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const handleHashChange = () => setRoute(resolveAppRoute(window.location.hash));
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
-  useEffect(() => {
-    if (!isAuthenticated && route === "workspace") {
-      window.location.hash = "/";
-    }
-  }, [isAuthenticated, route]);
+  // 未认证时不再强制修改 hash — App.tsx 的 isMarketingRoute 会自动渲染营销首页
+  // 保留原始 hash，登录后可以回到目标页面
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -55,7 +76,6 @@ export function useAuthController() {
     const handleExpired = () => {
       clearTokens();
       localStorage.setItem("buildwise:auth", "logged_out");
-      localStorage.removeItem("buildwise:auth-phone");
       localStorage.removeItem("buildwise:auth-role");
       setIsAuthenticated(false);
       setWorkspaceRole("viewer");
@@ -107,12 +127,11 @@ export function useAuthController() {
     try {
       setLoginError("");
       const result = await verifySmsLoginCode(loginPhone.trim(), loginCode.trim());
-      if (result.accessToken && result.refreshToken && result.expiresIn) {
-        saveTokens(result.accessToken, result.refreshToken, result.expiresIn);
+      if (result.accessToken && result.expiresIn) {
+        saveTokens(result.accessToken, result.expiresIn);
       }
       const role = result.user.workspaceRole;
       localStorage.setItem("buildwise:auth", "logged_in");
-      localStorage.setItem("buildwise:auth-phone", result.user.phone);
       localStorage.setItem("buildwise:auth-role", role);
       setWorkspaceRole(role);
       window.dispatchEvent(new CustomEvent("buildwise:auth-role-updated", { detail: { role } }));
@@ -120,8 +139,16 @@ export function useAuthController() {
       setLoginCode("");
       setLoginTouched({ phone: false, code: false });
       setLoginSubmitted(false);
-      localStorage.setItem("buildwise:active-view", "dashboard");
-      window.location.hash = "/dashboard";
+      // If user was trying to access a workspace route before login, restore it
+      const currentHash = window.location.hash;
+      const targetRoute = resolveAppRoute(currentHash);
+      if (targetRoute === "workspace") {
+        // Already on a workspace hash (e.g. #/dashboard) — just stay
+        setRoute(targetRoute);
+      } else {
+        localStorage.setItem("buildwise:active-view", "dashboard");
+        window.location.hash = "/dashboard";
+      }
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "登录失败");
     }
@@ -132,6 +159,8 @@ export function useAuthController() {
     if (!confirmed) {
       return false;
     }
+    // Fire-and-forget: clear httpOnly cookie on server
+    logoutSession().catch(() => {});
     clearTokens();
     localStorage.setItem("buildwise:auth", "logged_out");
     localStorage.removeItem("buildwise:userAvatar");

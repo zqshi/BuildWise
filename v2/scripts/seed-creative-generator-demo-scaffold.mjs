@@ -453,7 +453,7 @@ function buildStore() {
         projectId: 1,
         openclawProfile: "buildwise-local",
         agentId: "main",
-        workspacePath: "/Users/zqs/Downloads/project/BuildWise",
+        workspacePath: resolve(process.cwd(), ".."),
         runtimeMode: "openclaw-native",
         locked: false,
         createdBy: "system",

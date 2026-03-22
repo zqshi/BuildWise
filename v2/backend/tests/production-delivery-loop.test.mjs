@@ -65,10 +65,16 @@ function buildReleaseReadyControl() {
     summary: "技术架构已对齐模块职责、数据流与回滚点。",
     updatedAt: now
   });
-  markArtifact(control, "code-delivery", {
+  markArtifact(control, "frontend-code", {
     status: "ready",
     gateStatus: "passed",
-    summary: "代码实现已完成并映射到边界路径。",
+    summary: "前端代码实现已完成。",
+    updatedAt: now
+  });
+  markArtifact(control, "backend-code", {
+    status: "ready",
+    gateStatus: "passed",
+    summary: "后端代码实现已完成。",
     updatedAt: now
   });
   markArtifact(control, "test-matrix", {

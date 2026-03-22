@@ -82,8 +82,25 @@ function extractStructured(raw: string): OpenclawStructuredMessage | null {
   };
 }
 
+/**
+ * Strip internal LLM markers that should never be shown to users.
+ * Defence-in-depth: backend also sanitizes, but we guard the display layer too.
+ */
+function stripInternalMarkers(raw: string): string {
+  let text = raw;
+  // minimax:tool_call (colon) and minimax_tool_call (underscore)
+  text = text.replace(/<minimax[_:]tool_call>[\s\S]*?<\/minimax[_:]tool_call>/gi, "");
+  text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "");
+  text = text.replace(/<invoke\b[^>]*>[\s\S]*?<\/invoke>/gi, "");
+  text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+  text = text.replace(/<\/?(?:search|function_call|tool_use|result)[^>]*>/gi, "");
+  text = text.replace(/^\[skills\].*$/gim, "");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
+
 export function presentOpenclawMessage(raw: string): OpenclawPresentedMessage {
-  const text = raw.trim();
+  const text = stripInternalMarkers(raw);
   if (!text) {
     return { kind: "plain", text: "" };
   }

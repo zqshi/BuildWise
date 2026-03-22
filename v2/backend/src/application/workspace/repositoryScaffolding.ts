@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, normalize } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { RepositoryLayoutNode } from "../../domain/workspace/types";
 
@@ -81,7 +81,7 @@ function ensureLayout(repoPath: string, layout: RepositoryLayoutNode[], createdP
 }
 
 function runGit(args: string[], cwd: string) {
-  return spawnSync("git", args, { cwd, encoding: "utf-8" });
+  return spawnSync("git", args, { cwd, encoding: "utf-8", timeout: 30_000 });
 }
 
 function initGit(repoPath: string, defaultBranch: string, createInitialCommit: boolean): { gitInitialized: boolean; commit: string } {
@@ -130,9 +130,13 @@ function initGit(repoPath: string, defaultBranch: string, createInitialCommit: b
 export function scaffoldRepository(input: ScaffoldRepositoryInput): ScaffoldRepositoryResult {
   const org = safeSegment(input.organization, "org");
   const repoName = safeSegment(input.repositoryName, "project-repo");
-  const rootDir = input.rootDir.trim();
-  if (!rootDir) {
-    throw new Error("rootDir is required");
+  const rootDir = resolve(normalize(input.rootDir.trim()));
+  if (!rootDir || rootDir === "/" || rootDir === "\\") {
+    throw new Error("rootDir must be a non-root absolute path");
+  }
+  // Block obvious path traversal
+  if (input.rootDir.includes("..")) {
+    throw new Error("rootDir must not contain path traversal sequences");
   }
   const repoPath = join(rootDir, org, repoName);
   const createdPaths: string[] = [];

@@ -75,9 +75,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore storage failure
     }
-    // 同步 hash
+    // 仅当当前 hash 已经是 workspace 类路由时才同步 hash
+    // 避免在营销首页或登录页时强制跳转到 workspace
     const currentHash = viewFromHash();
-    if (currentHash !== activeView) {
+    if (currentHash !== null && currentHash !== activeView) {
       window.location.hash = `/${activeView}`;
     }
   }, [activeView]);

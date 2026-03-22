@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import type { OpenclawGlobalRepository } from "../../domain/openclawGlobal/repository";
 import type {
   OpenclawGlobalConversation,
@@ -13,6 +13,18 @@ function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+/**
+ * JSON-file backed OpenClaw global repository.
+ *
+ * CONCURRENCY SAFETY NOTE:
+ * All read-modify-write sequences are fully synchronous (readFileSync →
+ * in-memory mutation → writeFileSync) with no await points in between.
+ * Node.js single-threaded execution guarantees atomicity within each
+ * synchronous call, so no async mutex is needed for single-process deployments.
+ *
+ * If any method is refactored to use async I/O, an async mutex MUST be added.
+ * For production, prefer STORAGE_BACKEND=sqlite for transactional safety.
+ */
 export class JsonOpenclawGlobalRepository implements OpenclawGlobalRepository {
   private readonly dataFile: string;
   constructor(dataFile: string) {
@@ -26,7 +38,15 @@ export class JsonOpenclawGlobalRepository implements OpenclawGlobalRepository {
       return initial;
     }
     const raw = readFileSync(this.dataFile, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<OpenclawGlobalStore>;
+    let parsed: Partial<OpenclawGlobalStore>;
+    try {
+      parsed = JSON.parse(raw) as Partial<OpenclawGlobalStore>;
+    } catch {
+      console.error(`[openclaw-global-repo] data file corrupted, resetting: ${this.dataFile}`);
+      const initial = defaultOpenclawGlobalStore();
+      this.writeStore(initial);
+      return initial;
+    }
     return {
       conversations: asArray<OpenclawGlobalConversation>(parsed.conversations),
       messages: asArray<OpenclawGlobalMessage>(parsed.messages),
@@ -36,7 +56,9 @@ export class JsonOpenclawGlobalRepository implements OpenclawGlobalRepository {
   }
 
   private writeStore(data: OpenclawGlobalStore): void {
-    writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
+    const tmpFile = `${this.dataFile}.tmp`;
+    writeFileSync(tmpFile, JSON.stringify(data, null, 2), "utf-8");
+    renameSync(tmpFile, this.dataFile);
   }
 
   // ---- 对话 ----
@@ -98,17 +120,6 @@ export class JsonOpenclawGlobalRepository implements OpenclawGlobalRepository {
     }
     this.writeStore(data);
     return skill;
-  }
-
-  removeSkill(skillId: string): boolean {
-    const data = this.readStore();
-    const before = data.skills.length;
-    data.skills = data.skills.filter((s) => s.id !== skillId);
-    if (data.skills.length < before) {
-      this.writeStore(data);
-      return true;
-    }
-    return false;
   }
 
   // ---- 策略状态 ----

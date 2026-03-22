@@ -93,11 +93,18 @@ function buildFallbackCoachReply(rawContent: string) {
 }
 
 function stripInternalSkillNotes(reply: string) {
-  return reply
+  let text = reply;
+  // Strip model-internal tool call / thinking blocks
+  text = text.replace(/<minimax_tool_call>[\s\S]*?<\/minimax_tool_call>/gi, "");
+  text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "");
+  text = text.replace(/<invoke\b[^>]*>[\s\S]*?<\/invoke>/gi, "");
+  text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
+  return text
     .split("\n")
     .map((line) => line.trimEnd())
     .filter((line) => !/^\[skills\]/i.test(line.trim()))
     .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -216,6 +223,47 @@ function buildArtifactUpstreamContextForCoach(iteration: Iteration, userMessage:
   return formatUpstreamContext(excerpts);
 }
 
+function buildInheritedBaselineContext(iteration: Iteration, previous: Iteration | null): string[] {
+  if (!previous) return [];
+  const parts: string[] = [];
+  // 继承元信息
+  const continuity = iteration.continuity;
+  if (continuity) {
+    if (continuity.inheritedSummary) {
+      parts.push(`继承说明：${continuity.inheritedSummary}`);
+    }
+    if (continuity.carriedGoals.length > 0) {
+      parts.push(`继承目标：${continuity.carriedGoals.join("、")}。`);
+    }
+    if (continuity.carriedRisks.length > 0) {
+      parts.push(`继承风险：${continuity.carriedRisks.join("、")}。`);
+    }
+    if (continuity.carriedDecisions.length > 0) {
+      parts.push(`继承决策：${continuity.carriedDecisions.join("、")}。`);
+    }
+  }
+  // 前序迭代范围
+  if (previous.scope?.inScope?.length > 0) {
+    parts.push(`上一版范围：${previous.scope.inScope.join("、")}。`);
+  }
+  // 前序迭代已确认交付物摘要（核心：让 LLM 自动获得 V1 基线）
+  const prevWorkflow = previous.changeControl?.artifactWorkflow;
+  if (prevWorkflow?.items) {
+    const committed = prevWorkflow.items.filter((item: { outputVersion: number }) => item.outputVersion > 0);
+    if (committed.length > 0) {
+      const PER_ARTIFACT_BUDGET = committed.length >= 10 ? 120 : 200;
+      const summaries = committed.map((item: { title: string; summary: string; draft?: { content?: string } }) => {
+        const text = item.summary || item.draft?.content || "";
+        return `- 【${item.title}】${text.slice(0, PER_ARTIFACT_BUDGET)}`;
+      });
+      parts.push(
+        `上一版「${previous.name}」已交付 ${committed.length} 项成果（自动继承，无需用户提供）：\n${summaries.join("\n")}`
+      );
+    }
+  }
+  return parts;
+}
+
 function buildCoachContext(iteration: Iteration, previous: Iteration | null, project: Project | null, userMessage: string) {
   const boundary = iteration.changeControl?.boundary;
   const unresolved = iteration.changeControl?.lastClarificationResolution?.unresolvedQuestions ?? [];
@@ -231,6 +279,7 @@ function buildCoachContext(iteration: Iteration, previous: Iteration | null, pro
             : "收尾交付";
   const contextParts = [
     `当前迭代「${iteration.name}」处于${statusLabel}，进度 ${iteration.progress}。${previous ? `上一轮迭代是「${previous.name}」。` : "这是第一轮迭代。"}`,
+    ...buildInheritedBaselineContext(iteration, previous),
     iteration.scope.inScope.length > 0
       ? `本轮范围包括：${iteration.scope.inScope.join("、")}。`
       : "",

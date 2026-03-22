@@ -20,7 +20,6 @@ export interface OpenclawGlobalRepository {
   listSkills(): OpenclawGlobalSkillRecord[];
   findSkill(skillId: string): OpenclawGlobalSkillRecord | null;
   saveSkill(skill: OpenclawGlobalSkillRecord): OpenclawGlobalSkillRecord;
-  removeSkill(skillId: string): boolean;
 
   // ---- 策略状态 ----
   getStrategyState(): OpenclawGlobalStrategyState;

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -24,15 +24,19 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
   }
 }
 
+function versionedPath(p) {
+  return p.startsWith("/api/") ? `/api/v1/${p.slice(5)}` : p;
+}
+
 async function request(pathname, options) {
-  const res = await fetchWithTimeout(`${BASE}${pathname}`, options);
+  const res = await fetchWithTimeout(`${BASE}${versionedPath(pathname)}`, options);
   const contentType = res.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await res.json() : await res.text();
   return { res, payload };
 }
 
 async function getJson(pathname) {
-  const res = await fetchWithTimeout(`${BASE}${pathname}`);
+  const res = await fetchWithTimeout(`${BASE}${versionedPath(pathname)}`);
   assert(res.ok, `Request failed: ${pathname} -> ${res.status}`);
   return res.json();
 }
@@ -54,10 +58,7 @@ const useExternalServer = Boolean(process.env.CONTRACT_BASE_URL && process.env.C
 let server = null;
 
 if (!useExternalServer) {
-  const workspaceRoot = path.resolve(process.cwd(), "..", "..");
-  const modelFixture = path.join(fixtureDir, "model.json");
   const dataFixture = path.join(fixtureDir, "data.json");
-  cpSync(path.join(workspaceRoot, "v2", "model.json"), modelFixture);
   writeFileSync(
     dataFixture,
     JSON.stringify(
@@ -84,7 +85,7 @@ if (!useExternalServer) {
     ...process.env,
     PORT: String(TEST_PORT),
     HOST: "127.0.0.1",
-    MODEL_FILE: modelFixture,
+    AUTH_MODE: "off",
     WORKSPACE_DATA_FILE: dataFixture,
     REPO_SYNC_INTERVAL_MS: "0",
     LLM_API_BASE: "",
