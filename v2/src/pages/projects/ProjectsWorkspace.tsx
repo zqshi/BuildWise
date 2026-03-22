@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type ChangeEvent, type RefObject } from "react";
+import { useMemo, useState, type ChangeEvent, type RefObject } from "react";
 import type { DeploymentRecord, OpsMetricsPayload, TemplateRunHistory, VersionSnapshot } from "../../domain/workspace/platformTypes";
 import type {
   AttachmentAnalysisReport,
@@ -7,12 +7,12 @@ import type {
   IterationContextPayload,
   IterationMessage,
   IterationVisualEditResponse,
-  ModelRelationPayload,
   IterationStateMachinePayload,
   IterationStatus,
   Project,
   StatusPayload
 } from "../../domain/workspace/types";
+import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
@@ -27,9 +27,9 @@ type ProjectsWorkspaceProps = {
   iterations: Iteration[];
   projectPanelMode: "project" | "iteration";
   projectProgress: number;
-  modelPageCount: number;
-  modelRuleCount: number;
-  modelEntityCount: number;
+  modelPageCount?: number;
+  modelRuleCount?: number;
+  modelEntityCount?: number;
   modelRelations?: ModelRelationPayload[];
   versionSnapshots?: VersionSnapshot[];
   templateRuns?: TemplateRunHistory[];
@@ -115,7 +115,7 @@ type ProjectsWorkspaceProps = {
   onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
 };
 
-export const ProjectsWorkspace = memo(function ProjectsWorkspace({
+export function ProjectsWorkspace({
   projects,
   currentProjectId,
   currentRole,
@@ -124,9 +124,9 @@ export const ProjectsWorkspace = memo(function ProjectsWorkspace({
   iterations,
   projectPanelMode,
   projectProgress,
-  modelPageCount,
-  modelRuleCount,
-  modelEntityCount,
+  modelPageCount = 0,
+  modelRuleCount = 0,
+  modelEntityCount = 0,
   modelRelations = [],
   versionSnapshots: _versionSnapshots = [],
   templateRuns: _templateRuns = [],
@@ -188,7 +188,9 @@ export const ProjectsWorkspace = memo(function ProjectsWorkspace({
     }
     return projects.filter((item) => `${item.name} ${item.description || ""}`.toLowerCase().includes(keyword));
   }, [projects, projectSearch]);
-  const backendUnavailable = status?.status === "offline";
+  const backendUnavailable =
+    status?.status === "offline" ||
+    Boolean(error && (error.includes("后端服务不可达") || error.includes("后端服务不可用") || error.includes("network unavailable")));
   return (
     <section className="projects-view">
       {showWorkspaceHero ? (
@@ -335,4 +337,4 @@ export const ProjectsWorkspace = memo(function ProjectsWorkspace({
       )}
     </section>
   );
-});
+}

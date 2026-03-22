@@ -418,7 +418,6 @@ export class WorkspaceService {
 
   // ── Openclaw ──
   openclawDirectChat(projectId: number, message: string) { return this.openclaw.openclawDirectChat(projectId, message); }
-  openclawDirectChatGlobal(message: string) { return this.openclaw.openclawDirectChatGlobal(message); }
   probeOpenclawIntegration() { return this.openclaw.probeOpenclawIntegration(); }
 
   // ── Full Cycle ──

@@ -54,10 +54,41 @@ BuildWise 让产品经理和业务负责人通过**对话和上传文档**的方
 每次迭代自动沉淀到项目知识库：
 - 业务术语（含别名和关联关系）
 - 稳定规则（含来源和理由）
+- 组件清单与代码映射
 - 决策日志（当初为什么这么做）
 - 已知风险（缓解措施和触发条件）
+- 变更模式识别
 
-下次做需求分析时，AI 会利用这些积累给出更精准的判断。
+下次做需求分析时，AI 会利用这些积累给出更精准的判断。**知识碰撞检测**会自动发现新旧知识的冲突，在影响决策前提醒你确认。
+
+### 15 个 AI 治理技能自动编排
+
+BuildWise 内置 **15 个专业治理技能**，由 AI 根据当前场景自动选择和组合：
+
+| 技能 | 能力 |
+|------|------|
+| 编排调度 | 根据用户意图选择最小必要技能集 |
+| 本体映射 | 提取领域术语，建立追溯结构 |
+| 影响分析 | 评估变更影响范围和执行风险 |
+| 交付治理 | 管控交付物状态流转 |
+| 跨迭代继承 | 增量分类与基线继承 |
+| 异常恢复 | 检测并修复不安全状态 |
+| 发布门禁 | 基于证据的发布决策和回滚预案 |
+| 审计追溯 | 验证全链路可追溯和可回放 |
+| 协作契约 | Agent 间自组合与能力协商 |
+| 内容契约 | 交付物内容完整性校验 |
+| 业务规则链接 | 领域知识到工程对象的双向映射 |
+| 研发质量契约 | 跨阶段质量标准和交接检查 |
+
+技能选择不是预设链路，而是**渐进式加载**——AI 教练根据对话上下文、项目阶段和知识库信号，实时决定加载哪些技能。
+
+### 策略即配置
+
+通过自然语言对话配置项目策略：
+
+- 对 AI 说"跳过原型阶段"，策略自动变更并写入项目
+- Coach 门禁实时感知策略变化，自动调整引导逻辑
+- 策略变更有完整审计轨迹
 
 ---
 
@@ -109,11 +140,17 @@ npm run dev:stack:start
 **配置 AI 能力（二选一）：**
 
 ```bash
-# 方式一：直接对接 LLM API
-LLM_PROVIDER=anthropic LLM_API_BASE=https://your-api.com LLM_API_KEY=sk-xxx
+# 方式一：直接对接 LLM API（Anthropic 兼容协议）
+LLM_PROVIDER=anthropic LLM_API_BASE=https://your-api.com LLM_API_KEY=sk-xxx LLM_MODEL=your-model
 
 # 方式二：通过 OpenClaw Agent（推荐，支持对话记忆和技能编排）
 LLM_PROVIDER=openclaw OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
+```
+
+**Docker 部署：**
+
+```bash
+cd v2 && docker compose up -d
 ```
 
 停止服务：
@@ -127,31 +164,65 @@ npm run dev:stack:stop
 ## 技术栈
 
 - **前端**：React + TypeScript + Vite
-- **后端**：Fastify + TypeScript
-- **AI**：OpenClaw Agent（统一 Gateway），支持 15 个专业技能的自动编排
+- **后端**：Fastify + TypeScript（DDD 分层架构）
+- **AI**：OpenClaw Agent 统一 Gateway / Anthropic 兼容协议直连
+- **治理**：15 个专业技能 + SkillRegistry 三源合一选择引擎
 - **存储**：JSON 文件 / SQLite（可切换）
+- **认证**：JWT（支持过期刷新）
+- **部署**：Docker Compose / 裸机
 
 ---
 
 ## 仓库结构
 
 ```
-v2/                 # 前端源码、构建脚本、样式
-v2/backend/         # 后端服务、API 路由、领域模型
-v2/backend/skills/  # OpenClaw 技能配置（15 个治理技能）
-v2/backend/openclaw/# OpenClaw 运行时配置和 persona
-docs/               # 产品、架构、治理文档
+v2/                     # 前端源码、构建脚本、样式
+v2/backend/             # 后端服务、API 路由、领域模型
+v2/backend/skills/      # OpenClaw 技能配置（15 个治理技能）
+v2/backend/openclaw/    # OpenClaw 运行时配置和 persona
+docs/                   # 产品、架构、治理文档
 ```
 
 ---
 
-## 验证它不只是展示页
+## 质量保障
 
 ```bash
-cd v2 && npm run verify:all              # 全量质量门禁
-cd v2/backend && npm run verify:prod-readiness  # 生产就绪校验
-cd v2 && npm run demo:openclaw:real      # 真实 AI 演示
+# 全量质量门禁（前端 + 后端 + 类型检查 + 边界检查）
+cd v2 && npm run verify:all
+
+# 后端单元测试（134 个）
+npm --prefix v2/backend test
+
+# 前端测试（166 个）
+npm --prefix v2 test
+
+# 契约测试（API 端到端）
+npm --prefix v2/backend run test:contract
+
+# 生产就绪校验
+npm --prefix v2/backend run verify:prod-readiness
 ```
+
+---
+
+## 技术亮点
+
+- **SkillRegistry 三源合一**：磁盘 Skill 配置 + 全局自定义 Skill + 项目策略 SkillsPlan，统一注册、按场景选择
+- **渐进式 Skill 加载**：AI 教练根据对话上下文实时选择最小必要技能集，而非固定链路执行
+- **本体建模闭环**：分析完成 → KB 全字段填充 → 碰撞检测 → 知识同步到 OpenClaw
+- **策略回写闭环**：自然语言配置 → 策略意图解析 → 合并写入 → Coach 门禁感知
+- **DDD + TDD**：领域驱动设计 + 测试驱动开发，每文件 < 1000 行，Ops 函数式纯逻辑
+
+---
+
+## 贡献
+
+参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 许可
+
+[MIT](LICENSE)
 
 ---
 
@@ -159,7 +230,7 @@ cd v2 && npm run demo:openclaw:real      # 真实 AI 演示
 
 这是一个持续演进中的产品。已经落地为可运行的前后端工作台，不是概念稿。
 
-当前版本具备：完整的项目/迭代管理、文档上传分析、AI 教练对话、交付物全生命周期管理、测试矩阵、发布评审、代码发布、知识库沉淀、RBAC 权限治理、OpenClaw Agent 统一接入。
+当前版本具备：完整的项目/迭代管理、文档上传分析、AI 教练对话、15 个治理技能自动编排、交付物全生命周期管理、测试矩阵、发布评审、代码发布、项目知识库沉淀与碰撞检测、策略配置回写闭环、RBAC 权限治理、OpenClaw Agent 统一接入、Docker 容器化部署。
 
 ---
 

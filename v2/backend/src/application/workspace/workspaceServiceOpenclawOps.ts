@@ -253,36 +253,8 @@ function summarizeProjectKnowledge(project: Project | null) {
   return parts.length > 1 ? `[项目知识上下文]\n${parts.join("\n")}` : "";
 }
 
-function summarizePortfolioKnowledge(repo: WorkspaceRepository) {
-  const projects = repo.listProjects().slice(0, 6);
-  if (projects.length === 0) {
-    return "";
-  }
-  const summaries = projects.map((project) => {
-    const kb = project.knowledgeBase;
-    const details: string[] = [`「${project.name}」（${project.status}）`];
-    const ruleCount = kb?.stableRules?.length || 0;
-    const componentCount = kb?.componentInventory?.length || 0;
-    const riskCount = kb?.knownRisks?.length || 0;
-    if (ruleCount > 0 || componentCount > 0 || riskCount > 0) {
-      details.push(`已沉淀 ${ruleCount} 条规则、${componentCount} 个模块、${riskCount} 项风险`);
-    }
-    const latestDecision = kb?.decisionLog?.[0]?.decision;
-    if (latestDecision) {
-      details.push(`最近决策：${latestDecision}`);
-    }
-    return details.join("，");
-  });
-  return `[项目概览]\n当前有 ${projects.length} 个项目：\n${summaries.map((s) => `  - ${s}`).join("\n")}`;
-}
-
 function summarizeProjectSkillSelection(project: Project | null, userMessage: string) {
   return ["[skills selection]", buildOpenclawSkillSelectionContext({ project, userMessage })].join("\n");
-}
-
-function summarizePortfolioSkillSelection(repo: WorkspaceRepository, userMessage: string) {
-  const firstProject = repo.listProjects()[0] || null;
-  return ["[skills selection]", buildOpenclawSkillSelectionContext({ project: firstProject, userMessage })].join("\n");
 }
 
 function composeOpenclawPrompt(params: {
@@ -359,46 +331,6 @@ export function openclawDirectChatOp(
     profile,
     agentId,
     workspacePath: binding.workspacePath,
-    reply,
-    at: new Date().toISOString()
-  };
-}
-
-export function openclawDirectChatGlobalOp(repo: WorkspaceRepository, input: { message: string }): OpenclawDirectChatResult {
-  const message = input.message.trim();
-  if (!message) {
-    throw new Error("message is required");
-  }
-  const runtime = readRuntimeConfig();
-  const personaPrompt = readPersonaPrompt(runtime);
-  const skillsChainBrief = readSkillsChainBrief();
-  const runtimePaths = resolveRuntimePaths(runtime);
-  const openclawRoot = runtimePaths.openclawRoot;
-  const openclawEntry = runtimePaths.openclawEntry;
-  const profile = runtimePaths.profile;
-  const agentId = runtimePaths.agentId;
-  if (!openclawRoot || !existsSync(openclawEntry)) {
-    throw new Error(`openclaw entry missing: ${openclawEntry}`);
-  }
-  if (!runtimePaths.openclawHomeWritable) {
-    throw new Error(`openclaw home not writable: ${runtimePaths.openclawHome}`);
-  }
-  const prompt = composeOpenclawPrompt({
-    personaPrompt,
-    skillsChainBrief,
-    userMessage: message,
-    contextSections: [summarizePortfolioKnowledge(repo), summarizePortfolioSkillSelection(repo, message)]
-  });
-
-  const reply = runOpenclawCommand(runtimePaths, [openclawEntry, "--profile", profile, "agent", "--local", "--agent", agentId, "-m", prompt]);
-  if (!reply) {
-    throw new Error("openclaw returned empty response");
-  }
-  return {
-    mode: "openclaw-native",
-    profile,
-    agentId,
-    workspacePath: "",
     reply,
     at: new Date().toISOString()
   };

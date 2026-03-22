@@ -83,7 +83,7 @@ export function publishArtifactReferenceMessage(
   if (
     latestMessage &&
     (latestMessage.role === "assistant" || latestMessage.role === "system") &&
-    hasEquivalentArtifactReferenceMessage(latestMessage.content, content)
+    latestMessage.content === content
   ) {
     return latestMessage;
   }

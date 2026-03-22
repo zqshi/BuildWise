@@ -22,6 +22,7 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
   const mergedOptions: RequestInit = {
     ...options,
     headers,
+    credentials: "include",
     signal: options?.signal ?? controller.signal
   };
   let res: Response;
@@ -50,9 +51,12 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
         const retryController = new AbortController();
         const retryTimeout = setTimeout(() => retryController.abort(), timeoutMs);
         try {
-          const retryRes = await fetch(url, { ...options, headers: retryHeaders, signal: retryController.signal });
+          const retryRes = await fetch(url, { ...options, headers: retryHeaders, credentials: "include", signal: retryController.signal });
           clearTimeout(retryTimeout);
           if (retryRes.ok) {
+            if (retryRes.status === 204) {
+              return null as T;
+            }
             const contentType = retryRes.headers.get("content-type") || "";
             if (!contentType.includes("application/json")) {
               throw new Error("API error: invalid response format");
@@ -70,6 +74,7 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
     // 无 token 或 refresh 失败 → 触发 auth-expired，让用户重新登录
     if (!isPublicRoute) {
       window.dispatchEvent(new CustomEvent("buildwise:auth-expired"));
+      throw new Error("API error: 401");
     }
   }
 
@@ -81,6 +86,10 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
       detail = payload?.message ? `: ${payload.message}` : "";
     }
     throw new Error(`API error: ${res.status}${detail}`);
+  }
+  // 204 No Content — 无 body，直接返回 null
+  if (res.status === 204) {
+    return null as T;
   }
   const contentType = res.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {

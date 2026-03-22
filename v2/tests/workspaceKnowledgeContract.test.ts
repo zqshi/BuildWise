@@ -57,16 +57,15 @@ test("coach runtime injects project knowledge and change intelligence as context
     "utf-8"
   );
 
-  assert.match(coachSource, /项目知识\.ontologyTerms=/);
-  assert.match(coachSource, /项目知识\.stableRules=/);
-  assert.match(coachSource, /变更来源\.type=/);
-  assert.match(coachSource, /项目知识命中=/);
-  assert.match(coachSource, /项目知识冲突=/);
-  assert.match(coachSource, /功能点归一化=/);
-  assert.match(coachSource, /映射审计=/);
+  assert.match(coachSource, /项目中的关键业务概念/);
+  assert.match(coachSource, /已确认的业务规则/);
+  assert.match(coachSource, /变更来源是/);
+  assert.match(coachSource, /与已有知识的关联/);
+  assert.match(coachSource, /发现的知识冲突/);
+  assert.match(coachSource, /归纳出的功能点/);
   assert.match(coachSource, /function buildFallbackCoachReply\(rawContent: string\)/);
   assert.match(coachSource, /pickString\(parsed\?\.reply\) \|\| buildFallbackCoachReply\(result\.content\)/);
-  assert.match(coachSource, /继续当前交付物确认，再推进下一阶段/);
+  assert.match(coachSource, /用自然沟通引导用户推进迭代澄清与边界确认/);
   assert.doesNotMatch(coachSource, /固定话术|固定回复模板/);
 });
 
@@ -77,11 +76,11 @@ test("openclaw direct chat injects project and portfolio knowledge as context on
   );
 
   assert.match(openclawOpsSource, /\[项目知识上下文\]/);
-  assert.match(openclawOpsSource, /本体词典=/);
-  assert.match(openclawOpsSource, /稳定规则=/);
-  assert.match(openclawOpsSource, /变更模式=/);
-  assert.match(openclawOpsSource, /\[主窗口项目概览上下文\]/);
-  assert.match(openclawOpsSource, /最近决策=/);
+  assert.match(openclawOpsSource, /关键业务概念/);
+  assert.match(openclawOpsSource, /已确认的业务规则/);
+  assert.match(openclawOpsSource, /变更模式/);
+  assert.match(openclawOpsSource, /\[skills selection\]/);
+  assert.match(openclawOpsSource, /近期决策/);
   assert.match(openclawOpsSource, /contextSections/);
   assert.doesNotMatch(openclawOpsSource, /固定话术|固定回复模板/);
 });

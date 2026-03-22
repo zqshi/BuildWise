@@ -38,7 +38,7 @@ type GitHubPrResponse = {
 };
 
 function runGit(args: string[], cwd: string) {
-  return spawnSync("git", args, { cwd, encoding: "utf-8" });
+  return spawnSync("git", args, { cwd, encoding: "utf-8", timeout: 30_000 });
 }
 
 function ensureGitRepo(repoPath: string) {

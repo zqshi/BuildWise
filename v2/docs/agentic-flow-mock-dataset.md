@@ -78,7 +78,7 @@ npm run seed:agentic:flow
 
 ## 数据校验
 自动测试文件：
-- [agenticFlowMockSeed.test.ts](/Users/zqs/Downloads/project/BuildWise/v2/tests/agenticFlowMockSeed.test.ts)
+- [agenticFlowMockSeed.test.ts](../tests/agenticFlowMockSeed.test.ts)
 
 执行：
 

@@ -328,6 +328,136 @@ export function appendPolicyExecutionLogOp(
   return record;
 }
 
+// ---------------------------------------------------------------------------
+// mergePolicyDeltaOp — 策略增量合并
+// ---------------------------------------------------------------------------
+
+type PolicyDeltaInput = {
+  action: string;
+  gate?: { stage: string; requiredArtifacts: string[]; requireHumanConfirmation: boolean };
+  stage?: string;
+  insertAfter?: string;
+  skillsPlan?: Array<{ stage: string; skills: string[] }>;
+};
+
+function applyDeltaToStrategy(
+  base: ProjectPolicyRecord["strategy"],
+  delta: PolicyDeltaInput
+): ProjectPolicyRecord["strategy"] {
+  const result = {
+    stages: [...base.stages],
+    gates: base.gates.map((g) => ({ ...g })),
+    requiredConfirmations: { ...base.requiredConfirmations },
+    exceptions: base.exceptions.map((e) => ({ ...e })),
+    skillsPlan: base.skillsPlan.map((s) => ({ ...s, skills: [...s.skills] })),
+  };
+
+  switch (delta.action) {
+    case "add-stage": {
+      if (delta.stage && !result.stages.includes(delta.stage)) {
+        if (delta.insertAfter) {
+          const idx = result.stages.indexOf(delta.insertAfter);
+          if (idx >= 0) {
+            result.stages.splice(idx + 1, 0, delta.stage);
+          } else {
+            result.stages.push(delta.stage);
+          }
+        } else {
+          result.stages.push(delta.stage);
+        }
+      }
+      break;
+    }
+    case "remove-stage": {
+      if (delta.stage) {
+        result.stages = result.stages.filter((s) => s !== delta.stage);
+        result.gates = result.gates.filter((g) => g.stage !== delta.stage);
+      }
+      break;
+    }
+    case "add-gate": {
+      if (delta.gate) {
+        result.gates.push({ ...delta.gate });
+      }
+      break;
+    }
+    case "remove-gate": {
+      if (delta.gate) {
+        result.gates = result.gates.filter((g) => g.stage !== delta.gate!.stage);
+      }
+      break;
+    }
+    case "modify-gate": {
+      if (delta.gate) {
+        const idx = result.gates.findIndex((g) => g.stage === delta.gate!.stage);
+        if (idx >= 0) {
+          result.gates[idx] = { ...delta.gate };
+        } else {
+          result.gates.push({ ...delta.gate });
+        }
+      }
+      break;
+    }
+    case "modify-skill-plan": {
+      if (delta.skillsPlan) {
+        result.skillsPlan = delta.skillsPlan.map((s) => ({ ...s, skills: [...s.skills] }));
+      }
+      break;
+    }
+  }
+
+  return result;
+}
+
+export function mergePolicyDeltaOp(
+  repo: WorkspaceRepository,
+  input: {
+    projectId: number;
+    actor: string;
+    delta: PolicyDeltaInput;
+    evidence: string[];
+  }
+): { policy: ProjectPolicyRecord; action: "created" | "merged" } {
+  const existing = repo.listProjectPolicies(input.projectId);
+  const activePolicy = existing.filter((p) => p.status === "active").sort((a, b) => b.version - a.version)[0] || null;
+  const maxVersion = existing.length === 0 ? 0 : Math.max(...existing.map((p) => p.version));
+  const now = nowIso();
+
+  let baseStrategy: ProjectPolicyRecord["strategy"];
+  let action: "created" | "merged";
+
+  if (activePolicy) {
+    baseStrategy = activePolicy.strategy;
+    action = "merged";
+    // 归档旧版本
+    repo.updateProjectPolicy({ ...activePolicy, status: "archived" });
+  } else {
+    baseStrategy = buildInitialOrchestrationStrategy();
+    action = "created";
+  }
+
+  const newStrategy = applyDeltaToStrategy(baseStrategy, input.delta);
+
+  const newPolicy: ProjectPolicyRecord = {
+    id: nextId(existing),
+    projectId: input.projectId,
+    version: maxVersion + 1,
+    status: "active",
+    strategy: newStrategy,
+    createdBy: input.actor,
+    approvedBy: input.actor,
+    createdAt: now,
+    approvedAt: now,
+  };
+  repo.appendProjectPolicy(newPolicy);
+
+  return { policy: newPolicy, action };
+}
+
+// ---------------------------------------------------------------------------
+// containsArtifactReference (internal helper for evaluatePolicyGateForCoachOp)
+// ---------------------------------------------------------------------------
+
 function containsArtifactReference(iterationId: number, repo: WorkspaceRepository, keyword: string) {
   const messages = repo.listMessages(iterationId);
   return messages.some((item) => typeof item.content === "string" && item.content.includes(keyword));
@@ -350,26 +480,24 @@ export function evaluatePolicyGateForCoachOp(
       ? "release"
       : lowered.includes("测试") || lowered.includes("验收")
         ? "testing"
-        : lowered.includes("范围") || lowered.includes("边界")
+        : lowered.includes("范围") || lowered.includes("边界") || lowered.includes("scope")
           ? "scope"
           : "clarification";
 
   if (!activePolicy) {
-    return {
-      blocked: false,
-      stage,
-      reason: "",
-      requiredActions: []
-    };
+    return { blocked: false, stage, reason: "", requiredActions: [] };
   }
 
+  // ── firstIterationGitReport 兼容检查 ──
   if (activePolicy.strategy.requiredConfirmations.firstIterationGitReport) {
     const firstIterationId =
       repo
         .listIterations(iteration.projectId)
         .sort((a, b) => a.id - b.id)[0]?.id || iteration.id;
     if (iteration.id === firstIterationId) {
-      const hasGitConfirm = containsArtifactReference(iteration.id, repo, "Git分析报告") && containsArtifactReference(iteration.id, repo, "确认");
+      const hasGitConfirm =
+        containsArtifactReference(iteration.id, repo, "Git分析报告") &&
+        containsArtifactReference(iteration.id, repo, "确认");
       if (!hasGitConfirm) {
         return {
           blocked: true,
@@ -381,10 +509,38 @@ export function evaluatePolicyGateForCoachOp(
     }
   }
 
-  return {
-    blocked: false,
-    stage,
-    reason: "",
-    requiredActions: []
-  };
+  // ── 遍历 gates 检查 requiredArtifacts + requireHumanConfirmation ──
+  const matchedGates = activePolicy.strategy.gates.filter((g) => g.stage === stage);
+  for (const gate of matchedGates) {
+    // 检查 requiredArtifacts
+    const missingArtifacts = gate.requiredArtifacts.filter(
+      (artifact) => !containsArtifactReference(iteration.id, repo, artifact)
+    );
+    if (missingArtifacts.length > 0) {
+      return {
+        blocked: true,
+        stage,
+        reason: `阶段 ${stage} 缺少必要制品: ${missingArtifacts.join(", ")}`,
+        requiredActions: missingArtifacts.map((a) => `请先完成 ${a}`)
+      };
+    }
+
+    // 检查 requireHumanConfirmation
+    if (gate.requireHumanConfirmation) {
+      const hasUserConfirm = containsArtifactReference(iteration.id, repo, "确认") &&
+        repo.listMessages(iteration.id).some(
+          (m) => m.role === "user" && (m.content.includes("确认") || m.content.includes("同意") || m.content.includes("通过"))
+        );
+      if (!hasUserConfirm) {
+        return {
+          blocked: true,
+          stage,
+          reason: `阶段 ${stage} 需要人工确认后才能推进`,
+          requiredActions: [`请确认 ${stage} 阶段的相关制品后再继续`]
+        };
+      }
+    }
+  }
+
+  return { blocked: false, stage, reason: "", requiredActions: [] };
 }

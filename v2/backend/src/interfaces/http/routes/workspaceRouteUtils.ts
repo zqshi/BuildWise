@@ -28,8 +28,17 @@ export function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
   if (error instanceof LlmInvocationError) {
     return 502;
   }
+  const name = error instanceof Error ? error.name : "";
   const message = error instanceof Error ? error.message : "";
   if (/^llm_http_\d+/i.test(message) || /^llm_/i.test(message)) {
+    return 502;
+  }
+  // fetch AbortError (timeout) → 502
+  if (name === "AbortError" || /aborted/i.test(message)) {
+    return 502;
+  }
+  // Network connectivity errors → 502
+  if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(message)) {
     return 502;
   }
   return null;

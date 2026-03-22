@@ -124,14 +124,14 @@ test("iteration workspace no longer renders a dedicated change-impact reminder s
     new URL("../src/pages/projects/IterationChangeIntelligencePanel.tsx", import.meta.url),
     "utf8"
   );
-  const workspaceCssSource = readFileSync(
-    new URL("../src/styles/workspace-interactions.css", import.meta.url),
+  const chatPanelCssSource = readFileSync(
+    new URL("../src/styles/chat-panel.css", import.meta.url),
     "utf8"
   );
   assert.doesNotMatch(workspacePanelSource, /data-testid="change-impact-reminder"/);
   assert.doesNotMatch(workspacePanelSource, /生成影响评估/);
   assert.doesNotMatch(workspacePanelSource, /data-testid="change-mapping-toggle"/);
   assert.doesNotMatch(changePanelSource, /data-testid="change-mapping-panel"/);
-  assert.match(workspaceCssSource, /\.iteration-status-strip\s*\{\s*display:flex;/);
-  assert.doesNotMatch(workspaceCssSource, /\.chat-change-reminder\s*\{/);
+  assert.match(chatPanelCssSource, /\.iteration-status-strip\s*\{\s*display:flex;/);
+  assert.doesNotMatch(chatPanelCssSource, /\.chat-change-reminder\s*\{/);
 });

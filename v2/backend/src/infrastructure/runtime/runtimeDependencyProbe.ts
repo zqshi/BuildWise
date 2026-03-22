@@ -11,24 +11,8 @@ export type RuntimeDependencyItem = {
 };
 
 export type RuntimeDependencyStatus = {
-  modelFile: RuntimeDependencyItem;
   storage: RuntimeDependencyItem;
 };
-
-async function checkFileReadable(filePath: string, required: boolean): Promise<RuntimeDependencyItem> {
-  const checkedAt = new Date().toISOString();
-  try {
-    await access(filePath, constants.R_OK);
-    return { required, healthy: true, checkedAt, detail: filePath };
-  } catch (error) {
-    return {
-      required,
-      healthy: false,
-      checkedAt,
-      detail: `unreadable:${filePath};${error instanceof Error ? error.message : String(error)}`
-    };
-  }
-}
 
 async function checkJsonStorage(dataFile: string, required: boolean): Promise<RuntimeDependencyItem> {
   const checkedAt = new Date().toISOString();
@@ -72,10 +56,9 @@ async function checkSqliteStorage(dbFile: string, required: boolean): Promise<Ru
 
 export async function probeRuntimeDependencies(config: RuntimeConfig): Promise<RuntimeDependencyStatus> {
   const required = config.dependencyRequired;
-  const modelFile = await checkFileReadable(config.modelFile, required);
   const storage =
     config.storageBackend === "sqlite"
       ? await checkSqliteStorage(config.workspaceDbFile, required)
       : await checkJsonStorage(config.dataFile, required);
-  return { modelFile, storage };
+  return { storage };
 }

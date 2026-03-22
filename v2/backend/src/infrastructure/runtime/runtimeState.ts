@@ -44,12 +44,6 @@ export class RuntimeState {
     error: "not_checked"
   };
   private dependencyStatus: RuntimeDependencyStatus = {
-    modelFile: {
-      required: false,
-      healthy: true,
-      checkedAt: "",
-      detail: "not_checked"
-    },
     storage: {
       required: false,
       healthy: true,
@@ -102,8 +96,6 @@ export class RuntimeState {
     reply.header("x-frame-options", "DENY");
     reply.header("referrer-policy", "no-referrer");
     reply.header("x-permitted-cross-domain-policies", "none");
-    reply.header("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
-    reply.header("strict-transport-security", "max-age=63072000; includeSubDomains");
   }
 
   setShuttingDown(value: boolean) {
@@ -115,7 +107,7 @@ export class RuntimeState {
       return false;
     }
     if (this.config.dependencyRequired) {
-      if (!this.dependencyStatus.modelFile.healthy || !this.dependencyStatus.storage.healthy) {
+      if (!this.dependencyStatus.storage.healthy) {
         return false;
       }
     }

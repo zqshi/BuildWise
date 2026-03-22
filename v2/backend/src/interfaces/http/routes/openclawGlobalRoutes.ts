@@ -14,7 +14,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const body = (request.body || {}) as { title?: string };
     return service.createConversation(body.title);
@@ -41,7 +41,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id?: string };
     const conversationId = (params.id || "").trim();
@@ -79,7 +79,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id?: string };
     const skillId = (params.id || "").trim();
@@ -100,7 +100,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id?: string };
     const skillId = (params.id || "").trim();
@@ -126,7 +126,7 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     return service.restoreInitialConfig();
   });

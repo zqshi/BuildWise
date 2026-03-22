@@ -42,7 +42,8 @@ test("detectCodeLanguage identifies common artifact code shapes", () => {
 });
 
 test("detectDocumentFormat distinguishes html from markdown text", () => {
-  assert.equal(detectDocumentFormat("<p>富文本</p>"), "html");
+  assert.equal(detectDocumentFormat("<div><p>富文本</p><section>内容</section></div>"), "html");
+  assert.equal(detectDocumentFormat("<p>富文本</p>"), "markdown");
   assert.equal(detectDocumentFormat("# 标题\n\n- 列表"), "markdown");
 });
 
@@ -55,7 +56,7 @@ test("extractArtifactDocumentContent unwraps structured agent payloads", () => {
   );
 
   assert.equal(content, "# 创意生成器 V1.1 增量 PRD\n\n## 问题定义\n补充业务规则注入。");
-  assert.equal(detectDocumentFormat(JSON.stringify({ reply: "<p>富文本正文</p>" })), "html");
+  assert.equal(detectDocumentFormat(JSON.stringify({ reply: "<div><p>富文本正文</p><section>详情</section></div>" })), "html");
 });
 
 test("extractArtifactDocumentContent unwraps fenced json payloads for detail drawer display", () => {

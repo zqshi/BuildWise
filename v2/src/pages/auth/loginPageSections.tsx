@@ -16,13 +16,13 @@ export function LoginBrandPanel() {
           </span>
           BuildWise
         </p>
-        <p className="auth-mini-badge">Next Generation Enterprise Delivery</p>
+        <p className="auth-mini-badge">AI 原生软件交付工作台</p>
         <h1>
-          将业务意图编译为
-          <span>可运行软件</span>
+          业务人员直接推进
+          <span>软件交付</span>
         </h1>
       </div>
-      <p className="auth-brand-intro">AI 驱动的企业级交付工作台，重塑软件开发全生命周期。</p>
+      <p className="auth-brand-intro">上传需求文档，AI 自动完成分析、生成交付物、评估发布风险。全程对话式引导，不需要写代码，不需要等排期。</p>
       <div className="auth-hero-mock" aria-hidden="true">
         <div className="auth-hero-dots">
           <span />

@@ -1,4 +1,3 @@
-import type { ModelingRepository } from "../../domain/modeling/repository";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { safeJsonParse } from "../workspace/workspaceServiceAttachmentUtils";
 import {
@@ -15,8 +14,7 @@ import { listUncoveredAcceptanceCriteria } from "../workspace/workspaceServiceCo
 
 export class PlatformService {
   constructor(
-    private readonly workspaceRepo: WorkspaceRepository,
-    private readonly modelRepo: ModelingRepository
+    private readonly workspaceRepo: WorkspaceRepository
   ) {}
 
   private writeAudit(action: string, resource: string, detail: string) {
@@ -270,28 +268,6 @@ export class PlatformService {
 
   listTemplateRuns(projectId?: number) {
     return this.workspaceRepo.listTemplateRuns(projectId);
-  }
-
-  exportOpenApi() {
-    const model = this.modelRepo.read();
-    const paths = Object.fromEntries(
-      model.apis
-        .filter((item) => item.path)
-        .map((item) => [
-          item.path as string,
-          {
-            [(item.method || "GET").toLowerCase()]: {
-              summary: item.id || `Model endpoint ${item.path as string}`,
-              responses: { 200: { description: "OK" } }
-            }
-          }
-        ])
-    );
-    return {
-      openapi: "3.0.3",
-      info: { title: "BuildWise API", version: "1.0.0" },
-      paths
-    };
   }
 
   listDeployments(projectId?: number) {

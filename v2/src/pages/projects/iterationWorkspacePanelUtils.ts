@@ -221,6 +221,8 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
   window.addEventListener("scroll", () => selectedEl && updateOverlay(selectedEl), true);
   window.addEventListener("resize", () => selectedEl && updateOverlay(selectedEl), true);
   window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    if (event.origin !== "null" && event.origin !== location.origin) return;
     const data = event.data || {};
     if (!data || data.source !== "buildwise-visual-edit-host") return;
     const payload = data.payload || {};

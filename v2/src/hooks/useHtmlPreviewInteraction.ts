@@ -47,6 +47,9 @@ export function useHtmlPreviewInteraction(
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin && event.origin !== "null") {
+        return;
+      }
       const data = event.data as
         | {
             source?: string;

@@ -40,14 +40,6 @@ const trackedDsStore = tracked(".DS_Store");
 if (trackedDsStore.length > 0) {
   errors.push(`.DS_Store 不应被跟踪：${trackedDsStore.join(" | ")}`);
 }
-const trackedAutobootRuntime = [...tracked("autoboot/archive"), ...tracked("autoboot/runs"), ...tracked("autoboot/reports")];
-if (trackedAutobootRuntime.length > 0) {
-  errors.push(`autoboot 运行与归档产物不应入库：${trackedAutobootRuntime.slice(0, 12).join(" | ")}${trackedAutobootRuntime.length > 12 ? " ..." : ""}`);
-}
-const trackedAutobootState = [...tracked("autoboot/__pycache__"), ...tracked("autoboot/state"), ...tracked("autoboot/plans"), ...tracked("*.pyc")];
-if (trackedAutobootState.length > 0) {
-  errors.push(`autoboot 运行态文件不应入库：${trackedAutobootState.slice(0, 12).join(" | ")}${trackedAutobootState.length > 12 ? " ..." : ""}`);
-}
 
 const readme = read("v2/README.md");
 if (/\/Users\//.test(readme)) {
@@ -58,17 +50,12 @@ if (/\/Users\//.test(backendReadme)) {
   errors.push("v2/backend/README.md 存在绝对路径，请改为相对路径。");
 }
 
-const candidateFiles = [...listTrackedFiles("docs"), ...listTrackedFiles("v2"), ...listTrackedFiles("autoboot")]
+const candidateFiles = [...listTrackedFiles("docs"), ...listTrackedFiles("v2")]
   .filter((item) => /\.(md|ts|tsx|js|mjs|json|sh)$/i.test(item))
   .filter(
     (item) =>
       !item.includes("/node_modules/") &&
-      !item.includes("/dist/") &&
-      !item.startsWith("autoboot/runs/") &&
-      !item.startsWith("autoboot/archive/") &&
-      !item.startsWith("autoboot/reports/") &&
-      !item.startsWith("autoboot/plans/") &&
-      !item.startsWith("autoboot/state/")
+      !item.includes("/dist/")
   );
 for (const file of candidateFiles) {
   const content = read(file);

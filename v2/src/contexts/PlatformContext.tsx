@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useMemo, type ReactNode } from "re
 import type { AuditLog, GovernanceRole } from "../domain/workspace/governanceTypes";
 import type {
   DeploymentRecord,
+  OpsMetricsPayload,
   ProjectShare,
   ShareAccessPayload,
   TemplateItem,
@@ -29,6 +30,8 @@ type PlatformContextValue = {
   setDeployments: React.Dispatch<React.SetStateAction<DeploymentRecord[]>>;
   shareAccess: ShareAccessPayload | null;
   setShareAccess: React.Dispatch<React.SetStateAction<ShareAccessPayload | null>>;
+  opsMetrics: OpsMetricsPayload | null;
+  setOpsMetrics: React.Dispatch<React.SetStateAction<OpsMetricsPayload | null>>;
 };
 
 const PlatformContext = createContext<PlatformContextValue | null>(null);
@@ -43,6 +46,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [latestTemplateRun, setLatestTemplateRun] = useState<TemplateRunResult | null>(null);
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([]);
   const [shareAccess, setShareAccess] = useState<ShareAccessPayload | null>(null);
+  const [opsMetrics, setOpsMetrics] = useState<OpsMetricsPayload | null>(null);
 
   const value = useMemo(
     () => ({
@@ -64,8 +68,10 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       setDeployments,
       shareAccess,
       setShareAccess,
+      opsMetrics,
+      setOpsMetrics,
     }),
-    [governanceRoles, auditLogs, versionSnapshots, projectShares, templates, templateRuns, latestTemplateRun, deployments, shareAccess]
+    [governanceRoles, auditLogs, versionSnapshots, projectShares, templates, templateRuns, latestTemplateRun, deployments, shareAccess, opsMetrics]
   );
 
   return <PlatformContext.Provider value={value}>{children}</PlatformContext.Provider>;

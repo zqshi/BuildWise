@@ -1,9 +1,0 @@
-{
-  "name": "layout-gate-v1",
-  "version": "1.0.0",
-  "enabled": true,
-  "threshold": 0.82,
-  "block_on_fail": true,
-  "contract_file": "autoboot/contracts/layout_contract.v1.json",
-  "report_file": "autoboot/state/layout_gate_report.json"
-}

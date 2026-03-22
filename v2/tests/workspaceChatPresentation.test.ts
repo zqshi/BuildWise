@@ -15,7 +15,7 @@ test("presentCoachReply removes internal skill notes and compresses deliverable-
 
   assert.equal(
     presentCoachReply(reply),
-    "已输出首版需求分析报告，以下是需要你确认的待处理点。请查看交付物卡片并确认，如需修改可继续补充意见。"
+    "已输出首版需求分析报告，以下是需要你确认的待处理点。\n问题定义：创意生成器 MVP 需要先验证单页生成闭环。\n请查看交付物卡片并确认，如需修改可继续补充意见。"
   );
 });
 
@@ -32,7 +32,7 @@ test("presentCoachReply compresses long structured artifact body into a short ca
 
   assert.equal(
     presentCoachReply(reply),
-    "已生成继承差异分析报告。请查看交付物卡片并确认，若需修改可继续补充意见。"
+    "已生成「继承差异分析报告」。\n请查看交付物卡片并确认，若需修改可继续补充意见。"
   );
 });
 
@@ -44,7 +44,7 @@ test("presentCoachReply compresses structured json payload into artifact notice"
 
   assert.equal(
     presentCoachReply(reply),
-    "已生成继承差异分析报告。请直接查看交付物卡片并确认，若需调整可继续补充意见。"
+    "已生成「继承差异分析报告」。\n请查看交付物卡片并确认。"
   );
 });
 

@@ -1,31 +1,29 @@
-const ACCESS_TOKEN_KEY = "buildwise:access-token";
-const REFRESH_TOKEN_KEY = "buildwise:refresh-token";
-const EXPIRE_AT_KEY = "buildwise:token-expire-at";
+// In-memory token storage — access token never touches localStorage (XSS mitigation).
+// On page refresh the token is gone; the app re-acquires it via the httpOnly refresh cookie.
+let _accessToken: string | null = null;
+let _expireAt: number | null = null;
 
-export function saveTokens(accessToken: string, refreshToken: string, expiresIn: number): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  localStorage.setItem(EXPIRE_AT_KEY, String(Date.now() + expiresIn * 1000));
+export function saveTokens(accessToken: string, expiresIn: number): void {
+  _accessToken = accessToken;
+  _expireAt = Date.now() + expiresIn * 1000;
 }
 
 export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  return _accessToken;
 }
 
 export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(EXPIRE_AT_KEY);
+  _accessToken = null;
+  _expireAt = null;
+  // Clean up legacy localStorage keys if they still exist
+  localStorage.removeItem("buildwise:access-token");
+  localStorage.removeItem("buildwise:token-expire-at");
+  localStorage.removeItem("buildwise:refresh-token");
 }
 
 export function isTokenExpiringSoon(bufferMs = 300000): boolean {
-  const expireAt = localStorage.getItem(EXPIRE_AT_KEY);
-  if (!expireAt) {
+  if (_expireAt === null) {
     return true;
   }
-  return Date.now() + bufferMs >= Number(expireAt);
+  return Date.now() + bufferMs >= _expireAt;
 }

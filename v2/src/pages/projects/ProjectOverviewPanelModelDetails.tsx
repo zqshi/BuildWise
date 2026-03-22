@@ -1,4 +1,4 @@
-import type { ModelRelationPayload } from "../../domain/workspace/types";
+import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import type { ProjectModelBusinessSummaryPayload } from "../../domain/workspace/modelOpsTypes";
 import type { RelationGraphEdge, RelationGraphNode, RelationGraphPayload } from "./projectModelGraphModel";
 import { normalizeInlineMarkdownText, toFriendlyName, toFriendlyRelationType } from "./projectOverviewPanelHelpers";

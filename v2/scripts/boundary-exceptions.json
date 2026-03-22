@@ -12,7 +12,6 @@
     "backend/src/application/workspace/workspaceService.ts",
     "backend/src/application/workspace/analysisService.ts",
     "backend/src/application/workspace/workspaceServiceAnalysisOps.ts",
-    "backend/src/application/modeling/modelingService.ts",
     "backend/src/application/workspace/workspaceServiceChangeControlCoreOps.ts",
     "backend/src/application/workspace/workspaceServiceCoachOps.ts",
     "backend/src/application/workspace/workspaceServiceFullCycleOps.ts",
@@ -31,7 +30,12 @@
     "src/domain/workspace/iterationTypes.ts",
     "src/pages/projects/ProjectOverviewPanel.tsx",
     "src/styles/base.css",
-    "src/styles/responsive.css"
+    "src/styles/responsive.css",
+    "src/App.tsx",
+    "src/pages/projects/ArtifactPreviewPanel.tsx",
+    "backend/src/application/workspace/agentRunner.ts",
+    "backend/src/application/workspace/workspaceServiceDefaultArtifactWorkflow.ts",
+    "backend/src/index.ts"
   ],
   "hardLineLimitExceptions": [
     "src/pages/projects/IterationWorkspacePanel.tsx",

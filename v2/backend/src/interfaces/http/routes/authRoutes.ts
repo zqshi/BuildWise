@@ -9,10 +9,13 @@ const log = createLogger("auth");
 
 const smsCodeStore = new Map<string, { code: string; expireAt: number; createdAt: number; failedAttempts: number }>();
 const smsRateStore = new Map<string, number>();
+const smsIpRateStore = new Map<string, { count: number; windowStart: number }>();
 const SMS_CODE_MAX_AGE_MS = 10 * 60 * 1000;
 const SMS_CODE_MAX_STORE_SIZE = 1000;
 const SMS_RATE_LIMIT_MS = 60 * 1000;
 const SMS_MAX_FAILED_ATTEMPTS = 5;
+const SMS_IP_MAX_PER_WINDOW = 10;
+const SMS_IP_WINDOW_MS = 10 * 60 * 1000;
 
 setInterval(() => {
   const now = Date.now();
@@ -21,10 +24,44 @@ setInterval(() => {
       smsCodeStore.delete(phone);
     }
   }
+  for (const [phone, timestamp] of smsRateStore) {
+    if (now - timestamp > SMS_RATE_LIMIT_MS) {
+      smsRateStore.delete(phone);
+    }
+  }
+  for (const [ip, entry] of smsIpRateStore) {
+    if (now - entry.windowStart > SMS_IP_WINDOW_MS) {
+      smsIpRateStore.delete(ip);
+    }
+  }
 }, 5 * 60 * 1000).unref();
 
 function isValidPhone(phone: string) {
   return /^1\d{10}$/.test(phone);
+}
+
+function setRefreshTokenCookie(reply: import("fastify").FastifyReply, refreshToken: string, maxAgeSec: number, isSecure: boolean) {
+  const parts = [
+    `buildwise_rt=${refreshToken}`,
+    `HttpOnly`,
+    `Path=/api/v1/auth`,
+    `Max-Age=${maxAgeSec}`,
+    `SameSite=Strict`
+  ];
+  if (isSecure) {
+    parts.push("Secure");
+  }
+  reply.header("Set-Cookie", parts.join("; "));
+}
+
+function clearRefreshTokenCookie(reply: import("fastify").FastifyReply) {
+  reply.header("Set-Cookie", "buildwise_rt=; HttpOnly; Path=/api/v1/auth; Max-Age=0; SameSite=Strict");
+}
+
+function parseRefreshTokenCookie(request: import("fastify").FastifyRequest): string {
+  const raw = request.headers.cookie || "";
+  const match = raw.match(/(?:^|;\s*)buildwise_rt=([^;]+)/);
+  return match ? match[1].trim() : "";
 }
 
 export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceService, config: RuntimeConfig) {
@@ -40,8 +77,24 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       reply.code(503);
       return { message: "sms code store is full, please try later" };
     }
-    const lastSentAt = smsRateStore.get(phone);
+    // IP-based rate limiting to prevent SMS bombing across different phone numbers
+    const clientIp = request.ip || "unknown";
+    const ipEntry = smsIpRateStore.get(clientIp);
     const now = Date.now();
+    if (ipEntry) {
+      if (now - ipEntry.windowStart < SMS_IP_WINDOW_MS) {
+        if (ipEntry.count >= SMS_IP_MAX_PER_WINDOW) {
+          reply.code(429);
+          return { message: "请求过于频繁，请稍后再试" };
+        }
+        ipEntry.count += 1;
+      } else {
+        smsIpRateStore.set(clientIp, { count: 1, windowStart: now });
+      }
+    } else {
+      smsIpRateStore.set(clientIp, { count: 1, windowStart: now });
+    }
+    const lastSentAt = smsRateStore.get(phone);
     if (lastSentAt && now - lastSentAt < SMS_RATE_LIMIT_MS) {
       reply.code(429);
       return { message: "请稍后再试，每60秒只能发送一次验证码" };
@@ -90,11 +143,12 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     if (config.authMode === "jwt") {
       const tokens = createTokenPair(phone, workspaceRole, config.jwtSecret, config.jwtAccessTtlSec, config.jwtRefreshTtlSec);
       log.info("jwt issued", { phone: phone.slice(0, 3) + "****" + phone.slice(7), role: workspaceRole });
+      const isSecure = config.nodeEnv === "production" || request.protocol === "https" || request.headers["x-forwarded-proto"] === "https";
+      setRefreshTokenCookie(reply, tokens.refreshToken, config.jwtRefreshTtlSec, isSecure);
       return {
         ok: true,
         user: { phone, platformRole: binding.role, workspaceRole },
         accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
         expiresIn: tokens.expiresIn
       };
     }
@@ -116,13 +170,13 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       reply.code(404);
       return { message: "token refresh is only available in jwt auth mode" };
     }
-    const body = request.body as { refreshToken?: string } | null;
-    const refreshToken = (body?.refreshToken || "").trim();
+    const refreshToken = parseRefreshTokenCookie(request);
     if (!refreshToken) {
       reply.code(400);
-      return { message: "missing refreshToken" };
+      return { message: "missing refresh token cookie" };
     }
     if (isTokenRevoked(refreshToken)) {
+      clearRefreshTokenCookie(reply);
       reply.code(401);
       return { message: "refresh token has been revoked" };
     }
@@ -130,16 +184,19 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     try {
       payload = verifyJwt(refreshToken, config.jwtSecret);
     } catch {
+      clearRefreshTokenCookie(reply);
       reply.code(401);
       return { message: "invalid or expired refresh token" };
     }
     if (payload.type !== "refresh") {
+      clearRefreshTokenCookie(reply);
       reply.code(401);
       return { message: "invalid token type" };
     }
     // 重新查 platformRoleBindings 确认用户仍然存在
     const binding = service.listPlatformRoleBindings().find((item) => item.userId === payload.sub);
     if (!binding) {
+      clearRefreshTokenCookie(reply);
       reply.code(403);
       return { message: "user no longer registered" };
     }
@@ -148,10 +205,26 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     const latestRole = service.resolveWorkspaceRole(binding.role);
     const tokens = createTokenPair(payload.sub, latestRole, config.jwtSecret, config.jwtAccessTtlSec, config.jwtRefreshTtlSec);
     log.info("jwt refreshed", { sub: payload.sub.slice(0, 3) + "****" + payload.sub.slice(7), role: latestRole });
+    const isSecure = config.nodeEnv === "production" || request.protocol === "https" || request.headers["x-forwarded-proto"] === "https";
+    setRefreshTokenCookie(reply, tokens.refreshToken, config.jwtRefreshTtlSec, isSecure);
     return {
       accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
       expiresIn: tokens.expiresIn
     };
+  });
+
+  // POST /api/auth/logout — 清除 refresh token cookie
+  app.post("/auth/logout", async (request, reply) => {
+    const refreshToken = parseRefreshTokenCookie(request);
+    if (refreshToken && config.authMode === "jwt") {
+      try {
+        const payload = verifyJwt(refreshToken, config.jwtSecret);
+        revokeToken(refreshToken, payload.exp);
+      } catch {
+        // token already invalid, just clear cookie
+      }
+    }
+    clearRefreshTokenCookie(reply);
+    return { ok: true };
   });
 }

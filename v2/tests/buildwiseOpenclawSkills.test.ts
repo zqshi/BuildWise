@@ -108,11 +108,14 @@ test("runtime bridge selects business-rule and product-rd skills with evidence",
     "utf-8"
   );
 
-  assert.match(bridgeSource, /10-business-rule-linking/);
-  assert.match(bridgeSource, /11-product-rd-quality-contract/);
+  // Bridge uses registry-based selection with keyword pattern matching
+  assert.match(bridgeSource, /business-rule/);
+  assert.match(bridgeSource, /quality-contract/);
   assert.match(bridgeSource, /selected_skills=/);
   assert.match(bridgeSource, /selection_reasons=/);
   assert.match(bridgeSource, /buildOpenclawSkillSelectionContext/);
+  assert.match(bridgeSource, /selectOpenclawSkillsFromRegistry/);
+  assert.match(bridgeSource, /buildUnifiedSkillRegistryOp/);
   assert.match(coachSource, /skill_reasons=/);
   assert.match(coachSource, /buildOpenclawSkillSelectionContext/);
   assert.match(runtimeSource, /summarizeProjectSkillSelection/);

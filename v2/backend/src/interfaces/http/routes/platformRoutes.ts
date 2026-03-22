@@ -28,7 +28,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as { projectId?: number; iterationId?: number; name?: string; note?: string } | null;
     const projectId = typeof body?.projectId === "number" ? body.projectId : null;
@@ -50,7 +50,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const snapshotId = parsePositiveInt(params.id);
@@ -80,7 +80,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as { projectId?: number; permission?: "read" | "comment"; ttlHours?: number } | null;
     const projectId = typeof body?.projectId === "number" ? body.projectId : null;
@@ -105,7 +105,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "template:run", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const body = request.body as { projectId?: number; parameters?: Record<string, string> } | null;
@@ -160,10 +160,6 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.get("/openapi/export", async () => {
-    return service.exportOpenApi();
-  });
-
   app.get("/ops/deployments", async (request) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
@@ -174,7 +170,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as {
       projectId?: number;
@@ -214,7 +210,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "deploy:transition", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const body = request.body as { toStatus?: "running" | "success" | "failed" } | null;
@@ -249,7 +245,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as {
       id?: string;
@@ -281,7 +277,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const templateId = params.id?.trim();
@@ -301,7 +297,7 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const permit = ensurePermission(request.authRole, "ops:triage", workspaceService);
     if (!permit.ok) {
       reply.code(403);
-      return { message: `permission denied for role ${permit.role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as {
       projectId?: number;

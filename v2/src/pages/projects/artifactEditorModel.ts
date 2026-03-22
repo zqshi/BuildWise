@@ -1,4 +1,4 @@
-import { buildArtifactSummary, extractArtifactDisplayContent } from "../../app/artifactContentPresentation";
+import { buildArtifactSummary, extractArtifactDisplayContent } from "../../app/artifactContentPresentation.ts";
 
 function escapeHtml(value: string) {
   return value

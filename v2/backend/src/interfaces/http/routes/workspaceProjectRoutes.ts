@@ -14,6 +14,11 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
   });
 
   app.get("/governance/audit-logs", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: "permission denied" };
+    }
     const query = request.query as { limit?: string } | null;
     const limit = query?.limit ? Number(query.limit) : 50;
     if (!Number.isFinite(limit) || limit <= 0) {
@@ -23,7 +28,12 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.listAuditLogs(Math.min(200, Math.floor(limit)));
   });
 
-  app.get("/governance/platform-role-bindings", async () => {
+  app.get("/governance/platform-role-bindings", async (request, reply) => {
+    const role = currentRole(request.authRole);
+    if (!isAdmin(role)) {
+      reply.code(403);
+      return { message: "permission denied" };
+    }
     return service.listPlatformRoleBindings();
   });
 
@@ -31,7 +41,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as { userId?: string; role?: string } | null;
     const userId = body?.userId?.trim() || "";
@@ -58,7 +68,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { userId: string };
     const userId = (params.userId || "").trim();
@@ -80,7 +90,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as {
       roleKey?: string;
@@ -115,7 +125,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { roleKey: string };
     const roleKey = (params.roleKey || "").trim();
@@ -134,26 +144,9 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
   app.get("/governance/custom-roles", listCustomRolesHandler);
   app.post("/governance/custom-roles", upsertCustomRolesHandler);
   app.delete("/governance/custom-roles/:roleKey", removeCustomRoleHandler);
-
-  app.post("/governance/openclaw/chat", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: `permission denied for role ${role}` };
-    }
-    const body = request.body as { message?: string } | null;
-    const message = body?.message?.trim() || "";
-    if (!message) {
-      reply.code(400);
-      return { message: "message is required" };
-    }
-    try {
-      return await service.openclawDirectChatGlobal(message);
-    } catch (error) {
-      reply.code(500);
-      return { message: "Internal server error" };
-    }
-  });
+  // Legacy underscore aliases
+  app.get("/governance/custom_roles", listCustomRolesHandler);
+  app.post("/governance/custom_roles", upsertCustomRolesHandler);
 
   app.get("/governance/openclaw/status", async () => {
     return service.probeOpenclawIntegration();
@@ -167,7 +160,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const body = request.body as { name?: string; description?: string } | null;
     const name = body?.name?.trim();
@@ -185,7 +178,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
@@ -224,7 +217,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: `permission denied for role ${role}` };
+      return { message: "permission denied" };
     }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);

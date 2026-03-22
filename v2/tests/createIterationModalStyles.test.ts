@@ -2,11 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const interactionStylesPath = new URL("../src/styles/workspace-interactions.css", import.meta.url);
+const modalStylesPath = new URL("../src/styles/modal.css", import.meta.url);
 const responsiveStylesPath = new URL("../src/styles/responsive.css", import.meta.url);
 
 test("iteration modal card uses adaptive viewport sizing instead of fixed min-height", () => {
-  const styles = readFileSync(interactionStylesPath, "utf8");
+  const styles = readFileSync(modalStylesPath, "utf8");
   const rule = styles.match(/\.iteration-modal-card\s*\{[\s\S]*?\}/);
 
   assert.ok(rule, "missing .iteration-modal-card rule");
@@ -15,7 +15,7 @@ test("iteration modal card uses adaptive viewport sizing instead of fixed min-he
 });
 
 test("iteration modal title and mask spacing are adaptive", () => {
-  const styles = readFileSync(interactionStylesPath, "utf8");
+  const styles = readFileSync(modalStylesPath, "utf8");
 
   assert.match(styles, /\.iteration-modal-title h3\s*\{[\s\S]*?font-size:clamp\(20px,2vw,24px\)/, "title must use adaptive but compact font size");
   assert.match(styles, /\.modal-mask\s*\{[\s\S]*?padding:clamp\(12px,4vh,36px\)\s+14px/, "mask padding should adapt with viewport height");
@@ -29,7 +29,7 @@ test("mobile breakpoint keeps iteration modal usable with compact typography", (
 });
 
 test("iteration modal keeps action bar outside scroll region", () => {
-  const styles = readFileSync(interactionStylesPath, "utf8");
+  const styles = readFileSync(modalStylesPath, "utf8");
 
   assert.match(styles, /\.iteration-modal-card\s*\{[\s\S]*?grid-template-rows:auto\s+minmax\(0,1fr\)\s+auto/, "card must reserve a dedicated fixed row for actions");
   assert.doesNotMatch(styles, /\.iteration-modal-actions\s*\{[\s\S]*?position:sticky/, "actions bar should not rely on sticky scrolling behavior");

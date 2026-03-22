@@ -37,10 +37,10 @@ test("browser-use creative generator e2e keeps browser session alive across stag
   assert.match(source, /drawer_to_chat/);
   assert.match(source, /switch_to_v1/);
   assert.match(source, /chat_followup_v1/);
-  assert.match(source, /无论“手机验证码”是否已经选中，都先点击一次“手机验证码”标签/);
-  assert.match(source, /不要再查找“查看变更映射”按钮/);
+  assert.match(source, /无论.手机验证码.是否已经选中，都先点击一次.手机验证码.标签/);
+  assert.match(source, /不要再查找.查看变更映射.按钮/);
   assert.match(source, /顶部不应再出现常驻的变更影响提醒卡/);
-  assert.match(source, /不要点击“返回项目管理”或离开当前页面/);
-  assert.match(source, /优先点击该项目区域附近的“查看全部”按钮展开项目版本面板/);
+  assert.match(source, /不要点击.返回项目管理.或离开当前页面/);
+  assert.match(source, /优先点击该项目区域附近的.查看全部.按钮展开项目版本面板/);
   assert.match(source, /len\(results\) == 14/);
 });

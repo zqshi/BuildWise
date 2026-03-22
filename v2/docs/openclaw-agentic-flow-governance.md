@@ -62,5 +62,5 @@
 9. 高质量产品研发流程不能只看“交付物是否存在”，还必须检查 UX、原型、代码、测试、发布之间的交接质量。
 10. 当用户输入新增/修改需求时，OpenClaw 首条回复应优先给出影响评估与待确认点；顶部提醒只在会话中尚未出现这段评估时作为兜底，不应长期常驻。
 11. 详细契约见：
-   - [iteration-ontology-impact-contract.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/iteration-ontology-impact-contract.md)
-   - [agent-skills-product-rd-evaluation.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/agent-skills-product-rd-evaluation.md)
+   - [iteration-ontology-impact-contract.md](./iteration-ontology-impact-contract.md)
+   - [agent-skills-product-rd-evaluation.md](./agent-skills-product-rd-evaluation.md)

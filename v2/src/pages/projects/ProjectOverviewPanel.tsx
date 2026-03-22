@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import type { Iteration, ModelRelationPayload, Project, StatusPayload } from "../../domain/workspace/types";
+import type { Iteration, Project, StatusPayload } from "../../domain/workspace/types";
 import type { OpsMetricsPayload } from "../../domain/workspace/platformTypes";
+import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import {
   activateProjectPolicy,
   bootstrapProjectRepository,
@@ -46,9 +47,9 @@ type ProjectOverviewPanelProps = {
   currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
   iterations: Iteration[];
   projectProgress: number;
-  modelPageCount: number;
-  modelRuleCount: number;
-  modelEntityCount: number;
+  modelPageCount?: number;
+  modelRuleCount?: number;
+  modelEntityCount?: number;
   modelRelations?: ModelRelationPayload[];
   opsMetrics?: OpsMetricsPayload | null;
   status: StatusPayload | null;
@@ -66,9 +67,9 @@ export function ProjectOverviewPanel({
   currentRole,
   iterations,
   projectProgress,
-  modelPageCount,
-  modelRuleCount,
-  modelEntityCount,
+  modelPageCount = 0,
+  modelRuleCount = 0,
+  modelEntityCount = 0,
   modelRelations = [],
   opsMetrics: _opsMetrics = null,
   status,
@@ -134,7 +135,7 @@ export function ProjectOverviewPanel({
   const [_policyNotice, setPolicyNotice] = useState("");
   const [bindingProfile, setBindingProfile] = useState("buildwise-local");
   const [bindingAgentId, setBindingAgentId] = useState("main");
-  const [bindingWorkspacePath, setBindingWorkspacePath] = useState("/Users/zqs/.openclaw/workspace-buildwise-local");
+  const [bindingWorkspacePath, setBindingWorkspacePath] = useState("~/.openclaw/workspace-buildwise-local");
   const [bindingRuntimeMode, setBindingRuntimeMode] = useState<"openclaw-native" | "bridge">("openclaw-native");
   const [newRoleUserId, setNewRoleUserId] = useState("user-1");
   const [newRoleValue, setNewRoleValue] = useState<"admin" | "member" | "viewer">("member");

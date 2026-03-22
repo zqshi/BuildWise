@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -115,17 +115,19 @@ async function main() {
   };
   const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-e2e-agent-"));
   const workspaceRoot = path.resolve(process.cwd(), "..", "..");
-  const modelFixture = path.join(fixtureDir, "model.json");
   const dataFixture = path.join(fixtureDir, "data.json");
-  cpSync(path.join(workspaceRoot, "v2", "model.json"), modelFixture);
-  cpSync(path.join(workspaceRoot, "v2", "backend", "data.json"), dataFixture);
+  const dataSource = path.join(workspaceRoot, "v2", "backend", "data.json");
+  if (existsSync(dataSource)) {
+    cpSync(dataSource, dataFixture);
+  } else {
+    writeFileSync(dataFixture, "{}", "utf-8");
+  }
   const server = spawn("node", ["dist/index.js"], {
     cwd: process.cwd(),
     env: {
       ...process.env,
       PORT: String(TEST_PORT),
       HOST: "127.0.0.1",
-      MODEL_FILE: modelFixture,
       WORKSPACE_DATA_FILE: dataFixture,
       ...(ENABLE_LLM
         ? {}

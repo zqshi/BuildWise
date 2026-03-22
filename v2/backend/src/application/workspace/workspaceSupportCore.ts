@@ -14,16 +14,13 @@ import type {
 } from "../../domain/workspace/types";
 import { normalizeThreePartVersion } from "../../domain/workspace/versioning";
 import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
-import { iterationStatusTransitions, canTransitionTo, allowedTransitionsFrom, suggestNextTransition } from "../../domain/workspace/iterationStateMachine";
+import { canTransitionTo, allowedTransitionsFrom, suggestNextTransition } from "../../domain/workspace/iterationStateMachine";
 
 export const iterationStatuses: IterationStatus[] = ["planned", "in-progress", "review", "blocked", "completed"];
 
 export function isIterationStatus(value: string): value is IterationStatus {
   return (iterationStatuses as string[]).includes(value);
 }
-
-/** @deprecated Use canTransitionTo / allowedTransitionsFrom from domain layer */
-export const statusTransitions: Record<IterationStatus, IterationStatus[]> = iterationStatusTransitions;
 
 export { canTransitionTo, allowedTransitionsFrom, suggestNextTransition };
 export function fallbackScope(goals: string[]): IterationScope {

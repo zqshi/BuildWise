@@ -37,6 +37,7 @@ export type AgentRunOptions = {
     projectId?: number;
     iterationId?: number;
     conversationId?: string;
+    agentId?: string;
   };
 };
 
