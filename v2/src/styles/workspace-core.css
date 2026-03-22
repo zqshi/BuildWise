@@ -549,42 +549,32 @@
   background:color-mix(in srgb,var(--bg-surface) 84%, var(--brand-50));
 }
 
-.openclaw-composer-mode {
-  display:grid;
-  gap:6px;
-  margin-bottom:10px;
-}
-
-.openclaw-composer-mode label {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-size:12px;
-  color:var(--text-secondary);
-}
-
-.openclaw-composer-mode select {
-  border:1px solid color-mix(in srgb,var(--border-default) 85%, transparent);
-  border-radius:10px;
-  padding:6px 10px;
-  background:var(--bg-surface);
-  color:var(--text-primary);
-}
-
 .openclaw-composer-row {
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   gap:10px;
-  align-items:center;
+  align-items:end;
 }
 
-.openclaw-composer-row input {
+.openclaw-composer-row input,
+.openclaw-composer-row textarea {
   width:100%;
   border:1px solid color-mix(in srgb,var(--border-default) 85%, transparent);
   border-radius:12px;
   padding:12px 14px;
   font-size:15px;
   background:var(--bg-surface);
+}
+.openclaw-composer-row textarea {
+  resize:none;
+  min-height:48px;
+  max-height:120px;
+  line-height:1.5;
+  font-family:inherit;
+}
+.openclaw-composer-row textarea:focus {
+  outline:none;
+  border-color:var(--brand-500);
 }
 
 @media (max-width: 900px) {

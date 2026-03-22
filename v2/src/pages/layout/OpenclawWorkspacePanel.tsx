@@ -9,7 +9,6 @@ import {
   type OpenclawGlobalMessagePayload
 } from "../../app/workspaceApi";
 import { presentOpenclawMessage } from "./openclawMessagePresenter";
-import { composeOpenclawGlobalMessage, type OpenclawDialogMode } from "./openclawPromptComposer";
 
 type Props = {
   isAdmin: boolean;
@@ -32,7 +31,7 @@ export function OpenclawWorkspacePanel({ isAdmin, onBack }: Props) {
   const [statusError, setStatusError] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [dialogMode, setDialogMode] = useState<OpenclawDialogMode>("native");
+  // orchestration 模式已移除，始终使用自然语言对话
   const [chatLines, setChatLines] = useState<ChatLine[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,7 +110,7 @@ export function OpenclawWorkspacePanel({ isAdmin, onBack }: Props) {
 
     try {
       setChatBusy(true);
-      const effectiveMessage = dialogMode === "native" ? message : composeOpenclawGlobalMessage(message, dialogMode);
+      const effectiveMessage = message;
       const result = await sendOpenclawConversationMessage(conversationId, effectiveMessage);
       // Replace optimistic user line with real one, add assistant
       setChatLines((prev) => {
@@ -259,24 +258,8 @@ export function OpenclawWorkspacePanel({ isAdmin, onBack }: Props) {
           )}
         </div>
         <div className="openclaw-composer">
-          <div className="openclaw-composer-mode">
-            <label>
-              对话模式
-              <select
-                value={dialogMode}
-                onChange={(event) => setDialogMode(event.target.value as OpenclawDialogMode)}
-                disabled={!isAdmin || chatBusy || loading}
-              >
-                <option value="native">原生自然语言（推荐）</option>
-                <option value="orchestration">编排约束模式</option>
-              </select>
-            </label>
-            <span className="hint">
-              {dialogMode === "native" ? "直接发送你的原始问题，不追加模板约束。" : "发送前会追加主窗口编排治理约束。"}
-            </span>
-          </div>
           <div className="openclaw-composer-row">
-            <input
+            <textarea
               value={chatInput}
               onChange={(event) => setChatInput(event.target.value)}
               onKeyDown={(event) => {
@@ -285,8 +268,9 @@ export function OpenclawWorkspacePanel({ isAdmin, onBack }: Props) {
                   void handleSend();
                 }
               }}
-              placeholder={dialogMode === "native" ? "输入你的问题" : "输入流程编排需求"}
+              placeholder="有什么想聊的？比如：帮我理一下这个项目的优先级"
               disabled={!isAdmin || chatBusy || loading || !conversationId}
+              rows={2}
             />
             <button
               type="button"

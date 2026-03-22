@@ -13,6 +13,7 @@ import {
 import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitIntakeOps";
 import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
 import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
+import { buildKnowledgeSyncContext } from "./knowledgeSyncService";
 import { buildCoachContractContext } from "./workspaceCoachInteractionContract";
 import { buildUpstreamExcerpts, formatUpstreamContext } from "./artifactDependencyGraph";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
@@ -45,8 +46,22 @@ const coachPromptFallback: CoachPromptTemplate = {
     "- 当用户提出变更时，先评估影响再给建议",
     "- 推进迭代向前走，但不催促——节奏由用户把控",
     "",
-    "输出格式要求：你的回复必须是合法 JSON，包含 intent、reply、execution、guidance 四个字段。",
-    "其中 reply 字段是用户直接看到的对话内容，必须是自然流畅的中文，不含任何 JSON/markdown 标记。"
+    "输出格式：",
+    "先用自然语言直接回复用户——这部分用户会完整看到，所以要自然、有温度、有针对性。",
+    "然后在回复的最末尾，另起一行用 HTML 注释附带结构化控制信息（用户看不到这部分）：",
+    '<!-- coach:{"intent":"意图标签","execution":{"action":"none|rewrite|confirm-accurate|confirm-inaccurate|enter-clarify-mode|run-full-cycle","instruction":"执行指令","apply":false},"guidance":{"uploadRecommended":false,"suggestedUploadTypes":[],"suggestedActions":[],"clarificationChecklist":[]}} -->',
+    "",
+    "完整示例：",
+    "---",
+    "退款功能确实需要做，不过我建议我们先聊清楚几个关键点：退款触发的条件是什么？是用户手动发起还是系统自动判定？另外退款金额的计算规则需要确认——是全额退还是按比例？",
+    "",
+    "这些搞清楚之后，我再帮你拆解任务优先级。如果你有相关的业务文档或流程图，先传上来我看看。",
+    '<!-- coach:{"intent":"clarify","execution":{"action":"none","instruction":"","apply":false},"guidance":{"uploadRecommended":true,"suggestedUploadTypes":["业务流程文档"],"suggestedActions":["确认退款触发条件","确认退款金额计算规则"],"clarificationChecklist":["退款是用户发起还是系统自动","退款金额是全额还是按比例"]}} -->',
+    "---",
+    "",
+    "intent 可选值：collect-attachment / clarify / confirm-boundary / plan / qa / release / full-cycle / general",
+    "execution.action 绝大多数情况用 none，只有用户明确要求执行操作时才用其他值。",
+    "注意：自然语言回复部分不要包含任何 JSON、markdown 标记或结构化格式。coach 标记必须在回复最后一行，独占一行。"
   ].join("\n"),
   userPrompt: [
     "用户说：{{message}}",
@@ -54,8 +69,7 @@ const coachPromptFallback: CoachPromptTemplate = {
     "当前情况：",
     "{{context}}",
     "",
-    "请以合法 JSON 回复，格式：{{expectedOutput}}",
-    "注意：reply 字段写给用户看，要自然、有温度、有针对性。"
+    "请先用自然语言回复用户，然后在末尾附带 <!-- coach:{...} --> 控制标记。"
   ].join("\n")
 };
 
@@ -79,6 +93,51 @@ function pickStringList(value: unknown, max = 8) {
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter(Boolean)
     .slice(0, max);
+}
+
+// 标准形式：<!-- coach:{...} -->
+// 容错：大小写、多余空格、换行嵌入、未闭合注释
+const COACH_MARKER_PATTERNS = [
+  /<!--\s*coach:\s*(\{[\s\S]*?\})\s*-->/i,
+  /<!--\s*coach:\s*(\{[\s\S]*?\})\s*$/i  // 未闭合的 -->（LLM截断时可能丢失闭合标签）
+];
+
+function extractCoachMarkerFromText(text: string): { json: string; fullMatch: string } | null {
+  for (const pattern of COACH_MARKER_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) {
+      return { json: match[1]!, fullMatch: match[0] };
+    }
+  }
+  return null;
+}
+
+function extractCoachMarker(rawContent: string): { reply: string; marker: Record<string, unknown> | null } {
+  const extracted = extractCoachMarkerFromText(rawContent);
+  if (extracted) {
+    const reply = rawContent.replace(extracted.fullMatch, "").trim();
+    const markerJson = safeJsonParse(extracted.json);
+    return { reply, marker: markerJson };
+  }
+
+  // Fallback 1: LLM 返回了整个 JSON 对象（旧格式兼容）
+  const parsed = safeJsonParse(rawContent);
+  if (parsed && typeof parsed.reply === "string") {
+    return { reply: parsed.reply, marker: parsed };
+  }
+
+  // Fallback 2: LLM 返回了 code fence 包裹的 JSON（某些模型习惯）
+  const fenceMatch = rawContent.match(/```(?:json)?\s*\n?\s*(\{[\s\S]*?\})\s*\n?```/);
+  if (fenceMatch) {
+    const fenceParsed = safeJsonParse(fenceMatch[1]!);
+    if (fenceParsed && typeof fenceParsed.reply === "string") {
+      const textBefore = rawContent.slice(0, rawContent.indexOf(fenceMatch[0])).trim();
+      return { reply: textBefore || fenceParsed.reply, marker: fenceParsed };
+    }
+  }
+
+  // Fallback 3: 纯自然语言（无任何结构化标记）— 完全可用，只是没有控制信息
+  return { reply: rawContent.trim(), marker: null };
 }
 
 function buildFallbackCoachReply(rawContent: string) {
@@ -135,29 +194,12 @@ function inferIntent(iteration: Iteration, message: string): IterationCoachChatR
   return "general";
 }
 
-function summarizeProjectKnowledge(project: Project | null) {
-  const knowledge = project?.knowledgeBase;
-  if (!knowledge) {
-    return ["这个项目还没有积累业务知识，需要通过分析材料来逐步沉淀。"];
+function summarizeProjectKnowledge(project: Project | null): string[] {
+  const context = buildKnowledgeSyncContext(project?.knowledgeBase ?? null);
+  if (context) {
+    return [context];
   }
-  const parts: string[] = [];
-  const terms = knowledge.ontologyTerms.slice(0, 6);
-  if (terms.length > 0) {
-    parts.push(`项目中的关键业务概念：${terms.map((item) => item.term + (item.aliases.length > 0 ? `（也叫${item.aliases.join("、")}）` : "")).join("、")}`);
-  }
-  const rules = knowledge.stableRules.slice(0, 6);
-  if (rules.length > 0) {
-    parts.push(`已确认的业务规则：${rules.map((item) => item.rule).join("；")}`);
-  }
-  const components = knowledge.componentInventory.slice(0, 6);
-  if (components.length > 0) {
-    parts.push(`涉及的功能模块：${components.map((item) => item.component).join("、")}`);
-  }
-  const patterns = knowledge.changePatterns.slice(0, 4);
-  if (patterns.length > 0) {
-    parts.push(`常见变更模式：${patterns.map((item) => item.pattern).join("、")}`);
-  }
-  return parts.length > 0 ? parts : ["项目知识库已初始化但暂无具体条目。"];
+  return ["这个项目还没有积累业务知识，需要通过分析材料来逐步沉淀。"];
 }
 
 function summarizeChangeIntelligence(iteration: Iteration) {
@@ -369,7 +411,7 @@ export async function coachIterationConversationOp(
     return {
       iterationId: normalized.id,
       intent: "clarify",
-      reply: `当前策略阻断：${gate.reason}。请先完成前置确认后再继续。`,
+      reply: `这一步暂时走不通——${gate.reason}。先把前置的事情搞定我们再继续。`,
       execution: {
         action: "none",
         instruction: "",
@@ -400,12 +442,10 @@ export async function coachIterationConversationOp(
     throw new LlmUnavailableError(skillChain.error || "openclaw_runtime_unavailable");
   }
 
-  const expectedOutput =
-    'JSON 格式：{intent: 意图标签, reply: "给用户的自然语言回复（不要有任何标记语法）", execution:{action,instruction,apply}, guidance:{uploadRecommended, suggestedUploadTypes[], suggestedActions[], clarificationChecklist[]}}';
   const context = [
     buildCoachContext(normalized, previous ? normalizeIteration(previous) : null, project ?? null, message),
     requiresImpactAssessment
-      ? "重要：用户正在提出新增或修改需求。在 reply 中先聊清楚这个变更可能影响哪些业务流程、功能模块和规则，说清楚你已知的和待确认的，不要反过来问用户「你觉得影响了什么」。"
+      ? "重要：用户正在提出新增或修改需求。在回复中先聊清楚这个变更可能影响哪些业务流程、功能模块和规则，说清楚你已知的和待确认的，不要反过来问用户「你觉得影响了什么」。"
       : "",
     recentMessages.length > 0
       ? `最近的对话：\n${recentMessages.map((item, idx) => `  ${idx + 1}. ${item.role === "user" ? "用户" : "教练"}：${item.content.slice(0, 400).replace(/\s+/g, " ")}`).join("\n")}`
@@ -419,21 +459,19 @@ export async function coachIterationConversationOp(
     role: "iteration-coach" as const,
     scope: "iteration" as const,
     goal: "用自然沟通引导用户推进迭代澄清与边界确认",
-    expectedOutput,
+    expectedOutput: "",
     systemPrompt: renderTemplate(promptTemplate.systemPrompt, {
       role: "iteration-coach",
       scope: "iteration",
       goal: "用自然沟通引导用户推进迭代澄清与边界确认",
-      context,
-      expectedOutput
+      context
     }),
     userPrompt: renderTemplate(promptTemplate.userPrompt, {
       message,
       role: "iteration-coach",
       scope: "iteration",
       goal: "用自然沟通引导用户推进迭代澄清与边界确认",
-      context,
-      expectedOutput
+      context
     })
   };
 
@@ -450,10 +488,11 @@ export async function coachIterationConversationOp(
       continuations: continuationResult.continuations,
       contentComplete: continuationResult.complete
     };
-    const parsed = safeJsonParse(result.content);
+    const { reply: extractedReply, marker } = extractCoachMarker(result.content);
+    const parsed = marker;
     const modelIntent = pickString(parsed?.intent) as IterationCoachChatResponse["intent"];
     const guidance = (parsed?.guidance ?? {}) as Record<string, unknown>;
-    const generatedReply = pickString(parsed?.reply) || buildFallbackCoachReply(result.content);
+    const generatedReply = extractedReply || buildFallbackCoachReply(result.content);
     if (!generatedReply) {
       throw new LlmInvocationError("Coach LLM returned invalid payload: missing reply");
     }

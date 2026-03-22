@@ -8,6 +8,8 @@ import { ContinuousModelingWorkspaceService } from "./application/continuousMode
 import { PlatformService } from "./application/platform/platformService";
 import { createAgentRunnerFromEnv, probeLlmRuntimeStatus } from "./application/workspace/agentRunner";
 import { WorkspaceService } from "./application/workspace/workspaceService";
+import { extractKnowledgeBaseUpdateOp } from "./application/workspace/ontologyService";
+import { buildModelingInputFromAnalysis } from "./application/workspace/ontologyModelingBridge";
 import { JsonContinuousModelingRepository } from "./infrastructure/persistence/jsonContinuousModelingRepository";
 import { JsonWorkspaceRepository } from "./infrastructure/persistence/jsonWorkspaceRepository";
 import { SqliteWorkspaceRepository } from "./infrastructure/persistence/sqliteWorkspaceRepository";
@@ -136,52 +138,51 @@ async function bootstrap() {
   const openclawGlobalRepo = new JsonOpenclawGlobalRepository(join(backendRoot, "openclaw-global.runtime.json"));
   const openclawGlobalService = new OpenclawGlobalService(openclawGlobalRepo, agentRunner, workspaceRepo);
 
-  // Connect analysis completion → continuous modeling trigger
+  // Connect analysis completion → KB update + continuous modeling trigger
+  const emptyKb = (): { ontologyTerms: never[]; stableRules: never[]; componentInventory: never[]; codeMap: never[]; decisionLog: never[]; knownRisks: never[]; changePatterns: never[]; updatedAt: string } => ({
+    ontologyTerms: [], stableRules: [], componentInventory: [],
+    codeMap: [], decisionLog: [], knownRisks: [], changePatterns: [], updatedAt: ""
+  });
   workspaceService.analysis.setOnAnalysisCompleted((iterationId, report) => {
     const iteration = workspaceRepo.findIteration(iterationId);
     if (!iteration) return;
     const projectId = iteration.projectId;
+    const project = workspaceRepo.findProject(projectId);
     const dk = report.domainKnowledge;
-    const ontologyTerms = dk.terms.map((t) => ({
-      canonicalTerm: t.term,
-      aliases: [] as string[],
-      technicalAliases: t.mappedTo.codePaths.slice(0, 3),
+
+    // 将 LLM 分析结果转为 domainKnowledgeEntries 格式
+    const domainEntries = dk.terms.map((t) => ({
+      term: t.term,
       definition: t.definition,
-      evidence: [t.evidence]
+      mappedPages: t.mappedTo.pages || [],
+      mappedApis: t.mappedTo.apis || [],
+      mappedEntities: t.mappedTo.entities || [],
+      mappedCodePaths: t.mappedTo.codePaths || [],
+      evidence: t.evidence
     }));
-    const entityNames = new Set<string>();
-    const entities = dk.terms.flatMap((t) => t.mappedTo.entities).filter((name) => {
-      if (entityNames.has(name)) return false;
-      entityNames.add(name);
-      return true;
-    }).map((name, idx) => ({
-      id: `entity-${projectId}-${idx}`,
-      name,
-      businessName: name,
-      fields: []
-    }));
-    const rules = dk.rules.map((rule, idx) => ({
-      id: `rule-${projectId}-${idx}`,
-      name: rule.length > 40 ? `${rule.slice(0, 37)}...` : rule,
-      statement: rule,
-      linkedEntityIds: [] as string[],
-      linkedSurfaceIds: [] as string[],
-      linkedApiIds: [] as string[]
-    }));
-    const businessInputs = [
-      report.understanding || "",
-      report.businessConfirmation?.coreIntent || ""
-    ].filter(Boolean);
-    continuousModelingWorkspaceService.saveCandidate({
+
+    // 即时 KB 更新 — 通过 OntologyService 填充全部 7 字段
+    if (project) {
+      const existingKb = project.knowledgeBase ?? emptyKb();
+      const ontologyResult = extractKnowledgeBaseUpdateOp(existingKb, {
+        domainKnowledgeEntries: domainEntries,
+        traceabilityMap: null,
+        boundary: null,
+        analysisReport: report
+      });
+      workspaceRepo.updateProject({ ...project, knowledgeBase: ontologyResult.updatedKb });
+    }
+
+    // ContinuousModeling — 通过 bridge 生成候选快照
+    const kb = project?.knowledgeBase ?? emptyKb();
+    const modelingInput = buildModelingInputFromAnalysis({
       projectId,
       iterationId,
-      baselineSnapshot: null,
-      businessInputs,
-      ontologyTerms,
-      entities,
-      relations: [],
-      rules
+      knowledgeBase: kb,
+      domainKnowledgeEntries: domainEntries,
+      traceabilityMap: null
     });
+    continuousModelingWorkspaceService.saveCandidate(modelingInput);
   });
 
   // Infrastructure routes stay at root level (no version prefix)

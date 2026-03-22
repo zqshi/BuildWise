@@ -21,7 +21,7 @@ export type ChatMessageListProps = {
   openArtifactPreviewByTitle: (title: string) => void;
 };
 
-const getRoleLabel = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "BuildWise AI" : "系统");
+const getRoleLabel = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "迭代教练" : "系统");
 const getRoleAvatar = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "AI" : "系");
 
 const getMsgKind = (msg: IterationMessage) => {
@@ -98,7 +98,7 @@ export function ChatMessageList({
   return (
     <>
       {chatMessages.length === 0 ? (
-        <div className="empty-state">暂无消息，输入需求后开始沟通。</div>
+        <div className="empty-state">选好迭代后，直接说你想做什么就行。</div>
       ) : (
         displayMessages.map((item) => {
           const msg = item.leadMessage;

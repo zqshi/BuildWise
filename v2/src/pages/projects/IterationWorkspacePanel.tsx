@@ -175,7 +175,7 @@ export function IterationWorkspacePanel({
     canEditSelectedTextArtifact,
   } = useArtifactEditorState(currentIteration, selectedHtmlPreview, interactionEditMode);
 
-  const chatComposerInputRef = useRef<HTMLInputElement | null>(null);
+  const chatComposerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const analysisScrollRef = useRef<HTMLDivElement | null>(null);
 
   const imagePrototypePreviews = uploadedFile?.imagePreviews ?? [];

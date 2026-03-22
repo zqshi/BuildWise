@@ -75,7 +75,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     private readonly model: string,
     private readonly apiKey?: string,
     private readonly timeoutMs: number = 60000,
-    private readonly maxOutputTokens: number = 1200
+    private readonly maxOutputTokens: number = 4096
   ) {}
 
   async runWithHistory(systemPrompt: string, messages: ConversationMessage[], _options?: AgentRunOptions): Promise<AgentRunResult> {
@@ -200,7 +200,7 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
     private readonly model: string,
     private readonly apiKey?: string,
     private readonly timeoutMs: number = 60000,
-    private readonly maxOutputTokens: number = 1200
+    private readonly maxOutputTokens: number = 4096
   ) {}
 
   async runWithHistory(systemPrompt: string, messages: ConversationMessage[], _options?: AgentRunOptions): Promise<AgentRunResult> {
@@ -354,7 +354,7 @@ export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
   const timeoutMsRaw = Number(env.LLM_REQUEST_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 60000;
   const maxTokensRaw = Number(env.LLM_MAX_OUTPUT_TOKENS);
-  const maxOutputTokens = Number.isFinite(maxTokensRaw) && maxTokensRaw > 0 ? Math.floor(maxTokensRaw) : 1200;
+  const maxOutputTokens = Number.isFinite(maxTokensRaw) && maxTokensRaw > 0 ? Math.floor(maxTokensRaw) : 4096;
   return provider === "anthropic-compatible"
     ? new AnthropicCompatibleAgentRunner(baseUrl, model, apiKey, timeoutMs, maxOutputTokens)
     : new OpenAICompatibleAgentRunner(baseUrl, model, apiKey, timeoutMs, maxOutputTokens);

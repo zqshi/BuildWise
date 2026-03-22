@@ -114,30 +114,58 @@ export function selectOpenclawSkillsFromRegistry(
     }
   }
 
-  // 2. Fallback: 关键词 + 上下文信号匹配
-  if (selected.size === 0) {
-    const businessRuleTriggered =
-      matchesAny(normalizedMsg, BUSINESS_RULE_PATTERNS) ||
-      (params.knowledgeHits?.length ?? 0) > 0 ||
-      (params.knowledgeConflicts?.length ?? 0) > 0 ||
-      (params.domainTerms?.length ?? 0) > 0;
-
-    if (businessRuleTriggered) {
-      const entry = registrySkills.find((s) => s.id.includes("business-rule") || s.id.includes("rule-linking"));
-      if (entry) {
-        selected.set(entry.id, { entry, reason: "keyword:business-rule" });
+  // 2. Stage-based selection — 按迭代阶段自动选择对应 skill
+  if (selected.size === 0 && activeStage) {
+    const stageDefaultSkills: Record<string, string[]> = {
+      clarification: ["00-orchestrator-sop", "01-ontology-mapping"],
+      scope: ["02-impact-analysis", "03-deliverable-governance", "04-cross-iteration"],
+      interaction: ["09-deliverable-content-contract", "08-agentic-flow-contract", "05-exception-recovery"],
+      development: ["09-deliverable-content-contract", "08-agentic-flow-contract", "05-exception-recovery"],
+      testing: ["06-quality-release-gate", "11-product-rd-quality-contract"],
+      release: ["07-audit-trace", "06-quality-release-gate"],
+      archive: ["07-audit-trace"]
+    };
+    const stageSkills = stageDefaultSkills[activeStage];
+    if (stageSkills) {
+      for (const skillId of stageSkills) {
+        const entry = registrySkills.find((s) => s.id === skillId);
+        if (entry) {
+          selected.set(skillId, { entry, reason: `stage-default:${activeStage}` });
+        }
       }
     }
+  }
 
-    const qualityTriggered =
-      matchesAny(normalizedMsg, QUALITY_PATTERNS) ||
-      ["interaction", "development", "testing", "release"].includes(activeStage);
+  // 3. Keyword signal — 业务规则/质量关键词补充选中
+  const businessRuleTriggered =
+    matchesAny(normalizedMsg, BUSINESS_RULE_PATTERNS) ||
+    (params.knowledgeHits?.length ?? 0) > 0 ||
+    (params.knowledgeConflicts?.length ?? 0) > 0 ||
+    (params.domainTerms?.length ?? 0) > 0;
 
-    if (qualityTriggered) {
-      const entry = registrySkills.find((s) => s.id.includes("quality-contract") || s.id.includes("quality"));
-      if (entry) {
-        selected.set(entry.id, { entry, reason: "keyword:quality" });
-      }
+  if (businessRuleTriggered) {
+    const entry = registrySkills.find((s) => s.id.includes("business-rule") || s.id.includes("rule-linking"));
+    if (entry && !selected.has(entry.id)) {
+      selected.set(entry.id, { entry, reason: "keyword:business-rule" });
+    }
+  }
+
+  const qualityTriggered =
+    matchesAny(normalizedMsg, QUALITY_PATTERNS) ||
+    ["interaction", "development", "testing", "release"].includes(activeStage);
+
+  if (qualityTriggered) {
+    const entry = registrySkills.find((s) => s.id.includes("quality-contract") || s.id.includes("quality"));
+    if (entry && !selected.has(entry.id)) {
+      selected.set(entry.id, { entry, reason: "keyword:quality" });
+    }
+  }
+
+  // 4. Orchestrator 始终在场（最低优先级补位）
+  if (selected.size === 0) {
+    const orchestrator = registrySkills.find((s) => s.id === "00-orchestrator-sop");
+    if (orchestrator) {
+      selected.set(orchestrator.id, { entry: orchestrator, reason: "fallback:orchestrator" });
     }
   }
 
@@ -158,6 +186,7 @@ function extractSelectionParams(
     iteration?: Iteration | null;
     project?: Project | null;
     userMessage: string;
+    policySkillsPlan?: SkillsPlanEntry[];
   }
 ): RegistrySelectionParams {
   const activeStage = params.iteration?.changeControl?.artifactWorkflow?.activeStage || "";
@@ -165,10 +194,27 @@ function extractSelectionParams(
   const knowledgeConflicts = params.iteration?.changeControl?.knowledgeConflicts || [];
   const domainTerms = params.iteration?.changeControl?.domainKnowledgeEntries?.map((item) => item.term) || [];
   const projectRules = params.project?.knowledgeBase?.stableRules?.map((item) => item.rule) || [];
+
+  // 从 policy skillsPlan 构建 stageSkillMap
+  let stageSkillMap: Record<string, string[]> | undefined;
+  const plans = params.policySkillsPlan;
+  if (plans && plans.length > 0) {
+    stageSkillMap = {};
+    for (const plan of plans) {
+      if (plan.stage && plan.skills.length > 0) {
+        stageSkillMap[plan.stage] = plan.skills;
+      }
+    }
+    if (Object.keys(stageSkillMap).length === 0) {
+      stageSkillMap = undefined;
+    }
+  }
+
   return {
     registrySkills: registry,
     userMessage: params.userMessage,
     activeStage,
+    stageSkillMap,
     knowledgeHits,
     knowledgeConflicts,
     domainTerms: [...domainTerms, ...projectRules]
@@ -204,7 +250,10 @@ export function buildOpenclawSkillSelectionContext(params: {
   registryContext?: SkillRegistryContext;
 }) {
   const registry = buildRegistry(params.registryContext);
-  const selectionParams = extractSelectionParams(registry, params);
+  const selectionParams = extractSelectionParams(registry, {
+    ...params,
+    policySkillsPlan: params.registryContext?.policySkillsPlan
+  });
   const selection = selectOpenclawSkillsFromRegistry(selectionParams);
 
   const metadata = [
@@ -251,7 +300,8 @@ export function runOpenclawSkillChainForCoach(params: {
   const selectionParams = extractSelectionParams(registry, {
     iteration: params.iteration,
     project: params.project ?? null,
-    userMessage: params.userMessage
+    userMessage: params.userMessage,
+    policySkillsPlan: params.registryContext?.policySkillsPlan
   });
   const selection = selectOpenclawSkillsFromRegistry(selectionParams);
   const knowledgeConflicts = params.iteration?.changeControl?.knowledgeConflicts || [];

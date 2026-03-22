@@ -17,16 +17,16 @@ export function buildCoachFollowupMessage(
   const clarificationChecklist = pickLines(coach.guidance?.clarificationChecklist, 2);
   const parts: string[] = [];
   if (coach.guidance?.uploadRecommended) {
-    parts.push("建议先补充本轮材料（需求、原型或接口变更），我再基于真实上下文继续推进。");
+    parts.push("如果方便的话，先把相关材料传上来（需求文档、原型或者接口变更），我看着实际内容聊会更靠谱。");
   }
   if (suggestedActions.length > 0) {
-    parts.push(`下一步可直接执行：${suggestedActions.join("；")}。`);
+    parts.push(`接下来可以做的：${suggestedActions.join("；")}。`);
   }
   if (clarificationChecklist.length > 0) {
-    parts.push(`本轮优先确认：${clarificationChecklist.join("；")}。`);
+    parts.push(`有几个点需要先确认一下：${clarificationChecklist.join("；")}。`);
   }
   if (parts.length === 0) {
     return "";
   }
-  return `继续推进建议：${parts.join("")}`;
+  return parts.join("");
 }

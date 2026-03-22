@@ -122,11 +122,11 @@ export const handleSend = async (
       await createMessage(
         currentIteration.id,
         "assistant",
-        `可视化编辑执行结果（目标：${visualEditResult.target.target}）：${visualEditResult.summary}`,
+        `改好了。${visualEditResult.summary}`,
         deps.setChatMessages
       );
       if (visualEditResult.warnings.length > 0) {
-        await createMessage(currentIteration.id, "assistant", `补充建议：${visualEditResult.warnings.join("；")}`, deps.setChatMessages);
+        await createMessage(currentIteration.id, "assistant", `顺便提一下：${visualEditResult.warnings.join("；")}`, deps.setChatMessages);
       }
       return visualEditResult;
     }
@@ -154,11 +154,13 @@ export const handleSend = async (
         dryRun: coach.execution.apply === false,
         maxFiles: 6
       });
-      const header = rewrite.dryRun ? "边界内改写预览（dry-run）" : "边界内改写已执行";
       const changed = rewrite.edits.map((item) => item.path).join("；") || "无变更";
-      await createMessage(currentIteration.id, "assistant", `${header}：${rewrite.summary}\n变更文件：${changed}`, deps.setChatMessages);
+      const header = rewrite.dryRun
+        ? `我先预览了一下改动范围，还没有真正执行。`
+        : `改动已经执行完了。`;
+      await createMessage(currentIteration.id, "assistant", `${header}${rewrite.summary}\n涉及的文件：${changed}`, deps.setChatMessages);
       if (rewrite.outOfBoundaryFiles.length > 0) {
-        await createMessage(currentIteration.id, "system", `越界阻断：${rewrite.outOfBoundaryFiles.join("；")}`, deps.setChatMessages);
+        await createMessage(currentIteration.id, "system", `有几个文件超出了本轮迭代的变更边界，没有动：${rewrite.outOfBoundaryFiles.join("；")}`, deps.setChatMessages);
       }
       await deps.loadIterationDetail(currentIteration.id);
       return null;
@@ -173,7 +175,7 @@ export const handleSend = async (
       await createMessage(
         currentIteration.id,
         "assistant",
-        "已记录为\u201C理解存在偏差\u201D。我会继续收敛关键分歧，请补充你预期的范围、边界和验收结果。",
+        "收到，看来之前的理解有偏差。你能补充一下你预期的范围和验收结果吗？我重新对齐一下。",
         deps.setChatMessages
       );
       await deps.loadIterationDetail(currentIteration.id);
@@ -199,7 +201,7 @@ export const handleSend = async (
         actor: deps.currentRole,
         resolvedClarificationQuestions: resolvedQuestions
       });
-      await createMessage(currentIteration.id, "assistant", "已完成分析确认。后续可继续推进任务拆解、测试与发布动作。", deps.setChatMessages);
+      await createMessage(currentIteration.id, "assistant", "分析确认完成了。接下来可以继续推进任务拆解、测试或者发布，你想先做哪块？", deps.setChatMessages);
       await deps.loadIterationDetail(currentIteration.id);
       if (deps.currentProjectId) {
         await deps.loadIterations(deps.currentProjectId);
@@ -208,7 +210,7 @@ export const handleSend = async (
       return null;
     }
     if (coach.execution?.action === "enter-clarify-mode") {
-      await createMessage(currentIteration.id, "assistant", "已切换为澄清推进模式，接下来我会优先收敛关键待确认项。", deps.setChatMessages);
+      await createMessage(currentIteration.id, "assistant", "好，进入澄清模式了。接下来我会集中确认几个关键问题，一个一个来。", deps.setChatMessages);
     }
     if (coach.execution?.action === "run-full-cycle" || coach.intent === "full-cycle") {
       const autoAnalysisInput = buildAutoFullCycleAnalysisInput(currentIteration, deps.analysisReport, deps.uploadedFile);
@@ -230,16 +232,27 @@ export const handleSend = async (
       const deliveryPackageFiles = fullCycle.deliveryPackageResult?.packageFiles || [];
       const frontendLane = fullCycle.steps?.frontendRewrite;
       const backendLane = fullCycle.steps?.backendRewrite;
-      await createMessage(
-        currentIteration.id,
-        "assistant",
-        `全量闭环执行完成：status=${fullCycle.status}。阻断=${fullCycle.blockers.length}，告警=${fullCycle.warnings.length}。\n` +
-          `前端泳道：${frontendLane?.status || "-"}（${frontendLane?.note || "无"}）\n` +
-          `后端泳道：${backendLane?.status || "-"}（${backendLane?.note || "无"}）\n` +
-          `发布评审报告：${reviewReportFiles.join("；") || "未生成"}\n` +
-          `可部署交付包：${deliveryPackageFiles.join("；") || "未生成"}`,
-        deps.setChatMessages
-      );
+      const statusLabel = fullCycle.status === "completed" ? "全部完成" : fullCycle.status === "partial" ? "部分完成" : fullCycle.status;
+      const parts = [`全流程跑完了，${statusLabel}。`];
+      if (fullCycle.blockers.length > 0) {
+        parts.push(`有 ${fullCycle.blockers.length} 个阻断项需要你关注。`);
+      }
+      if (fullCycle.warnings.length > 0) {
+        parts.push(`${fullCycle.warnings.length} 个告警。`);
+      }
+      if (frontendLane?.status) {
+        parts.push(`前端：${frontendLane.status}${frontendLane.note ? `（${frontendLane.note}）` : ""}`);
+      }
+      if (backendLane?.status) {
+        parts.push(`后端：${backendLane.status}${backendLane.note ? `（${backendLane.note}）` : ""}`);
+      }
+      if (reviewReportFiles.length > 0) {
+        parts.push(`发布评审报告已生成。`);
+      }
+      if (deliveryPackageFiles.length > 0) {
+        parts.push(`交付包已打好，可以部署了。`);
+      }
+      await createMessage(currentIteration.id, "assistant", parts.join(""), deps.setChatMessages);
     }
     await deps.loadIterationDetail(currentIteration.id);
     return null;

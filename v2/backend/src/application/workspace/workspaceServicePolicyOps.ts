@@ -455,18 +455,27 @@ export function mergePolicyDeltaOp(
 }
 
 // ---------------------------------------------------------------------------
-// containsArtifactReference (internal helper for evaluatePolicyGateForCoachOp)
+// Artifact status helpers for structured gate evaluation
 // ---------------------------------------------------------------------------
 
-function containsArtifactReference(iterationId: number, repo: WorkspaceRepository, keyword: string) {
-  const messages = repo.listMessages(iterationId);
-  return messages.some((item) => typeof item.content === "string" && item.content.includes(keyword));
+function hasArtifactReady(iteration: Iteration, artifactId: string): boolean {
+  const items = iteration.changeControl?.artifactWorkflow?.items;
+  if (!Array.isArray(items)) return false;
+  return items.some((item) => item.id === artifactId && (item.status === "ready" || item.status === "partial"));
+}
+
+function hasHumanConfirmationForStage(iteration: Iteration, stage: string): boolean {
+  const items = iteration.changeControl?.artifactWorkflow?.items;
+  if (!Array.isArray(items)) return false;
+  return items
+    .filter((item) => item.stage === stage)
+    .some((item) => item.lastConfirmedAt !== "" && item.lastConfirmedBy !== "");
 }
 
 export function evaluatePolicyGateForCoachOp(
   repo: WorkspaceRepository,
   iteration: Iteration,
-  message: string,
+  _message: string,
   activePolicy: ProjectPolicyRecord | null
 ): {
   blocked: boolean;
@@ -474,15 +483,8 @@ export function evaluatePolicyGateForCoachOp(
   reason: string;
   requiredActions: string[];
 } {
-  const lowered = message.toLowerCase();
-  const stage =
-    lowered.includes("发布") || lowered.includes("release")
-      ? "release"
-      : lowered.includes("测试") || lowered.includes("验收")
-        ? "testing"
-        : lowered.includes("范围") || lowered.includes("边界") || lowered.includes("scope")
-          ? "scope"
-          : "clarification";
+  // Stage 从结构化状态读取，不从消息关键词猜测
+  const stage = iteration.changeControl?.artifactWorkflow?.activeStage || "clarification";
 
   if (!activePolicy) {
     return { blocked: false, stage, reason: "", requiredActions: [] };
@@ -495,15 +497,14 @@ export function evaluatePolicyGateForCoachOp(
         .listIterations(iteration.projectId)
         .sort((a, b) => a.id - b.id)[0]?.id || iteration.id;
     if (iteration.id === firstIterationId) {
-      const hasGitConfirm =
-        containsArtifactReference(iteration.id, repo, "Git分析报告") &&
-        containsArtifactReference(iteration.id, repo, "确认");
-      if (!hasGitConfirm) {
+      // 检查分析状态：confirmedBy 非空表示已确认分析报告
+      const hasConfirmed = iteration.changeControl?.confirmedBy !== "" && iteration.changeControl?.confirmedBy != null;
+      if (!hasConfirmed) {
         return {
           blocked: true,
           stage,
-          reason: "首版需先完成 Git 分析报告确认",
-          requiredActions: ["请先确认 Git 分析报告后再推进当前阶段"]
+          reason: "首版需先完成分析报告确认",
+          requiredActions: ["请先确认分析报告后再推进当前阶段"]
         };
       }
     }
@@ -512,9 +513,9 @@ export function evaluatePolicyGateForCoachOp(
   // ── 遍历 gates 检查 requiredArtifacts + requireHumanConfirmation ──
   const matchedGates = activePolicy.strategy.gates.filter((g) => g.stage === stage);
   for (const gate of matchedGates) {
-    // 检查 requiredArtifacts
+    // 检查 requiredArtifacts — 基于 artifactWorkflow 结构化状态
     const missingArtifacts = gate.requiredArtifacts.filter(
-      (artifact) => !containsArtifactReference(iteration.id, repo, artifact)
+      (artifact) => !hasArtifactReady(iteration, artifact)
     );
     if (missingArtifacts.length > 0) {
       return {
@@ -525,13 +526,9 @@ export function evaluatePolicyGateForCoachOp(
       };
     }
 
-    // 检查 requireHumanConfirmation
+    // 检查 requireHumanConfirmation — 基于 artifact 确认状态
     if (gate.requireHumanConfirmation) {
-      const hasUserConfirm = containsArtifactReference(iteration.id, repo, "确认") &&
-        repo.listMessages(iteration.id).some(
-          (m) => m.role === "user" && (m.content.includes("确认") || m.content.includes("同意") || m.content.includes("通过"))
-        );
-      if (!hasUserConfirm) {
+      if (!hasHumanConfirmationForStage(iteration, stage)) {
         return {
           blocked: true,
           stage,

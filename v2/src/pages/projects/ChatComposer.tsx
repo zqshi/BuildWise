@@ -12,8 +12,18 @@ export type ChatComposerProps = {
   onUploadClick: () => void;
   onChatInputChange: (value: string) => void;
   onComposedSend: () => void;
-  chatComposerInputRef: RefObject<HTMLInputElement>;
+  chatComposerInputRef: RefObject<HTMLTextAreaElement>;
 };
+
+function getPlaceholderByStatus(iteration: Iteration | null) {
+  if (!iteration) return "先在右侧选一个迭代，然后我们开始聊";
+  const status = iteration.status;
+  if (status === "planned") return "聊聊这个迭代要做什么？比如：我想给订单流程加个退款功能";
+  if (status === "in-progress") return "有什么需要调整的？直接说就行";
+  if (status === "review") return "对交付物有什么意见？哪里需要改？";
+  if (status === "blocked") return "遇到什么阻塞了？说说情况";
+  return "还有什么需要补充的吗？";
+}
 
 export function ChatComposer({
   currentIteration,
@@ -117,18 +127,20 @@ export function ChatComposer({
             </div>
           ) : null}
         </div>
-        <input
+        <textarea
           ref={chatComposerInputRef}
           value={chatInput}
           onChange={(event) => onChatInputChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
               onComposedSend();
             }
           }}
           onFocus={() => setShowUploadMenu(false)}
-          placeholder="输入需求或指令，例如：完成: 接口联调"
+          placeholder={getPlaceholderByStatus(currentIteration)}
           aria-label="需求输入框"
+          rows={2}
         />
         <button type="button" className="btn primary" onClick={onComposedSend} disabled={!chatInput.trim()}>
           发送

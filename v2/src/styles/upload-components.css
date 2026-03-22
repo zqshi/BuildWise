@@ -194,7 +194,8 @@
   border-color:rgba(248,250,252,.65) !important;
   background:rgba(248,250,252,.12) !important;
 }
-.chat-input-row input {
+.chat-input-row input,
+.chat-input-row textarea {
   border:1px solid var(--border-strong);
   border-radius:var(--radius-md);
   padding:9px 10px;
@@ -202,9 +203,18 @@
   background:var(--bg-surface);
   transition:border-color var(--duration-fast) var(--ease-standard),box-shadow var(--duration-fast) var(--ease-standard)
 }
-.chat-input-row input:focus {
+.chat-input-row textarea {
+  resize:none;
+  min-height:44px;
+  max-height:120px;
+  line-height:1.5;
+  font-family:inherit;
+}
+.chat-input-row input:focus,
+.chat-input-row textarea:focus {
   border-color:var(--brand-500);
-  box-shadow:var(--ring-brand-soft)
+  box-shadow:var(--ring-brand-soft);
+  outline:none
 }
 @media (max-width: 720px) {
 }

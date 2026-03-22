@@ -94,6 +94,8 @@ function stripInternalMarkers(raw: string): string {
   text = text.replace(/<invoke\b[^>]*>[\s\S]*?<\/invoke>/gi, "");
   text = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
   text = text.replace(/<\/?(?:search|function_call|tool_use|result)[^>]*>/gi, "");
+  // Strip policy/coach HTML comment markers (system-internal, never shown to users)
+  text = text.replace(/<!--\s*(?:policy|coach):\s*\{[\s\S]*?\}\s*(?:-->|$)/gi, "");
   text = text.replace(/^\[skills\].*$/gim, "");
   text = text.replace(/\n{3,}/g, "\n\n");
   return text.trim();
