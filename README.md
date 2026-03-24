@@ -47,6 +47,10 @@ BuildWise 把“业务意图”编译成“可执行的软件交付流程”，�
 
 ![BuildWise 项目建模与领域建模](./v2/docs/images/workspace-modeling-real.png)
 
+### 4. 仪表盘总览
+
+![BuildWise 仪表盘总览](./v2/docs/images/workspace-dashboard-real.png)
+
 ## 为什么它值得看
 
 大多数团队的问题不是“没人会写文档”，而是：
