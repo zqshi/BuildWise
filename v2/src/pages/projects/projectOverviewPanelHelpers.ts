@@ -3,123 +3,73 @@ import type { ModelRelationPayload } from "../../domain/workspace/types";
 export const MOCK_MODEL_RELATIONS: ModelRelationPayload[] = [
   {
     id: "mock-r-1",
-    fromEntityId: "entity_project",
-    toEntityId: "entity_iteration",
+    fromEntityId: "entity_负责人",
+    toEntityId: "entity_线索",
     type: "one_to_many",
-    name: "包含迭代",
-    businessDescription: "项目作为治理容器，按版本拆分多个迭代单元。",
-    ontologyBasis: "Project -> Iteration",
-    dataBasis: ["project.id", "iteration.project_id"]
+    name: "负责推进",
+    businessDescription: "一位负责人可以同时负责多条线索，但每条线索在同一时刻只有一个主负责人。",
+    ontologyBasis: "负责人 -> 线索",
+    dataBasis: ["sales_owner.owner_id", "lead.owner_id"]
   },
   {
     id: "mock-r-2",
-    fromEntityId: "entity_iteration",
-    toEntityId: "entity_task",
+    fromEntityId: "entity_线索",
+    toEntityId: "entity_跟进记录",
     type: "one_to_many",
-    name: "拆解任务",
-    businessDescription: "每个迭代在执行层面拆分为可分配的任务集。",
-    ontologyBasis: "Iteration -> Task",
-    dataBasis: ["iteration.id", "task.iteration_id"]
+    name: "沉淀跟进",
+    businessDescription: "一条线索会持续积累多条跟进记录，形成完整的沟通历史。",
+    ontologyBasis: "线索 -> 跟进记录",
+    dataBasis: ["lead.lead_id", "followup_record.lead_id"]
   },
   {
     id: "mock-r-3",
-    fromEntityId: "entity_task",
-    toEntityId: "entity_member",
-    type: "many_to_many",
-    name: "成员协作",
-    businessDescription: "任务与成员之间为协作分派关系，支持多人协同。",
-    ontologyBasis: "Task <-> Member",
-    dataBasis: ["task_member.task_id", "task_member.member_id"]
+    fromEntityId: "entity_线索阶段",
+    toEntityId: "entity_线索",
+    type: "one_to_many",
+    name: "阶段归属",
+    businessDescription: "线索总是处于某个明确阶段，阶段变化会影响列表排序和后续动作提示。",
+    ontologyBasis: "线索阶段 -> 线索",
+    dataBasis: ["lead_stage.stage_code", "lead.stage"]
   },
   {
     id: "mock-r-4",
-    fromEntityId: "entity_member",
-    toEntityId: "entity_role",
+    fromEntityId: "entity_线索导出任务",
+    toEntityId: "entity_线索",
     type: "many_to_many",
-    name: "角色授权",
-    businessDescription: "成员可被授予多个角色，角色可复用于多个成员。",
-    ontologyBasis: "Member <-> Role",
-    dataBasis: ["member_role.member_id", "member_role.role_id"]
+    name: "批量带出",
+    businessDescription: "一次导出任务会命中一批线索，同一条线索也可能被多次导出。",
+    ontologyBasis: "线索导出任务 <-> 线索",
+    dataBasis: ["export_job.job_id", "export_job_lead.lead_id"]
   },
   {
     id: "mock-r-5",
-    fromEntityId: "entity_task",
-    toEntityId: "entity_delivery",
-    type: "one_to_many",
-    name: "产出交付件",
-    businessDescription: "任务执行产生交付件，供发布和验收链路复用。",
-    ontologyBasis: "Task -> Delivery",
-    dataBasis: ["task.id", "delivery.task_id"]
+    fromEntityId: "entity_线索导出任务",
+    toEntityId: "entity_导出结果包",
+    type: "one_to_one",
+    name: "生成结果包",
+    businessDescription: "每次导出任务最终产出一个可下载结果包，便于业务离线流转。",
+    ontologyBasis: "线索导出任务 -> 导出结果包",
+    dataBasis: ["export_job.job_id", "export_file.job_id"]
   },
   {
     id: "mock-r-6",
-    fromEntityId: "entity_delivery",
-    toEntityId: "entity_release",
-    type: "one_to_one",
-    name: "发布映射",
-    businessDescription: "单次交付件映射到唯一发布记录，便于审计追踪。",
-    ontologyBasis: "Delivery -> Release",
-    dataBasis: ["delivery.id", "release.delivery_id"]
+    fromEntityId: "entity_线索",
+    toEntityId: "entity_客户公司",
+    type: "many_to_many",
+    name: "关联客户",
+    businessDescription: "同一客户公司可以对应多条线索，线索也可能在不同接触阶段指向同一客户主体。",
+    ontologyBasis: "线索 <-> 客户公司",
+    dataBasis: ["lead_company.lead_id", "lead_company.company_id"]
   },
   {
     id: "mock-r-7",
-    fromEntityId: "entity_iteration",
-    toEntityId: "entity_risk",
+    fromEntityId: "entity_跟进记录",
+    toEntityId: "entity_提醒对象",
     type: "one_to_many",
-    name: "识别风险",
-    businessDescription: "迭代过程识别出的风险项归属于对应迭代。",
-    ontologyBasis: "Iteration -> Risk",
-    dataBasis: ["iteration.id", "risk.iteration_id"]
-  },
-  {
-    id: "mock-r-8",
-    fromEntityId: "entity_risk",
-    toEntityId: "entity_policy",
-    type: "one_to_many",
-    name: "策略治理",
-    businessDescription: "风险会触发治理策略执行与审批动作。",
-    ontologyBasis: "Risk -> Policy",
-    dataBasis: ["risk.id", "policy.risk_id"]
-  },
-  {
-    id: "mock-r-9",
-    fromEntityId: "entity_release",
-    toEntityId: "entity_metric",
-    type: "one_to_many",
-    name: "指标追踪",
-    businessDescription: "发布行为输出质量与运行指标用于后验评估。",
-    ontologyBasis: "Release -> Metric",
-    dataBasis: ["release.id", "metric.release_id"]
-  },
-  {
-    id: "mock-r-10",
-    fromEntityId: "entity_metric",
-    toEntityId: "entity_dashboard",
-    type: "one_to_many",
-    name: "看板呈现",
-    businessDescription: "指标汇总后投射到看板维度进行可视化监控。",
-    ontologyBasis: "Metric -> Dashboard",
-    dataBasis: ["metric.id", "dashboard_metric.metric_id"]
-  },
-  {
-    id: "mock-r-11",
-    fromEntityId: "entity_dashboard",
-    toEntityId: "entity_project",
-    type: "many_to_many",
-    name: "项目归因",
-    businessDescription: "看板支持多项目归因分析与横向对比。",
-    ontologyBasis: "Dashboard <-> Project",
-    dataBasis: ["dashboard_project.dashboard_id", "dashboard_project.project_id"]
-  },
-  {
-    id: "mock-r-12",
-    fromEntityId: "entity_issue",
-    toEntityId: "entity_task",
-    type: "many_to_many",
-    name: "缺陷回流",
-    businessDescription: "缺陷项可回流关联多个任务形成修复闭环。",
-    ontologyBasis: "Issue <-> Task",
-    dataBasis: ["issue_task.issue_id", "issue_task.task_id"]
+    name: "提醒候选",
+    businessDescription: "跟进记录理论上可以挂接提醒对象，但当前演示版本中该能力已延期，不进入上线范围。",
+    ontologyBasis: "跟进记录 -> 提醒对象",
+    dataBasis: ["followup_record.record_id", "mention_target.record_id"]
   }
 ];
 
