@@ -1,6 +1,6 @@
 # BuildWise v2 Backend Release Candidate Checklist
 
-更新时间：2026-03-23
+更新时间：2026-03-24
 
 ## 1. 目标
 
@@ -9,16 +9,17 @@
 ## 2. 放行前必须为真
 
 1. 工作树已清理，发布内容可明确归属。
-2. `npm run verify:prod-readiness` 通过。
-3. `npm run verify:prod-readiness:sqlite` 在 CI 或真实环境通过。
-4. `AUTH_MODE=jwt`。
-5. `JWT_SECRET` 已替换为生产密钥，长度不少于 32。
-6. `CORS_ORIGINS` 已配置为真实域名。
-7. `STORAGE_BACKEND=sqlite`。
-8. `VITE_API_BASE` 已显式配置。
-9. 每个项目 `workspacePath` 独立且可写。
-10. `workspacePath/.buildwise/` 已纳入备份策略。
-11. 运行验证脚本不会默认向仓库写入临时报告；如需归档 `readiness` 报告，必须显式设置 `BUILDWISE_READINESS_WRITE_REPO=1` 或 `BUILDWISE_READINESS_OUTPUT_DIR`。
+2. `npm run check:boundaries` 通过。
+3. `npm run verify:prod-readiness` 通过。
+4. `npm run verify:prod-readiness:sqlite` 在 CI 或真实环境通过。
+5. `AUTH_MODE=jwt`。
+6. `JWT_SECRET` 已替换为生产密钥，长度不少于 32。
+7. `CORS_ORIGINS` 已配置为真实域名。
+8. `STORAGE_BACKEND=sqlite`。
+9. `VITE_API_BASE` 已显式配置。
+10. 每个项目 `workspacePath` 独立且可写。
+11. `workspacePath/.buildwise/` 已纳入备份策略。
+12. 运行验证脚本不会默认向仓库写入临时报告；如需归档 `readiness` 报告，必须显式设置 `BUILDWISE_READINESS_WRITE_REPO=1` 或 `BUILDWISE_READINESS_OUTPUT_DIR`。
 
 ## 3. 运行语义确认
 
@@ -79,6 +80,6 @@ npm run verify:prod-readiness
 
 ## 7. 当前剩余风险
 
-1. 当前仓库仍为脏工作树，必须先做 RC 切面整理。
+1. 若 `check:boundaries` 未通过，则不能作为最终 RC 放行。
 2. SQLite 全链路门禁需要在真实 CI 或部署环境固定跑通。
 3. 统一观测、告警联动和值班手册仍待补齐。

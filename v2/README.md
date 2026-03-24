@@ -1,45 +1,40 @@
 # BuildWise v2
 
-BuildWise v2 是一个面向软件交付的 AI 原生工作台。当前版本已经把官网入口、登录、仪表盘、项目工作台、权限治理、OpenClaw 协作台、真实 LLM 分析链路与仓库发布链路收敛到同一套前后端工程中。
+BuildWise v2 是当前主实现版本。  
+它把官网入口、登录、仪表盘、项目工作台、项目建模/领域建模、交付物抽屉、OpenClaw 协作台、真实 LLM 分析链路和项目级 workspace 隔离收敛到同一套前后端工程里。
 
 ## 1. 当前能力
 
-- 官网入口：未登录默认进入 `#/`，展示产品定位、方法链路与核心能力。
-- 登录与工作台切换：登录后进入 `#/dashboard`，可在仪表盘、项目工作台、权限设置之间切换。
-- 项目工作台：支持项目/迭代管理、附件上传分析、交付物编辑、变更影响分析、测试产物生成与发布评审。
-- OpenClaw 工作台：支持以协作台方式进入治理与 Agent 交互链路。
-- 仓库治理链路：后端已提供仓库 bootstrap、模式切换、真实建仓、骨架落盘、发布到远端等接口。
-- 运维与验证：内置前后端边界检查、类型检查、构建、契约测试、Prompt/Agent/Skill 校验，以及真实 LLM/Browser Use 演示脚本。
+- 官网与登录入口：`#/` 与 `#/login`
+- 仪表盘：项目总览、风险与近期动态
+- 项目工作台：项目/迭代管理、需求上传、分析、边界、交付物、测试、发布评审
+- 项目建模与领域建模：支持结构化摘要、节点关系图、业务实体卡片、规则映射与关系叙事
+- 代码类交付物抽屉：按文件结构查看而不是整块堆叠
+- OpenClaw 协作台：单 Agent、多项目 workspace、项目知识上下文注入
+- 项目知识目录：每项目写入 `workspacePath/.buildwise/`
 
 ## 2. 环境要求
 
-- Node.js >= 22
-- npm >= 10
+- Node.js `>= 22`
+- npm `>= 10`
 
-## 3. 安装依赖
+## 3. 安装
 
 ```bash
 cd v2
 npm run install:all
 ```
 
-如果只需要单独安装后端：
-
-```bash
-cd v2/backend
-npm install
-```
-
 ## 4. 本地开发
 
-推荐直接启动前后端联调栈：
+推荐直接启动联调栈：
 
 ```bash
 cd v2
 npm run dev:stack:start
 ```
 
-停止联调栈：
+停止：
 
 ```bash
 cd v2
@@ -60,76 +55,86 @@ cd v2/backend
 npm run dev
 ```
 
-默认访问入口：
+默认入口：
 
-- 官网：`#/`
-- 登录：`#/login`
-- 仪表盘：`#/dashboard`
+- 官网：`http://localhost:5173/#/`
+- 登录：`http://localhost:5173/#/login`
+- 仪表盘：`http://localhost:5173/#/dashboard`
+- 后端：`http://127.0.0.1:5055`
 
-后端默认监听 `127.0.0.1:5055`。当前前端在检测不到后端时，会在界面顶部直接提示开发启动命令。
-开发环境未显式设置 `CORS_ORIGINS` 时，后端会默认放行本地前端常用 origin（`127.0.0.1/localhost` 的 `5173`、`4173`），方便联调与 preview 验证。
-如果前端配置了本地跨端口 `VITE_API_BASE`，运行时会自动回退到同源 `/api`，通过 Vite 的 dev/preview 代理访问后端，避免浏览器跨源白屏。
+开发联调说明：
 
-## 5. 质量门禁与验证
+- 当前前端在本地会优先通过同源 `/api` 代理访问后端，避免跨源白屏。
+- 未显式设置 `VITE_API_BASE` 时，Vite dev/preview 会代理到本地后端。
+- 若显式设置了本地跨端口 `VITE_API_BASE`，运行时会自动回退到同源 `/api`。
 
-发布前建议至少执行：
+## 5. 质量门禁
+
+推荐执行：
 
 ```bash
 cd v2
 npm run verify:all
 ```
 
-该命令会串联执行：
+当前脚本包括：
 
-- 前端仓库卫生检查 `npm run check:hygiene`
-- 前端边界检查 `npm run check:boundaries`
-- 后端 Skill 合规检查 `npm run check:skills`
-- 前端类型检查与构建
-- 就绪度报告 `npm run report:readiness`
-- 后端边界检查、类型检查、构建、契约测试
+- `npm run check:hygiene`
+- `npm run check:boundaries`
+- `npm run typecheck`
+- `npm run build`
+- `npm run report:readiness`
+- `npm --prefix backend run check:boundaries`
+- `npm --prefix backend run typecheck`
+- `npm --prefix backend run build`
+- `npm --prefix backend run test:contract`
 
-后端更完整的质量门禁位于：
+补充脚本：
 
-```bash
-cd v2/backend
-npm run verify:prod-readiness
-```
-
-扩展验证脚本包括：
-
-- `npm run test:e2e`
-- `npm run test:contract:sqlite`
-- `npm run ops:preflight`
-- `npm run ops:llm-check`
-- `npm run ops:alerts`
-- `npm run e2e:agent-flow`
+- `npm test`
+- `npm run seed:agentic:flow`
+- `npm run demo:openclaw:real`
+- `npm run e2e:creative-generator:rc`
+- `npm run clean:workspace`
 
 ## 6. 演示数据与真实链路
 
-重建当前保留的 Agentic Flow Mock 数据集：
+重建当前演示数据：
 
 ```bash
 cd v2
 npm run seed:agentic:flow
 ```
 
-该数据集用于 `#/dashboard` 与项目工作台联调，包含 1 个项目和 2 个迭代（首版本 + 后续变更/回滚分支）。
+该命令会同步生成：
 
-执行真实 OpenClaw + LLM 演示：
+- `v2/backend/data.json`
+- `v2/backend/data.runtime.json`
+- `v2/backend/continuous-modeling.runtime.json`
+
+演示项目当前包含：
+
+- 1 个项目
+- 2 个迭代（`V1` / `V1.1`）
+- 项目知识库
+- continuous-modeling 快照
+- 业务友好的实体、规则、关系和 review task
+
+真实 OpenClaw + LLM 演示：
 
 ```bash
 cd v2
 npm run demo:openclaw:real
 ```
 
-相关说明文档：
+相关文档：
 
-- `v2/docs/agentic-flow-mock-dataset.md`
-- `v2/docs/openclaw-real-llm-demo.md`
-- `v2/docs/openclaw-agentic-flow-governance.md`
-- `v2/docs/creative-generator-demo-requirement.md`
+- [agentic-flow-mock-dataset.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/agentic-flow-mock-dataset.md)
+- [openclaw-real-llm-demo.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/openclaw-real-llm-demo.md)
+- [openclaw-agentic-flow-governance.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/openclaw-agentic-flow-governance.md)
+- [creative-generator-demo-requirement.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/creative-generator-demo-requirement.md)
 
-## 7. 生产构建与启动
+## 7. 构建与生产运行
 
 前端构建：
 
@@ -151,106 +156,87 @@ npm run start
 - 前端：`v2/dist`
 - 后端：`v2/backend/dist`
 
-生产环境额外要求：
+生产要求：
 
-- 显式设置 `VITE_API_BASE`，不要依赖 same-origin 回退。
-- 前端 CSP 会按 `VITE_API_BASE` 自动放行对应 API origin；如果部署改成新的网关域名，需要同步更新该变量后重新构建前端。
-- 为每个项目绑定独立的 `workspacePath`，不要让多个项目复用同一路径。
-- 项目级知识资产会写入 `workspacePath/.buildwise/`，该目录应保留读写权限并纳入备份，但不应纳入 Git 管理。
+- 显式配置 `VITE_API_BASE`
+- 每个项目绑定独立 `workspacePath`
+- `workspacePath/.buildwise/` 保留读写权限并纳入备份
+- 不要把 `.buildwise/` 纳入 Git
 
 ## 8. 关键环境变量
 
-后端支持自动读取 `v2/backend/.env`。可先从模板复制：
+后端支持读取 `v2/backend/.env`：
 
 ```bash
 cd v2/backend
 cp .env.example .env
 ```
 
-常用环境变量如下：
+关键项：
 
-- `HOST` / `PORT`：服务监听地址与端口，默认 `127.0.0.1:5055`
-- `NODE_ENV`：`development | test | production`
-- `CORS_ORIGINS`：允许跨域来源，生产环境需显式配置
-- `AUTH_MODE`：`off | token`
-- `AUTH_TOKENS_JSON`：Token 到角色映射
-- `AUTH_PUBLIC_PATH_PREFIXES`：免鉴权路径前缀
-- `STORAGE_BACKEND`：`json | sqlite`
-- `WORKSPACE_DB_FILE`：SQLite 工作区文件
-- `MODEL_FILE`：统一项目模型文件，默认 `../model.json`
-- `WORKSPACE_DATA_FILE`：工作区数据文件，默认 `./data.runtime.json`
-- `LLM_API_BASE`：OpenAI 兼容接口地址，`.env.example` 当前默认示例为 `https://api.deepseek.com`
-- `LLM_API_KEY` / `LLM_MODEL`：模型认证与模型名，`.env.example` 默认模型为 `deepseek-chat`
-- `LLM_REQUIRED`：为 `true` 时 `/ready` 需要 LLM 可达
-- `DEPENDENCY_REQUIRED`：为 `true` 时 `/ready` 需要模型文件与存储依赖探针通过
-- `BUILDWISE_PREFER_PROCESS_ENV`：设为 `1` 时保留进程环境变量优先，否则优先采用 `.env`
-- `GITHUB_TOKEN`：真实建仓时使用
-- `PROJECT_REPO_ROOT`：仓库骨架生成目录
+- `HOST` / `PORT`
+- `NODE_ENV`
+- `CORS_ORIGINS`
+- `AUTH_MODE=off | token | jwt`
+- `AUTH_TOKENS_JSON`
+- `JWT_SECRET`
+- `STORAGE_BACKEND=json | sqlite`
+- `WORKSPACE_DB_FILE`
+- `WORKSPACE_DATA_FILE`
+- `LLM_PROVIDER`
+- `LLM_API_BASE`
+- `LLM_API_KEY`
+- `LLM_MODEL`
+- `LLM_REQUIRED`
+- `OPENCLAW_GATEWAY_URL`
+- `OPENCLAW_AGENT_ID`
+- `BUILDWISE_OPENCLAW_SKILLS_ENABLED`
+- `GITHUB_TOKEN`
+- `PROJECT_REPO_ROOT`
 
 OpenClaw 项目绑定约束：
 
-- 绑定接口：`POST /api/v1/projects/:id/workspace/bind`
+- 接口：`POST /api/v1/projects/:id/workspace/bind`
 - `workspacePath` 建议使用绝对路径
-- 同一路径不能绑定多个项目，冲突时接口返回 `409 workspace_path_already_bound`
+- 同一路径不能绑定多个项目，冲突返回 `409 workspace_path_already_bound`
 - 项目知识索引、daily memory 与分片文档默认写入 `workspacePath/.buildwise/`
 
-更完整的配置与投产说明见 `v2/backend/README.md` 与 `v2/backend/docs/production-operations.md`。
+## 9. API 与仓库治理
 
-## 9. 仓库治理与发布链路
+后端当前使用 `/api/v1` 前缀。常用接口包括：
 
-后端已提供以下关键接口：
+- `GET /api/v1/status`
+- `GET /api/v1/projects`
+- `POST /api/v1/projects`
+- `GET /api/v1/projects/:id/iterations`
+- `POST /api/v1/projects/:id/iterations`
+- `GET /api/v1/projects/:id/model-view`
+- `GET /api/v1/projects/:id/model/business-summary`
+- `POST /api/v1/projects/:id/workspace/bind`
+- `POST /api/v1/projects/:id/repository/bootstrap`
+- `GET /api/v1/projects/:id/repository/status`
+- `POST /api/v1/iterations/:id/publish`
 
-- `GET /api/projects/:id/repository`
-- `POST /api/projects/:id/repository/bootstrap`
-- `GET /api/projects/:id/repository/status`
-- `GET /api/projects/:id/repository/migration-plan`
-- `POST /api/projects/:id/repository/mode`
-- `POST /api/projects/:id/repository/provision`
-- `POST /api/projects/:id/repository/scaffold`
-- `POST /api/iterations/:id/publish`
-- `GET /api/projects/:id/code-trace?ref=<branch|tag|commit|path>`
-
-支持的仓库模式：
+仓库模式：
 
 - `external_git`
 - `managed_local`
 - `hybrid`
 
-默认治理策略是生产环境要求远端仓库可配置，适合真实发布链路。
+## 10. 当前状态说明
 
-项目级 OpenClaw 运行约束：
+BuildWise v2 已经是可运行、可演示、可持续治理的工作台实现。  
+但“是否可直接投产”必须以质量门禁为准，而不是以功能可见为准。
 
-- 全平台复用同一个 Agent，不为每个项目复制 Agent
-- 每个项目拥有独立 workspace 和独立 session 命名空间
-- 迭代运行继续复用 `project-<id>-iteration-<id>` session key
-- BuildWise 只做知识物化、检索和上下文注入，不改 OpenClaw 内核逻辑
+如果当前分支的：
 
-## 10. 前端界面与设计约束
+- `check:boundaries`
+- `verify:all`
+- `verify:prod-readiness`
 
-- 样式令牌入口：`v2/src/styles/base.css`
-- 页面能力入口：
-  - 官网：`v2/src/pages/marketing`
-  - 仪表盘：`v2/src/pages/dashboard`
-  - 项目工作台：`v2/src/pages/projects`
-  - 权限治理：`v2/src/pages/governance`
-  - OpenClaw 协作面板：`v2/src/pages/layout/OpenclawWorkspacePanel.tsx`
-- 视觉验收文档：`v2/docs/ui-style-upgrade-acceptance-2026-03-09.md`
-- Browser Use 视觉对齐记录：`v2/docs/visual-e2e-alignment-browser-use-2026-03-09.md`
+没有全部通过，就不应对外宣称为“已可直接投产”。
 
-项目总览中的“项目建模与领域建模”已支持结构化摘要与节点关系图切换，空关系场景与大规模关系场景都有对应的展示约束。
+## 11. 继续阅读
 
-## 11. 仓库卫生
-
-执行仓库卫生检查：
-
-```bash
-cd v2
-npm run check:hygiene
-```
-
-清理本地构建与运行期产物：
-
-```bash
-cd v2
-npm run clean:workspace
-```
+- [v2/backend/README.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/README.md)
+- [docs/README.md](/Users/zqs/Downloads/project/BuildWise/docs/README.md)
