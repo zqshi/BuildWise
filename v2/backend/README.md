@@ -187,9 +187,9 @@ OpenClaw / workspace：
 
 当前投产与运维主文档：
 
-- [production-operations.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-operations.md)
-- [production-readiness.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-readiness.md)
-- [release-candidate-checklist.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/release-candidate-checklist.md)
+- [production-operations.md](./docs/production-operations.md)
+- [production-readiness.md](./docs/production-readiness.md)
+- [release-candidate-checklist.md](./docs/release-candidate-checklist.md)
 
 注意：
 

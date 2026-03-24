@@ -141,17 +141,6 @@
   .iteration-meta-grid {
     grid-template-columns:1fr
   }
-  .model-relation-graph svg {
-    height:min(360px,70vw);
-    min-height:220px;
-  }
-  .model-entity-card-grid {
-    grid-template-columns:1fr;
-  }
-  .model-relation-detail-grid {
-    grid-template-columns:1fr;
-  }
-
   .chat-input-row {
     grid-template-columns:1fr;
   }

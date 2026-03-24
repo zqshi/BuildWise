@@ -39,7 +39,9 @@ test("buildModelRelationGraph reports unlinked entities and truncation", () => {
 test("project overview includes model detail view toggle for graph mode", () => {
   const viewPath = new URL("../src/pages/projects/ProjectOverviewPanel.tsx", import.meta.url);
   const detailPath = new URL("../src/pages/projects/ProjectOverviewPanelModelDetails.tsx", import.meta.url);
-  const source = `${readFileSync(viewPath, "utf8")}\n${readFileSync(detailPath, "utf8")}`;
+  const summaryPath = new URL("../src/pages/projects/ProjectOverviewPanelModelSummary.tsx", import.meta.url);
+  const graphPath = new URL("../src/pages/projects/ProjectOverviewPanelModelGraph.tsx", import.meta.url);
+  const source = `${readFileSync(viewPath, "utf8")}\n${readFileSync(detailPath, "utf8")}\n${readFileSync(summaryPath, "utf8")}\n${readFileSync(graphPath, "utf8")}`;
 
   assert.match(source, /建模详情视图切换/);
   assert.match(source, /结构化摘要/);
