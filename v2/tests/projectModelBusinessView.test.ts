@@ -99,4 +99,60 @@ test("projectModelBusinessView tolerates legacy sparse model payloads", () => {
   assert.deepEqual(mappings[0]?.linkedSurfaces, []);
   assert.deepEqual(mappings[0]?.linkedApis, []);
   assert.match(narratives[0]?.title || "", /客户 一对多/);
+  assert.doesNotMatch(cards[0]?.definition || "", /暂无业务定义/);
+});
+
+test("projectModelBusinessView derives fallback definition from linked rules", () => {
+  const ruleOnlyView = {
+    projectId: 1,
+    entities: [{ id: "entity_export_job", name: "ExportJob", businessName: "线索导出任务", fields: [] }],
+    rules: [
+      {
+        id: "rule-1",
+        name: "导出任务不得阻塞主链路",
+        statement: "导出任务必须异步执行，不能阻塞线索录入和跟进记录保存。",
+        source: "snapshot" as const,
+        linkedEntityIds: ["entity_export_job"],
+        linkedSurfaceIds: [],
+        linkedApiIds: []
+      }
+    ],
+    relations: [],
+    ontologyTerms: [],
+    reviewTasks: [],
+    evidence: [],
+    latestSnapshotId: null,
+    latestSnapshotStatus: "none" as const
+  };
+
+  const cards = buildModelEntityCards(ruleOnlyView as never);
+  assert.match(cards[0]?.definition || "", /异步执行/);
+});
+
+test("projectModelBusinessView derives fallback definition from relations when no rule exists", () => {
+  const relationOnlyView = {
+    projectId: 1,
+    entities: [
+      { id: "entity_lead", name: "Lead", businessName: "线索", fields: [] },
+      { id: "entity_followup", name: "FollowupRecord", businessName: "跟进记录", fields: [] }
+    ],
+    rules: [],
+    relations: [
+      {
+        id: "rel-1",
+        fromEntityId: "entity_lead",
+        toEntityId: "entity_followup",
+        type: "one_to_many" as const,
+        businessMeaning: "一条线索会沉淀多条跟进记录"
+      }
+    ],
+    ontologyTerms: [],
+    reviewTasks: [],
+    evidence: [],
+    latestSnapshotId: null,
+    latestSnapshotStatus: "none" as const
+  };
+
+  const cards = buildModelEntityCards(relationOnlyView as never);
+  assert.match(cards[0]?.definition || "", /跟进记录/);
 });
