@@ -225,16 +225,14 @@ OpenClaw 项目绑定约束：
 
 ## 10. 当前状态说明
 
-BuildWise v2 已经是可运行、可演示、可持续治理的工作台实现。  
-但“是否可直接投产”必须以质量门禁为准，而不是以功能可见为准。
+BuildWise v2 当前已经是可运行、可演示、可持续治理的主实现。  
+当前发布候选分支已通过本地 `check:boundaries`、`verify:all` 和 `verify:prod-readiness`，可以作为评审、演示和受控投产候选使用。
 
-如果当前分支的：
+仍需注意：
 
-- `check:boundaries`
-- `verify:all`
-- `verify:prod-readiness`
-
-没有全部通过，就不应对外宣称为“已可直接投产”。
+- 最终生产放行要以真实环境中的 `verify:prod-readiness:sqlite`、部署配置和运维检查为准
+- README 说明的是当前实现与运行方式，不等于替代正式上线 SOP
+- 生产配置、密钥、域名、备份和工作区权限仍要按后端生产文档逐项确认
 
 ## 11. 继续阅读
 

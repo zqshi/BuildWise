@@ -24,18 +24,18 @@
 
 ## 3. 拆分后的文档
 
-1. [01-现状与目标](/Users/zqs/Downloads/project/BuildWise/docs/50-upgrade/01-现状与目标.md)
+1. [01-现状与目标](./50-upgrade/01-现状与目标.md)
    - 当前断链诊断
    - 目标架构
    - 升级边界
-2. [02-策略与技能链路](/Users/zqs/Downloads/project/BuildWise/docs/50-upgrade/02-策略与技能链路.md)
+2. [02-策略与技能链路](./50-upgrade/02-策略与技能链路.md)
    - 主窗口策略回写
    - Skill 定义、选择、执行的一致性
-3. [03-本体与知识沉淀](/Users/zqs/Downloads/project/BuildWise/docs/50-upgrade/03-本体与知识沉淀.md)
+3. [03-本体与知识沉淀](./50-upgrade/03-本体与知识沉淀.md)
    - 技术本体
    - 业务规则本体
    - 项目知识库与索引
-4. [04-OpenClaw 集成与实施](/Users/zqs/Downloads/project/BuildWise/docs/50-upgrade/04-OpenClaw集成与实施.md)
+4. [04-OpenClaw 集成与实施](./50-upgrade/04-OpenClaw集成与实施.md)
    - 项目 workspace
    - session key
    - 分阶段实施与风险
@@ -44,5 +44,5 @@
 
 后续治理以这两份设计为准：
 
-1. [系统性治理升级设计](/Users/zqs/Downloads/project/BuildWise/docs/51-系统性治理升级设计.md)
-2. [04-OpenClaw 集成与实施](/Users/zqs/Downloads/project/BuildWise/docs/50-upgrade/04-OpenClaw集成与实施.md)
+1. [系统性治理升级设计](./51-系统性治理升级设计.md)
+2. [04-OpenClaw 集成与实施](./50-upgrade/04-OpenClaw集成与实施.md)
