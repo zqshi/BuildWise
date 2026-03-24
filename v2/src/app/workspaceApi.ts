@@ -10,7 +10,6 @@ import type {
   IterationStateMachinePayload,
   IterationMessage,
   ProjectModelBusinessSummaryPayload,
-  ProjectModelViewPayload,
   Project,
 } from "../domain/workspace/types";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";

@@ -129,10 +129,10 @@ npm run demo:openclaw:real
 
 相关文档：
 
-- [agentic-flow-mock-dataset.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/agentic-flow-mock-dataset.md)
-- [openclaw-real-llm-demo.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/openclaw-real-llm-demo.md)
-- [openclaw-agentic-flow-governance.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/openclaw-agentic-flow-governance.md)
-- [creative-generator-demo-requirement.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/creative-generator-demo-requirement.md)
+- [agentic-flow-mock-dataset.md](./docs/agentic-flow-mock-dataset.md)
+- [openclaw-real-llm-demo.md](./docs/openclaw-real-llm-demo.md)
+- [openclaw-agentic-flow-governance.md](./docs/openclaw-agentic-flow-governance.md)
+- [creative-generator-demo-requirement.md](./docs/creative-generator-demo-requirement.md)
 
 ## 7. 构建与生产运行
 
@@ -238,5 +238,5 @@ BuildWise v2 已经是可运行、可演示、可持续治理的工作台实现�
 
 ## 11. 继续阅读
 
-- [v2/backend/README.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/README.md)
-- [docs/README.md](/Users/zqs/Downloads/project/BuildWise/docs/README.md)
+- [v2/backend/README.md](./backend/README.md)
+- [docs/README.md](../docs/README.md)

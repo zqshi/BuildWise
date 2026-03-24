@@ -13,32 +13,32 @@
 优先阅读这些：
 
 - 产品总览与对外定位：
-  - [README.md](/Users/zqs/Downloads/project/BuildWise/README.md)
+  - [README.md](../README.md)
 - 当前主实现运行说明：
-  - [v2/README.md](/Users/zqs/Downloads/project/BuildWise/v2/README.md)
+  - [v2/README.md](../v2/README.md)
 - 后端、接口与投产说明：
-  - [v2/backend/README.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/README.md)
-  - [production-operations.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-operations.md)
-  - [production-readiness.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-readiness.md)
-  - [release-candidate-checklist.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/release-candidate-checklist.md)
+  - [v2/backend/README.md](../v2/backend/README.md)
+  - [production-operations.md](../v2/backend/docs/production-operations.md)
+  - [production-readiness.md](../v2/backend/docs/production-readiness.md)
+  - [release-candidate-checklist.md](../v2/backend/docs/release-candidate-checklist.md)
 
 ## 当前产品与架构基线
 
-- [10-产品顶层设计（执行版）.md](/Users/zqs/Downloads/project/BuildWise/docs/10-产品顶层设计（执行版）.md)
-- [20-技术架构设计（执行版）.md](/Users/zqs/Downloads/project/BuildWise/docs/20-技术架构设计（执行版）.md)
-- [20-统一项目模型设计.md](/Users/zqs/Downloads/project/BuildWise/docs/20-统一项目模型设计.md)
-- [20-追溯模型（Trace Model）.md](/Users/zqs/Downloads/project/BuildWise/docs/20-追溯模型（Trace Model）.md)
-- [20-DDD分层与边界规范.md](/Users/zqs/Downloads/project/BuildWise/docs/20-DDD分层与边界规范.md)
-- [42-研发治理规范（DDD-TDD-质量门禁）.md](/Users/zqs/Downloads/project/BuildWise/docs/42-研发治理规范（DDD-TDD-质量门禁）.md)
-- [47-DDD+TDD与1000行治理最高声明.md](/Users/zqs/Downloads/project/BuildWise/docs/47-DDD+TDD与1000行治理最高声明.md)
-- [51-系统性治理升级设计.md](/Users/zqs/Downloads/project/BuildWise/docs/51-系统性治理升级设计.md)
+- [10-产品顶层设计（执行版）.md](./10-产品顶层设计（执行版）.md)
+- [20-技术架构设计（执行版）.md](./20-技术架构设计（执行版）.md)
+- [20-统一项目模型设计.md](./20-统一项目模型设计.md)
+- [20-追溯模型（Trace Model）.md](./20-追溯模型（Trace Model）.md)
+- [20-DDD分层与边界规范.md](./20-DDD分层与边界规范.md)
+- [42-研发治理规范（DDD-TDD-质量门禁）.md](./42-研发治理规范（DDD-TDD-质量门禁）.md)
+- [47-DDD+TDD与1000行治理最高声明.md](./47-DDD+TDD与1000行治理最高声明.md)
+- [51-系统性治理升级设计.md](./51-系统性治理升级设计.md)
 
 ## v2 专项文档
 
-- [agentic-flow-mock-dataset.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/agentic-flow-mock-dataset.md)
-- [openclaw-agentic-flow-governance.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/openclaw-agentic-flow-governance.md)
-- [openclaw-real-llm-demo.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/openclaw-real-llm-demo.md)
-- [iteration-ontology-impact-contract.md](/Users/zqs/Downloads/project/BuildWise/v2/docs/iteration-ontology-impact-contract.md)
+- [agentic-flow-mock-dataset.md](../v2/docs/agentic-flow-mock-dataset.md)
+- [openclaw-agentic-flow-governance.md](../v2/docs/openclaw-agentic-flow-governance.md)
+- [openclaw-real-llm-demo.md](../v2/docs/openclaw-real-llm-demo.md)
+- [iteration-ontology-impact-contract.md](../v2/docs/iteration-ontology-impact-contract.md)
 
 ## 历史/归档文档
 
