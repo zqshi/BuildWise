@@ -264,12 +264,33 @@ function looksLikeHtmlDocument(text: string) {
   return (blockHtmlTags?.length ?? 0) >= 3;
 }
 
+function looksLikeMarkdownText(text: string) {
+  return (
+    /(^|\n)\s*#{1,6}\s+\S/.test(text) ||
+    /(^|\n)\s*(?:[-*]|\d+[.)])\s+\S/.test(text) ||
+    /(^|\n)\s*```/.test(text) ||
+    /(^|\n)\s*\|.+\|\s*$/.test(text) ||
+    /(^|\n)\s*\d+(?:\.\d+){1,3}\s+\S/.test(text)
+  );
+}
+
+function isWrappedMarkdownHtml(text: string) {
+  if (!looksLikeHtmlDocument(text)) {
+    return false;
+  }
+  const plainText = stripRichTextToPlainText(text);
+  if (!plainText) {
+    return false;
+  }
+  return looksLikeMarkdownText(plainText);
+}
+
 export function detectDocumentFormat(value: string) {
   const text = extractArtifactDocumentContent(value).trim();
   if (!text) {
     return "markdown" as const;
   }
-  if (looksLikeHtmlDocument(text)) {
+  if (looksLikeHtmlDocument(text) && !isWrappedMarkdownHtml(text)) {
     return "html" as const;
   }
   return "markdown" as const;

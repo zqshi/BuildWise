@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   buildIterationChatDisplayItems,
+  hasEquivalentArtifactReferenceMessage,
   hasAssistantImpactAssessment,
   normalizeUserChatInput,
   parseArtifactReferenceMessage
@@ -59,6 +60,43 @@ test("buildIterationChatDisplayItems drops user-authored artifact reference echo
   assert.equal(items.length, 1);
   assert.equal(items[0]?.leadMessage.id, 1);
   assert.equal(items[0]?.cardMessage?.id, 1);
+});
+
+test("buildIterationChatDisplayItems collapses duplicated adjacent artifact cards", () => {
+  const duplicatedCard = ["【交付物引用】首版需求分析报告", "摘要：覆盖目标用户与核心场景", "关注点：analysis-report", "请查看交付物并确认。"].join("\n");
+  const items = buildIterationChatDisplayItems([
+    {
+      id: 1,
+      iterationId: 1,
+      role: "assistant",
+      content: "我已生成首版需求分析报告，请先确认关键判断。",
+      createdAt: "2026-03-24T19:20:00.000Z"
+    },
+    {
+      id: 2,
+      iterationId: 1,
+      role: "assistant",
+      content: duplicatedCard,
+      createdAt: "2026-03-24T19:20:01.000Z"
+    },
+    {
+      id: 3,
+      iterationId: 1,
+      role: "assistant",
+      content: duplicatedCard,
+      createdAt: "2026-03-24T19:20:02.000Z"
+    }
+  ] as never);
+
+  assert.equal(items.length, 1);
+  assert.equal(items[0]?.textMessage?.id, 1);
+  assert.equal(items[0]?.cardMessage?.id, 3);
+});
+
+test("hasEquivalentArtifactReferenceMessage matches cards with identical payload", () => {
+  const first = ["【交付物引用】设计规范", "摘要：覆盖布局与状态规则", "关注点：design-spec；responsive", "请查看交付物并确认。"].join("\n");
+  const second = ["【交付物引用】设计规范", "摘要：覆盖布局与状态规则", "关注点：design-spec；responsive", "请基于该交付物继续推进下一步。"].join("\n");
+  assert.equal(hasEquivalentArtifactReferenceMessage(first, second), true);
 });
 
 test("normalizeUserChatInput rewrites artifact reference cards into plain follow-up prompts", () => {

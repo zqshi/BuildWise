@@ -47,6 +47,19 @@ test("detectDocumentFormat distinguishes html from markdown text", () => {
   assert.equal(detectDocumentFormat("# 标题\n\n- 列表"), "markdown");
 });
 
+test("detectDocumentFormat treats html-wrapped markdown artifact as markdown", () => {
+  const wrappedMarkdown = [
+    "<p># 技术架构说明<br />## 1. 系统概述<br />- 前端静态 Web 应用<br />- 后端调用第三方大语言模型 API</p>",
+    "<p>## 2. 架构总览<br />```text<br />| 用户浏览器 |<br />```</p>"
+  ].join("");
+
+  assert.equal(detectDocumentFormat(wrappedMarkdown), "markdown");
+  assert.equal(
+    stripRichTextToPlainText(wrappedMarkdown),
+    "# 技术架构说明\n## 1. 系统概述\n- 前端静态 Web 应用\n- 后端调用第三方大语言模型 API\n\n## 2. 架构总览\n```text\n| 用户浏览器 |\n```"
+  );
+});
+
 test("extractArtifactDocumentContent unwraps structured agent payloads", () => {
   const content = extractArtifactDocumentContent(
     JSON.stringify({
