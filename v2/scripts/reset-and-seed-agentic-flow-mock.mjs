@@ -3,6 +3,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildAgenticFlowContinuousModelingStore } from "./seed/agenticFlowModelingFixtures.mjs";
 
 const now = Date.now();
 const isoHoursAgo = (hoursAgo = 0) => new Date(now - hoursAgo * 60 * 60 * 1000).toISOString();
@@ -1123,10 +1124,13 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const backendDir = resolve(scriptDir, "..", "backend");
 const outputPath = resolve(backendDir, "data.json");
 const runtimeOutputPath = resolve(backendDir, "data.runtime.json");
+const continuousModelingOutputPath = resolve(backendDir, "continuous-modeling.runtime.json");
 const payload = `${JSON.stringify(data, null, 2)}\n`;
+const continuousModelingPayload = `${JSON.stringify(buildAgenticFlowContinuousModelingStore(time), null, 2)}\n`;
 
 writeFileSync(outputPath, payload, "utf-8");
 writeFileSync(runtimeOutputPath, payload, "utf-8");
+writeFileSync(continuousModelingOutputPath, continuousModelingPayload, "utf-8");
 
 console.log(
   JSON.stringify(
@@ -1134,6 +1138,7 @@ console.log(
       ok: true,
       outputPath,
       runtimeOutputPath,
+      continuousModelingOutputPath,
       projects: data.projects.length,
       iterations: data.iterations.length,
       messages: data.messages.length,

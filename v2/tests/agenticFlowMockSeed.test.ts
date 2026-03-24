@@ -9,10 +9,12 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const v2Dir = resolve(testDir, "..");
 const scriptPath = resolve(v2Dir, "scripts", "reset-and-seed-agentic-flow-mock.mjs");
 const dataPath = resolve(v2Dir, "backend", "data.json");
+const continuousModelingPath = resolve(v2Dir, "backend", "continuous-modeling.runtime.json");
 
 test("agentic flow seed aligns V1 and V1.1 with business-script contract", () => {
   execFileSync("node", [scriptPath], { cwd: v2Dir, stdio: "pipe" });
   const data = JSON.parse(readFileSync(dataPath, "utf-8")) as Record<string, any>;
+  const continuousModeling = JSON.parse(readFileSync(continuousModelingPath, "utf-8")) as Record<string, any>;
 
   assert.equal(Array.isArray(data.projects), true);
   assert.equal(Array.isArray(data.iterations), true);
@@ -20,6 +22,7 @@ test("agentic flow seed aligns V1 and V1.1 with business-script contract", () =>
   assert.equal(Array.isArray(data.snapshots), true);
   assert.equal(Array.isArray(data.transitions), true);
   assert.equal(Array.isArray(data.mockContracts), true);
+  assert.equal(Array.isArray(continuousModeling.snapshots), true);
 
   const project = data.projects.find((item: any) => item.id === 1);
   assert.ok(project, "missing demo project");
@@ -191,4 +194,16 @@ test("agentic flow seed aligns V1 and V1.1 with business-script contract", () =>
   const skillsEvidence = data.policyExecutionLogs.flatMap((item: any) => item.evidence || []);
   assert.ok(skillsEvidence.some((text: string) => /skills=/.test(text)), "missing Agent+skills evidence");
   assert.equal(skillsEvidence.some((text: string) => /skill-creator|flow_route/.test(text)), false);
+
+  const v1Model = continuousModeling.snapshots.find((item: any) => item.id === "snapshot-1-1-published");
+  const v11Model = continuousModeling.snapshots.find((item: any) => item.id === "snapshot-1-2-candidate");
+  assert.ok(v1Model, "missing v1 modeling snapshot");
+  assert.ok(v11Model, "missing v1.1 modeling snapshot");
+  assert.ok(v1Model.entities.some((item: any) => item.businessName === "线索"), "missing lead entity");
+  assert.ok(v1Model.entities.some((item: any) => item.businessName === "跟进记录"), "missing followup entity");
+  assert.ok(v1Model.relations.some((item: any) => /跟进历史/.test(String(item.businessMeaning))), "missing followup relation narrative");
+  assert.ok(v1Model.rules.some((item: any) => String(item.name).includes("状态推进前必须补充跟进记录")), "missing core business rule");
+  assert.ok(v11Model.entities.some((item: any) => item.businessName === "线索导出任务"), "missing export job entity");
+  assert.ok(v11Model.rules.some((item: any) => String(item.statement).includes("不能阻塞线索录入")), "missing export isolation rule");
+  assert.ok(v11Model.reviewTasks.some((item: any) => String(item.title).includes("导出字段边界")), "missing export review task");
 });
