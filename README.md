@@ -11,7 +11,7 @@ BuildWise 是一个面向产品经理、业务负责人、技术负责人和 QA 
 - 当前版本能不能发，凭什么发，谁来承担判断依据？
 - 做过一轮又一轮之后，团队有没有把业务知识沉淀下来，还是又回到了从头理解？
 
-![BuildWise 官网首屏](./v2/stitch/buildwise_1/screen.png)
+![BuildWise 官网首屏](./v2/docs/images/homepage-check.png)
 
 ## 一句话理解
 
@@ -37,15 +37,15 @@ BuildWise 把“业务意图”编译成“可执行的软件交付流程”，�
 
 ### 1. 项目与交付全景
 
-![BuildWise 官网首屏](./v2/stitch/buildwise_1/screen.png)
+![BuildWise 官网首屏](./v2/docs/images/homepage-check.png)
 
 ### 2. 需求到测试与发布决策
 
-![BuildWise 官网首屏](./v2/stitch/buildwise_1/screen.png)
+![BuildWise 官网首屏](./v2/docs/images/homepage-check.png)
 
 ### 3. 从组件到逻辑的可视化编辑
 
-![BuildWise 官网首屏](./v2/stitch/buildwise_1/screen.png)
+![BuildWise 官网首屏](./v2/docs/images/homepage-check.png)
 
 ## 为什么它值得看
 
