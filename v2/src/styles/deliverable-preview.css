@@ -294,6 +294,105 @@
 .artifact-code-editor-textarea {
   caret-color:#60a5fa;
 }
+.artifact-code-structure-layout {
+  display:grid;
+  grid-template-columns:minmax(220px, 280px) minmax(0,1fr);
+  gap:12px;
+  min-height:0;
+}
+.artifact-code-file-list {
+  display:grid;
+  align-content:start;
+  gap:8px;
+  padding:12px;
+  border:1px solid var(--border-default);
+  border-radius:12px;
+  background:var(--bg-canvas);
+  max-height:70vh;
+  overflow:auto;
+}
+.artifact-code-overview {
+  display:grid;
+  gap:6px;
+  padding:10px;
+  border:1px dashed var(--border-default);
+  border-radius:10px;
+  background:var(--bg-surface);
+}
+.artifact-code-overview p {
+  margin:0;
+  font-size:var(--text-xs);
+  color:var(--text-secondary);
+}
+.artifact-code-file-item {
+  display:grid;
+  gap:4px;
+  text-align:left;
+  padding:10px 12px;
+  border:1px solid var(--border-default);
+  border-radius:10px;
+  background:var(--bg-surface);
+  color:inherit;
+}
+.artifact-code-file-item strong {
+  font-size:var(--text-xs);
+  color:var(--text-primary);
+  word-break:break-all;
+}
+.artifact-code-file-item span {
+  font-size:var(--text-2xs);
+  color:var(--text-muted);
+}
+.artifact-code-file-item.is-active {
+  border-color:var(--border-brand);
+  background:color-mix(in srgb,var(--brand-50) 62%, var(--bg-surface));
+}
+.artifact-code-editor-pane {
+  display:grid;
+  gap:10px;
+  min-width:0;
+}
+.artifact-code-file-header {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid var(--border-default);
+  border-radius:12px;
+  background:var(--bg-canvas);
+}
+.artifact-code-file-header strong {
+  font-size:var(--text-sm);
+  color:var(--text-primary);
+  word-break:break-all;
+}
+.artifact-code-file-header p {
+  margin:4px 0 0;
+  font-size:var(--text-xs);
+  color:var(--text-secondary);
+}
+.artifact-code-file-chip {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:48px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:var(--bg-surface);
+  border:1px solid var(--border-default);
+  font-size:var(--text-2xs);
+  color:var(--text-muted);
+  text-transform:uppercase;
+}
+@media (max-width: 960px) {
+  .artifact-code-structure-layout {
+    grid-template-columns:minmax(0,1fr);
+  }
+  .artifact-code-file-list {
+    max-height:none;
+  }
+}
 .artifact-prototype-toolbar {
   display:flex;
   align-items:center;

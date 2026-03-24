@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -23,6 +23,7 @@ import {
   stripRichTextToPlainText,
   summarizeArtifactText
 } from "./artifactEditorModel";
+import { extractArtifactCodeStructure } from "./artifactCodeModel";
 
 type ArtifactTextEditorProps = {
   title: string;
@@ -170,12 +171,34 @@ export function ArtifactTextEditor({ title, value, profile: _profile = "generic"
 }
 
 export function ArtifactCodeViewer({ title, value, actions }: ArtifactCodeViewerProps) {
-  const language = useMemo(() => detectCodeLanguage(title, value), [title, value]);
-  const stats = useMemo(() => summarizeArtifactText(value), [value]);
-  const lineNumbers = useMemo(() => buildEditorLineNumbers(value), [value]);
+  const structure = useMemo(() => extractArtifactCodeStructure(title, value), [title, value]);
+  const [selectedFilePath, setSelectedFilePath] = useState("");
+  const selectedFile = useMemo(() => {
+    if (!structure.files.length) {
+      return null;
+    }
+    return structure.files.find((file) => file.path === selectedFilePath) || structure.files[0] || null;
+  }, [selectedFilePath, structure.files]);
+  const language = useMemo(
+    () => (selectedFile ? selectedFile.language || detectCodeLanguage(selectedFile.path, selectedFile.code) : detectCodeLanguage(title, value)),
+    [selectedFile, title, value]
+  );
+  const displayedCode = selectedFile?.code || value;
+  const stats = useMemo(() => summarizeArtifactText(displayedCode), [displayedCode]);
+  const lineNumbers = useMemo(() => buildEditorLineNumbers(displayedCode), [displayedCode]);
   const gutterRef = useRef<HTMLDivElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const grammar = Prism.languages[language] || Prism.languages.markup;
+
+  useEffect(() => {
+    if (!selectedFilePath && structure.files[0]?.path) {
+      setSelectedFilePath(structure.files[0].path);
+      return;
+    }
+    if (selectedFilePath && !structure.files.some((file) => file.path === selectedFilePath)) {
+      setSelectedFilePath(structure.files[0]?.path || "");
+    }
+  }, [selectedFilePath, structure.files]);
 
   useEffect(() => {
     const surface = surfaceRef.current;
@@ -200,37 +223,71 @@ export function ArtifactCodeViewer({ title, value, actions }: ArtifactCodeViewer
       <div className="artifact-editor-toolbar">
         <div className="artifact-editor-toolbar-block">
           <strong>{title}</strong>
-          <span>代码编辑器视图</span>
+          <span>{structure.files.length > 1 ? "结构化代码视图" : "代码编辑器视图"}</span>
         </div>
         <div className="artifact-editor-toolbar-block is-meta">
           <span>{language}</span>
+          <span>{structure.files.length} 文件</span>
           <span>{stats.lines} 行</span>
           <span>{stats.chars} 字符</span>
         </div>
         {actions ? <div className="artifact-editor-toolbar-actions">{actions}</div> : null}
       </div>
-      <div className="artifact-code-editor-shell">
-        <div ref={gutterRef} className="artifact-editor-gutter" aria-hidden="true">
-          {lineNumbers.map((line) => (
-            <span key={`line-${line}`}>{line}</span>
+      <div className="artifact-code-structure-layout">
+        <aside className="artifact-code-file-list" aria-label="代码文件列表">
+          {structure.overview.length > 0 ? (
+            <div className="artifact-code-overview">
+              {structure.overview.slice(0, 4).map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          ) : null}
+          {structure.files.map((file) => (
+            <button
+              key={file.path}
+              type="button"
+              className={`artifact-code-file-item ${selectedFile?.path === file.path ? "is-active" : ""}`}
+              onClick={() => setSelectedFilePath(file.path)}
+            >
+              <strong>{file.path}</strong>
+              <span>{file.summary || `${file.language || "text"} 文件`}</span>
+            </button>
           ))}
-        </div>
-        <div ref={surfaceRef} className="artifact-code-editor-surface">
-          <Editor
-            value={value}
-            onValueChange={() => undefined}
-            readOnly
-            padding={16}
-            textareaId="artifact-code-editor"
-            textareaClassName="artifact-code-editor-textarea"
-            preClassName={`artifact-code-editor-pre language-${language}`}
-            highlight={(code) => Prism.highlight(code, grammar, language)}
-            style={{
-              fontFamily: "ui-monospace, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace",
-              fontSize: 13,
-              lineHeight: 1.6
-            }}
-          />
+        </aside>
+        <div className="artifact-code-editor-pane">
+          {selectedFile ? (
+            <div className="artifact-code-file-header">
+              <div>
+                <strong>{selectedFile.path}</strong>
+                {selectedFile.summary ? <p>{selectedFile.summary}</p> : null}
+              </div>
+              <span className="artifact-code-file-chip">{language}</span>
+            </div>
+          ) : null}
+          <div className="artifact-code-editor-shell">
+            <div ref={gutterRef} className="artifact-editor-gutter" aria-hidden="true">
+              {lineNumbers.map((line) => (
+                <span key={`line-${line}`}>{line}</span>
+              ))}
+            </div>
+            <div ref={surfaceRef} className="artifact-code-editor-surface">
+              <Editor
+                value={displayedCode}
+                onValueChange={() => undefined}
+                readOnly
+                padding={16}
+                textareaId="artifact-code-editor"
+                textareaClassName="artifact-code-editor-textarea"
+                preClassName={`artifact-code-editor-pre language-${language}`}
+                highlight={(code) => Prism.highlight(code, grammar, language)}
+                style={{
+                  fontFamily: "ui-monospace, SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace",
+                  fontSize: 13,
+                  lineHeight: 1.6
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
