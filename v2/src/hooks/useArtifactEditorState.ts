@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Iteration, ArtifactPreviewKind } from "../pages/projects/iterationWorkspacePanelTypes";
 import { extractArtifactPrototypeHtml } from "../pages/projects/artifactEditorModel";
 import { resolveArtifactPreviewKind, instrumentHtmlPreview } from "../pages/projects/iterationWorkspacePanelUtils";
@@ -57,8 +57,14 @@ export function useArtifactEditorState(
     setArtifactEditorMode("view");
   }, [selectedDrawerArtifact?.id, artifactEditorSource]);
 
+  const prevIterationIdRef = useRef(currentIteration?.id);
   useEffect(() => {
-    setAnalysisDrawerArtifactId(null);
+    const nextId = currentIteration?.id;
+    const prevId = prevIterationIdRef.current;
+    prevIterationIdRef.current = nextId;
+    if (nextId !== undefined && prevId !== undefined && nextId !== prevId) {
+      setAnalysisDrawerArtifactId(null);
+    }
   }, [currentIteration?.id]);
 
   return {

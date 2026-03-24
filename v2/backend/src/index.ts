@@ -14,6 +14,7 @@ import { JsonContinuousModelingRepository } from "./infrastructure/persistence/j
 import { JsonWorkspaceRepository } from "./infrastructure/persistence/jsonWorkspaceRepository";
 import { SqliteWorkspaceRepository } from "./infrastructure/persistence/sqliteWorkspaceRepository";
 import { loadRuntimeConfig } from "./infrastructure/runtime/runtimeConfig";
+import { resolveCorsOriginOption } from "./infrastructure/runtime/runtimeCors";
 import { registerRuntimeAuth } from "./infrastructure/runtime/runtimeAuth";
 import { registerRuntimeHooks } from "./infrastructure/runtime/runtimeHooks";
 import { registerGracefulShutdown } from "./infrastructure/runtime/runtimeShutdown";
@@ -32,6 +33,8 @@ import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevo
 import { JsonOpenclawGlobalRepository } from "./infrastructure/persistence/jsonOpenclawGlobalRepository";
 import { OpenclawGlobalService } from "./application/openclawGlobal/openclawGlobalService";
 import { registerOpenclawGlobalRoutes } from "./interfaces/http/routes/openclawGlobalRoutes";
+import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from "./application/workspace/projectWorkspaceKnowledgeService";
+import type { WorkspaceRepository } from "./domain/workspace/repository";
 
 function loadEnvFileIntoProcessEnv() {
   const log = createLogger("env-load");
@@ -68,6 +71,19 @@ loadEnvFileIntoProcessEnv();
 const env =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 
+async function refreshLlmRuntimeStatus(runtime: RuntimeState) {
+  const log = createLogger("bootstrap");
+  const llmStatus = await probeLlmRuntimeStatus(env);
+  runtime.setLlmStatus(llmStatus);
+  log.info("llm probe completed", {
+    configured: llmStatus.configured,
+    reachable: llmStatus.reachable,
+    base: llmStatus.baseUrl || "n/a",
+    model: llmStatus.model,
+    error: llmStatus.error || "none"
+  });
+}
+
 async function bootstrap() {
   const log = createLogger("bootstrap");
   const backendRoot = join(__dirname, "..");
@@ -98,7 +114,7 @@ async function bootstrap() {
     crossOriginEmbedderPolicy: false
   });
   // CORS must be registered BEFORE auth so that 401 responses also carry CORS headers
-  await app.register(cors, { origin: config.corsOrigins, credentials: true });
+  await app.register(cors, { origin: resolveCorsOriginOption(config.corsOrigins), credentials: true });
   // Global rate limit
   await app.register(rateLimit, {
     max: config.rateLimitMax,
@@ -115,11 +131,8 @@ async function bootstrap() {
   }));
 
   const agentRunner = createAgentRunnerFromEnv(env);
-  const llmStatus = await probeLlmRuntimeStatus(env);
-  runtime.setLlmStatus(llmStatus);
   const dependencyStatus = await probeRuntimeDependencies(config);
   runtime.setDependencyStatus(dependencyStatus);
-  log.info("llm probe completed", { configured: llmStatus.configured, reachable: llmStatus.reachable, base: llmStatus.baseUrl || "n/a", model: llmStatus.model, error: llmStatus.error || "none" });
   log.info("dependency probe completed", { storage: dependencyStatus.storage.healthy, required: config.dependencyRequired });
   const workspaceRepo =
     config.storageBackend === "sqlite"
@@ -171,6 +184,7 @@ async function bootstrap() {
         analysisReport: report
       });
       workspaceRepo.updateProject({ ...project, knowledgeBase: ontologyResult.updatedKb });
+      syncProjectWorkspaceKnowledge(workspaceRepo, projectId);
     }
 
     // ContinuousModeling — 通过 bridge 生成候选快照
@@ -210,6 +224,32 @@ async function bootstrap() {
 
   await app.listen({ port: config.port, host: config.host });
   log.info("server started", { host: config.host, port: config.port });
+  syncAllProjectWorkspaceKnowledge(workspaceRepo);
+  void refreshLlmRuntimeStatus(runtime).catch((error) => {
+    log.warn("llm probe failed after startup", { error: error instanceof Error ? error.message : String(error) });
+  });
+  scheduleDailyProjectWorkspaceRefresh(workspaceRepo);
+}
+
+function scheduleDailyProjectWorkspaceRefresh(workspaceRepo: WorkspaceRepository) {
+  const log = createLogger("workspace-memory");
+  const scheduleNext = () => {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(24, 0, 0, 0);
+    const delayMs = Math.max(60_000, next.getTime() - now.getTime());
+    setTimeout(() => {
+      try {
+        const results = syncAllProjectWorkspaceKnowledge(workspaceRepo);
+        log.info("daily project workspace memory refresh completed", { projects: results.length });
+      } catch (error) {
+        log.error("daily project workspace memory refresh failed", { error: error instanceof Error ? error.message : String(error) });
+      } finally {
+        scheduleNext();
+      }
+    }, delayMs).unref();
+  };
+  scheduleNext();
 }
 
 process.on("unhandledRejection", (reason) => {

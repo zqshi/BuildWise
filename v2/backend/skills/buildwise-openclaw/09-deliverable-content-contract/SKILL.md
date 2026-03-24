@@ -184,6 +184,14 @@ Reject as incomplete if next iteration cannot inherit from it.
 - `release`: `release-review`
 - `archive`: `delivery-package`
 
+## SOP
+1. Receive current stage deliverable and iteration context.
+2. Match deliverable type to required content checklist from Stage Mapping.
+3. Evaluate each required section for presence and operational completeness.
+4. If iteration is `follow_up`, verify inherited/unchanged scope is explicit.
+5. Mark deliverable as complete, incomplete, or `need_user_input` with missing decision list.
+6. Return enriched contract JSON with content completeness notes, questions, risks, next actions, and evidence.
+
 ## Hard Rules
 - Never emit placeholder prose to satisfy artifact presence.
 - Never omit `unchanged` scope for follow-up iterations.

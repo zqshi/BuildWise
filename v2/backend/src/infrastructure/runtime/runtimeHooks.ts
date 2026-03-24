@@ -2,11 +2,17 @@ import type { FastifyInstance } from "fastify";
 import type { RuntimeState } from "./runtimeState";
 import type { RuntimeConfig } from "./runtimeConfig";
 import { createLogger } from "./logger";
+import { applyCorsResponseHeaders } from "./runtimeCors";
 
 export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, config: RuntimeConfig) {
   const log = createLogger("http");
   app.addHook("onRequest", async (request, reply) => {
     state.onRequest(request, reply);
+  });
+
+  app.addHook("onSend", async (request, reply, payload) => {
+    applyCorsResponseHeaders(reply, request.headers.origin, config.corsOrigins);
+    return payload;
   });
 
   app.addHook("onResponse", async (request, reply) => {

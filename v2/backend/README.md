@@ -52,6 +52,8 @@ npm run e2e:agent-flow
 `v2/backend/docs/production-readiness.md`
 投产运维 SOP 见：
 `v2/backend/docs/production-operations.md`
+发布候选收口清单见：
+`v2/backend/docs/release-candidate-checklist.md`
 仓库双轨策略设计见：
 `v2/backend/docs/repository-mode-design.md`
 
@@ -59,7 +61,7 @@ npm run e2e:agent-flow
 
 - `GET /health`
 - `GET /ready`
-- `GET /api/status`
+- `GET /api/v1/status`
 - `GET /api/ops/runtime`
 - `GET /api/projects`
 - `POST /api/projects`
@@ -69,6 +71,7 @@ npm run e2e:agent-flow
 - `POST /api/projects/:id/repository/mode`
 - `POST /api/projects/:id/repository/provision`
 - `POST /api/projects/:id/repository/scaffold`
+- `POST /api/projects/:id/workspace/bind`
 - `POST /api/iterations/:id/publish`
 - `GET /api/projects/:id/iterations`
 - `POST /api/projects/:id/iterations`
@@ -118,8 +121,11 @@ npm run e2e:agent-flow
 - `RATE_LIMIT_WINDOW_MS`：限流窗口毫秒数（默认 `60000`）
 - `RATE_LIMIT_MAX`：窗口内每 IP 请求上限（默认 `2000`）
 - `SHUTDOWN_TIMEOUT_MS`：优雅停机超时毫秒（默认 `10000`）
-- `AUTH_MODE`：`off | token`（生产建议 `token`）
+- `AUTH_MODE`：`off | token | jwt`（生产建议 `jwt`）
 - `AUTH_TOKENS_JSON`：token 到角色映射 JSON（`AUTH_MODE=token` 时必填）
+- `JWT_SECRET`：`AUTH_MODE=jwt` 时必填，长度至少 32
+- `JWT_ACCESS_TTL_SEC`：JWT access token 有效期，默认 `7200`
+- `JWT_REFRESH_TTL_SEC`：JWT refresh token 有效期，默认 `604800`
 - `AUTH_PUBLIC_PATH_PREFIXES`：免鉴权路径前缀，逗号分隔
 - `STORAGE_BACKEND`：`json | sqlite`（生产建议 `sqlite`）
 - `WORKSPACE_DB_FILE`：SQLite 工作区数据库文件路径
@@ -137,13 +143,19 @@ npm run e2e:agent-flow
 - `/api/iterations/:id/analysis` 已禁用 fallback mock 路径。
 - 若未配置可用 LLM（例如缺少 `LLM_API_BASE`），该接口将返回 `503`。
 - 服务启动会探测一次 LLM 连通性，`/api/status` 与 `/api/ops/runtime` 的 `runtime.llm` 字段可查看 `configured/reachable/error`。
+- 服务启动会异步探测一次 LLM 连通性，`/api/v1/status` 与 `/api/ops/runtime` 的 `runtime.llm` 字段可查看 `configured/reachable/error`。
 - `runtime.llmRequired` 可查看当前是否启用“LLM 强依赖就绪门禁”。
 - `runtime.dependencies` 与 `runtime.dependencyRequired` 可查看“模型文件/存储”依赖探针状态与是否启用强依赖门禁。
+- `/health` 只表示进程是否存活，只有优雅停机期间才返回 `503`。
+- `/ready` 表示是否可接流量，会综合依赖探针和 LLM 就绪状态。
 - 仓库模式支持：
   - `external_git`：外部 Git 为主（生产推荐）
   - `managed_local`：本地托管仓库（PoC/离线）
   - `hybrid`：本地托管 + 远端绑定（推荐过渡方案）
 - 默认治理策略：`production` 要求远端仓库可配置（`requireRemoteForProduction=true`），`staging` 默认不强制远端。
+- 项目级 OpenClaw binding 要求每个项目独立 `workspacePath`。
+- 项目知识资产默认写入 `workspacePath/.buildwise/`，该目录应保留读写权限、纳入备份、排除 Git 管理。
+- 同一路径不能绑定多个项目，冲突时 `POST /api/projects/:id/workspace/bind` 返回 `409 workspace_path_already_bound`。
 
 ## 投产补齐能力
 
@@ -153,6 +165,18 @@ npm run e2e:agent-flow
 - 健康与就绪探针分离：`/health` + `/ready`。
 - 运行时指标快照：`/api/ops/runtime`。
 - 优雅停机：处理 `SIGINT/SIGTERM`，停止接入新请求并等待关闭。
+
+## 发布前最小清单
+
+建议发布前至少确认：
+
+1. `npm run verify:prod-readiness` 通过。
+2. `AUTH_MODE=jwt` 且 `JWT_SECRET` 已替换为生产密钥。
+3. `CORS_ORIGINS` 已显式配置，不使用开发默认值。
+4. `STORAGE_BACKEND=sqlite`，不要以 `json` 作为生产主存储。
+5. 每个项目的 `workspacePath` 独立且可写。
+6. `workspacePath/.buildwise/` 已纳入备份策略。
+7. 探针配置区分 liveness(`/health`) 与 readiness(`/ready`)。
 
 ## 建仓与追溯示例
 

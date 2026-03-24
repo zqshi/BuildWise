@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Project } from "../../domain/workspace/projectTypes";
 import { buildOpenclawSkillSelectionContext } from "./workspaceOpenclawSkillsBridge";
+import { searchProjectWorkspaceKnowledge } from "./projectWorkspaceKnowledgeService";
 
 type OpenclawRuntimeConfig = {
   openclaw?: {
@@ -257,6 +258,17 @@ function summarizeProjectSkillSelection(project: Project | null, userMessage: st
   return ["[skills selection]", buildOpenclawSkillSelectionContext({ project, userMessage })].join("\n");
 }
 
+function summarizeProjectKnowledgeRetrieval(repo: WorkspaceRepository, projectId: number, userMessage: string) {
+  const hits = searchProjectWorkspaceKnowledge(repo, projectId, userMessage, 3);
+  if (hits.length === 0) {
+    return "";
+  }
+  return [
+    "[项目工作区知识检索]",
+    ...hits.map((item, index) => `(${index + 1}) ${item.title} [score=${item.score}]\n${item.content}`)
+  ].join("\n\n");
+}
+
 function composeOpenclawPrompt(params: {
   personaPrompt: string;
   skillsChainBrief: string;
@@ -317,7 +329,11 @@ export function openclawDirectChatOp(
     skillsChainBrief,
     userMessage: message,
     workspacePath: binding.workspacePath,
-    contextSections: [summarizeProjectKnowledge(project), summarizeProjectSkillSelection(project, message)]
+    contextSections: [
+      summarizeProjectKnowledge(project),
+      summarizeProjectSkillSelection(project, message),
+      summarizeProjectKnowledgeRetrieval(repo, input.projectId, message)
+    ]
   });
 
   const reply = runOpenclawCommand(runtimePaths, [openclawEntry, "--profile", profile, "agent", "--local", "--agent", agentId, "-m", prompt]);

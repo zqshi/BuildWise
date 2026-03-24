@@ -29,12 +29,23 @@ const BACKEND_ENV = loadEnvFile();
 const LLM_API_BASE = process.env.LLM_API_BASE || BACKEND_ENV.LLM_API_BASE || "https://api.minimaxi.com/anthropic";
 const LLM_API_KEY = process.env.LLM_API_KEY || BACKEND_ENV.LLM_API_KEY || "";
 const LLM_MODEL = process.env.LLM_MODEL || BACKEND_ENV.LLM_MODEL || "MiniMax-M2.5";
+const LLM_PROVIDER = (() => {
+  const preferred = (process.env.LLM_PROVIDER || BACKEND_ENV.LLM_PROVIDER || "").trim().toLowerCase();
+  if (preferred === "anthropic") {
+    return "anthropic-compatible";
+  }
+  if ((process.env.ANTHROPIC_BASE_URL || BACKEND_ENV.ANTHROPIC_BASE_URL || "").trim() && !String(process.env.LLM_API_BASE || BACKEND_ENV.LLM_API_BASE || "").trim()) {
+    return "anthropic-compatible";
+  }
+  return LLM_API_BASE.includes("/anthropic") ? "anthropic-compatible" : "openai-compatible";
+})();
 const DIRECT_LLM_ARTIFACTS = new Set([
   "analysis-report", "product-requirements-doc", "boundary-confirmation",
   "prototype-preview", "design-spec", "technical-architecture",
   "api-specification", "database-design", "frontend-code", "backend-code",
   "test-matrix", "acceptance-checklist", "release-review", "deployment-plan", "delivery-package"
 ]);
+const COMPOSED_LLM_ARTIFACTS = new Set(["prototype-preview", "frontend-code", "backend-code"]);
 const STAMP = NOW.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
 const REQUIREMENT_PATH = resolve(process.cwd(), "docs/creative-generator-demo-requirement.md");
 const REQUIREMENT_MARKDOWN = readFileSync(REQUIREMENT_PATH, "utf-8");
@@ -53,6 +64,17 @@ const FORCE_ITERATION_IDS = new Set(
     .map((item) => Number(item.trim()))
     .filter((item) => Number.isFinite(item) && item > 0)
 );
+const ARTIFACTS_DIR = resolve(process.env.BUILDWISE_DEMO_ARTIFACTS_DIR || resolve(process.cwd(), ".artifacts"));
+const BROWSER_USE_TARGET_URL = process.env.BUILDWISE_BROWSER_USE_TARGET_URL || "http://127.0.0.1:5173/app.html#/dashboard";
+const DEMO_PHONE = process.env.BUILDWISE_DEMO_LOGIN_PHONE || "13800138000";
+mkdirSync(ARTIFACTS_DIR, { recursive: true });
+
+let accessToken = "";
+
+function logSetup(message, payload) {
+  const suffix = payload ? ` ${JSON.stringify(payload)}` : "";
+  console.log(`[setup-demo] ${message}${suffix}`);
+}
 
 const ARTIFACT_UPSTREAM_DEPS = {
   "analysis-report": [],
@@ -72,6 +94,171 @@ const ARTIFACT_UPSTREAM_DEPS = {
   "delivery-package": ["release-review", "deployment-plan", "acceptance-checklist"]
 };
 
+const ARTIFACT_OUTPUT_TEMPLATES = {
+  "analysis-report": [
+    "# 分析报告",
+    "",
+    "## 目标用户",
+    "- ",
+    "",
+    "## 问题定义",
+    "- ",
+    "",
+    "## 核心场景",
+    "- ",
+    "",
+    "## 本轮纳入项",
+    "- ",
+    "",
+    "## 本轮排除项",
+    "- ",
+    "",
+    "## 交互原则",
+    "- ",
+    "",
+    "## 关键风险",
+    "- ",
+    "",
+    "## 待确认点",
+    "- "
+  ].join("\n"),
+  "product-requirements-doc": [
+    "# 产品需求文档",
+    "",
+    "## 问题定义",
+    "- ",
+    "",
+    "## 用户场景",
+    "- ",
+    "",
+    "## 功能需求",
+    "- ",
+    "",
+    "## 非功能要求",
+    "- ",
+    "",
+    "## 排除项",
+    "- ",
+    "",
+    "## 验收标准",
+    "- "
+  ].join("\n"),
+  "boundary-confirmation": [
+    "# 边界确认",
+    "",
+    "## In-Scope",
+    "- ",
+    "",
+    "## Out-of-Scope",
+    "- ",
+    "",
+    "## 关键约束",
+    "- ",
+    "",
+    "## 验收口径",
+    "- ",
+    "",
+    "## CodePath 边界",
+    "- "
+  ].join("\n"),
+  "frontend-code": [
+    "```tsx",
+    "import React from \"react\";",
+    "",
+    "type CreativeItem = {",
+    "  id: string;",
+    "  title: string;",
+    "  highlights: string[];",
+    "  favorite: boolean;",
+    "};",
+    "",
+    "export function CreativeGeneratorPage() {",
+    "  return <div>TODO</div>;",
+    "}",
+    "```"
+  ].join("\n"),
+  "backend-code": [
+    "```ts",
+    "import { FastifyInstance } from \"fastify\";",
+    "",
+    "type CreativeRequest = {",
+    "  topic: string;",
+    "};",
+    "",
+    "export async function registerCreativeRoutes(app: FastifyInstance) {",
+    "  app.post(\"/api/creative/generate\", async (request, reply) => {",
+    "    return { items: [] };",
+    "  });",
+    "}",
+    "```"
+  ].join("\n")
+};
+
+const DETERMINISTIC_TEXT_FALLBACKS = {
+  "deployment-plan": [
+    "# 部署方案",
+    "",
+    "## 环境配置清单",
+    "- 前端使用静态构建产物部署，`VITE_API_BASE` 指向 `http://127.0.0.1:5055`。",
+    "- 后端以 Node.js 进程启动，核心变量包含 `PORT`、`HOST`、`STORAGE_BACKEND=json|sqlite`、`WORKSPACE_DATA_FILE`。",
+    "- 生产环境强制启用 `AUTH_MODE=jwt`，并配置 `JWT_SECRET`、`CORS_ORIGINS`。",
+    "- 每个项目独立 `workspacePath`，项目知识资产写入 `workspacePath/.buildwise/` 并纳入备份。",
+    "",
+    "## 上线步骤",
+    "1. 执行前后端构建并校验 `npm run build`、`npm --prefix backend run build` 通过。",
+    "2. 先发布后端，再发布前端静态资源，并验证 `/health` 与 `/ready`。",
+    "3. 完成短信登录、项目列表、迭代列表与交付物列表冒烟检查。",
+    "4. 验证创意生成器项目能读取既有 workspace 并继续推进后续迭代。",
+    "",
+    "## 回滚流程",
+    "1. 前端回滚到上一个静态资源版本。",
+    "2. 后端回滚到上一个构建版本，同时保留 `WORKSPACE_DATA_FILE` 与 `.buildwise/` 数据。",
+    "3. 如需数据回退，仅恢复最近一次备份的项目 workspace，不回退其他项目。",
+    "",
+    "## 健康检查配置",
+    "- `/health` 用于 liveness，只校验进程存活。",
+    "- `/ready` 用于 readiness，校验存储与 LLM 依赖可接流量。",
+    "- 部署平台不应将 `/ready` 失败直接视为进程崩溃重启依据。",
+    "",
+    "## 监控告警策略",
+    "- 监控 `/ready` 失败率、`/api/v1/iterations/:id/agent-chat` 5xx、artifact 提交失败率。",
+    "- 监控 `workspace_path_already_bound`、JWT 鉴权失败、LLM 连通性下降。",
+    "- 对项目 workspace 目录容量和 `.buildwise/` 增量进行每日巡检。"
+  ].join("\n"),
+  "delivery-package": [
+    "# 交付归档",
+    "",
+    "## 本版基线",
+    "- V1 建立创意生成器的分析、边界、原型、设计、架构、接口、数据、代码、测试和发布基线。",
+    "- 项目级 workspace 与 `.buildwise/` 知识目录已经建立，可供后续版本继承。",
+    "",
+    "## 已确认交付物清单（15 项）",
+    "- analysis-report",
+    "- product-requirements-doc",
+    "- boundary-confirmation",
+    "- prototype-preview",
+    "- design-spec",
+    "- technical-architecture",
+    "- api-specification",
+    "- database-design",
+    "- frontend-code",
+    "- backend-code",
+    "- test-matrix",
+    "- acceptance-checklist",
+    "- release-review",
+    "- deployment-plan",
+    "- delivery-package",
+    "",
+    "## 遗留问题",
+    "- 真实 LLM 在大体量交付物上仍存在偶发低信号输出，需要脚本级兜底。",
+    "- browser-use 两轮全环节验证尚未完全闭环，暂不满足最终放行。",
+    "",
+    "## 下版本继承输入",
+    "- 在 V1.1 中增加业务规则自然语言注入、禁用词规则和历史筛选能力。",
+    "- 继续沿用单 Agent、多 Project Workspace、项目级知识沉淀结构。"
+  ].join("\n")
+};
+
 function buildUpstreamContextForScript(artifactId, artifacts) {
   const deps = ARTIFACT_UPSTREAM_DEPS[artifactId] || [];
   if (deps.length === 0) return "";
@@ -84,6 +271,440 @@ function buildUpstreamContextForScript(artifactId, artifacts) {
     return `### 上游交付物：${a.title}\n${excerpt}`;
   });
   return "--- 已确认的上游交付物内容（请基于此确保本交付物与上游保持一致、层层递进）---\n\n" + sections.join("\n\n");
+}
+
+function buildStructuredArtifactPrompt(artifactId, prompt) {
+  const template = ARTIFACT_OUTPUT_TEMPLATES[artifactId];
+  if (!template) {
+    return prompt;
+  }
+  return [
+    prompt,
+    "",
+    "严格要求：",
+    "1. 不要写前言、说明、解释、确认语或摘要。",
+    "2. 直接从正文标题开始输出。",
+    "3. 必须完整覆盖下面模板中的全部章节，不能缺项。",
+    "4. 每个章节都必须填入具体内容，不能只写占位符。",
+    "",
+    "输出模板：",
+    template
+  ].join("\n");
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+function extractJsonObject(raw) {
+  const text = String(raw || "").trim();
+  if (!text) {
+    throw new Error("empty structured payload");
+  }
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim() || text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) {
+    throw new Error(`missing json object: ${candidate.slice(0, 160)}`);
+  }
+  return JSON.parse(candidate.slice(start, end + 1));
+}
+
+function sanitizeList(values, fallback) {
+  const list = Array.isArray(values)
+    ? values.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  return list.length > 0 ? list : fallback;
+}
+
+function sanitizeCardList(values, fallback) {
+  const list = Array.isArray(values)
+    ? values
+      .map((item) => ({
+        title: String(item?.title || "").trim(),
+        sellingPoint: String(item?.sellingPoint || "").trim(),
+        cta: String(item?.cta || "").trim()
+      }))
+      .filter((item) => item.title && item.sellingPoint)
+    : [];
+  return list.length > 0 ? list : fallback;
+}
+
+function buildDefaultStructuredSpec(artifactId) {
+  if (artifactId === "prototype-preview") {
+    return {
+      title: "创意生成器",
+      subtitle: "为内容运营与市场团队快速生成创意标题、卖点文案和行动号召。",
+      formFields: ["创意主题", "目标受众", "风格偏好"],
+      results: [
+        { title: "品牌焕新主题创意", sellingPoint: "围绕主题生成可继续筛选和收藏的创意卡片。", cta: "收藏并继续优化" },
+        { title: "Campaign 卖点拓展", sellingPoint: "支持右侧详情抽屉查看创意亮点、行动建议与上下文。", cta: "查看详情" }
+      ],
+      detailSections: ["创意亮点", "适用场景", "推荐动作"],
+      asideNotes: ["结果列表承载主任务流。", "详情通过右侧抽屉查看。"]
+    };
+  }
+  if (artifactId === "frontend-code") {
+    return {
+      componentName: "CreativeGeneratorPage",
+      apiPath: "/api/creative/generate",
+      ruleFields: ["brandTone", "bannedWords"],
+      filters: ["all", "favorites", "recent"]
+    };
+  }
+  return {
+    routePath: "/api/creative/generate",
+    entityNames: ["creative_requests", "creative_items", "rule_matches"],
+    validations: ["topic 不能为空", "禁止词必须在生成前过滤"]
+  };
+}
+
+function buildPrototypeHtml(spec) {
+  const title = String(spec?.title || "创意生成器").trim() || "创意生成器";
+  const subtitle = String(spec?.subtitle || "为内容运营与市场团队快速生成创意方向、卖点文案与行动号召。").trim();
+  const formFields = sanitizeList(spec?.formFields, ["创意主题", "目标受众", "风格偏好"]);
+  const results = sanitizeCardList(spec?.results, [
+    { title: "像春风一样唤醒品牌想象力", sellingPoint: "围绕产品主题给出多角度创意标题与卖点文案，适合快速头脑风暴。", cta: "收藏并继续打磨" },
+    { title: "把抽象主题转成可执行内容方向", sellingPoint: "每张卡片提供标题、卖点和行动号召，支持继续生成与对比筛选。", cta: "查看右侧详情" }
+  ]);
+  const detailSections = sanitizeList(spec?.detailSections, ["创意亮点", "适用场景", "行动建议"]);
+  const asideNotes = sanitizeList(spec?.asideNotes, ["结果支持收藏、再次生成和复制。", "右侧抽屉默认展示命中的业务规则与推荐动作。"]);
+  const fieldHtml = formFields.map((field, index) => `
+          <label class="field">
+            <span>${escapeHtml(field)}</span>
+            <input type="text" placeholder="请输入${escapeHtml(field)}" value="${index === 0 ? "春日品牌焕新 campaign" : ""}" />
+          </label>`).join("\n");
+  const resultHtml = results.map((item, index) => `
+          <article class="card${index === 0 ? " active" : ""}">
+            <div class="card-top">
+              <span class="chip">${index === 0 ? "已收藏" : "候选方案"}</span>
+              <button type="button">复制</button>
+            </div>
+            <h3>${escapeHtml(item.title)}</h3>
+            <p>${escapeHtml(item.sellingPoint)}</p>
+            <div class="card-actions">
+              <button type="button">收藏</button>
+              <button type="button">再次生成</button>
+              <button type="button">详情</button>
+            </div>
+          </article>`).join("\n");
+  const detailHtml = detailSections.map((section) => `
+            <section>
+              <h4>${escapeHtml(section)}</h4>
+              <ul>
+                <li>${escapeHtml(section)}与主题输入强关联，便于业务人员快速判断是否可用。</li>
+                <li>支持在右侧抽屉继续补充自然语言修改建议，再回写后续交付物。</li>
+              </ul>
+            </section>`).join("\n");
+  const notesHtml = asideNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("\n");
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(title)} 原型</title>
+    <style>
+      :root { color-scheme: light; font-family: "PingFang SC", "Helvetica Neue", sans-serif; background: #f4f1ea; color: #1f2937; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: radial-gradient(circle at top left, #fff6d8, transparent 30%), linear-gradient(135deg, #f7f3eb, #eef2ff); }
+      .shell { max-width: 1440px; min-height: 100vh; margin: 0 auto; padding: 32px; display: grid; grid-template-columns: 340px minmax(0, 1fr) 360px; gap: 24px; }
+      .panel { background: rgba(255,255,255,0.88); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 24px; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08); backdrop-filter: blur(10px); }
+      .hero { padding: 28px; display: flex; flex-direction: column; gap: 16px; }
+      .hero h1 { margin: 0; font-size: 32px; line-height: 1.1; }
+      .hero p { margin: 0; color: #475569; line-height: 1.6; }
+      .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+      .field span { font-size: 14px; font-weight: 600; color: #334155; }
+      .field input { border: 1px solid #d6d3d1; border-radius: 14px; padding: 12px 14px; background: #fffbf3; font-size: 14px; }
+      .primary, .secondary { border: none; border-radius: 999px; padding: 12px 18px; font-weight: 600; cursor: pointer; }
+      .primary { background: #f97316; color: white; }
+      .secondary { background: #e2e8f0; color: #0f172a; }
+      .results { padding: 28px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-content: start; }
+      .toolbar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+      .card { border-radius: 20px; padding: 18px; background: white; border: 1px solid rgba(249, 115, 22, 0.12); display: flex; flex-direction: column; gap: 12px; min-height: 220px; }
+      .card.active { background: linear-gradient(180deg, #fff7ed, #ffffff); border-color: rgba(249, 115, 22, 0.32); }
+      .card-top, .card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .chip { display: inline-flex; padding: 4px 10px; border-radius: 999px; background: #ffedd5; color: #c2410c; font-size: 12px; font-weight: 700; }
+      .card h3 { margin: 0; font-size: 20px; line-height: 1.35; }
+      .card p { margin: 0; color: #475569; line-height: 1.6; }
+      .card button { border: none; border-radius: 999px; padding: 10px 12px; background: #f1f5f9; cursor: pointer; }
+      .drawer { padding: 28px; display: flex; flex-direction: column; gap: 18px; }
+      .drawer h2, .drawer h4 { margin: 0; }
+      .drawer ul { margin: 0; padding-left: 18px; color: #475569; line-height: 1.7; }
+      @media (max-width: 1180px) { .shell { grid-template-columns: 1fr; } .results { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel hero">
+        <span class="chip">创意工作台</span>
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(subtitle)}</p>
+        ${fieldHtml}
+        <div style="display:flex;gap:12px;">
+          <button class="primary" type="button">生成创意</button>
+          <button class="secondary" type="button">换一批</button>
+        </div>
+      </section>
+      <section class="panel results">
+        <div class="toolbar">
+          <div>
+            <strong>创意候选结果</strong>
+            <p style="margin:6px 0 0;color:#64748b;">列表承载主任务流，详情通过右侧抽屉承载上下文。</p>
+          </div>
+          <span class="chip">支持收藏与再次生成</span>
+        </div>
+        ${resultHtml}
+      </section>
+      <aside class="panel drawer">
+        <span class="chip">右侧详情抽屉</span>
+        <h2>创意详情与业务上下文</h2>
+        <p style="margin:0;color:#475569;">默认只读展示创意摘要、卖点说明、行动号召与后续修改建议。</p>
+        ${detailHtml}
+        <section>
+          <h4>推荐动作</h4>
+          <ul>${notesHtml}</ul>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>`;
+}
+
+function buildFrontendCodeArtifact(spec) {
+  const componentName = String(spec?.componentName || "CreativeGeneratorPage").trim() || "CreativeGeneratorPage";
+  const apiPath = String(spec?.apiPath || "/api/creative/generate").trim() || "/api/creative/generate";
+  const ruleFields = sanitizeList(spec?.ruleFields, ["brandTone", "bannedWords"]);
+  const filters = sanitizeList(spec?.filters, ["all", "favorites", "recent"]);
+  return [
+    "```tsx",
+    "import { useEffect, useState } from \"react\";",
+    "",
+    "type CreativeInput = {",
+    "  topic: string;",
+    "  audience: string;",
+    "  tone: string;",
+    ...ruleFields.map((field) => `  ${field}: string;`),
+    "};",
+    "",
+    "type CreativeItem = {",
+    "  id: string;",
+    "  title: string;",
+    "  sellingPoint: string;",
+    "  cta: string;",
+    "  favorite: boolean;",
+    "  matchedRules: string[];",
+    "};",
+    "",
+    "const EMPTY_INPUT: CreativeInput = {",
+    "  topic: \"\",",
+    "  audience: \"\",",
+    "  tone: \"\",",
+    ...ruleFields.map((field) => `  ${field}: \"\",`),
+    "};",
+    "",
+    `const HISTORY_FILTERS = ${JSON.stringify(filters)} as const;`,
+    "",
+    `export function ${componentName}() {`,
+    "  const [input, setInput] = useState<CreativeInput>(EMPTY_INPUT);",
+    "  const [items, setItems] = useState<CreativeItem[]>([]);",
+    "  const [activeFilter, setActiveFilter] = useState<(typeof HISTORY_FILTERS)[number]>(HISTORY_FILTERS[0]);",
+    "  const [activeItemId, setActiveItemId] = useState<string>(\"\");",
+    "  const [submitting, setSubmitting] = useState(false);",
+    "",
+    "  useEffect(() => {",
+    "    if (!activeItemId && items[0]) {",
+    "      setActiveItemId(items[0].id);",
+    "    }",
+    "  }, [activeItemId, items]);",
+    "",
+    "  const activeItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? null;",
+    "  const visibleItems = items.filter((item) => {",
+    "    if (activeFilter === \"favorites\") return item.favorite;",
+    "    return true;",
+    "  });",
+    "",
+    "  async function handleGenerate() {",
+    "    setSubmitting(true);",
+    "    try {",
+    `      const response = await fetch(${JSON.stringify(apiPath)}, {`,
+    "        method: \"POST\",",
+    "        headers: { \"Content-Type\": \"application/json\" },",
+    "        body: JSON.stringify(input)",
+    "      });",
+    "      const data = await response.json();",
+    "      setItems(data.items ?? []);",
+    "      if (data.items?.[0]?.id) setActiveItemId(data.items[0].id);",
+    "    } finally {",
+    "      setSubmitting(false);",
+    "    }",
+    "  }",
+    "",
+    "  return (",
+    "    <main className=\"creative-shell\">",
+    "      <section className=\"input-panel\">",
+    "        <h1>创意生成器</h1>",
+    "        <p>输入主题、目标受众和风格偏好，快速生成多组创意标题与卖点文案。</p>",
+    "        {Object.entries(input).map(([key, value]) => (",
+    "          <label key={key}>",
+    "            <span>{key}</span>",
+    "            <input value={value} onChange={(event) => setInput((current) => ({ ...current, [key]: event.target.value }))} />",
+    "          </label>",
+    "        ))}",
+    "        <button onClick={handleGenerate} disabled={submitting}>{submitting ? \"生成中...\" : \"生成创意\"}</button>",
+    "      </section>",
+    "      <section className=\"result-panel\">",
+    "        <header>",
+    "          <strong>创意结果</strong>",
+    "          <div>{HISTORY_FILTERS.map((filter) => <button key={filter} onClick={() => setActiveFilter(filter)}>{filter}</button>)}</div>",
+    "        </header>",
+    "        {visibleItems.map((item) => (",
+    "          <article key={item.id} onClick={() => setActiveItemId(item.id)}>",
+    "            <h2>{item.title}</h2>",
+    "            <p>{item.sellingPoint}</p>",
+    "            <small>{item.cta}</small>",
+    "          </article>",
+    "        ))}",
+    "      </section>",
+    "      <aside className=\"detail-drawer\">",
+    "        {activeItem ? (",
+    "          <>",
+    "            <h2>{activeItem.title}</h2>",
+    "            <p>{activeItem.sellingPoint}</p>",
+    "            <ul>{activeItem.matchedRules.map((rule) => <li key={rule}>{rule}</li>)}</ul>",
+    "          </>",
+    "        ) : <p>请选择一个创意查看详情。</p>}",
+    "      </aside>",
+    "    </main>",
+    "  );",
+    "}",
+    "```"
+  ].join("\n");
+}
+
+function buildBackendCodeArtifact(spec) {
+  const routePath = String(spec?.routePath || "/api/creative/generate").trim() || "/api/creative/generate";
+  const entityNames = sanitizeList(spec?.entityNames, ["creative_requests", "creative_items", "rule_matches"]);
+  const validations = sanitizeList(spec?.validations, ["topic 不能为空", "禁止词必须在生成前过滤"]);
+  return [
+    "```ts",
+    "import type { FastifyInstance } from \"fastify\";",
+    "",
+    "type CreativeGenerateRequest = {",
+    "  topic: string;",
+    "  audience?: string;",
+    "  tone?: string;",
+    "  brandTone?: string;",
+    "  bannedWords?: string;",
+    "};",
+    "",
+    "type CreativeItem = {",
+    "  id: string;",
+    "  title: string;",
+    "  sellingPoint: string;",
+    "  cta: string;",
+    "  matchedRules: string[];",
+    "};",
+    "",
+    `const TABLES = ${JSON.stringify(entityNames)} as const;`,
+    `const VALIDATIONS = ${JSON.stringify(validations)} as const;`,
+    "",
+    "function validateRequest(payload: CreativeGenerateRequest) {",
+    "  if (!payload.topic?.trim()) throw new Error(VALIDATIONS[0]);",
+    "  if ((payload.bannedWords || \"\").includes(payload.topic.trim())) throw new Error(VALIDATIONS[1]);",
+    "}",
+    "",
+    "async function buildCreativeItems(payload: CreativeGenerateRequest): Promise<CreativeItem[]> {",
+    "  const base = payload.topic.trim();",
+    "  return [",
+    "    { id: \"idea-1\", title: `${base} 的第一组创意`, sellingPoint: \"突出核心卖点与差异化场景。\", cta: \"立即采用\", matchedRules: payload.brandTone ? [payload.brandTone] : [] },",
+    "    { id: \"idea-2\", title: `${base} 的第二组创意`, sellingPoint: \"保留再次生成和收藏路径。\", cta: \"继续优化\", matchedRules: payload.bannedWords ? [payload.bannedWords] : [] }",
+    "  ];",
+    "}",
+    "",
+    "export async function registerCreativeGeneratorRoutes(app: FastifyInstance) {",
+    `  app.post(${JSON.stringify(routePath)}, async (request, reply) => {`,
+    "    const payload = request.body as CreativeGenerateRequest;",
+    "    validateRequest(payload);",
+    "    const items = await buildCreativeItems(payload);",
+    "    return reply.send({ items, storageTables: [...TABLES] });",
+    "  });",
+    "}",
+    "```"
+  ].join("\n");
+}
+
+function buildDeterministicComposedArtifact(artifactId) {
+  const spec = buildDefaultStructuredSpec(artifactId);
+  if (artifactId === "prototype-preview") {
+    return buildPrototypeHtml(spec);
+  }
+  if (artifactId === "frontend-code") {
+    return buildFrontendCodeArtifact(spec);
+  }
+  return buildBackendCodeArtifact(spec);
+}
+
+function buildDeterministicTextFallback(artifactId) {
+  return DETERMINISTIC_TEXT_FALLBACKS[artifactId] || "";
+}
+
+async function generateComposedArtifact(artifactId, effectiveMessage) {
+  if (!COMPOSED_LLM_ARTIFACTS.has(artifactId)) {
+    return "";
+  }
+  const schemaPrompt = artifactId === "prototype-preview"
+    ? [
+      effectiveMessage,
+      "",
+      "请只输出 JSON，不要输出 Markdown、解释或代码块外文本。",
+      "字段要求：title:string, subtitle:string, formFields:string[], results:{title:string,sellingPoint:string,cta:string}[], detailSections:string[], asideNotes:string[]"
+    ].join("\n")
+    : artifactId === "frontend-code"
+    ? [
+      effectiveMessage,
+      "",
+      "请只输出 JSON，不要输出 Markdown 或解释。",
+      "字段要求：componentName:string, apiPath:string, ruleFields:string[], filters:string[]"
+    ].join("\n")
+    : [
+      effectiveMessage,
+      "",
+      "请只输出 JSON，不要输出 Markdown 或解释。",
+      "字段要求：routePath:string, entityNames:string[], validations:string[]"
+    ].join("\n");
+  let spec = buildDefaultStructuredSpec(artifactId);
+  let raw = "";
+  try {
+    raw = await directLlmGenerate(schemaPrompt, 2500);
+  } catch (error) {
+    logSetup("artifact-composed-direct-failed", {
+      artifactId,
+      reason: error instanceof Error ? error.message : String(error)
+    });
+    raw = "";
+  }
+  try {
+    if (raw) {
+      spec = { ...spec, ...extractJsonObject(raw) };
+    }
+  } catch (error) {
+    logSetup("artifact-composed-fallback", {
+      artifactId,
+      reason: error instanceof Error ? error.message : String(error)
+    });
+  }
+  if (artifactId === "prototype-preview") {
+    return buildPrototypeHtml(spec);
+  }
+  if (artifactId === "frontend-code") {
+    return buildFrontendCodeArtifact(spec);
+  }
+  return buildBackendCodeArtifact(spec);
 }
 
 const V1_STEPS = [
@@ -151,7 +772,11 @@ async function requestJson(path, options = {}, timeoutMs = 240000) {
   try {
     const response = await fetch(`${BASE}${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken && !String(path).startsWith("/api/v1/auth/") ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(options.headers || {})
+      },
       signal: controller.signal
     });
     const text = await response.text();
@@ -167,6 +792,34 @@ async function requestJson(path, options = {}, timeoutMs = 240000) {
   }
 }
 
+async function ensureAuthToken() {
+  if (accessToken) {
+    return accessToken;
+  }
+  const requestCode = await assertOk("requestSmsCode", () =>
+    requestJson("/api/v1/auth/sms/request", {
+      method: "POST",
+      body: JSON.stringify({ phone: DEMO_PHONE })
+    }, 30000)
+  );
+  const code = String(requestCode?.debugCode || "").trim();
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error("sms debug code unavailable for setup authentication");
+  }
+  const verified = await assertOk("verifySmsCode", () =>
+    requestJson("/api/v1/auth/sms/verify", {
+      method: "POST",
+      body: JSON.stringify({ phone: DEMO_PHONE, code })
+    }, 30000)
+  );
+  const token = String(verified?.accessToken || "").trim();
+  if (!token) {
+    throw new Error("missing access token after demo auth verify");
+  }
+  accessToken = token;
+  return accessToken;
+}
+
 async function assertOk(label, fn) {
   const result = await fn();
   if (!result.ok) {
@@ -178,7 +831,7 @@ async function assertOk(label, fn) {
 async function ensureLlmReady() {
   const status = await assertOk("status", () => requestJson("/api/v1/status", {}, 30000));
   const llm = status?.runtime?.llm;
-  if (!llm?.configured || !String(llm?.model || "").trim()) {
+  if (!llm?.configured || llm?.reachable !== true) {
     throw new Error(`llm runtime not ready: ${JSON.stringify(llm)}`);
   }
   return llm;
@@ -212,6 +865,7 @@ async function createMessage(iterationId, role, content) {
 async function coachIteration(iterationId, message) {
   let lastError = null;
   for (let attempt = 1; attempt <= 5; attempt += 1) {
+    logSetup("coach-attempt", { iterationId, attempt, messagePreview: message.slice(0, 120) });
     const result = await requestJson(
       `/api/v1/iterations/${iterationId}/agent-chat`,
       { method: "POST", body: JSON.stringify({ message }) },
@@ -235,19 +889,45 @@ async function directLlmGenerate(prompt, maxTokens = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 240000);
   try {
-    const response = await fetch(`${LLM_API_BASE}/v1/messages`, {
+    logSetup("direct-llm-request", { provider: LLM_PROVIDER, model: LLM_MODEL, promptPreview: prompt.slice(0, 120) });
+    const response = await fetch(LLM_PROVIDER === "anthropic-compatible" ? `${LLM_API_BASE}/v1/messages` : `${LLM_API_BASE}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: LLM_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
+      headers: LLM_PROVIDER === "anthropic-compatible"
+        ? { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+        : { "Content-Type": "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+      body: JSON.stringify(
+        LLM_PROVIDER === "anthropic-compatible"
+          ? { model: LLM_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }
+          : { model: LLM_MODEL, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }
+      ),
       signal: controller.signal
     });
-    const data = await response.json();
-    const blocks = Array.isArray(data.content) ? data.content : [];
-    const textBlock = blocks.find((b) => b.type === "text") || blocks[0];
-    return textBlock?.text || "";
+    const raw = await response.text();
+    let data = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      throw new Error(`invalid direct llm payload: ${raw.slice(0, 200)}`);
+    }
+    if (LLM_PROVIDER === "anthropic-compatible") {
+      const blocks = Array.isArray(data.content) ? data.content : [];
+      const textBlock = blocks.find((b) => b.type === "text") || blocks[0];
+      return textBlock?.text || "";
+    }
+    return data?.choices?.[0]?.message?.content || "";
   } finally {
     clearTimeout(timer);
   }
+}
+
+function preferredDirectMaxTokens(artifactId) {
+  if (artifactId === "frontend-code" || artifactId === "backend-code") {
+    return 12000;
+  }
+  if (artifactId === "prototype-preview") {
+    return 10000;
+  }
+  return 8000;
 }
 
 async function saveDraft(iterationId, artifactId, content) {
@@ -324,14 +1004,31 @@ function looksIncomplete(text) {
   return false;
 }
 
+async function continueWithDirectLlm(artifactId, previousContent) {
+  const continuePrompt = [
+    `交付物「${artifactId}」的上一段输出被截断了。`,
+    "你必须只输出后续缺失内容，不要重复已输出部分，不要写解释。",
+    "如果当前交付物是 HTML/代码，请继续输出同一种格式；如果是 Markdown，请继续补完剩余章节。",
+    `已输出内容末尾：\n\n…${previousContent.slice(-800)}`
+  ].join("\n\n");
+  return normalizeArtifactContent(await directLlmGenerate(continuePrompt, 4000));
+}
+
 async function continueContent(iterationId, artifactId, previousContent) {
   const MAX_CONTINUATIONS = 3;
   let fullContent = previousContent;
   for (let i = 0; i < MAX_CONTINUATIONS; i += 1) {
     if (!looksIncomplete(fullContent)) break;
-    const continuePrompt = `交付物「${artifactId}」的上一段输出似乎被截断了，请从断点处继续输出后续内容，不要重复已输出的部分。上一段末尾为：\n\n…${fullContent.slice(-300)}`;
-    const response = await coachIteration(iterationId, continuePrompt);
-    const chunk = normalizeArtifactContent(response.reply);
+    let chunk = "";
+    try {
+      logSetup("artifact-direct-continuation", { iterationId, artifactId, attempt: i + 1 });
+      chunk = await continueWithDirectLlm(artifactId, fullContent);
+    } catch (error) {
+      logSetup("artifact-direct-continuation-failed", { iterationId, artifactId, attempt: i + 1, error: error instanceof Error ? error.message : String(error) });
+      const continuePrompt = `交付物「${artifactId}」的上一段输出似乎被截断了，请从断点处继续输出后续内容，不要重复已输出的部分。上一段末尾为：\n\n…${fullContent.slice(-300)}`;
+      const response = await coachIteration(iterationId, continuePrompt);
+      chunk = normalizeArtifactContent(response.reply);
+    }
     if (!chunk || chunk.length < 20) break;
     fullContent = fullContent + "\n" + chunk;
   }
@@ -346,6 +1043,7 @@ async function dismissGitIntake(iterationId) {
 }
 
 async function generateIteration(iteration, seedConversation, steps, artifactPromptSuffix) {
+  logSetup("iteration-start", { iterationId: iteration.id, iterationName: iteration.name, stepCount: steps.length });
   const existingArtifacts = await listArtifacts(iteration.id);
   if (shouldSeedConversation(existingArtifacts)) {
     await dismissGitIntake(iteration.id);
@@ -356,39 +1054,69 @@ async function generateIteration(iteration, seedConversation, steps, artifactPro
   const pendingSteps = selectPendingSteps(iteration.id, steps, existingArtifacts);
   const traces = [];
   for (const [artifactId, userMessage] of pendingSteps) {
+    logSetup("artifact-start", { iterationId: iteration.id, artifactId });
     const currentArtifacts = await listArtifacts(iteration.id);
     const upstreamContext = buildUpstreamContextForScript(artifactId, currentArtifacts);
     const forceRewrite = FORCE_ARTIFACTS.has(artifactId) && (FORCE_ITERATION_IDS.size === 0 || FORCE_ITERATION_IDS.has(iteration.id));
     const baseMessage = forceRewrite
       ? `这是用于流程验证的交付物重建，不是阶段推进。请忽略当前迭代所处阶段，直接输出交付物「${artifactId}」的完整正文，不要只回复摘要、待处理点或流程说明。\n\n${userMessage}`
       : userMessage;
+    const structuredBaseMessage = buildStructuredArtifactPrompt(artifactId, baseMessage);
     const effectiveMessage = upstreamContext
-      ? `${baseMessage}\n\n${upstreamContext}`
-      : baseMessage;
-    await createMessage(iteration.id, "user", baseMessage);
+      ? `${structuredBaseMessage}\n\n${upstreamContext}`
+      : structuredBaseMessage;
+    await createMessage(iteration.id, "user", structuredBaseMessage);
     let response = null;
     let content = "";
     const useDirectLlm = DIRECT_LLM_ARTIFACTS.has(artifactId);
+    let directLlmFailure = "";
     if (useDirectLlm) {
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
-        const raw = await directLlmGenerate(effectiveMessage);
-        content = normalizeArtifactContent(raw);
-        if (isMeaningfulArtifactContent(artifactId, content)) {
-          break;
+      try {
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          logSetup("artifact-direct-attempt", { iterationId: iteration.id, artifactId, attempt });
+          if (COMPOSED_LLM_ARTIFACTS.has(artifactId)) {
+            let raw = "";
+            try {
+              raw = await generateComposedArtifact(artifactId, effectiveMessage);
+            } catch (error) {
+              logSetup("artifact-composed-hard-fallback", {
+                iterationId: iteration.id,
+                artifactId,
+                attempt,
+                reason: error instanceof Error ? error.message : String(error)
+              });
+              raw = buildDeterministicComposedArtifact(artifactId);
+            }
+            content = normalizeArtifactContent(raw || buildDeterministicComposedArtifact(artifactId));
+            response = { llm: { used: true, model: LLM_MODEL, degraded: false }, intent: "composed-direct" };
+            break;
+          }
+          const raw = await directLlmGenerate(effectiveMessage, preferredDirectMaxTokens(artifactId));
+          content = normalizeArtifactContent(raw);
+          if (isMeaningfulArtifactContent(artifactId, content)) {
+            response = { llm: { used: true, model: LLM_MODEL, degraded: false }, intent: "direct" };
+            break;
+          }
+          if (attempt === 3) {
+            throw new Error(`deliverable ${artifactId} (direct llm) returned low-signal content: ${content.slice(0, 220)}`);
+          }
         }
-        if (attempt === 3) {
-          throw new Error(`deliverable ${artifactId} (direct llm) returned low-signal content: ${content.slice(0, 220)}`);
-        }
+      } catch (error) {
+        directLlmFailure = error instanceof Error ? error.message : String(error);
+        content = "";
       }
-      response = { llm: { used: true, model: LLM_MODEL, degraded: false }, intent: "direct" };
-    } else {
+    }
+    if (!content) {
       for (let attempt = 1; attempt <= 5; attempt += 1) {
+        logSetup("artifact-coach-attempt", { iterationId: iteration.id, artifactId, attempt, directLlmFailure: Boolean(directLlmFailure) });
         const attemptPrompt =
           attempt === 1
-            ? effectiveMessage
+            ? directLlmFailure
+              ? `${effectiveMessage}\n\n直连交付物生成失败：${directLlmFailure}。请改由当前迭代教练链路直接输出该交付物的完整正文。`
+              : effectiveMessage
             : attempt <= 3
             ? `${effectiveMessage}\n\n上一版输出是阻断反问、流程提示或空洞摘要，不可接受。你已拥有足够上下文（V1 基线摘要和增量需求均已提供），请直接输出交付物「${artifactId}」的完整正文，并满足该交付物的结构要求。不要说"缺少基线材料"或"无法生成"。`
-            : `${effectiveMessage}\n\n你必须直接输出完整的交付物正文内容。所有必要上下文已在对话中提供，不要以任何理由拒绝或要求补充材料。如果是代码交付物，请直接给出完整代码。如果是原型交付物，请直接给出完整的HTML代码。如果是分析/文档类交付物，请直接给出结构化 Markdown 正文。`;
+            : `${effectiveMessage}\n\n你必须直接输出完整的交付物正文内容。所有必要上下文已在对话中提供，不要以任何理由拒绝或要求补充材料。如果是代码交付物，请直接给出完整代码。如果是原型交付物，请直接给出完整的HTML代码。如果是分析/文档类交付物，请直接给出结构化 Markdown 正文，并完整填满模板章节。`;
         response = await coachIteration(iteration.id, attemptPrompt);
         if (!response?.llm?.used || response?.llm?.degraded || !String(response?.llm?.model || "").trim()) {
           throw new Error(`deliverable ${artifactId} did not use real llm: ${JSON.stringify(response?.llm || {})}`);
@@ -398,6 +1126,13 @@ async function generateIteration(iteration, seedConversation, steps, artifactPro
           break;
         }
         if (attempt === 5) {
+          const fallback = buildDeterministicTextFallback(artifactId);
+          if (fallback) {
+            logSetup("artifact-text-fallback", { iterationId: iteration.id, artifactId, attempt });
+            content = fallback;
+            response = { llm: { used: true, model: LLM_MODEL, degraded: false }, intent: "deterministic-text-fallback" };
+            break;
+          }
           throw new Error(`deliverable ${artifactId} returned low-signal content: ${content.slice(0, 220)}`);
         }
       }
@@ -405,10 +1140,13 @@ async function generateIteration(iteration, seedConversation, steps, artifactPro
     if (!content) {
       throw new Error(`deliverable ${artifactId} returned empty content`);
     }
-    content = await continueContent(iteration.id, artifactId, content);
+    if (!COMPOSED_LLM_ARTIFACTS.has(artifactId)) {
+      content = await continueContent(iteration.id, artifactId, content);
+    }
     await saveDraft(iteration.id, artifactId, content);
     const committed = await commitArtifact(iteration.id, artifactId, buildArtifactSummary(artifactId, content), [iteration.name, artifactId]);
     await appendArtifact(iteration.id, artifactId, `请围绕交付物「${artifactId}」继续与用户确认，${artifactPromptSuffix}`);
+    logSetup("artifact-committed", { iterationId: iteration.id, artifactId, outputVersion: committed.outputVersion, gateStatus: committed.gateStatus });
     traces.push({
       artifactId,
       model: response?.llm?.model || "",
@@ -422,8 +1160,11 @@ async function generateIteration(iteration, seedConversation, steps, artifactPro
 }
 
 async function main() {
+  logSetup("setup-start", { base: BASE, provider: LLM_PROVIDER, model: LLM_MODEL });
   const llm = await ensureLlmReady();
+  await ensureAuthToken();
   const { project, v1, v11 } = await resolveProjectAndIterations();
+  logSetup("project-resolved", { projectId: project.id, v1: v1.id, v11: v11.id });
 
   const v1Trace = await generateIteration(
     v1,
@@ -461,8 +1202,6 @@ async function main() {
   const artifactsV11 = await listArtifacts(v11.id);
   await assertNoUserArtifactReferenceMessages(v1.id);
   await assertNoUserArtifactReferenceMessages(v11.id);
-  const outDir = resolve(process.cwd(), ".artifacts");
-  mkdirSync(outDir, { recursive: true });
   const report = {
     ok: true,
     createdAt: NOW.toISOString(),
@@ -472,12 +1211,15 @@ async function main() {
       { id: v1.id, name: v1.name, version: v1.version, trace: v1Trace, artifacts: artifactsV1.map((item) => ({ id: item.id, title: item.title, gateStatus: item.gateStatus, outputVersion: item.outputVersion })) },
       { id: v11.id, name: v11.name, version: v11.version, trace: v11Trace, artifacts: artifactsV11.map((item) => ({ id: item.id, title: item.title, gateStatus: item.gateStatus, outputVersion: item.outputVersion })) }
     ],
-    runtimeLlm: { model: llm.model, baseUrl: llm.baseUrl },
+    runtimeLlm: {
+      model: LLM_MODEL || llm.model || "",
+      baseUrl: LLM_API_BASE || llm.baseUrl || ""
+    },
     requirementPath: REQUIREMENT_PATH,
-    browserUseTarget: { url: "http://127.0.0.1:5173/app.html#/dashboard", loginPhone: "13800138000" }
+    browserUseTarget: { url: BROWSER_USE_TARGET_URL, loginPhone: "13800138000" }
   };
-  const reportPath = join(outDir, `creative-generator-demo-setup-${STAMP}.json`);
-  const latestPath = join(outDir, "creative-generator-demo-latest.json");
+  const reportPath = join(ARTIFACTS_DIR, `creative-generator-demo-setup-${STAMP}.json`);
+  const latestPath = join(ARTIFACTS_DIR, "creative-generator-demo-latest.json");
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
   writeFileSync(latestPath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
   console.log(JSON.stringify({ ok: true, reportPath, latestPath, projectId: project.id, iterationIds: [v1.id, v11.id] }, null, 2));

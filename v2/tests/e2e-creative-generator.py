@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 load_dotenv("/Users/zqs/Downloads/project/browser-use/.env")
 
 from browser_use import Agent, BrowserSession, BrowserProfile
-from browser_use import ChatAnthropic
+from browser_use.llm.deepseek.chat import ChatDeepSeek
 
 # ── 配置 ──
 BACKEND_DIR = Path("/Users/zqs/Downloads/project/BuildWise/v2/backend")
@@ -285,10 +285,10 @@ async def run_e2e():
         )
     )
 
-    llm = ChatAnthropic(
-        model="MiniMax-M2.5",
-        base_url="https://api.minimaxi.com/anthropic",
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    llm = ChatDeepSeek(
+        model="deepseek-chat",
+        api_key="sk-e583b61015a94e57956da61821c9d300",
+        base_url="https://api.deepseek.com/v1",
     )
 
     results = {}

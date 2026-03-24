@@ -6,3 +6,12 @@ export class DuplicateAttachmentUploadError extends Error {
     this.name = "DuplicateAttachmentUploadError";
   }
 }
+
+export class WorkspaceBindingConflictError extends Error {
+  readonly code = "workspace_binding_conflict";
+
+  constructor(message = "workspace_path_already_bound") {
+    super(message);
+    this.name = "WorkspaceBindingConflictError";
+  }
+}

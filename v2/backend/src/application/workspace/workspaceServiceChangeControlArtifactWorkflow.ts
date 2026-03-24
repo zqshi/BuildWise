@@ -52,7 +52,7 @@ export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType
       description: current?.description?.trim() ? current.description : seed.description,
       source: current?.source?.trim() ? current.source : seed.source,
       editCapability:
-        current?.editCapability === "rich-text" || current?.editCapability === "prototype-select" || current?.editCapability === "none"
+        current?.editCapability === "rich-text" || current?.editCapability === "prototype-select"
           ? current.editCapability
           : seed.editCapability,
       draft: {

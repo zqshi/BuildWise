@@ -22,7 +22,10 @@ export function buildDefaultArtifactWorkflow(now: string, mode: ArtifactWorkflow
   const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
   const defaultRichTextEditable = new Set([
     "analysis-report",
+    "product-requirements-doc",
     "boundary-confirmation",
+    "design-spec",
+    "technical-architecture",
     "api-specification",
     "database-design",
     "frontend-code",

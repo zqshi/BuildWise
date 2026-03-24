@@ -9,6 +9,7 @@ import {
 } from "./workspaceServiceOpenclawOps";
 import { buildOpenclawSkillSelectionContext } from "./workspaceOpenclawSkillsBridge";
 import { buildKnowledgeSyncContext } from "./knowledgeSyncService";
+import { searchProjectWorkspaceKnowledge } from "./projectWorkspaceKnowledgeService";
 
 export class OpenclawService {
   constructor(
@@ -46,7 +47,14 @@ export class OpenclawService {
     });
 
     const skillContext = buildOpenclawSkillSelectionContext({ project, userMessage: message });
+    const knowledgeHits = searchProjectWorkspaceKnowledge(this.repo, projectId, message, 3);
     const systemPrompt = [projectContext, skillContext].filter(Boolean).join("\n\n") || "你是 BuildWise 的业务助手。";
+    const retrievalContext = knowledgeHits.length > 0
+      ? [
+          "[project workspace retrieval]",
+          ...knowledgeHits.map((item, index) => `(${index + 1}) ${item.title} [score=${item.score}]` + `\n${item.content}`)
+        ].join("\n\n")
+      : "";
 
     const sessionContext: Record<string, unknown> = { projectId };
     if (binding?.agentId) {
@@ -54,7 +62,7 @@ export class OpenclawService {
     }
 
     const result = await runner.runWithHistory(
-      systemPrompt,
+      [systemPrompt, retrievalContext].filter(Boolean).join("\n\n"),
       [{ role: "user" as const, content: message }],
       { sessionContext }
     );

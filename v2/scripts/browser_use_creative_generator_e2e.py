@@ -4,7 +4,10 @@
 import asyncio
 import json
 import os
+import shutil
 import tempfile
+import urllib.request
+from urllib.error import HTTPError
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -12,17 +15,24 @@ from pathlib import Path
 from browser_use import Agent, BrowserSession
 from browser_use.browser.profile import BrowserProfile
 from browser_use.llm import ChatAnthropic, ChatDeepSeek, ChatOpenAI
+from dotenv import load_dotenv
 
-WORKDIR = Path('/Users/zqs/Downloads/project/BuildWise/v2')
-ARTIFACTS_DIR = WORKDIR / '.artifacts'
-LATEST_SETUP = ARTIFACTS_DIR / 'creative-generator-demo-latest.json'
+WORKDIR = Path(os.getenv('BUILDWISE_E2E_WORKDIR', '/Users/zqs/Downloads/project/BuildWise/v2'))
+ARTIFACTS_DIR = Path(os.getenv('BUILDWISE_E2E_ARTIFACTS_DIR', str(WORKDIR / '.artifacts')))
+ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+LATEST_SETUP = Path(os.getenv('BUILDWISE_E2E_LATEST_SETUP', str(ARTIFACTS_DIR / 'creative-generator-demo-latest.json')))
 REPORT_STAMP = datetime.now().strftime('%Y%m%d_%H%M%S')
 REPORT_PATH = ARTIFACTS_DIR / f'browser-use-creative-generator-e2e-{REPORT_STAMP}.json'
-TARGET_URL = 'http://127.0.0.1:5173/app.html#/dashboard'
-LOGIN_PHONE = '13800138000'
+LOGIN_CODE_CACHE_PATH = ARTIFACTS_DIR / 'browser-use-login-code-cache.json'
+TARGET_URL = os.getenv('BUILDWISE_E2E_TARGET_URL', 'http://127.0.0.1:5173/app.html#/dashboard')
+LOGIN_URL = TARGET_URL.replace('/dashboard', '/login') if '/dashboard' in TARGET_URL else TARGET_URL
+LOGIN_PHONE = os.getenv('BUILDWISE_E2E_LOGIN_PHONE', '13800138000')
 BACKEND_ENV_PATH = WORKDIR / 'backend/.env'
 HEADLESS = (os.getenv('BROWSER_USE_HEADLESS', '0').strip() not in {'0', 'false', 'False'})
 BROWSER_USE_PROVIDER = os.getenv('BROWSER_USE_PROVIDER', 'anthropic').strip().lower()
+BROWSER_USE_ENV_FILE = Path(os.getenv('BROWSER_USE_ENV_FILE', '/Users/zqs/Downloads/project/browser-use/.env'))
+if BROWSER_USE_ENV_FILE.exists():
+    load_dotenv(BROWSER_USE_ENV_FILE)
 
 SYSTEM_RULE = (
     'You are controlling browser-use tools. Always output valid browser-use action schema only. '
@@ -58,19 +68,113 @@ def load_backend_env() -> dict:
     return values
 
 
+def load_cached_login_code(phone: str) -> str:
+    if not LOGIN_CODE_CACHE_PATH.exists():
+        return ''
+    try:
+        payload = json.loads(LOGIN_CODE_CACHE_PATH.read_text(encoding='utf-8'))
+    except Exception:
+        return ''
+    if str(payload.get('phone') or '').strip() != phone:
+        return ''
+    code = str(payload.get('code') or '').strip()
+    expire_at = str(payload.get('expireAt') or '').strip()
+    if not code or not expire_at:
+        return ''
+    try:
+        expires = datetime.fromisoformat(expire_at.replace('Z', '+00:00'))
+        if expires <= datetime.now(expires.tzinfo):
+            return ''
+    except Exception:
+        return ''
+    return code
+
+
+def save_login_code_cache(phone: str, code: str, expire_at: str) -> None:
+    LOGIN_CODE_CACHE_PATH.write_text(
+        json.dumps({'phone': phone, 'code': code, 'expireAt': expire_at}, ensure_ascii=False, indent=2) + '\n',
+        encoding='utf-8',
+    )
+
+
+def request_login_code(api_base: str, phone: str) -> str:
+    cached_code = load_cached_login_code(phone)
+    if cached_code:
+        return cached_code
+    payload = json.dumps({'phone': phone}).encode('utf-8')
+    request = urllib.request.Request(
+        f'{api_base.rstrip("/")}/api/v1/auth/sms/request',
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = json.loads(response.read().decode('utf-8'))
+    except HTTPError as error:
+        if error.code == 429:
+            cached_code = load_cached_login_code(phone)
+            if cached_code:
+                return cached_code
+        raise
+    code = str(body.get('debugCode') or '').strip()
+    if not code:
+        raise RuntimeError('missing debugCode from auth sms request')
+    expire_at = str(body.get('expireAt') or '').strip()
+    if expire_at:
+        save_login_code_cache(phone, code, expire_at)
+    return code
+
+
 def build_llm(backend_env: dict):
     if BROWSER_USE_PROVIDER == 'deepseek':
-        api_key = (os.getenv('DEEPSEEK_API_KEY') or os.getenv('OPENAI_API_KEY') or '').strip()
-        base_url = (os.getenv('DEEPSEEK_BASE_URL') or os.getenv('OPENAI_API_BASE') or 'https://api.deepseek.com/v1').strip()
-        model = (os.getenv('DEEPSEEK_MODEL') or os.getenv('OPENAI_MODEL') or 'deepseek-chat').strip()
+        api_key = (
+            os.getenv('DEEPSEEK_API_KEY')
+            or backend_env.get('DEEPSEEK_API_KEY')
+            or os.getenv('OPENAI_API_KEY')
+            or backend_env.get('LLM_API_KEY')
+            or ''
+        ).strip()
+        base_url = (
+            os.getenv('DEEPSEEK_BASE_URL')
+            or backend_env.get('DEEPSEEK_BASE_URL')
+            or os.getenv('OPENAI_API_BASE')
+            or backend_env.get('LLM_API_BASE')
+            or 'https://api.deepseek.com/v1'
+        ).strip()
+        model = (
+            os.getenv('DEEPSEEK_MODEL')
+            or backend_env.get('DEEPSEEK_MODEL')
+            or os.getenv('OPENAI_MODEL')
+            or backend_env.get('LLM_MODEL')
+            or 'deepseek-chat'
+        ).strip()
         if not api_key:
             raise RuntimeError('DEEPSEEK_API_KEY is required for deepseek mode')
         return ChatDeepSeek(model=model, api_key=api_key, base_url=base_url, max_tokens=4096)
 
     if BROWSER_USE_PROVIDER == 'openai-compatible':
-        api_key = (os.getenv('OPENAI_API_KEY') or backend_env.get('OPENAI_API_KEY') or os.getenv('DEEPSEEK_API_KEY') or '').strip()
-        base_url = (os.getenv('OPENAI_BASE_URL') or backend_env.get('OPENAI_BASE_URL') or os.getenv('DEEPSEEK_BASE_URL') or '').strip()
-        model = (os.getenv('OPENAI_MODEL') or backend_env.get('OPENAI_MODEL') or os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
+        api_key = (
+            os.getenv('OPENAI_API_KEY')
+            or backend_env.get('OPENAI_API_KEY')
+            or os.getenv('DEEPSEEK_API_KEY')
+            or backend_env.get('LLM_API_KEY')
+            or ''
+        ).strip()
+        base_url = (
+            os.getenv('OPENAI_BASE_URL')
+            or backend_env.get('OPENAI_BASE_URL')
+            or os.getenv('DEEPSEEK_BASE_URL')
+            or backend_env.get('LLM_API_BASE')
+            or ''
+        ).strip()
+        model = (
+            os.getenv('OPENAI_MODEL')
+            or backend_env.get('OPENAI_MODEL')
+            or os.getenv('DEEPSEEK_MODEL')
+            or backend_env.get('LLM_MODEL')
+            or 'deepseek-chat'
+        ).strip()
         if not api_key or not base_url:
             raise RuntimeError('OPENAI_API_KEY / OPENAI_BASE_URL is required for openai-compatible mode')
         return ChatOpenAI(model=model, api_key=api_key, base_url=base_url, max_completion_tokens=4096)
@@ -114,16 +218,16 @@ def build_llm(backend_env: dict):
     return ChatAnthropic(model=model, auth_token=auth_token, base_url=base_url, max_tokens=4096)
 
 
-def build_fallback_llm():
-    api_key = (os.getenv('DEEPSEEK_API_KEY') or '').strip()
+def build_fallback_llm(backend_env: dict):
+    api_key = (os.getenv('DEEPSEEK_API_KEY') or backend_env.get('DEEPSEEK_API_KEY') or backend_env.get('LLM_API_KEY') or '').strip()
     if not api_key:
         return None
-    base_url = (os.getenv('DEEPSEEK_BASE_URL') or 'https://api.deepseek.com/v1').strip()
-    model = (os.getenv('DEEPSEEK_MODEL') or 'deepseek-chat').strip()
+    base_url = (os.getenv('DEEPSEEK_BASE_URL') or backend_env.get('DEEPSEEK_BASE_URL') or backend_env.get('LLM_API_BASE') or 'https://api.deepseek.com/v1').strip()
+    model = (os.getenv('DEEPSEEK_MODEL') or backend_env.get('DEEPSEEK_MODEL') or backend_env.get('LLM_MODEL') or 'deepseek-chat').strip()
     return ChatDeepSeek(model=model, api_key=api_key, base_url=base_url, max_tokens=4096)
 
 
-def build_stages(payload: dict) -> list[tuple[str, str]]:
+def build_stages(payload: dict, login_code: str) -> list[tuple[str, str]]:
     project_name = payload['project']['name']
     iterations = payload.get('iterations') or ([payload['iteration']] if payload.get('iteration') else [])
     v1 = next((item for item in iterations if str(item.get('version', '')).startswith('1.0')), iterations[0] if iterations else {})
@@ -135,8 +239,8 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
     return [
         (
             'login',
-            f'''先打开 http://127.0.0.1:5173/app.html#/login。
-如果看到登录页：无论”手机验证码”是否已经选中，都先点击一次”手机验证码”标签，再输入手机号 {LOGIN_PHONE}，点击”发送验证码”，等待验证码自动填入后点击”登 录”。
+            f'''先打开 {LOGIN_URL}。
+如果看到登录页：无论”手机验证码”是否已经选中，都先点击一次”手机验证码”标签，再输入手机号 {LOGIN_PHONE}，然后在验证码输入框中直接输入 {login_code}，最后点击”登 录”。
 如果已经是已登录态，也需要确认当前不在营销页。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
@@ -145,7 +249,7 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
             f'''在当前浏览器会话中继续操作。
 先在仪表盘中定位项目”{project_name}”，优先点击该项目区域附近的”查看全部”按钮展开项目版本面板。
 然后在版本列表中找到版本号”{v11_version}”（名称”{v11_name}”）对应行的”进入版本”按钮并点击。注意：UI上可能只显示版本号”{v11_version}”而不显示完整名称。
-成功标准：页面显示”迭代内需求沟通”，且会话区能看到 BuildWise AI 消息。
+成功标准：页面显示”迭代内需求沟通”，且会话区能看到“AI 迭代教练”消息（这是当前页面里的实际 AI 标识）。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
@@ -165,8 +269,10 @@ def build_stages(payload: dict) -> list[tuple[str, str]]:
         ),
         (
             'drawer_to_chat',
-            '''在任一已打开的交付物抽屉中，点击“去对话中提调整”。
-确认抽屉自动滑出关闭，不需要再点右上角 X；同时主输入框已自动带入调整文本且获得焦点。
+            '''保持当前交付物抽屉处于只读状态，不要点击“编辑”、"提交确认"、"保存草稿"或右上角关闭按钮。
+目标按钮的精确文案是“去对话中提调整”，位于抽屉头部动作区。
+只点击这个精确按钮。
+点击后确认抽屉自动滑出关闭，不需要再点右上角 X；同时主输入框已自动带入调整文本且获得焦点。
             完成后只输出一行：PASS - 说明 或 FAIL - 说明。''',
         ),
         (
@@ -244,7 +350,7 @@ async def run_stage(session: BrowserSession, llm, key: str, task: str) -> StageR
         history = await agent.run(max_steps=40)
         return (history.final_result() or '').strip()
 
-    fallback_llm = build_fallback_llm()
+    fallback_llm = build_fallback_llm(load_backend_env())
     prefer_dom_only = BROWSER_USE_PROVIDER == 'deepseek'
     try:
         raw = await execute_stage(llm, use_vision=not prefer_dom_only, suffix='vision' if not prefer_dom_only else 'dom-primary')
@@ -265,6 +371,8 @@ async def run_stage(session: BrowserSession, llm, key: str, task: str) -> StageR
 async def main() -> int:
     payload = load_setup_payload()
     backend_env = load_backend_env()
+    api_base = (os.getenv('BUILDWISE_API_BASE') or payload.get('apiBase') or backend_env.get('API_BASE') or 'http://127.0.0.1:5055').strip()
+    login_code = request_login_code(api_base, LOGIN_PHONE)
     llm = build_llm(backend_env)
     fresh_profile_dir = tempfile.mkdtemp(prefix='buildwise-browser-use-')
     session = BrowserSession(
@@ -283,7 +391,7 @@ async def main() -> int:
 
     results: list[StageResult] = []
     try:
-        for key, task in build_stages(payload):
+        for key, task in build_stages(payload, login_code):
             result = await run_stage(session, llm, key, task)
             results.append(result)
             if not result.ok:
@@ -293,6 +401,7 @@ async def main() -> int:
             await session.stop()
         except Exception:
             pass
+        shutil.rmtree(fresh_profile_dir, ignore_errors=True)
 
     raw_report_lines = ['---TEST REPORT---']
     for key in [

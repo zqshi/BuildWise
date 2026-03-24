@@ -1,5 +1,5 @@
 import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
-import { DuplicateAttachmentUploadError } from "../../../application/workspace/workspaceErrors";
+import { DuplicateAttachmentUploadError, WorkspaceBindingConflictError } from "../../../application/workspace/workspaceErrors";
 import { resolveErrorMessage } from "../../../shared/utils";
 
 export function parsePositiveInt(value: string | undefined) {
@@ -51,6 +51,9 @@ export function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
 export function handleRouteError(error: unknown): { code: number; message: string } | null {
   if (error instanceof DuplicateAttachmentUploadError) {
     return { code: 409, message: "duplicate_upload" };
+  }
+  if (error instanceof WorkspaceBindingConflictError) {
+    return { code: 409, message: "workspace_path_already_bound" };
   }
   const llmStatus = resolveLlmErrorStatus(error);
   if (llmStatus) {

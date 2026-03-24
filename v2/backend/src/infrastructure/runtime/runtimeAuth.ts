@@ -28,7 +28,7 @@ function devRoleFromHeader(request: FastifyRequest) {
   if (typeof raw === "string" && raw.trim()) {
     return raw.trim().toLowerCase();
   }
-  return "owner";
+  return "viewer";
 }
 
 function unauthorized(reply: FastifyReply, message: string) {
@@ -94,4 +94,3 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
     request.authRole = role;
   });
 }
-

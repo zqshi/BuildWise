@@ -28,36 +28,6 @@ function pickChecklist(skillChecklist: string[], fallback: string[], max = 6) {
   return Array.from(new Set(merged)).slice(0, max);
 }
 
-function waitingResponse(input: {
-  iterationId: number;
-  repoUrl: string;
-  branch: string;
-  summaries: string[];
-  suggestedActions: string[];
-  checklist: string[];
-}): IterationCoachChatResponse {
-  const summaryLine = input.summaries.length > 0 ? `当前线索：${input.summaries.slice(0, 1).join("；")}。` : "";
-  const repoHint = input.repoUrl ? `目标仓库：${input.repoUrl}（${input.branch || "main"}）。` : "";
-  return {
-    iterationId: input.iterationId,
-    intent: "general",
-    reply: `${repoHint}${summaryLine}请先给出本轮选择：读取仓库，或暂不读取。`,
-    execution: { action: "none", instruction: "", apply: false },
-    guidance: {
-      uploadRecommended: false,
-      suggestedUploadTypes: ["requirements-doc", "folder-upload"],
-      suggestedActions: pickActions(input.suggestedActions, ["读取仓库", "暂不读取"]),
-      clarificationChecklist: pickChecklist(input.checklist, ["确认是否先读取仓库"])
-    },
-    llm: {
-      used: false,
-      model: "",
-      degraded: false,
-      reason: "git-intake-waiting-confirmation"
-    }
-  };
-}
-
 function acceptedResponse(input: {
   iterationId: number;
   summary: string;
@@ -171,14 +141,8 @@ export function handlePendingGitRequirementIntake(params: {
   });
   const now = new Date().toISOString();
   if (decision === "unknown") {
-    return waitingResponse({
-      iterationId: iteration.id,
-      repoUrl: gitIntake.repoUrl,
-      branch: gitIntake.branch,
-      summaries: skillChain.summaries,
-      suggestedActions: skillChain.suggestedActions,
-      checklist: skillChain.checklist
-    });
+    // 用户消息未明确回应 git 读取问题，放行到正常 Coach 流程
+    return null;
   }
   if (decision === "decline") {
     repo.updateIteration({

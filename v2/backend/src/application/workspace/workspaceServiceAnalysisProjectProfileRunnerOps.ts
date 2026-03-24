@@ -61,8 +61,12 @@ export async function synthesizeProjectProfileOp(
     goal: "识别项目/产品并输出高价值发现",
     expectedOutput:
       "JSON: {projectDetection:{projectName,productName,projectCategory,evidence[]}, meaningfulFindings:[...], prioritizedFindings:[{priority,content,reason}], nextActions:[...]}",
-    systemPrompt:
-      "你是资深产品分析师。你必须只输出 JSON，不得输出解释文字。输出必须具体、可证据化，禁止空泛话术。",
+    systemPrompt: [
+      "你是资深产品分析师。你必须只输出严格 JSON（不要用 ```json 包裹），不得输出任何解释文字。",
+      "所有 JSON key 必须使用英文，严格遵循以下 schema：",
+      '{"projectDetection":{"projectName":"...","productName":"...","projectCategory":"...","evidence":["..."]},"meaningfulFindings":["..."],"prioritizedFindings":[{"priority":"P0","content":"...","reason":"..."}],"nextActions":["..."]}',
+      "priority 只允许 P0/P1/P2。输出必须具体、可证据化，禁止空泛话术。"
+    ].join("\n"),
     userPrompt: [
       `分析目标=${params.analyzedTarget};sourceType=${params.sourceType};iteration=${params.iterationName};context=${params.contextLabel || "primary"}`,
       `文件统计=total:${params.fileStats.totalFiles},text:${params.fileStats.textFiles},binary:${params.fileStats.binaryFiles}`,
@@ -71,7 +75,7 @@ export async function synthesizeProjectProfileOp(
       }`,
       `附件节选:\n${params.excerpt.slice(0, 2500) || "无"}`,
       `多Agent输出:\n${compactOutputs || "无"}`,
-      "请输出：1)项目名称 2)产品名称 3)项目类别 4)依据(evidence<=4条) 5)关键发现(meaningfulFindings=2-8条，必须具体且可验证) 6)优先级发现(prioritizedFindings<=8条，priority=P0/P1/P2) 7)下一步动作(nextActions<=6条)。"
+      "请输出：1)projectDetection(projectName/productName/projectCategory/evidence<=4条) 2)meaningfulFindings(2-8条，必须具体且可验证) 3)prioritizedFindings(<=8条，每条含priority/content/reason) 4)nextActions(<=6条)。所有key必须英文。"
     ].join("\n\n")
   };
   try {
@@ -98,11 +102,12 @@ export async function synthesizeProjectProfileOp(
         agentId: `agent-report-synthesis-repair-${attempt}`,
         userPrompt: [
           prompt.userPrompt,
-          "你上一版输出不满足必填字段约束。请只输出严格 JSON，且必须满足：",
+          "你上一版输出不满足必填字段约束。请只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，且必须满足：",
           "1) projectDetection.projectName 或 projectDetection.productName 至少一个非空",
-          "2) meaningfulFindings 至少 2 条，且每条需明确证据或可验证动作",
-          "3) prioritizedFindings 至少 1 条且 priority 仅允许 P0/P1/P2",
-          "4) nextActions 至少 1 条",
+          "2) meaningfulFindings 至少 2 条（string数组），且每条需明确证据或可验证动作",
+          "3) prioritizedFindings 至少 1 条（对象数组，每个含英文key: priority/content/reason），priority 仅允许 P0/P1/P2",
+          "4) nextActions 至少 1 条（string数组）",
+          'schema示例: {"projectDetection":{"projectName":"X","productName":"Y","projectCategory":"Z","evidence":["..."]},"meaningfulFindings":["..."],"prioritizedFindings":[{"priority":"P0","content":"...","reason":"..."}],"nextActions":["..."]}',
           `本次缺失项：${missingReasons.join("; ")}`,
           `上一版输出：\n${selectedResult.content.slice(0, 2400)}`
         ].join("\n\n")
@@ -120,7 +125,7 @@ export async function synthesizeProjectProfileOp(
         goal: "基于关键发现输出优先级发现",
         expectedOutput: "JSON: {prioritizedFindings:[{priority,content,reason}]}",
         systemPrompt:
-          "你是资深技术负责人。你必须只输出 JSON，不得输出解释文字。priority 只能是 P0/P1/P2。",
+          '你是资深技术负责人。你必须只输出严格 JSON（不要用 ```json 包裹），不得输出解释文字。所有key必须英文。schema: {"prioritizedFindings":[{"priority":"P0","content":"...","reason":"..."}]}。priority 只能是 P0/P1/P2。',
         userPrompt: [
           `分析目标=${params.analyzedTarget};iteration=${params.iterationName}`,
           `关键发现:\n${candidate.meaningfulFindings.map((item, index) => `${index + 1}. ${item}`).join("\n")}`,
@@ -142,7 +147,7 @@ export async function synthesizeProjectProfileOp(
         goal: "基于上下文补齐关键发现",
         expectedOutput: "JSON: {meaningfulFindings:[...]}",
         systemPrompt:
-          "你是资深产品分析师。你必须只输出 JSON，不得输出解释文字。meaningfulFindings 必须具体、可验证、避免空泛。",
+          '你是资深产品分析师。你必须只输出严格 JSON（不要用 ```json 包裹），不得输出解释文字。所有key必须英文。schema: {"meaningfulFindings":["具体发现1","具体发现2"]}。meaningfulFindings 必须具体、可验证、避免空泛。',
         userPrompt: [
           `分析目标=${params.analyzedTarget};iteration=${params.iterationName};sourceType=${params.sourceType};attempt=${attempt}`,
           `附件节选:\n${params.excerpt.slice(0, 2600) || "无"}`,
@@ -175,7 +180,7 @@ export async function synthesizeProjectProfileOp(
         goal: "补齐项目与产品识别",
         expectedOutput: "JSON: {projectDetection:{projectName,productName,projectCategory,evidence[]}}",
         systemPrompt:
-          "你是资深产品分析师。你必须只输出 JSON，不得输出解释文字。projectDetection.projectName 或 productName 至少一个非空。",
+          '你是资深产品分析师。你必须只输出严格 JSON（不要用 ```json 包裹），不得输出解释文字。所有key必须英文。schema: {"projectDetection":{"projectName":"...","productName":"...","projectCategory":"...","evidence":["..."]}}。projectName 或 productName 至少一个非空。',
         userPrompt: [
           `分析目标=${params.analyzedTarget};iteration=${params.iterationName};sourceType=${params.sourceType};attempt=${attempt}`,
           `附件节选:\n${params.excerpt.slice(0, 2600) || "无"}`,
@@ -203,23 +208,21 @@ export async function synthesizeProjectProfileOp(
       }
     }
 
+    // Only hard-fail on the most fundamental check; everything else is best-effort
     if (!candidate.projectName && !candidate.productName) {
       throw new LlmInvocationError("LLM synthesis returned invalid payload: missing projectDetection.projectName/productName");
     }
-    if (candidate.meaningfulFindings.length === 0) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: meaningfulFindings is empty");
-    }
-    if (candidate.prioritizedFindings.length === 0) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: prioritizedFindings is empty");
-    }
-    if (candidate.nextActions.length === 0) {
-      throw new LlmInvocationError("LLM synthesis returned invalid payload: nextActions is empty");
-    }
-    if (candidate.meaningfulFindings.every(isLowSignalText)) {
-      throw new LlmInvocationError("LLM synthesis returned low-signal meaningfulFindings");
-    }
-    if (candidate.nextActions.every(isLowSignalText)) {
-      throw new LlmInvocationError("LLM synthesis returned low-signal nextActions");
+    {
+      const warnings: string[] = [];
+      if (candidate.meaningfulFindings.length === 0) warnings.push("meaningfulFindings is empty");
+      if (candidate.prioritizedFindings.length === 0) warnings.push("prioritizedFindings is empty");
+      if (candidate.nextActions.length === 0) warnings.push("nextActions is empty");
+      if (candidate.meaningfulFindings.every(isLowSignalText)) warnings.push("low-signal meaningfulFindings");
+      if (candidate.nextActions.every(isLowSignalText)) warnings.push("low-signal nextActions");
+      if (warnings.length > 0) {
+        const log = (await import("../../infrastructure/runtime/logger")).createLogger("proj-profile");
+        log.warn("project profile partially incomplete", { warnings: warnings.join(", ") });
+      }
     }
 
     const confidence = candidate.evidence.length >= 3 ? "high" : candidate.evidence.length >= 1 ? "medium" : "low";

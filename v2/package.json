@@ -19,6 +19,7 @@
     "check:skills": "npm --prefix backend run check:skills",
     "seed:agentic:flow": "node scripts/reset-and-seed-agentic-flow-mock.mjs",
     "demo:openclaw:real": "node scripts/openclaw-real-llm-demo.mjs",
+    "e2e:creative-generator:rc": "node scripts/run-creative-generator-rc-e2e.mjs",
     "clean:workspace": "bash scripts/clean-workspace.sh",
     "report:readiness": "node scripts/report-readiness.mjs",
     "dev:stack:start": "bash scripts/start-dev-stack.sh",

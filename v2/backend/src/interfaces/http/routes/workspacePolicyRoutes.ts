@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, handleRouteError, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 import { registerWorkspacePolicyExecutionRoutes } from "./workspacePolicyExecutionRoutes";
 
 function currentUserId(request: import("fastify").FastifyRequest) {
@@ -159,15 +159,24 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: "openclawProfile and workspacePath are required" };
     }
     const actor = currentUserId(request);
-    return service.upsertProjectWorkspaceBinding({
-      projectId,
-      openclawProfile: body.openclawProfile.trim(),
-      agentId: body.agentId?.trim() || "main",
-      workspacePath: body.workspacePath.trim(),
-      runtimeMode: body.runtimeMode === "bridge" ? "bridge" : "openclaw-native",
-      locked: body.locked !== false,
-      createdBy: actor
-    });
+    try {
+      return service.upsertProjectWorkspaceBinding({
+        projectId,
+        openclawProfile: body.openclawProfile.trim(),
+        agentId: body.agentId?.trim() || "main",
+        workspacePath: body.workspacePath.trim(),
+        runtimeMode: body.runtimeMode === "bridge" ? "bridge" : "openclaw-native",
+        locked: body.locked !== false,
+        createdBy: actor
+      });
+    } catch (error) {
+      const handled = handleRouteError(error);
+      if (handled) {
+        reply.code(handled.code);
+        return { message: handled.message };
+      }
+      throw error;
+    }
   });
 
   app.get("/projects/:id/roles", async (request, reply) => {

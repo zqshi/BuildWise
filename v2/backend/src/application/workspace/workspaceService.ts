@@ -24,6 +24,8 @@ import type {
 } from "../../domain/workspace/types";
 import type { AgentRunner } from "./agentRunner";
 import type { UploadInitInput } from "./workspaceServiceAttachmentUploadOps";
+import { resolve as resolvePath } from "node:path";
+import { WorkspaceBindingConflictError } from "./workspaceErrors";
 
 // ── Subdomain Services ──
 import { ProjectService } from "./projectService";
@@ -36,11 +38,17 @@ import { CoachService } from "./coachService";
 import { QualityService } from "./qualityService";
 import { OpenclawService } from "./openclawService";
 import { FullCycleService } from "./fullCycleService";
+import {
+  searchProjectWorkspaceKnowledge,
+  syncAllProjectWorkspaceKnowledge,
+  syncProjectWorkspaceKnowledge
+} from "./projectWorkspaceKnowledgeService";
 
 // backward-compat re-export
 export { DuplicateAttachmentUploadError } from "./workspaceErrors";
 
 export class WorkspaceService {
+  private readonly repo: WorkspaceRepository;
   // ── Subdomain service instances ──
   readonly project: ProjectService;
   readonly governance: GovernanceService;
@@ -58,6 +66,7 @@ export class WorkspaceService {
     agentRunner: AgentRunner | null = null,
     modelingRepo: ContinuousModelingRepository | null = null
   ) {
+    this.repo = repo;
     this.project = new ProjectService(repo);
     this.governance = new GovernanceService(repo);
     this.iteration = new IterationService(repo, agentRunner);
@@ -141,7 +150,23 @@ export class WorkspaceService {
     locked: boolean;
     createdBy: string;
   }) {
-    return this.governance.upsertProjectWorkspaceBinding(input);
+    const workspacePath = resolvePath(input.workspacePath.trim());
+    this.assertWorkspaceBindingIsolation(input.projectId, workspacePath);
+    const record = this.governance.upsertProjectWorkspaceBinding({
+      ...input,
+      workspacePath
+    });
+    syncProjectWorkspaceKnowledge(this.repo, input.projectId);
+    return record;
+  }
+  syncProjectWorkspaceKnowledge(projectId: number) {
+    return syncProjectWorkspaceKnowledge(this.repo, projectId);
+  }
+  syncAllProjectWorkspaceKnowledge() {
+    return syncAllProjectWorkspaceKnowledge(this.repo);
+  }
+  searchProjectWorkspaceKnowledge(projectId: number, query: string, limit = 4) {
+    return searchProjectWorkspaceKnowledge(this.repo, projectId, query, limit);
   }
   listPolicyExecutionLogs(iterationId: number) { return this.governance.listPolicyExecutionLogs(iterationId); }
   appendPolicyExecutionLog(input: {
@@ -300,6 +325,7 @@ export class WorkspaceService {
       accurate: boolean;
       note?: string;
       actor?: string;
+      force?: boolean;
       boundary?: Partial<IterationChangeBoundary>;
       resolvedClarificationQuestions?: string[];
     }
@@ -423,5 +449,19 @@ export class WorkspaceService {
   // ── Full Cycle ──
   async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput): Promise<IterationFullCycleRunResponse | null> {
     return this.fullCycle.runIterationFullCycle(iterationId, input);
+  }
+
+  private assertWorkspaceBindingIsolation(projectId: number, workspacePath: string) {
+    const conflictingBinding = this.repo
+      .listProjects()
+      .filter((project) => project.id !== projectId)
+      .flatMap((project) => this.repo.listProjectWorkspaceBindings(project.id))
+      .find((binding) => resolvePath(binding.workspacePath.trim()) === workspacePath);
+
+    if (conflictingBinding) {
+      throw new WorkspaceBindingConflictError(
+        `workspace_path_already_bound: project=${conflictingBinding.projectId} path=${workspacePath}`
+      );
+    }
   }
 }

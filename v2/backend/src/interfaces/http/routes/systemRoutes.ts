@@ -31,11 +31,12 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
   });
 
   app.get("/health", async (_request, reply) => {
-    const healthy = context.isReady();
-    if (!healthy) {
+    const runtime = context.getRuntime();
+    if (runtime.shuttingDown) {
       reply.code(503);
+      return { status: "shutting_down" };
     }
-    return { status: healthy ? "healthy" : "degraded" };
+    return { status: "healthy" };
   });
 
   app.get("/ready", async (_request, reply) => {

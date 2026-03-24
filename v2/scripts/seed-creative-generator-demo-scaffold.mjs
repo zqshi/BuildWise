@@ -4,11 +4,17 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const ROOT = resolve(process.cwd(), "backend");
-const DATA_FILES = [resolve(ROOT, "data.json"), resolve(ROOT, "data.runtime.json")];
+const DATA_FILES = String(process.env.BUILDWISE_DEMO_DATA_FILES || "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean)
+  .map((item) => resolve(item));
+const TARGET_DATA_FILES = DATA_FILES.length > 0 ? DATA_FILES : [resolve(ROOT, "data.json"), resolve(ROOT, "data.runtime.json")];
 const NOW = new Date().toISOString();
 const PROJECT_NAME = "创意生成器演示项目";
 const PROJECT_DESCRIPTION = "用于验证创意生成器在真实 LLM 驱动、交付物确认、业务规则关联和双版本继承下的完整闭环。";
 const DEMO_PHONE = "13800138000";
+const WORKSPACE_PATH = resolve(process.env.BUILDWISE_DEMO_WORKSPACE_PATH || resolve(process.cwd(), ".."));
 
 function createArtifact(id, stage, title, category, description, source, editCapability, downstreamImpacts) {
   return {
@@ -453,7 +459,7 @@ function buildStore() {
         projectId: 1,
         openclawProfile: "buildwise-local",
         agentId: "main",
-        workspacePath: resolve(process.cwd(), ".."),
+        workspacePath: WORKSPACE_PATH,
         runtimeMode: "openclaw-native",
         locked: false,
         createdBy: "system",
@@ -484,8 +490,8 @@ function buildStore() {
 }
 
 const store = buildStore();
-for (const file of DATA_FILES) {
+for (const file of TARGET_DATA_FILES) {
   writeFileSync(file, `${JSON.stringify(store, null, 2)}\n`, "utf-8");
 }
 
-console.log(JSON.stringify({ ok: true, projectName: PROJECT_NAME, iterations: store.iterations.map((item) => item.name), files: DATA_FILES }, null, 2));
+console.log(JSON.stringify({ ok: true, projectName: PROJECT_NAME, iterations: store.iterations.map((item) => item.name), files: TARGET_DATA_FILES, workspacePath: WORKSPACE_PATH }, null, 2));

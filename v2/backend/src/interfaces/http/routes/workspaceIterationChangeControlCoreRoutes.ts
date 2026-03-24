@@ -33,6 +33,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
       accurate?: boolean;
       note?: string;
       actor?: string;
+      force?: boolean;
       resolvedClarificationQuestions?: string[];
       boundary?: {
         requirementRefs?: string[];
@@ -49,6 +50,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
       accurate: body.accurate,
       note: body.note,
       actor: body.actor,
+      force: body.force === true,
       resolvedClarificationQuestions: body.resolvedClarificationQuestions,
       boundary: body.boundary
     });
