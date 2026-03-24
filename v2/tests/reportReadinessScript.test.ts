@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -20,12 +20,20 @@ function runReadiness(env = {}) {
   }).trim();
 }
 
+function readReport(outputFile: string) {
+  return readFileSync(outputFile, "utf8");
+}
+
 test("report-readiness writes to temp output by default instead of dirtying repo milestones", () => {
   const output = runReadiness();
 
   assert.match(output, /buildwise-readiness/);
   assert.doesNotMatch(output, /docs\/milestones/);
   assert.equal(existsSync(output), true);
+  const report = readReport(output);
+  assert.doesNotMatch(report, /\/api\/v1\/api\/v1/);
+  assert.match(report, /- 接口覆盖率: (?:[1-9]\d?(?:\.\d)?|100(?:\.0)?)%/);
+  assert.match(report, /- \/api\/v1\/projects\b/);
 });
 
 test("report-readiness supports explicit output directory override", () => {

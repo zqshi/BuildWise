@@ -1,21 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
-import { currentRole } from "./workspaceRouteUtils";
+import { ensureIterationAccess } from "./workspaceRouteUtils";
 
 const allowedExecutionStatuses = new Set(["pending", "passed", "failed", "blocked", "skipped"]);
 
 export function registerWorkspaceIterationChangeControlQualityRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.post("/iterations/:id/change-control/test-matrix/execution", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       updates?: Array<{ caseId?: string; status?: string; by?: string; note?: string }>;
@@ -56,15 +55,14 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
   });
 
   app.post("/iterations/:id/change-control/test-artifacts/generate", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { dryRun?: boolean } | null;
     const result = await service.generateIterationTestArtifacts(iterationId, { dryRun: body?.dryRun === true });
@@ -80,6 +78,10 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const result = service.getIterationReleaseReview(iterationId);
     if (!result) {

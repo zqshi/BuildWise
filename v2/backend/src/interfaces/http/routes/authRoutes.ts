@@ -4,6 +4,7 @@ import type { WorkspaceService } from "../../../application/workspace/workspaceS
 import type { RuntimeConfig } from "../../../infrastructure/runtime/runtimeConfig";
 import { createTokenPair, verifyJwt, isTokenRevoked, revokeToken } from "../../../infrastructure/runtime/jwt";
 import { createLogger } from "../../../infrastructure/runtime/logger";
+import { currentTenantId } from "./workspaceRouteUtils";
 
 const log = createLogger("auth");
 
@@ -62,6 +63,31 @@ function parseRefreshTokenCookie(request: import("fastify").FastifyRequest): str
   const raw = request.headers.cookie || "";
   const match = raw.match(/(?:^|;\s*)buildwise_rt=([^;]+)/);
   return match ? match[1].trim() : "";
+}
+
+function buildAuthSessionPayload(
+  service: WorkspaceService,
+  userId: string,
+  platformRole: string,
+  fallbackWorkspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer",
+  requestedTenantId = ""
+) {
+  const tenants = service.listAccessibleTenants(userId);
+  const resolvedTenantId =
+    (requestedTenantId && tenants.some((item) => item.tenantId === requestedTenantId) ? requestedTenantId : "") ||
+    tenants[0]?.tenantId ||
+    userId;
+  const currentTenant = tenants.find((item) => item.tenantId === resolvedTenantId) || null;
+  return {
+    ok: true,
+    user: {
+      phone: userId,
+      platformRole,
+      workspaceRole: currentTenant?.workspaceRole || fallbackWorkspaceRole
+    },
+    currentTenantId: resolvedTenantId,
+    tenants
+  };
 }
 
 export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceService, config: RuntimeConfig) {
@@ -146,22 +172,29 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       const isSecure = config.nodeEnv === "production" || request.protocol === "https" || request.headers["x-forwarded-proto"] === "https";
       setRefreshTokenCookie(reply, tokens.refreshToken, config.jwtRefreshTtlSec, isSecure);
       return {
-        ok: true,
-        user: { phone, platformRole: binding.role, workspaceRole },
+        ...buildAuthSessionPayload(service, phone, binding.role, workspaceRole),
         accessToken: tokens.accessToken,
         expiresIn: tokens.expiresIn
       };
     }
 
     // 非 JWT 模式（off/token）：原有行为
-    return {
-      ok: true,
-      user: {
-        phone,
-        platformRole: binding.role,
-        workspaceRole
-      }
-    };
+    return buildAuthSessionPayload(service, phone, binding.role, workspaceRole);
+  });
+
+  app.get("/auth/session", async (request, reply) => {
+    const userId = request.authSub || "";
+    if (!userId) {
+      reply.code(401);
+      return { message: "authentication required" };
+    }
+    const binding = service.listPlatformRoleBindings().find((item) => item.userId === userId);
+    if (!binding) {
+      reply.code(403);
+      return { message: "user is not registered in platform members" };
+    }
+    const workspaceRole = service.resolveWorkspaceRole(binding.role);
+    return buildAuthSessionPayload(service, userId, binding.role, workspaceRole, currentTenantId(request));
   });
 
   // POST /api/auth/refresh — 刷新 token

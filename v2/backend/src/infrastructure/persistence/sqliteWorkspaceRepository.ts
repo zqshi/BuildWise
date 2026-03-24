@@ -13,6 +13,7 @@ import type {
   Project,
   ProjectPolicyRecord,
   ProjectRoleBindingRecord,
+  TenantMemberBindingRecord,
   ProjectShare,
   ProjectWorkspaceBindingRecord,
   TemplateRunRecord,
@@ -26,8 +27,9 @@ import { SqliteWorkspaceCore } from "./sqliteWorkspaceCore";
 export class SqliteWorkspaceRepository implements WorkspaceRepository {
   private readonly core: SqliteWorkspaceCore;
 
-  constructor(dbFile: string, seedDataFile?: string) {
-    this.core = new SqliteWorkspaceCore(dbFile, seedDataFile);
+  constructor(dbFile: string, seedDataFile?: string, options?: { bootstrapMode?: "seed" | "empty" }) {
+    this.core = new SqliteWorkspaceCore(dbFile, seedDataFile, options);
+    this.core.readStore();
   }
 
   /** Expose the underlying DatabaseSync for cross-cutting concerns (e.g. revoked-token store). */
@@ -55,12 +57,14 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     return this.core.findProject(projectId);
   }
 
-  createProject(input: Pick<Project, "name" | "description">) {
+  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">) {
     const id = this.core.nextIdFromTable("projects");
     const repoName = toRepoSlug(input.name, `project-${id}`);
     const now = new Date().toISOString();
     const created: Project = {
       id,
+      tenantId: input.tenantId,
+      ownerUserId: input.ownerUserId,
       name: input.name,
       description: input.description,
       status: "in-progress",
@@ -410,6 +414,32 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
       return false;
     }
     this.core.writeCollection("projectRoleBindings", nextItems);
+    return true;
+  }
+
+  listTenantMemberBindings(tenantId: string) {
+    return this.core.readCollection<TenantMemberBindingRecord>("tenantMemberBindings").filter((item) => item.tenantId === tenantId);
+  }
+
+  upsertTenantMemberBinding(record: TenantMemberBindingRecord) {
+    const items = this.core.readCollection<TenantMemberBindingRecord>("tenantMemberBindings");
+    const idx = items.findIndex((item) => item.tenantId === record.tenantId && item.userId === record.userId);
+    if (idx >= 0) {
+      items[idx] = record;
+    } else {
+      items.push(record);
+    }
+    this.core.writeCollection("tenantMemberBindings", items);
+    return record;
+  }
+
+  removeTenantMemberBinding(tenantId: string, userId: string) {
+    const items = this.core.readCollection<TenantMemberBindingRecord>("tenantMemberBindings");
+    const nextItems = items.filter((item) => !(item.tenantId === tenantId && item.userId === userId));
+    if (nextItems.length === items.length) {
+      return false;
+    }
+    this.core.writeCollection("tenantMemberBindings", nextItems);
     return true;
   }
 

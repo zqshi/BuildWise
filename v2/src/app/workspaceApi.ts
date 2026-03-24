@@ -9,7 +9,6 @@ import type {
   IterationContextPayload,
   IterationStateMachinePayload,
   IterationMessage,
-  ProjectModelBusinessSummaryPayload,
   Project,
 } from "../domain/workspace/types";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";
@@ -30,6 +29,7 @@ import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
 import { normalizeProjectModelViewPayload } from "./projectModelViewNormalization.ts";
 import { API_BASE, API_PREFIX, isApiNotFound } from "./workspaceApiCore";
+import type { AuthTenantSummary } from "./authTenantSession";
 
 export * from "./workspaceApiAgentOps";
 
@@ -138,14 +138,6 @@ export async function deleteProject(projectId: number) {
   return fetchJSON<{ ok: boolean; projectId: number; deletedAt: string }>(`${API_BASE}${API_PREFIX}/projects/${projectId}`, {
     method: "DELETE"
   });
-}
-
-export async function fetchProjectModelBusinessSummary(projectId: number, iterationId?: number) {
-  const endpoint =
-    typeof iterationId === "number" && iterationId > 0
-      ? `${API_BASE}${API_PREFIX}/projects/${projectId}/model/business-summary?iterationId=${iterationId}`
-      : `${API_BASE}${API_PREFIX}/projects/${projectId}/model/business-summary`;
-  return fetchJSON<ProjectModelBusinessSummaryPayload>(endpoint);
 }
 
 export async function fetchProjectModelView(projectId: number, iterationId?: number) {
@@ -601,8 +593,7 @@ export type ProjectWorkspaceBindingPayload = {
 };
 
 export type ProjectRoleBindingPayload = {
-  id: number;
-  projectId: number;
+  tenantId: string;
   userId: string;
   role: "admin" | "member" | "viewer";
   createdAt: string;
@@ -631,47 +622,55 @@ export async function fetchGlobalOrchestrationPolicies() {
   );
 }
 
-export async function createGlobalOrchestrationPolicyDraft(strategy?: Record<string, unknown>, role = "owner", userId = "admin-1") {
+function withOptionalUserId(role: string, userId?: string) {
+  const headers: Record<string, string> = { "x-role": role };
+  if (userId) {
+    headers["x-user-id"] = userId;
+  }
+  return headers;
+}
+
+export async function createGlobalOrchestrationPolicyDraft(strategy?: Record<string, unknown>, role = "owner", userId?: string) {
   return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
+    headers: { "Content-Type": "application/json", ...withOptionalUserId(role, userId) },
     body: JSON.stringify({ strategy: strategy || {} })
   });
 }
 
-export async function activateGlobalOrchestrationPolicy(version: number, role = "owner", userId = "admin-1") {
+export async function activateGlobalOrchestrationPolicy(version: number, role = "owner", userId?: string) {
   return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies/${version}/activate`, {
     method: "POST",
-    headers: { "x-role": role, "x-user-id": userId }
+    headers: withOptionalUserId(role, userId)
   });
 }
 
-export async function restoreGlobalOrchestrationPolicyToInitialMode(role = "owner", userId = "admin-1") {
+export async function restoreGlobalOrchestrationPolicyToInitialMode(role = "owner", userId?: string) {
   return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies/restore-initial`, {
     method: "POST",
-    headers: { "x-role": role, "x-user-id": userId }
+    headers: withOptionalUserId(role, userId)
   });
 }
 
-export async function createProjectPolicyDraft(projectId: number, strategy?: Record<string, unknown>, role = "owner", userId = "admin-1") {
+export async function createProjectPolicyDraft(projectId: number, strategy?: Record<string, unknown>, role = "owner", userId?: string) {
   return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
+    headers: { "Content-Type": "application/json", ...withOptionalUserId(role, userId) },
     body: JSON.stringify({ strategy: strategy || {} })
   });
 }
 
-export async function activateProjectPolicy(projectId: number, version: number, role = "owner", userId = "admin-1") {
+export async function activateProjectPolicy(projectId: number, version: number, role = "owner", userId?: string) {
   return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies/${version}/activate`, {
     method: "POST",
-    headers: { "x-role": role, "x-user-id": userId }
+    headers: withOptionalUserId(role, userId)
   });
 }
 
-export async function restoreProjectPolicyToInitialMode(projectId: number, role = "owner", userId = "admin-1") {
+export async function restoreProjectPolicyToInitialMode(projectId: number, role = "owner", userId?: string) {
   return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies/restore-initial`, {
     method: "POST",
-    headers: { "x-role": role, "x-user-id": userId }
+    headers: withOptionalUserId(role, userId)
   });
 }
 
@@ -685,11 +684,11 @@ export async function bindProjectWorkspace(
     locked?: boolean;
   },
   role = "owner",
-  userId = "admin-1"
+  userId?: string
 ) {
   return fetchJSON<ProjectWorkspaceBindingPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/workspace/bind`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-role": role, "x-user-id": userId },
+    headers: { "Content-Type": "application/json", ...withOptionalUserId(role, userId) },
     body: JSON.stringify(payload)
   });
 }
@@ -838,6 +837,8 @@ export async function verifySmsLoginCode(phone: string, code: string) {
       platformRole: string;
       workspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer";
     };
+    currentTenantId: string;
+    tenants: AuthTenantSummary[];
     accessToken?: string;
     expiresIn?: number;
   }>(`${API_BASE}${API_PREFIX}/auth/sms/verify`, {
@@ -845,6 +846,19 @@ export async function verifySmsLoginCode(phone: string, code: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone, code })
   });
+}
+
+export async function fetchAuthSession() {
+  return fetchJSON<{
+    ok: boolean;
+    user: {
+      phone: string;
+      platformRole: string;
+      workspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer";
+    };
+    currentTenantId: string;
+    tenants: AuthTenantSummary[];
+  }>(`${API_BASE}${API_PREFIX}/auth/session`);
 }
 
 export async function logoutSession() {

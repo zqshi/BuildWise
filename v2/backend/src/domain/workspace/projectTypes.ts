@@ -58,6 +58,8 @@ export type ProjectKnowledgeBase = {
 
 export type Project = {
   id: number;
+  tenantId?: string;
+  ownerUserId?: string;
   name: string;
   description: string;
   status: string;
@@ -65,6 +67,7 @@ export type Project = {
   icon?: string;
   iconColor?: string;
   lastUpdated?: string;
+  currentUserRole?: "owner" | "pm" | "developer" | "qa" | "viewer";
   repository?: ProjectRepository;
   knowledgeBase?: ProjectKnowledgeBase;
 };

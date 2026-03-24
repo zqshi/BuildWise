@@ -24,7 +24,21 @@ export type RuntimeConfig = {
   openclawHome: string;
   homeDir: string;
   openclawSkillsEnabled: boolean;
+  allowSeedDataBootstrap: boolean;
 };
+
+const REQUIRED_PUBLIC_PATH_PREFIXES = [
+  "/health",
+  "/ready",
+  "/metrics",
+  "/api/v1/status",
+  "/api/v1/ops/metrics",
+  "/api/v1/ops/metrics/prometheus",
+  "/api/v1/collab/share/",
+  "/api/v1/auth/sms/",
+  "/api/v1/auth/refresh",
+  "/api/v1/auth/logout"
+];
 
 function parsePositiveInt(value: string | undefined, fallback: number) {
   if (!value) {
@@ -114,20 +128,25 @@ function parseBool(value: string | undefined, fallback = false) {
   return fallback;
 }
 
+function resolveWorkspaceDataFile(env: EnvMap, defaults: { dataFile: string }) {
+  return env.WORKSPACE_DATA_FILE?.trim() || defaults.dataFile;
+}
+
+function resolveWorkspaceDbFile(env: EnvMap, dataFile: string) {
+  return env.WORKSPACE_DB_FILE?.trim() || dataFile.replace(/\.json$/i, ".db");
+}
+
 export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string }): RuntimeConfig {
   const nodeEnv = parseNodeEnv(env.NODE_ENV);
   const corsOrigins = parseCorsOrigins(env.CORS_ORIGINS);
   const authMode = parseAuthMode(env.AUTH_MODE);
   const authTokens = parseAuthTokens(env.AUTH_TOKENS_JSON);
-  const authPublicPathPrefixes = parsePathPrefixes(env.AUTH_PUBLIC_PATH_PREFIXES, [
-    "/health",
-    "/ready",
-    "/api/v1/status",
-    "/api/v1/collab/share/",
-    "/api/v1/auth/sms/",
-    "/api/v1/auth/refresh",
-    "/api/v1/auth/logout"
-  ]);
+  const authPublicPathPrefixes = Array.from(
+    new Set([
+      ...REQUIRED_PUBLIC_PATH_PREFIXES,
+      ...parsePathPrefixes(env.AUTH_PUBLIC_PATH_PREFIXES, REQUIRED_PUBLIC_PATH_PREFIXES)
+    ])
+  );
   const storageBackend = parseStorageBackend(env.STORAGE_BACKEND);
   if (nodeEnv !== "development" && corsOrigins === true) {
     throw new Error("CORS_ORIGINS must be explicitly configured in non-development environments");
@@ -151,15 +170,16 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string }): 
     }
   }
 
-  // --- Storage backend safety checks ---
   if (nodeEnv === "production" && storageBackend === "json") {
-    console.warn(
-      "[runtimeConfig] WARNING: STORAGE_BACKEND=json is not recommended for production. " +
-        "JSON file storage relies on Node.js single-threaded synchronous I/O for atomicity " +
-        "and does not support multi-process or clustered deployments. " +
-        "Set STORAGE_BACKEND=sqlite for transactional safety."
-    );
+    throw new Error("STORAGE_BACKEND=json is not allowed in production; use STORAGE_BACKEND=sqlite");
   }
+
+  const allowSeedDataBootstrap = parseBool(env.ALLOW_SEED_DATA_BOOTSTRAP, nodeEnv !== "production");
+  if (nodeEnv === "production" && allowSeedDataBootstrap) {
+    throw new Error("ALLOW_SEED_DATA_BOOTSTRAP must be disabled in production");
+  }
+  const dataFile = resolveWorkspaceDataFile(env, defaults);
+  const workspaceDbFile = resolveWorkspaceDbFile(env, dataFile);
 
   return {
     serviceName: env.SERVICE_NAME?.trim() || "buildwise-v2-backend",
@@ -177,13 +197,14 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string }): 
     llmRequired: parseBool(env.LLM_REQUIRED, false),
     dependencyRequired: parseBool(env.DEPENDENCY_REQUIRED, nodeEnv === "production"),
     storageBackend,
-    workspaceDbFile: env.WORKSPACE_DB_FILE?.trim() || defaults.dataFile.replace(/\.json$/i, ".db"),
+    workspaceDbFile,
     jwtSecret: (env.JWT_SECRET || "").trim(),
     jwtAccessTtlSec: parsePositiveInt(env.JWT_ACCESS_TTL_SEC, 7200),
     jwtRefreshTtlSec: parsePositiveInt(env.JWT_REFRESH_TTL_SEC, 604800),
-    dataFile: env.WORKSPACE_DATA_FILE?.trim() || defaults.dataFile,
+    dataFile,
     openclawHome: env.OPENCLAW_HOME?.trim() || "",
     homeDir: env.HOME?.trim() || "",
-    openclawSkillsEnabled: parseBool(env.BUILDWISE_OPENCLAW_SKILLS_ENABLED, false)
+    openclawSkillsEnabled: parseBool(env.BUILDWISE_OPENCLAW_SKILLS_ENABLED, false),
+    allowSeedDataBootstrap
   };
 }

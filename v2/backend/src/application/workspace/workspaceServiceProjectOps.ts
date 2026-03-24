@@ -7,7 +7,7 @@ import { collectRepositoryHealth, looksLikeRemoteRepositoryUrl, validateReposito
 export { provisionProjectRepositoryOp, scaffoldProjectRepositoryOp } from "./workspaceServiceProjectProvisionOps";
 export { publishIterationToRemoteOp } from "./workspaceServiceProjectPublishOps";
 
-export function createProjectOp(repo: WorkspaceRepository, input: { name: string; description: string }) {
+export function createProjectOp(repo: WorkspaceRepository, input: { name: string; description: string; tenantId: string; ownerUserId: string }) {
   const created = normalizeProject(repo.createProject(input));
   writeAuditLog(repo, "project_repo_initialized", `project:${created.id}`, `repo=${created.repository?.url}`);
   return created;

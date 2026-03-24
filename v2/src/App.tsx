@@ -126,6 +126,8 @@ function AppInner() {
         currentRole={controller.currentRole}
         dockUserLabel={controller.dockUserLabel}
         dockUserAvatar={controller.dockUserAvatar}
+        tenants={controller.tenants}
+        currentTenantId={controller.currentTenantId}
         showUserMenu={controller.showUserMenu}
         userMenuRef={controller.userMenuRef}
         onShowDashboard={() => openViewFromSidebar("dashboard")}
@@ -133,6 +135,10 @@ function AppInner() {
         onToggleUserMenu={() => controller.setShowUserMenu((prev) => !prev)}
         onOpenPolicyManager={() => jumpToGovernance("policy")}
         onOpenOpenclawDialog={() => jumpToGovernance("openclaw")}
+        onSwitchTenant={(tenantId) => {
+          controller.switchTenant(tenantId);
+          controller.setShowUserMenu(false);
+        }}
         onLogout={controller.handleLogout}
       />
 

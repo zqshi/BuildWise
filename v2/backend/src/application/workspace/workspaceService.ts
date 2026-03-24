@@ -43,6 +43,7 @@ import {
   syncAllProjectWorkspaceKnowledge,
   syncProjectWorkspaceKnowledge
 } from "./projectWorkspaceKnowledgeService";
+import { getIterationAccessContext } from "./workspaceTenantAccess";
 
 // backward-compat re-export
 export { DuplicateAttachmentUploadError } from "./workspaceErrors";
@@ -118,6 +119,11 @@ export class WorkspaceService {
     return this.governance.upsertProjectRoleBinding(input);
   }
   removeProjectRoleBinding(projectId: number, userId: string) { return this.governance.removeProjectRoleBinding(projectId, userId); }
+  listTenantMemberBindings(tenantId: string) { return this.governance.listTenantMemberBindings(tenantId); }
+  upsertTenantMemberBinding(input: { tenantId: string; userId: string; role: "admin" | "member" | "viewer" }) {
+    return this.governance.upsertTenantMemberBinding(input);
+  }
+  removeTenantMemberBinding(tenantId: string, userId: string) { return this.governance.removeTenantMemberBinding(tenantId, userId); }
   listProjectPolicies(projectId: number) { return this.governance.listProjectPolicies(projectId); }
   listGlobalOrchestrationPolicies() { return this.governance.listGlobalOrchestrationPolicies(); }
   getActiveProjectPolicy(projectId: number) { return this.governance.getActiveProjectPolicy(projectId); }
@@ -186,9 +192,16 @@ export class WorkspaceService {
 
   // ── Project ──
   hasProject(projectId: number) { return this.project.hasProject(projectId); }
+  findProject(projectId: number) { return this.repo.findProject(projectId); }
   listProjects() { return this.project.listProjects(); }
-  createProject(input: { name: string; description: string }) { return this.project.createProject(input); }
+  listProjectsForUser(userId: string, tenantId?: string) { return this.project.listProjectsForUser(userId, tenantId); }
+  createProject(input: { name: string; description: string; tenantId: string; ownerUserId: string }) { return this.project.createProject(input); }
   archiveProject(projectId: number) { return this.project.archiveProject(projectId); }
+  getProjectAccess(userId: string, projectId: number) { return this.project.getProjectAccess(userId, projectId); }
+  getTenantAccess(userId: string, tenantId: string) { return this.project.getTenantAccess(userId, tenantId); }
+  listAccessibleTenants(userId: string) { return this.project.listAccessibleTenants(userId); }
+  findIteration(iterationId: number) { return this.repo.findIteration(iterationId); }
+  getIterationAccess(userId: string, iterationId: number) { return getIterationAccessContext(this.repo, iterationId, userId); }
   getProjectRepository(projectId: number) { return this.project.getProjectRepository(projectId); }
   bootstrapProjectRepository(
     projectId: number,
@@ -373,6 +386,10 @@ export class WorkspaceService {
   }
   getAttachmentReportSection(reportId: string, sectionKey: AttachmentReportSection["sectionKey"], cursor = 0, limit = 20) {
     return this.analysis.getAttachmentReportSection(reportId, sectionKey, cursor, limit);
+  }
+
+  findAttachmentReportIterationId(reportId: string) {
+    return this.analysis.findAttachmentReportIterationId(reportId);
   }
 
   // ── Upload ──

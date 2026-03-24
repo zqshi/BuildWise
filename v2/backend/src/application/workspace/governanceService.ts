@@ -22,9 +22,11 @@ import {
   restoreProjectOrchestrationPolicyToInitialModeOp,
   removePlatformRoleBindingOp,
   removeProjectRoleBindingOp,
+  removeTenantMemberBindingOp,
   upsertGovernanceCustomRoleOp,
   upsertPlatformRoleBindingOp,
   upsertProjectRoleBindingOp,
+  upsertTenantMemberBindingOp,
   upsertProjectWorkspaceBindingOp
 } from "./workspaceServicePolicyOps";
 
@@ -88,6 +90,18 @@ export class GovernanceService {
 
   removeProjectRoleBinding(projectId: number, userId: string) {
     return removeProjectRoleBindingOp(this.repo, projectId, userId);
+  }
+
+  listTenantMemberBindings(tenantId: string) {
+    return this.repo.listTenantMemberBindings(tenantId);
+  }
+
+  upsertTenantMemberBinding(input: { tenantId: string; userId: string; role: "admin" | "member" | "viewer" }) {
+    return upsertTenantMemberBindingOp(this.repo, input);
+  }
+
+  removeTenantMemberBinding(tenantId: string, userId: string) {
+    return removeTenantMemberBindingOp(this.repo, tenantId, userId);
   }
 
   listProjectPolicies(projectId: number) {

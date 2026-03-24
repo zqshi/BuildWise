@@ -27,34 +27,101 @@ function listFrontendSourceFiles(dir) {
 
 function extractFrontendApis(content) {
   const endpoints = new Set();
-  const templateRe = /\$\{API_BASE\}(\/api\/[^`"']+)/g;
+  const templateRe = /\$\{API_BASE\}(?:\$\{API_PREFIX\})?(\/[^"'`\s]+)?/g;
   for (const match of content.matchAll(templateRe)) {
-    const normalized = match[1].replace(/\$\{[^}]+\}/g, ":param");
-    endpoints.add(normalized);
+    const suffix = match[1] || "";
+    const resolvedPath =
+      suffix === "/health" || suffix === "/ready" || suffix === "/metrics"
+        ? suffix
+        : suffix.startsWith("/api/")
+          ? suffix
+          : `/api/v1${suffix}`;
+    const normalized = normalizeApiPath(resolvedPath) || resolvedPath;
+    if (normalized) {
+      endpoints.add(normalized);
+    }
   }
-  const literalRe = /["'`](\/api\/[a-zA-Z0-9/_:-]+)["'`]/g;
+  const prefixedTemplateRe = /\$\{API_PREFIX\}(\/[^"'`\s]+)/g;
+  for (const match of content.matchAll(prefixedTemplateRe)) {
+    const normalized = normalizeApiPath(`/api/v1${match[1]}`);
+    if (normalized) {
+      endpoints.add(normalized);
+    }
+  }
+  const literalRe = /["'`](\/api\/[^"'`\s]+)["'`]/g;
   for (const match of content.matchAll(literalRe)) {
-    const normalized = match[1].replace(/\/:[^/]+/g, "/:param");
-    endpoints.add(normalized);
+    const normalized = normalizeApiPath(match[1]);
+    if (normalized) {
+      endpoints.add(normalized);
+    }
   }
   return [...endpoints].sort();
 }
 
 function extractRoutePaths(content) {
   const routes = [];
-  const re = /app\.(get|post|put|patch|delete)\(\"([^\"]+)\"/g;
+  const re = /app\.(get|post|put|patch|delete)\((["'`])([^"'`]+)\2/g;
   for (const match of content.matchAll(re)) {
-    routes.push(match[2]);
+    routes.push(match[3]);
   }
   return routes;
 }
 
+function normalizeApiPath(value) {
+  if (!value || value === "/api/v1") {
+    return "";
+  }
+  const [rawPath] = value.split("?");
+  const normalized = rawPath
+    .replace(/\$\{[^}]+\}/g, ":param")
+    .replace(/\/:[^/]+/g, "/:param")
+    .replace(/\/{2,}/g, "/")
+    .replace(/\/api\/v1\/api\/v1\b/g, "/api/v1")
+    .replace(/\/+$/g, "");
+  if (!normalized.startsWith("/api/")) {
+    return "";
+  }
+  return normalized;
+}
+
+function normalizeBackendRoute(route) {
+  if (!route) {
+    return "";
+  }
+  if (route.startsWith("/api/")) {
+    return normalizeApiPath(route);
+  }
+  if (route === "/health" || route === "/ready" || route === "/metrics") {
+    return route;
+  }
+  return normalizeApiPath(`/api/v1${route}`);
+}
+
+function shouldIgnoreFrontendEndpoint(endpoint) {
+  return endpoint === "/api/v1/auth" || endpoint === "/api/v1/collab/share";
+}
+
 function pathMatches(frontendPath, backendPath) {
-  const frontPath = frontendPath.split("?")[0];
-  const backPath = backendPath.split("?")[0];
+  const frontPath = normalizeApiPath(frontendPath) || frontendPath;
+  const backPath = normalizeBackendRoute(backendPath) || backendPath;
+  if (frontPath === backPath) {
+    return true;
+  }
+  if (frontPath.endsWith("/") && backPath.startsWith(frontPath)) {
+    return true;
+  }
   const front = frontPath.split("/").filter(Boolean);
   const back = backPath.split("/").filter(Boolean);
   if (front.length !== back.length) {
+    if (front.length < back.length && frontendPath.endsWith("/")) {
+      return back.slice(0, front.length).every((segment, index) => {
+        const frontSegment = front[index];
+        if (frontSegment === ":param") {
+          return true;
+        }
+        return frontSegment === segment || segment.startsWith(":");
+      });
+    }
     return false;
   }
   for (let i = 0; i < front.length; i += 1) {
@@ -96,11 +163,14 @@ const backendRoutes = [
   ...routeFiles.flatMap((file) => extractRoutePaths(readFileSync(file, "utf-8")))
 ];
 
-const uniqueBackendRoutes = [...new Set(backendRoutes)].sort();
+const uniqueBackendRoutes = [...new Set(backendRoutes.map((route) => normalizeBackendRoute(route) || route))].sort();
 const matched = [];
 const unmatched = [];
 
 for (const endpoint of frontendApis) {
+  if (shouldIgnoreFrontendEndpoint(endpoint)) {
+    continue;
+  }
   if (uniqueBackendRoutes.some((route) => pathMatches(endpoint, route))) {
     matched.push(endpoint);
   } else {

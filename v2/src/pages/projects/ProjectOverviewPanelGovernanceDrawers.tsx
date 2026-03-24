@@ -80,7 +80,7 @@ export function ProjectOverviewPanelGovernanceDrawers({
             </div>
 
             <div className="info-box">
-              <h3>项目成员权限</h3>
+              <h3>租户成员</h3>
               <div className="chat-tools">
                 <input value={newRoleUserId} onChange={(e) => setNewRoleUserId(e.target.value)} placeholder="user-id" />
                 <select value={newRoleValue} onChange={(e) => setNewRoleValue(e.target.value as "admin" | "member" | "viewer")}>
@@ -90,10 +90,11 @@ export function ProjectOverviewPanelGovernanceDrawers({
                 </select>
                 <button type="button" className="btn ghost mini" onClick={() => void handleAddRoleBinding()} disabled={!isAdmin || policyBusy}>更新</button>
               </div>
-              {roleBindings.length === 0 ? <p className="hint">暂无项目级权限记录。</p> : (
+              <p className="hint">当前项目归属当前登录用户租户，成员加入后可共享访问该租户下项目。</p>
+              {roleBindings.length === 0 ? <p className="hint">暂无租户成员记录。</p> : (
                 <ul className="iteration-list">
                   {roleBindings.map((item) => (
-                    <li key={`${item.userId}-${item.projectId}`}>
+                    <li key={`${item.userId}-${item.tenantId}`}>
                       <strong>{item.userId}</strong>
                       <span>{item.role}</span>
                       <button type="button" className="btn ghost mini" onClick={() => void handleRemoveRoleBinding(item.userId)} disabled={!isAdmin || policyBusy}>移除</button>

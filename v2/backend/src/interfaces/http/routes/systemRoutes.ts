@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
+import { buildPrometheusMetrics } from "../../../infrastructure/runtime/prometheusMetrics";
 import type { RuntimeSnapshot } from "../../../infrastructure/runtime/runtimeState";
 
 type SystemRouteContext = {
   serviceName: string;
   version: string;
   getRuntime: () => RuntimeSnapshot;
+  getOpsMetrics: () => { generatedAt: string; metrics: Array<{ name: string; value: number; unit: string }>; latestAuditAt: string };
   isReady: () => boolean;
 };
 
@@ -25,7 +27,12 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
             llmRequired: runtime.llmRequired,
             dependencyRequired: runtime.dependencyRequired,
             llm: { configured: runtime.llm.configured, reachable: runtime.llm.reachable },
-            dependencies: { storage: { required: runtime.dependencies.storage.required, healthy: runtime.dependencies.storage.healthy } }
+            dependencies: { storage: { required: runtime.dependencies.storage.required, healthy: runtime.dependencies.storage.healthy } },
+            requests: {
+              inFlight: runtime.requests.inFlight,
+              rateLimited: runtime.requests.rateLimited,
+              avgLatencyMs: runtime.requests.avgLatencyMs
+            }
           }
     };
   });
@@ -52,6 +59,16 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
       return { status: "not-ready", reason };
     }
     return { status: "ready" };
+  });
+
+  app.get("/metrics", async (_request, reply) => {
+    reply.header("content-type", "text/plain; version=0.0.4; charset=utf-8");
+    return buildPrometheusMetrics(context.getRuntime(), context.getOpsMetrics(), context.isReady());
+  });
+
+  app.get("/api/v1/ops/metrics/prometheus", async (_request, reply) => {
+    reply.header("content-type", "text/plain; version=0.0.4; charset=utf-8");
+    return buildPrometheusMetrics(context.getRuntime(), context.getOpsMetrics(), context.isReady());
   });
 
   app.get("/api/v1/ops/runtime", async (request, reply) => {

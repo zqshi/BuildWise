@@ -68,7 +68,10 @@ export function LoginPage({
     <main className="auth-page">
       <div className="auth-backdrop" aria-hidden="true" />
       <section className="auth-layout">
-        <LoginBrandPanel />
+        <LoginBrandPanel onHomeClick={() => {
+          window.location.hash = "/";
+        }}
+        />
 
         <section className="auth-card" aria-label="登录表单">
           {actionToast ? (

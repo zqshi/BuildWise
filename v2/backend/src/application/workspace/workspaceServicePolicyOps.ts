@@ -4,6 +4,7 @@ import type {
   PolicyExecutionLogRecord,
   ProjectPolicyRecord,
   ProjectRoleBindingRecord,
+  TenantMemberBindingRecord,
   ProjectWorkspaceBindingRecord
 } from "../../domain/workspace/types";
 
@@ -246,6 +247,29 @@ export function listProjectRoleBindingsOp(repo: WorkspaceRepository, projectId: 
 
 export function removeProjectRoleBindingOp(repo: WorkspaceRepository, projectId: number, userId: string) {
   return repo.removeProjectRoleBinding(projectId, userId);
+}
+
+export function upsertTenantMemberBindingOp(
+  repo: WorkspaceRepository,
+  input: Omit<TenantMemberBindingRecord, "id" | "createdAt" | "updatedAt">
+) {
+  const existing = repo
+    .listTenantMemberBindings(input.tenantId)
+    .find((item) => item.userId === input.userId);
+  const now = nowIso();
+  const record: TenantMemberBindingRecord = {
+    id: existing?.id || nextId(repo.listTenantMemberBindings(input.tenantId)),
+    tenantId: input.tenantId,
+    userId: input.userId,
+    role: input.role,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  };
+  return repo.upsertTenantMemberBinding(record);
+}
+
+export function removeTenantMemberBindingOp(repo: WorkspaceRepository, tenantId: string, userId: string) {
+  return repo.removeTenantMemberBinding(tenantId, userId);
 }
 
 export function listPlatformRoleBindingsOp(repo: WorkspaceRepository) {

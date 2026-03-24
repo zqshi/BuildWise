@@ -28,3 +28,12 @@ test("register entry routes to the same unavailable toast action", () => {
   assert.match(sectionsSource, /<button type="button" className="auth-link-btn" onClick={onRegisterClick}>/);
   assert.match(pageSource, /<LoginSocialSection onRegisterClick={showUnavailableToast} \/>/);
 });
+
+test("brand logo on login page routes back to marketing home", () => {
+  const sectionsSource = readFileSync(loginSectionsPath, "utf8");
+  const pageSource = readFileSync(loginPagePath, "utf8");
+
+  assert.match(sectionsSource, /type LoginBrandPanelProps = \{\s*onHomeClick: \(\) => void;/);
+  assert.match(sectionsSource, /className="auth-brand-home" onClick={onHomeClick} aria-label="返回 BuildWise 官网"/);
+  assert.match(pageSource, /<LoginBrandPanel onHomeClick=\{\(\) => \{\s*window\.location\.hash = "\/";/);
+});

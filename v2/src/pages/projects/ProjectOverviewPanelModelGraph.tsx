@@ -8,8 +8,6 @@ type RelationTypeFilter = "all" | "one_to_one" | "one_to_many" | "many_to_many";
 type Props = {
   relationTypeFilter: RelationTypeFilter;
   setRelationTypeFilter: (value: RelationTypeFilter) => void;
-  useMockGraphData: boolean;
-  setUseMockGraphData: (updater: (prev: boolean) => boolean) => void;
   relationGraph: RelationGraphPayload;
   relationGraphNodeById: Map<string, RelationGraphNode>;
   filteredRelationGraphEdges: RelationGraphEdge[];
@@ -37,8 +35,6 @@ type Props = {
 export function ProjectOverviewPanelModelGraph({
   relationTypeFilter,
   setRelationTypeFilter,
-  useMockGraphData,
-  setUseMockGraphData,
   relationGraph,
   relationGraphNodeById,
   filteredRelationGraphEdges,
@@ -74,9 +70,6 @@ export function ProjectOverviewPanelModelGraph({
             <option value="one_to_many">一对多</option>
             <option value="many_to_many">多对多</option>
           </select>
-          <button type="button" className="btn ghost mini" onClick={() => setUseMockGraphData((prev) => !prev)}>
-            {useMockGraphData ? "恢复真实数据" : "加载演示数据"}
-          </button>
         </div>
       </div>
       {relationGraph.nodes.length === 0 ? (
@@ -136,7 +129,6 @@ export function ProjectOverviewPanelModelGraph({
             </svg>
           </div>
           {!showNodeLabels ? <p className="hint">当前节点较多，已隐藏标签以确保可读性。</p> : null}
-          {useMockGraphData ? <p className="hint">当前展示为演示数据（mock），仅用于可视化预览，不会写入项目数据。</p> : null}
           {hoveredNodeId ? <p className="hint">已高亮与「{toFriendlyName(hoveredNodeId)}」直接相连的关系。</p> : null}
           {selectedNode ? <p className="hint">已选中「{selectedNode.label}」，点击同一节点可取消选择。</p> : null}
           {highlightedEdge ? <p className="hint">已定位关系：{toFriendlyName(highlightedEdge.fromEntityId)} → {toFriendlyName(highlightedEdge.toEntityId)}</p> : null}

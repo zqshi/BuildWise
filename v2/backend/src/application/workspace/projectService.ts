@@ -13,6 +13,7 @@ import {
   scaffoldProjectRepositoryOp
 } from "./workspaceServiceProjectOps";
 import { hasProject, listProjectsNormalized } from "./workspaceServiceCommon";
+import { getProjectAccessContext, getTenantAccessContext, listAccessibleTenants, listProjectsForUser } from "./workspaceTenantAccess";
 
 export class ProjectService {
   private readonly repo: WorkspaceRepository;
@@ -28,8 +29,24 @@ export class ProjectService {
     return listProjectsNormalized(this.repo);
   }
 
-  createProject(input: { name: string; description: string }) {
+  listProjectsForUser(userId: string, tenantId?: string) {
+    return listProjectsForUser(this.repo, userId, tenantId);
+  }
+
+  createProject(input: { name: string; description: string; tenantId: string; ownerUserId: string }) {
     return createProjectOp(this.repo, input);
+  }
+
+  getProjectAccess(userId: string, projectId: number) {
+    return getProjectAccessContext(this.repo, projectId, userId);
+  }
+
+  getTenantAccess(userId: string, tenantId: string) {
+    return getTenantAccessContext(this.repo, userId, tenantId);
+  }
+
+  listAccessibleTenants(userId: string) {
+    return listAccessibleTenants(this.repo, userId);
   }
 
   archiveProject(projectId: number) {

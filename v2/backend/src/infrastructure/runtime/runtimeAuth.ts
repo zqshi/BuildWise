@@ -31,6 +31,22 @@ function devRoleFromHeader(request: FastifyRequest) {
   return "viewer";
 }
 
+function devUserFromHeader(request: FastifyRequest) {
+  const raw = request.headers["x-user-id"];
+  if (typeof raw === "string" && raw.trim()) {
+    return raw.trim();
+  }
+  return "";
+}
+
+function tenantFromHeader(request: FastifyRequest) {
+  const raw = request.headers["x-tenant-id"];
+  if (typeof raw === "string" && raw.trim()) {
+    return raw.trim();
+  }
+  return "";
+}
+
 function unauthorized(reply: FastifyReply, message: string) {
   reply.code(401);
   return reply.send({ error: "unauthorized", message });
@@ -52,6 +68,8 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
 
     if (config.authMode === "off") {
       request.authRole = devRoleFromHeader(request);
+      request.authSub = devUserFromHeader(request);
+      request.authTenantId = tenantFromHeader(request);
       return;
     }
 
@@ -76,6 +94,7 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
         }
         request.authRole = payload.role;
         request.authSub = payload.sub;
+        request.authTenantId = tenantFromHeader(request);
       } catch {
         return unauthorized(reply, "invalid or expired token");
       }
@@ -92,5 +111,7 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
       return unauthorized(reply, "invalid bearer token");
     }
     request.authRole = role;
+    request.authSub = devUserFromHeader(request);
+    request.authTenantId = tenantFromHeader(request);
   });
 }

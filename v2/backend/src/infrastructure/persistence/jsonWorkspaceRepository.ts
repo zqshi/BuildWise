@@ -15,6 +15,7 @@ import type {
   PlatformRoleBindingRecord,
   GovernanceCustomRoleRecord,
   ProjectRoleBindingRecord,
+  TenantMemberBindingRecord,
   ProjectShare,
   Project,
   TemplateRunRecord,
@@ -50,6 +51,28 @@ const seedStore: WorkspaceStore = {
   projectWorkspaceBindings: [],
   policyExecutionLogs: [],
   projectRoleBindings: [],
+  tenantMemberBindings: [],
+  platformRoleBindings: [],
+  governanceCustomRoles: []
+};
+
+const emptyStore: WorkspaceStore = {
+  projects: [],
+  iterations: [],
+  messages: [],
+  snapshots: [],
+  transitions: [],
+  auditLogs: [],
+  versionSnapshots: [],
+  projectShares: [],
+  deployments: [],
+  templateRuns: [],
+  opsTriageTemplates: [],
+  projectPolicies: [],
+  projectWorkspaceBindings: [],
+  policyExecutionLogs: [],
+  projectRoleBindings: [],
+  tenantMemberBindings: [],
   platformRoleBindings: [],
   governanceCustomRoles: []
 };
@@ -79,24 +102,32 @@ function toArray<T>(value: unknown): T[] {
  */
 export class JsonWorkspaceRepository implements WorkspaceRepository {
   private readonly dataFile: string;
+  private readonly bootstrapMode: "seed" | "empty";
   private writing = false;
-  constructor(dataFile: string) {
+  constructor(dataFile: string, options?: { bootstrapMode?: "seed" | "empty" }) {
     this.dataFile = dataFile;
+    this.bootstrapMode = options?.bootstrapMode === "empty" ? "empty" : "seed";
+  }
+
+  private initialStore() {
+    return this.bootstrapMode === "empty" ? emptyStore : seedStore;
   }
 
   read(): WorkspaceStore {
     if (!existsSync(this.dataFile)) {
-      this.write(seedStore);
-      return seedStore;
+      const initial = this.initialStore();
+      this.write(initial);
+      return initial;
     }
     const raw = readFileSync(this.dataFile, "utf-8");
     let parsed: Partial<WorkspaceStore>;
     try {
       parsed = JSON.parse(raw) as Partial<WorkspaceStore>;
     } catch {
-      console.error(`[workspace-repo] data file corrupted, resetting to seed: ${this.dataFile}`);
-      this.write(seedStore);
-      return seedStore;
+      const initial = this.initialStore();
+      console.error(`[workspace-repo] data file corrupted, resetting to ${this.bootstrapMode}: ${this.dataFile}`);
+      this.write(initial);
+      return initial;
     }
     return {
       projects: toArray<Project>(parsed.projects),
@@ -114,6 +145,7 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       projectWorkspaceBindings: toArray<ProjectWorkspaceBindingRecord>(parsed.projectWorkspaceBindings),
       policyExecutionLogs: toArray<PolicyExecutionLogRecord>(parsed.policyExecutionLogs),
       projectRoleBindings: toArray<ProjectRoleBindingRecord>(parsed.projectRoleBindings),
+      tenantMemberBindings: toArray<TenantMemberBindingRecord>(parsed.tenantMemberBindings),
       platformRoleBindings: toArray<PlatformRoleBindingRecord>(parsed.platformRoleBindings),
       governanceCustomRoles: toArray<GovernanceCustomRoleRecord>(parsed.governanceCustomRoles)
     };
@@ -145,13 +177,15 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     return this.read().projects.find((item) => item.id === projectId) ?? null;
   }
 
-  createProject(input: Pick<Project, "name" | "description">) {
+  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">) {
     const data = this.read();
     const id = this.nextId(data.projects);
     const repoName = toRepoSlug(input.name, `project-${id}`);
     const now = new Date().toISOString();
     const created: Project = {
       id,
+      tenantId: input.tenantId,
+      ownerUserId: input.ownerUserId,
       name: input.name,
       description: input.description,
       status: "in-progress",
@@ -462,6 +496,35 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       (item) => !(item.projectId === projectId && item.userId === userId)
     );
     if (data.projectRoleBindings.length === before) {
+      return false;
+    }
+    this.write(data);
+    return true;
+  }
+
+  listTenantMemberBindings(tenantId: string) {
+    return this.read().tenantMemberBindings.filter((item) => item.tenantId === tenantId);
+  }
+
+  upsertTenantMemberBinding(record: TenantMemberBindingRecord) {
+    const data = this.read();
+    const idx = data.tenantMemberBindings.findIndex((item) => item.tenantId === record.tenantId && item.userId === record.userId);
+    if (idx >= 0) {
+      data.tenantMemberBindings[idx] = record;
+    } else {
+      data.tenantMemberBindings.push(record);
+    }
+    this.write(data);
+    return record;
+  }
+
+  removeTenantMemberBinding(tenantId: string, userId: string) {
+    const data = this.read();
+    const before = data.tenantMemberBindings.length;
+    data.tenantMemberBindings = data.tenantMemberBindings.filter(
+      (item) => !(item.tenantId === tenantId && item.userId === userId)
+    );
+    if (data.tenantMemberBindings.length === before) {
       return false;
     }
     this.write(data);

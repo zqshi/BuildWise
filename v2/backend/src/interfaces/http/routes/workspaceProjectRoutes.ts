@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, isAdmin, isValidPhone, parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, currentTenantId, currentUserId, ensureProjectAccess, isAdmin, isValidPhone, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
   const validVersionTypes = new Set(["major", "minor", "patch"]);
@@ -152,8 +152,21 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.probeOpenclawIntegration();
   });
 
-  app.get("/projects", async () => {
-    return service.listProjects();
+  app.get("/projects", async (request, reply) => {
+    const userId = currentUserId(request);
+    if (!userId) {
+      reply.code(401);
+      return { message: "authentication required" };
+    }
+    const tenantId = currentTenantId(request);
+    if (tenantId) {
+      const tenantAccess = service.getTenantAccess(userId, tenantId);
+      if (!tenantAccess.canRead) {
+        reply.code(403);
+        return { message: "permission denied" };
+      }
+    }
+    return service.listProjectsForUser(userId, tenantId || undefined);
   });
 
   app.post("/projects", async (request, reply) => {
@@ -168,23 +181,35 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "name is required" };
     }
+    const actor = currentUserId(request);
+    if (!actor) {
+      reply.code(401);
+      return { message: "authentication required" };
+    }
+    const tenantId = currentTenantId(request) || actor;
+    const tenantAccess = service.getTenantAccess(actor, tenantId);
+    if (!tenantAccess.canWrite) {
+      reply.code(403);
+      return { message: "permission denied" };
+    }
     return service.createProject({
       name,
-      description: body?.description?.trim() || "暂无描述"
+      description: body?.description?.trim() || "暂无描述",
+      tenantId,
+      ownerUserId: tenantId
     });
   });
 
   app.delete("/projects/:id", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const archived = service.archiveProject(projectId);
     if (!archived) {
@@ -205,6 +230,10 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "invalid project id" };
     }
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     const items = service.listIterations(projectId);
     if (items === null) {
       reply.code(404);
@@ -214,16 +243,15 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
   });
 
   app.post("/projects/:id/iterations", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
       name?: string;

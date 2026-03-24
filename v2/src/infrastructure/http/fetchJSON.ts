@@ -1,6 +1,22 @@
 import { getAccessToken } from "../auth/tokenStore";
 import { ensureFreshToken } from "../auth/tokenRefresh";
 
+function getAuthUserId() {
+  try {
+    return localStorage.getItem("buildwise:auth-phone") || "";
+  } catch {
+    return "";
+  }
+}
+
+function getAuthTenantId() {
+  try {
+    return localStorage.getItem("buildwise:auth-tenant-id") || "";
+  } catch {
+    return "";
+  }
+}
+
 export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs = 12000): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -14,6 +30,14 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
   }
 
   const headers = new Headers(options?.headers);
+  const authUserId = getAuthUserId();
+  const authTenantId = getAuthTenantId();
+  if (authUserId && !headers.has("x-user-id")) {
+    headers.set("x-user-id", authUserId);
+  }
+  if (authTenantId && !headers.has("x-tenant-id")) {
+    headers.set("x-tenant-id", authTenantId);
+  }
   const freshToken = getAccessToken();
   if (freshToken && !isAuthRoute && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${freshToken}`);
@@ -45,6 +69,12 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
       if (refreshed) {
         const retryToken = getAccessToken();
         const retryHeaders = new Headers(options?.headers);
+        if (authUserId && !retryHeaders.has("x-user-id")) {
+          retryHeaders.set("x-user-id", authUserId);
+        }
+        if (authTenantId && !retryHeaders.has("x-tenant-id")) {
+          retryHeaders.set("x-tenant-id", authTenantId);
+        }
         if (retryToken) {
           retryHeaders.set("Authorization", `Bearer ${retryToken}`);
         }

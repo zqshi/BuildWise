@@ -28,7 +28,8 @@ export function useAppController() {
   const defaultDockAvatar =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%232563eb'/%3E%3Cstop offset='100%25' stop-color='%230ea5e9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='80' height='80' rx='16' fill='url(%23g)'/%3E%3Ctext x='40' y='49' text-anchor='middle' font-size='28' font-family='system-ui,-apple-system,Segoe UI,Roboto,sans-serif' font-weight='700' fill='white'%3EBW%3C/text%3E%3C/svg%3E";
 
-  const dockUserLabel = "登录用户";
+  const currentTenant = auth.tenants.find((item) => item.tenantId === auth.currentTenantId) || null;
+  const dockUserLabel = currentTenant ? `${currentTenant.label} · 登录用户` : "登录用户";
   const dockUserAvatar =
     localStorage.getItem("buildwise:userAvatar") ?? defaultDockAvatar;
 
@@ -70,8 +71,29 @@ export function useAppController() {
   // IterationProvider).
 
   useEffect(() => {
-    state.setCurrentRole(auth.workspaceRole);
-  }, [auth.workspaceRole, state.setCurrentRole]);
+    const projectScopedRole = derived.currentProject?.currentUserRole;
+    state.setCurrentRole(projectScopedRole || auth.workspaceRole);
+  }, [auth.workspaceRole, derived.currentProject?.currentUserRole, state.setCurrentRole]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) {
+      return;
+    }
+    state.setProjects([]);
+    state.setCurrentProjectId(null);
+    state.setIterations([]);
+    state.setCurrentIterationId(null);
+    state.setProjectPanelMode("project");
+    state.setVersionSnapshots([]);
+    state.setProjectShares([]);
+    state.setShareAccess(null);
+    loaders.loadProjects().catch((err) => {
+      const msg = resolveErrorMessage(err);
+      if (!msg.includes("401")) {
+        state.setError(msg);
+      }
+    });
+  }, [auth.currentTenantId]);
 
   // Guard: only load platformOps once per project switch, not on every state change
   const platformOpsLoadedForRef = useRef<number | null>(null);
@@ -439,7 +461,9 @@ export function useAppController() {
     ...derived,
     dockUserLabel,
     dockUserAvatar,
+    currentTenant,
     handleLogout,
+    switchTenant: auth.switchTenant,
     loadPlatformOps: handleRefreshPlatformOps,
     handleCreateVersionSnapshot,
     handleRestoreVersionSnapshot,

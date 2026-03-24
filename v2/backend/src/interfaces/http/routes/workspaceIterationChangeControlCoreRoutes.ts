@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
-import { currentRole } from "./workspaceRouteUtils";
+import { ensureIterationAccess } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/iterations/:id/change-control", async (request, reply) => {
@@ -9,6 +9,10 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const result = service.getIterationChangeControl(iterationId);
     if (!result) {
@@ -19,15 +23,14 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
   });
 
   app.post("/iterations/:id/change-control/confirm", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       accurate?: boolean;
@@ -76,15 +79,14 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
   });
 
   app.post("/iterations/:id/change-control/boundary", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       requirementRefs?: string[];
@@ -106,15 +108,14 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
   });
 
   app.post("/iterations/:id/change-control/draft", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { resolvedQuestions?: string[] } | null;
     const updated = service.updateClarificationDraft(iterationId, Array.isArray(body?.resolvedQuestions) ? body.resolvedQuestions : []);

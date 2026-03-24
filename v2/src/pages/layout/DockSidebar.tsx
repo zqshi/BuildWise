@@ -1,11 +1,14 @@
 import { memo, type RefObject } from "react";
 import { canAccessGovernanceEntries } from "../governance/permissionSettingsModel";
+import type { AuthTenantSummary } from "../../app/authTenantSession";
 
 type DockSidebarProps = {
   activeView: "dashboard" | "projects" | "permissions";
   currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
   dockUserLabel: string;
   dockUserAvatar: string;
+  tenants: AuthTenantSummary[];
+  currentTenantId: string;
   showUserMenu: boolean;
   userMenuRef: RefObject<HTMLDivElement>;
   onShowDashboard: () => void;
@@ -13,6 +16,7 @@ type DockSidebarProps = {
   onToggleUserMenu: () => void;
   onOpenPolicyManager: () => void;
   onOpenOpenclawDialog: () => void;
+  onSwitchTenant: (tenantId: string) => void;
   onLogout: () => void;
 };
 
@@ -21,6 +25,8 @@ export const DockSidebar = memo(function DockSidebar({
   currentRole,
   dockUserLabel,
   dockUserAvatar,
+  tenants,
+  currentTenantId,
   showUserMenu,
   userMenuRef,
   onShowDashboard,
@@ -28,6 +34,7 @@ export const DockSidebar = memo(function DockSidebar({
   onToggleUserMenu,
   onOpenPolicyManager,
   onOpenOpenclawDialog,
+  onSwitchTenant,
   onLogout
 }: DockSidebarProps) {
   const isAdmin = canAccessGovernanceEntries(currentRole);
@@ -77,6 +84,21 @@ export const DockSidebar = memo(function DockSidebar({
           </button>
           {showUserMenu ? (
             <div className="dock-user-menu">
+              {tenants.length > 1 ? (
+                <div className="dock-user-menu-section">
+                  <span className="dock-user-menu-title">当前租户</span>
+                  {tenants.map((item) => (
+                    <button
+                      key={item.tenantId}
+                      type="button"
+                      className={`dock-user-menu-item ${item.tenantId === currentTenantId ? "active" : ""}`}
+                      onClick={() => onSwitchTenant(item.tenantId)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {isAdmin ? (
                 <>
                   <button type="button" className="dock-user-menu-item" onClick={onOpenPolicyManager}>

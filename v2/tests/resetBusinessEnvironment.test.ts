@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const testDir = dirname(fileURLToPath(import.meta.url));
+const v2Dir = resolve(testDir, "..");
+const scriptPath = resolve(v2Dir, "scripts", "reset-business-environment.mjs");
+const cleanScriptPath = resolve(v2Dir, "scripts", "clean-workspace.sh");
+
+test("reset-business-environment restores workspace runtime files to initial state", () => {
+  const sandboxRoot = mkdtempSync(join(tmpdir(), "buildwise-reset-env-"));
+  const backendDir = resolve(sandboxRoot, "backend");
+  const artifactsDir = resolve(sandboxRoot, ".artifacts");
+  const memoryDir = resolve(sandboxRoot, "memory");
+
+  mkdirSync(backendDir, { recursive: true });
+  mkdirSync(artifactsDir, { recursive: true });
+  mkdirSync(memoryDir, { recursive: true });
+
+  writeFileSync(
+    resolve(backendDir, "data.runtime.json"),
+    JSON.stringify(
+      {
+        projects: [{ id: 99, name: "线索协同看板演示项目" }],
+        iterations: [{ id: 10, projectId: 99 }],
+        messages: [{ id: 11, iterationId: 10 }]
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+  writeFileSync(resolve(artifactsDir, "mock.json"), "{}", "utf-8");
+  writeFileSync(resolve(memoryDir, "knowledge.json"), "{}", "utf-8");
+
+  execFileSync("node", [scriptPath], {
+    cwd: v2Dir,
+    env: { ...process.env, BUILDWISE_RESET_ROOT: sandboxRoot },
+    stdio: "pipe"
+  });
+
+  const runtimeData = JSON.parse(readFileSync(resolve(backendDir, "data.runtime.json"), "utf-8")) as Record<string, any>;
+  const seedData = JSON.parse(readFileSync(resolve(backendDir, "data.json"), "utf-8")) as Record<string, any>;
+  const modelingData = JSON.parse(readFileSync(resolve(backendDir, "continuous-modeling.runtime.json"), "utf-8")) as Record<string, any>;
+  const openclawData = JSON.parse(readFileSync(resolve(backendDir, "openclaw-global.runtime.json"), "utf-8")) as Record<string, any>;
+
+  assert.equal(runtimeData.projects.length, 1);
+  assert.equal(runtimeData.projects[0]?.name, "构想智造平台");
+  assert.deepEqual(runtimeData.iterations, []);
+  assert.deepEqual(runtimeData.messages, []);
+  assert.deepEqual(seedData.iterations, []);
+  assert.deepEqual(modelingData.snapshots, []);
+  assert.deepEqual(openclawData.conversations, []);
+  assert.equal(existsSync(artifactsDir), false);
+  assert.equal(existsSync(memoryDir), false);
+});
+
+test("clean-workspace delegates to business environment reset script", () => {
+  const source = readFileSync(cleanScriptPath, "utf-8");
+  assert.match(source, /reset-business-environment\.mjs/);
+  assert.doesNotMatch(source, /data\.runtime\.json"/);
+});

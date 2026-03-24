@@ -104,7 +104,7 @@ npm run verify:prod-readiness:sqlite
 - `GET /health`
 - `GET /ready`
 - `GET /api/v1/status`
-- `GET /api/ops/runtime`
+- `GET /api/v1/ops/runtime`
 
 项目与迭代：
 
@@ -122,7 +122,7 @@ OpenClaw / workspace：
 
 - `POST /api/v1/projects/:id/workspace/bind`
 - `POST /api/v1/projects/:id/policies/restore-initial`
-- `POST /api/governance/orchestration/policies/restore-initial`
+- `POST /api/v1/governance/orchestration/policies/restore-initial`
 
 仓库治理与发布：
 

@@ -1,11 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, handleRouteError, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, currentUserId, ensureProjectAccess, handleRouteError, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 import { registerWorkspacePolicyExecutionRoutes } from "./workspacePolicyExecutionRoutes";
-
-function currentUserId(request: import("fastify").FastifyRequest) {
-  return request.authSub || "system";
-}
 
 export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/governance/orchestration/policies", async () => {
@@ -69,6 +65,10 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       reply.code(400);
       return { message: "invalid project id" };
     }
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     return {
       active: service.getActiveProjectPolicy(projectId),
       items: service.listProjectPolicies(projectId)
@@ -76,16 +76,15 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
   });
 
   app.post("/projects/:id/policies", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as { strategy?: Record<string, unknown> } | null;
     const actor = currentUserId(request);
@@ -93,17 +92,16 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
   });
 
   app.post("/projects/:id/policies/:version/activate", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string; version: string };
     const projectId = parsePositiveInt(params.id);
     const version = parsePositiveInt(params.version);
     if (projectId === null || version === null) {
       reply.code(400);
       return { message: "invalid project id or version" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const actor = currentUserId(request);
     const activated = service.activateProjectPolicy(projectId, version, actor);
@@ -115,16 +113,15 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
   });
 
   app.post("/projects/:id/policies/restore-initial", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const actor = currentUserId(request);
     const restored = service.restoreProjectOrchestrationPolicyToInitialMode(projectId, actor);
@@ -136,16 +133,15 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
   });
 
   app.post("/projects/:id/workspace/bind", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
       openclawProfile?: string;
@@ -186,39 +182,37 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       reply.code(400);
       return { message: "invalid project id" };
     }
-    return service.listProjectRoleBindings(projectId);
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    return service.listTenantMemberBindings(access.tenantId);
   });
 
   app.post("/projects/:id/roles", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
     }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     const body = request.body as { userId?: string; role?: "admin" | "member" | "viewer" } | null;
     if (!body?.userId?.trim() || !body?.role) {
       reply.code(400);
       return { message: "userId and role are required" };
     }
-    return service.upsertProjectRoleBinding({
-      projectId,
+    return service.upsertTenantMemberBinding({
+      tenantId: access.tenantId,
       userId: body.userId.trim(),
       role: body.role
     });
   });
 
   app.delete("/projects/:id/roles/:userId", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string; userId: string };
     const projectId = parsePositiveInt(params.id);
     const userId = (params.userId || "").trim();
@@ -226,7 +220,11 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       reply.code(400);
       return { message: "invalid project id or user id" };
     }
-    const removed = service.removeProjectRoleBinding(projectId, userId);
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    const removed = service.removeTenantMemberBinding(access.tenantId, userId);
     if (!removed) {
       reply.code(404);
       return { message: "role binding not found" };

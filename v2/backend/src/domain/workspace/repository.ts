@@ -13,6 +13,7 @@ import type {
   PlatformRoleBindingRecord,
   GovernanceCustomRoleRecord,
   ProjectRoleBindingRecord,
+  TenantMemberBindingRecord,
   Project,
   TemplateRunRecord,
   VersionSnapshot,
@@ -30,7 +31,7 @@ export interface StoreAccess {
 export interface ProjectRepository {
   listProjects(): Project[];
   findProject(projectId: number): Project | null;
-  createProject(input: Pick<Project, "name" | "description">): Project;
+  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">): Project;
   updateProject(project: Project): void;
 }
 
@@ -62,6 +63,9 @@ export interface GovernanceRepository {
   listProjectRoleBindings(projectId: number): ProjectRoleBindingRecord[];
   upsertProjectRoleBinding(record: ProjectRoleBindingRecord): ProjectRoleBindingRecord;
   removeProjectRoleBinding(projectId: number, userId: string): boolean;
+  listTenantMemberBindings(tenantId: string): TenantMemberBindingRecord[];
+  upsertTenantMemberBinding(record: TenantMemberBindingRecord): TenantMemberBindingRecord;
+  removeTenantMemberBinding(tenantId: string, userId: string): boolean;
   listPlatformRoleBindings(): PlatformRoleBindingRecord[];
   upsertPlatformRoleBinding(record: PlatformRoleBindingRecord): PlatformRoleBindingRecord;
   removePlatformRoleBinding(userId: string): boolean;
