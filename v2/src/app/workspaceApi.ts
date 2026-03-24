@@ -10,6 +10,7 @@ import type {
   IterationStateMachinePayload,
   IterationMessage,
   ProjectModelBusinessSummaryPayload,
+  ProjectModelViewPayload,
   Project,
 } from "../domain/workspace/types";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";
@@ -145,6 +146,14 @@ export async function fetchProjectModelBusinessSummary(projectId: number, iterat
       ? `${API_BASE}${API_PREFIX}/projects/${projectId}/model/business-summary?iterationId=${iterationId}`
       : `${API_BASE}${API_PREFIX}/projects/${projectId}/model/business-summary`;
   return fetchJSON<ProjectModelBusinessSummaryPayload>(endpoint);
+}
+
+export async function fetchProjectModelView(projectId: number, iterationId?: number) {
+  const endpoint =
+    typeof iterationId === "number" && iterationId > 0
+      ? `${API_BASE}${API_PREFIX}/projects/${projectId}/model-view?iterationId=${iterationId}`
+      : `${API_BASE}${API_PREFIX}/projects/${projectId}/model-view`;
+  return fetchJSON<ProjectModelViewPayload>(endpoint);
 }
 
 export async function fetchProjectIterations(projectId: number) {

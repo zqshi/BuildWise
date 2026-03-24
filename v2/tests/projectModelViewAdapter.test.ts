@@ -51,9 +51,13 @@ test("projectModelViewAdapter prefers formal rules from unified model view", () 
     ontologyTerms: [],
     rules: [
       {
+        id: "rule-1",
         name: "客户标签变更必须留痕",
         statement: "客户标签变更必须留痕",
-        source: "snapshot"
+        source: "snapshot",
+        linkedEntityIds: ["entity_customer"],
+        linkedSurfaceIds: [],
+        linkedApiIds: []
       }
     ],
     entities: [],

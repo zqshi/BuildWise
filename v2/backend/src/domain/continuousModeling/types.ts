@@ -96,14 +96,23 @@ export type ProjectModelView = {
     source: "project_knowledge" | "snapshot";
   }>;
   rules: Array<{
+    id: string;
     name: string;
     statement: string;
     source: "project_knowledge" | "snapshot";
+    linkedEntityIds: string[];
+    linkedSurfaceIds: string[];
+    linkedApiIds: string[];
   }>;
   entities: Array<{
     id: string;
     name: string;
     businessName: string;
+    fields: Array<{
+      name: string;
+      type: string;
+      required: boolean;
+    }>;
   }>;
   relations: Array<{
     id: string;

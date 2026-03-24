@@ -47,7 +47,8 @@ function calculateCircularPosition(index: number, total: number) {
 export function buildModelRelationGraph(
   relations: ModelRelationPayload[],
   totalEntityCount: number,
-  maxVisibleNodes = 80
+  maxVisibleNodes = 80,
+  entities?: Array<{ id: string; businessName?: string; name?: string }>
 ): RelationGraphPayload {
   const degreeByEntity = new Map<string, number>();
   for (const relation of relations) {
@@ -66,11 +67,14 @@ export function buildModelRelationGraph(
 
   const visibleEntityIds = allEntityIds.slice(0, Math.max(0, maxVisibleNodes));
   const visibleEntitySet = new Set(visibleEntityIds);
+  const labelByEntityId = new Map(
+    (entities || []).map((item) => [item.id, item.businessName?.trim() || item.name?.trim() || toFriendlyName(item.id)])
+  );
   const nodes = visibleEntityIds.map((entityId, index) => {
     const point = calculateCircularPosition(index, visibleEntityIds.length);
     return {
       id: entityId,
-      label: toFriendlyName(entityId),
+      label: labelByEntityId.get(entityId) || toFriendlyName(entityId),
       degree: degreeByEntity.get(entityId) ?? 0,
       x: point.x,
       y: point.y
