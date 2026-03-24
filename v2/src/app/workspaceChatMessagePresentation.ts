@@ -21,6 +21,23 @@ function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function buildArtifactReferenceSignature(message: ArtifactReferenceMessage) {
+  return JSON.stringify({
+    title: normalizeText(message.title),
+    summary: normalizeText(message.summary),
+    evidence: message.evidence.map((entry) => normalizeText(entry))
+  });
+}
+
+export function hasEquivalentArtifactReferenceMessage(leftContent: string, rightContent: string) {
+  const left = parseArtifactReferenceMessage(leftContent);
+  const right = parseArtifactReferenceMessage(rightContent);
+  if (!left || !right) {
+    return false;
+  }
+  return buildArtifactReferenceSignature(left) === buildArtifactReferenceSignature(right);
+}
+
 export function compactArtifactCardSummary(summary: string, fallback = "") {
   return buildArtifactSummary(summary, fallback, 3);
 }
@@ -105,13 +122,28 @@ export function buildIterationChatDisplayItems(messages: IterationMessage[]) {
     }
 
     if (current.role === "assistant" && !currentCard && next?.role === "assistant" && nextCard) {
+      let lastCardIndex = index + 1;
+      while (
+        messages[lastCardIndex + 1]?.role === "assistant" &&
+        hasEquivalentArtifactReferenceMessage(messages[lastCardIndex]!.content, messages[lastCardIndex + 1]!.content)
+      ) {
+        lastCardIndex += 1;
+      }
       items.push({
-        key: `${current.id}-${next.id}`,
+        key: `${current.id}-${messages[lastCardIndex]!.id}`,
         leadMessage: current,
         textMessage: current,
-        cardMessage: next
+        cardMessage: messages[lastCardIndex]!
       });
-      index += 1;
+      index = lastCardIndex;
+      continue;
+    }
+
+    if (
+      currentCard &&
+      next?.role === "assistant" &&
+      hasEquivalentArtifactReferenceMessage(current.content, next.content)
+    ) {
       continue;
     }
 
