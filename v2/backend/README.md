@@ -193,5 +193,5 @@ OpenClaw / workspace：
 
 注意：
 
-- 是否“可投产”必须以当前门禁实际结果为准
-- 如果 `check:boundaries`、`verify:prod-readiness` 未全绿，就不能宣称该分支已可直接投产
+- 当前分支已经通过本地 `check:boundaries` 与 `verify:prod-readiness`
+- 最终是否放生产，仍应以真实环境的 `verify:prod-readiness:sqlite`、密钥配置、域名配置与运维检查为准

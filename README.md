@@ -1,9 +1,15 @@
 # BuildWise
 
-> 把需求、规则、交付物和发布决策收进同一个 AI 软件交付工作台。
+> 把需求、规则、交付物和发布决策，收进同一个会持续变聪明的 AI 交付工作台。
 
 BuildWise 面向产品经理、业务负责人、技术负责人和 QA。  
-它不是一个“聊天机器人外壳”，而是一个把**需求分析、领域建模、交付物生产、测试验证、发布评审、项目知识沉淀**串成闭环的 AI 原生交付系统。
+它不是又一个“会聊天的生成器”，而是一个把**需求分析、领域建模、交付物推进、测试验证、发布评审、项目知识沉淀**串成闭环的 AI 原生软件交付系统。
+
+它想解决的不是“再写一份文档”，而是软件团队最难回答的三个问题：
+
+- 这次需求到底影响了哪些页面、接口、规则和发布风险？
+- 当前版本到底能不能发，凭什么发？
+- 做过一轮又一轮之后，团队到底有没有真正把业务知识沉淀下来？
 
 ## 为什么它值得看
 
@@ -14,7 +20,7 @@ BuildWise 面向产品经理、业务负责人、技术负责人和 QA。
 - 版本做了一轮又一轮，规则、边界和历史决策都散落在聊天、PRD、原型和代码里
 - 业务人员能提需求，却很难持续参与“规则建模”和“版本决策”
 
-BuildWise 试图解决的正是这个断层。
+BuildWise 试图解决的，正是这条从“业务意图”到“工程落地”之间长期断裂的链路。
 
 你给它的是：
 
@@ -79,6 +85,13 @@ AI 会根据当前阶段、项目知识和用户对话动态选择技能，而�
 - OpenClaw 非侵入式集成
 - 项目知识目录 `.buildwise/` 物化、分片和检索
 
+## BuildWise 和常见 AI 工具的区别
+
+- 它不是单轮问答工具，而是项目级持续交付空间。
+- 它不只生成“内容”，还维护规则、边界、证据和发布决策。
+- 它不把知识留在会话里，而是回写到项目 workspace。
+- 它让业务人员可以持续参与建模，而不需要先学会技术实现语言。
+
 ## BuildWise 的工作方式
 
 ```text
@@ -114,9 +127,9 @@ AI 完成分析、澄清、边界收敛
 
 建议先看：
 
-- [v2/README.md](/Users/zqs/Downloads/project/BuildWise/v2/README.md)
-- [v2/backend/README.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/README.md)
-- [docs/README.md](/Users/zqs/Downloads/project/BuildWise/docs/README.md)
+- [v2/README.md](./v2/README.md)
+- [v2/backend/README.md](./v2/backend/README.md)
+- [docs/README.md](./docs/README.md)
 
 ## 快速启动
 
@@ -151,7 +164,25 @@ npm run verify:prod-readiness
 
 - `verify:all` 是前后端聚合校验
 - `verify:prod-readiness` 是后端投产门禁
-- 当前分支若边界治理未全绿，不应宣称“已可直接投产”
+- 当前分支已通过本地发布候选门禁，但最终生产放行仍取决于生产配置、SQLite 链路与部署环境校验
+
+## 当前状态
+
+当前 `codex/prod-governance-rc` 分支可以视为**可受控投产候选**：
+
+- 核心边界门禁、构建、类型检查和 contract 已通过
+- 项目级 workspace 隔离、项目知识目录和 OpenClaw 非侵入式适配已经落地
+- 运行时语义、健康检查、就绪检查、鉴权默认行为和文档口径已经收口
+
+这并不意味着“可以跳过上线流程”。  
+真正放生产前，仍需按后端生产文档确认：
+
+- `AUTH_MODE=jwt`
+- `JWT_SECRET`
+- `CORS_ORIGINS`
+- `VITE_API_BASE`
+- 独立 `workspacePath`
+- `.buildwise/` 备份策略
 
 ## 文档策略
 
