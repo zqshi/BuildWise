@@ -147,6 +147,13 @@ LLM_PROVIDER=anthropic LLM_API_BASE=https://your-api.com LLM_API_KEY=sk-xxx LLM_
 LLM_PROVIDER=openclaw OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
 ```
 
+OpenClaw 集成约束：
+
+- 每个项目必须绑定独立 workspace
+- 所有迭代持续沉淀到所属项目 workspace
+- BuildWise 项目知识资产默认写入 `workspacePath/.buildwise/`
+- 同一路径不能复用到多个项目
+
 **Docker 部署：**
 
 ```bash
@@ -211,6 +218,7 @@ npm --prefix v2/backend run verify:prod-readiness
 - **SkillRegistry 三源合一**：磁盘 Skill 配置 + 全局自定义 Skill + 项目策略 SkillsPlan，统一注册、按场景选择
 - **渐进式 Skill 加载**：AI 教练根据对话上下文实时选择最小必要技能集，而非固定链路执行
 - **本体建模闭环**：分析完成 → KB 全字段填充 → 碰撞检测 → 知识同步到 OpenClaw
+- **项目级 workspace 隔离**：每个项目一个独立 workspace 和 session 命名空间，知识资产写入 `.buildwise/`
 - **策略回写闭环**：自然语言配置 → 策略意图解析 → 合并写入 → Coach 门禁感知
 - **DDD + TDD**：领域驱动设计 + 测试驱动开发，每文件 < 1000 行，Ops 函数式纯逻辑
 

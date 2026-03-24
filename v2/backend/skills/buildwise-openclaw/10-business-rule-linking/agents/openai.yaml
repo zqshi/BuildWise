@@ -1,0 +1,6 @@
+interface:
+  display_name: "Business Rule Linking"
+  short_description: "Link domain knowledge to engineering ontology"
+  default_prompt: "Use $10-business-rule-linking to connect business rules to pages, APIs, states, and tests."
+policy:
+  allow_implicit_invocation: true

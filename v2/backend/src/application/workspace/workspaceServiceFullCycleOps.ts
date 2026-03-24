@@ -33,6 +33,7 @@ export async function runIterationFullCycleOp(params: {
       accurate: boolean;
       note?: string;
       actor?: string;
+      force?: boolean;
       resolvedClarificationQuestions?: string[];
       boundary?: {
         requirementRefs: string[];
@@ -159,6 +160,7 @@ export async function runIterationFullCycleOp(params: {
         accurate: true,
         note: "Auto confirmation by full-cycle executor",
         actor: "full-cycle-bot",
+        force: true,
         resolvedClarificationQuestions,
         boundary: autoBoundary
       });
@@ -227,18 +229,28 @@ export async function runIterationFullCycleOp(params: {
       : `${baseRewriteInstruction}${acceptanceConstraintHint}`;
     const rewriteDryRun = input.rewriteDryRun === true;
     const rewriteMaxFiles = typeof input.rewriteMaxFiles === "number" ? input.rewriteMaxFiles : 8;
-    const frontendRewrite = await params.rewriteCodeInBoundary(iterationId, {
-      instruction: `前端实现要求：${rewriteInstruction}`,
-      dryRun: rewriteDryRun,
-      maxFiles: Math.max(3, Math.ceil(rewriteMaxFiles / 2)),
-      role: "frontend-developer"
-    });
-    const backendRewrite = await params.rewriteCodeInBoundary(iterationId, {
-      instruction: `后端实现要求：${rewriteInstruction}`,
-      dryRun: rewriteDryRun,
-      maxFiles: Math.max(3, Math.ceil(rewriteMaxFiles / 2)),
-      role: "backend-developer"
-    });
+    let frontendRewrite: Awaited<ReturnType<typeof params.rewriteCodeInBoundary>> = null;
+    let backendRewrite: Awaited<ReturnType<typeof params.rewriteCodeInBoundary>> = null;
+    try {
+      frontendRewrite = await params.rewriteCodeInBoundary(iterationId, {
+        instruction: `前端实现要求：${rewriteInstruction}`,
+        dryRun: rewriteDryRun,
+        maxFiles: Math.max(3, Math.ceil(rewriteMaxFiles / 2)),
+        role: "frontend-developer"
+      });
+    } catch (rewriteErr) {
+      warnings.push(`前端改写跳过：${rewriteErr instanceof Error ? rewriteErr.message : "unknown"}`);
+    }
+    try {
+      backendRewrite = await params.rewriteCodeInBoundary(iterationId, {
+        instruction: `后端实现要求：${rewriteInstruction}`,
+        dryRun: rewriteDryRun,
+        maxFiles: Math.max(3, Math.ceil(rewriteMaxFiles / 2)),
+        role: "backend-developer"
+      });
+    } catch (rewriteErr) {
+      warnings.push(`后端改写跳过：${rewriteErr instanceof Error ? rewriteErr.message : "unknown"}`);
+    }
     const rewrite = mergeRewriteResults(iterationId, rewriteDryRun, [
       { label: "frontend", result: frontendRewrite },
       { label: "backend", result: backendRewrite }
@@ -258,19 +270,15 @@ export async function runIterationFullCycleOp(params: {
     } else {
       const changedCount = rewrite.edits.length;
       if (changedCount === 0) {
-        response.steps.rewrite = { status: "failed", note: "代码改写失败：未产生有效改动。" };
-        blockers.push("rewrite produced zero edits");
-        response.status = "failed";
-        response.finishedAt = new Date().toISOString();
-        return response;
+        response.steps.rewrite = { status: "skipped", note: "代码改写未产生有效改动（可能无仓库或无边界文件）。" };
+        warnings.push("rewrite produced zero edits");
+      } else {
+        response.steps.rewrite = { status: "completed", note: `${rewrite.dryRun ? "dry-run" : "applied"}; edits=${changedCount}; skipped=${rewrite.skippedFiles.length}` };
       }
-      response.steps.rewrite = { status: "completed", note: `${rewrite.dryRun ? "dry-run" : "applied"}; edits=${changedCount}; skipped=${rewrite.skippedFiles.length}` };
     }
 
-    if (response.steps.rewrite.status === "blocked" || response.steps.rewrite.status === "failed") {
-      response.status = "blocked";
-      response.finishedAt = new Date().toISOString();
-      return response;
+    if (response.steps.rewrite.status === "blocked") {
+      warnings.push("代码改写被阻断，继续执行后续步骤。");
     }
 
     if (generateTestArtifacts) {

@@ -1,14 +1,6 @@
-/**
- * workspaceOpenclawSkillsBridge — Skill 选择与注入桥接层
- *
- * 所有函数基于 SkillRegistry（三源合一）驱动：
- * - file-pack skills（磁盘 SKILL.md + SOP 正文）
- * - global-custom skills（OpenClaw Global 自定义）
- * - policy skillsPlan（项目策略过滤）
- *
- * 选择逻辑优先级：stageSkillMap > 关键词匹配 > 全量兜底
- * SOP 内容通过 SkillInjector 注入 Coach prompt
- */
+// workspaceOpenclawSkillsBridge — Skill 选择与注入桥接层
+// 三源合一 Registry: file-pack / global-custom / policy skillsPlan
+// 选择优先级: stageSkillMap > 关键词匹配 > 全量兜底
 
 import type { Iteration } from "../../domain/workspace/types";
 import type { Project } from "../../domain/workspace/projectTypes";
@@ -21,10 +13,7 @@ import {
 } from "./skillRegistry";
 import { buildSkillPromptInjection } from "./skillInjector";
 
-// ---------------------------------------------------------------------------
 // Exported types
-// ---------------------------------------------------------------------------
-
 export type OpenclawSkillChainRun = {
   enabled: boolean;
   mode: "bridge" | "openclaw-native" | "disabled";
@@ -46,10 +35,7 @@ export type SkillRegistryContext = {
 
 export type { UnifiedSkillEntry };
 
-// ---------------------------------------------------------------------------
 // Registry construction — 三源合一
-// ---------------------------------------------------------------------------
-
 function buildRegistry(ctx?: SkillRegistryContext): UnifiedSkillEntry[] {
   const filePackSkills = loadFilePackSkillsWithSop();
   return buildUnifiedSkillRegistryOp(
@@ -59,10 +45,7 @@ function buildRegistry(ctx?: SkillRegistryContext): UnifiedSkillEntry[] {
   );
 }
 
-// ---------------------------------------------------------------------------
 // Selection engine
-// ---------------------------------------------------------------------------
-
 const BUSINESS_RULE_PATTERNS = [
   /业务规则/, /领域/, /规则/, /口径/, /例外/, /约束/, /术语/, /验收/, /合规/, /审批/, /状态流转/,
   /domain/, /rule/, /policy/, /acceptance/, /compliance/
@@ -176,10 +159,7 @@ export function selectOpenclawSkillsFromRegistry(
   return { selectedSkills, selectedSkillEntries, selectionReasons };
 }
 
-// ---------------------------------------------------------------------------
 // Helpers — 从迭代/项目上下文提取 registry 选择参数
-// ---------------------------------------------------------------------------
-
 function extractSelectionParams(
   registry: UnifiedSkillEntry[],
   params: {
@@ -221,10 +201,7 @@ function extractSelectionParams(
   };
 }
 
-// ---------------------------------------------------------------------------
 // buildOpenclawSkillsPackContext — skill 能力概览（注入 contract context）
-// ---------------------------------------------------------------------------
-
 export function buildOpenclawSkillsPackContext(registryContext?: SkillRegistryContext) {
   const registry = buildRegistry(registryContext);
   if (registry.length === 0) {
@@ -238,10 +215,7 @@ export function buildOpenclawSkillsPackContext(registryContext?: SkillRegistryCo
   ].join("\n");
 }
 
-// ---------------------------------------------------------------------------
 // buildOpenclawSkillSelectionContext — skill 选择摘要 + SOP 注入
-// ---------------------------------------------------------------------------
-
 export function buildOpenclawSkillSelectionContext(params: {
   iteration?: Iteration | null;
   project?: Project | null;
@@ -266,10 +240,7 @@ export function buildOpenclawSkillSelectionContext(params: {
   return [metadata, sopInjection].filter(Boolean).join("\n\n");
 }
 
-// ---------------------------------------------------------------------------
 // runOpenclawSkillChainForCoach — Coach 完整 skill chain 执行
-// ---------------------------------------------------------------------------
-
 export function runOpenclawSkillChainForCoach(params: {
   iteration: Iteration;
   project?: Project | null;

@@ -29,14 +29,24 @@ function versionedPath(p) {
 }
 
 async function request(pathname, options) {
-  const res = await fetchWithTimeout(`${BASE}${versionedPath(pathname)}`, options);
+  const headers = {
+    "x-role": "owner",
+    "x-user-id": "contract-owner",
+    ...(options?.headers || {})
+  };
+  const res = await fetchWithTimeout(`${BASE}${versionedPath(pathname)}`, {
+    ...options,
+    headers
+  });
   const contentType = res.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await res.json() : await res.text();
   return { res, payload };
 }
 
 async function getJson(pathname) {
-  const res = await fetchWithTimeout(`${BASE}${versionedPath(pathname)}`);
+  const res = await fetchWithTimeout(`${BASE}${versionedPath(pathname)}`, {
+    headers: { "x-role": "owner", "x-user-id": "contract-owner" }
+  });
   assert(res.ok, `Request failed: ${pathname} -> ${res.status}`);
   return res.json();
 }

@@ -22,7 +22,7 @@ export function buildGovernanceInsightsPrompt(params: {
     expectedOutput:
       "JSON: {versionDiffDetailed:{summary,impactScope[],riskPoints[],added[],changed[],removed[]}, traceabilityMap:{requirementToComponent[],componentToCode[],requirementToCode[],coverageScore,mappingConfidence,unmappedRequirements[],conflicts[],gaps[]}, executableConstraints:{componentWhitelist[],codePathWhitelist[],acceptanceChecks[],gateRules[]}, domainKnowledge:{terms[],rules[],unknowns[]}}",
     systemPrompt:
-      "你是资深架构与治理专家。你必须只输出 JSON，不得输出解释文本。输出应可直接用于业务确认与执行治理。",
+      "你是资深架构与治理专家。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文本。输出应可直接用于业务确认与执行治理。",
     userPrompt: [
       `iteration=${params.iterationName};baseline=${params.baselineIterationName}`,
       `requirements=${params.requirements.join(" | ") || "-"}`,

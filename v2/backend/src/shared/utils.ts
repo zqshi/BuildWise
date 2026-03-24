@@ -5,6 +5,9 @@ export function nowIso(): string {
 
 /** Extract a string array from an unknown value (typically parsed JSON). */
 export function pickStringList(value: unknown, max = 8): string[] {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return [value.trim()].slice(0, max);
+  }
   if (!Array.isArray(value)) {
     return [];
   }

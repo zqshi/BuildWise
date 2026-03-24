@@ -13,7 +13,7 @@ BuildWise v2 是一个面向软件交付的 AI 原生工作台。当前版本已
 
 ## 2. 环境要求
 
-- Node.js >= 20
+- Node.js >= 22
 - npm >= 10
 
 ## 3. 安装依赖
@@ -67,6 +67,8 @@ npm run dev
 - 仪表盘：`#/dashboard`
 
 后端默认监听 `127.0.0.1:5055`。当前前端在检测不到后端时，会在界面顶部直接提示开发启动命令。
+开发环境未显式设置 `CORS_ORIGINS` 时，后端会默认放行本地前端常用 origin（`127.0.0.1/localhost` 的 `5173`、`4173`），方便联调与 preview 验证。
+如果前端配置了本地跨端口 `VITE_API_BASE`，运行时会自动回退到同源 `/api`，通过 Vite 的 dev/preview 代理访问后端，避免浏览器跨源白屏。
 
 ## 5. 质量门禁与验证
 
@@ -149,6 +151,13 @@ npm run start
 - 前端：`v2/dist`
 - 后端：`v2/backend/dist`
 
+生产环境额外要求：
+
+- 显式设置 `VITE_API_BASE`，不要依赖 same-origin 回退。
+- 前端 CSP 会按 `VITE_API_BASE` 自动放行对应 API origin；如果部署改成新的网关域名，需要同步更新该变量后重新构建前端。
+- 为每个项目绑定独立的 `workspacePath`，不要让多个项目复用同一路径。
+- 项目级知识资产会写入 `workspacePath/.buildwise/`，该目录应保留读写权限并纳入备份，但不应纳入 Git 管理。
+
 ## 8. 关键环境变量
 
 后端支持自动读取 `v2/backend/.env`。可先从模板复制：
@@ -178,6 +187,13 @@ cp .env.example .env
 - `GITHUB_TOKEN`：真实建仓时使用
 - `PROJECT_REPO_ROOT`：仓库骨架生成目录
 
+OpenClaw 项目绑定约束：
+
+- 绑定接口：`POST /api/v1/projects/:id/workspace/bind`
+- `workspacePath` 建议使用绝对路径
+- 同一路径不能绑定多个项目，冲突时接口返回 `409 workspace_path_already_bound`
+- 项目知识索引、daily memory 与分片文档默认写入 `workspacePath/.buildwise/`
+
 更完整的配置与投产说明见 `v2/backend/README.md` 与 `v2/backend/docs/production-operations.md`。
 
 ## 9. 仓库治理与发布链路
@@ -201,6 +217,13 @@ cp .env.example .env
 - `hybrid`
 
 默认治理策略是生产环境要求远端仓库可配置，适合真实发布链路。
+
+项目级 OpenClaw 运行约束：
+
+- 全平台复用同一个 Agent，不为每个项目复制 Agent
+- 每个项目拥有独立 workspace 和独立 session 命名空间
+- 迭代运行继续复用 `project-<id>-iteration-<id>` session key
+- BuildWise 只做知识物化、检索和上下文注入，不改 OpenClaw 内核逻辑
 
 ## 10. 前端界面与设计约束
 

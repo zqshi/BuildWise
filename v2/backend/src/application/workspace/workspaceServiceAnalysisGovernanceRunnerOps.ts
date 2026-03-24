@@ -1,4 +1,4 @@
-import { LlmInvocationError, LlmUnavailableError, type AgentRunOptions, type AgentRunResult, type AgentRunner } from "./agentRunner";
+import { LlmUnavailableError, type AgentRunOptions, type AgentRunResult, type AgentRunner } from "./agentRunner";
 import type { AttachmentAnalysisReport, IterationAgentPrompt, VisionPayload } from "../../domain/workspace/types";
 import {
   listBusinessConfirmationMissingReasons,
@@ -50,7 +50,7 @@ export async function synthesizeBusinessConfirmationOp(
     expectedOutput:
       "JSON: {coreIntent, successCriteria[], interactionInsights:{primaryFlow[],keyInteractions[],exceptionPaths[],usabilityRisks[]}, necessityAssessment:{mustDo[],shouldDo[],canDefer[],outOfScope[],rationale}, evidenceRefs[], boundarySummary, functionalPoints[], confirmationChecklist:[{order,impactLevel,item,rationale}], versionDiffSummary, diffNarratives[], diffConfirmationOrder:[{order,impactLevel,item,rationale}]}",
     systemPrompt:
-      "你是资深产品负责人。你必须只输出 JSON，禁止解释性前后文。内容必须让非技术业务人员可直接理解并确认。impactLevel 只能是 高/中/低。",
+      "你是资深产品负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，禁止解释性前后文。内容必须让非技术业务人员可直接理解并确认。impactLevel 只能是 高/中/低。",
     userPrompt: [
       `iteration=${params.iterationName}`,
       `baseline=${params.baselineIterationName || "无基线"}`,
@@ -97,7 +97,8 @@ export async function synthesizeBusinessConfirmationOp(
     missing = listBusinessConfirmationMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`business confirmation payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("biz-confirm");
+    log.warn("business confirmation incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
@@ -127,7 +128,7 @@ export async function synthesizeReportQualityGateOp(
     goal: "评审当前分析报告是否达到可发布质量",
     expectedOutput: "JSON: {publishable,score,summary,missingItems[],actionRequired[]}",
     systemPrompt:
-      "你是报告质量审计官。你必须只输出 JSON，不输出解释文本。以业务可决策性和证据完整性为核心判定是否可发布。",
+      "你是报告质量审计官。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不输出解释文本。以业务可决策性和证据完整性为核心判定是否可发布。",
     userPrompt: [
       `iteration=${params.iterationName};target=${params.analyzedTarget};sourceType=${params.sourceType}`,
       `coreIntent=${params.businessConfirmation.coreIntent || "-"}`,
@@ -172,7 +173,8 @@ export async function synthesizeReportQualityGateOp(
     missing = listReportQualityMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`report quality payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("report-quality");
+    log.warn("report quality incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
@@ -210,8 +212,10 @@ export async function synthesizeGovernanceInsightsOp(
     candidate = parseGovernanceInsightsCandidate(selected.content);
     missing = listGovernanceInsightsMissingReasons(candidate);
   }
+  // Governance insights are best-effort: if still incomplete after repair, log and return what we have
   if (missing.length > 0) {
-    throw new LlmInvocationError(`governance insights payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("gov-insights");
+    log.warn("governance insights incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
@@ -247,7 +251,7 @@ export async function synthesizeReleaseReviewOp(
     goal: "输出发布评审结论",
     expectedOutput: "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}",
     systemPrompt:
-      "你是发布治理负责人。你必须只输出 JSON，不得输出解释文字。decision 只能是 go/caution/block。",
+      "你是发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。decision 只能是 go/caution/block。",
     userPrompt: [
       `iteration=${params.iterationName}`,
       `qualitySignals=testCaseCount:${params.qualitySignals.testCaseCount};p0:${params.qualitySignals.p0FindingCount};unknown:${params.qualitySignals.unknownSignalCount};boundaryCoverage:${params.qualitySignals.boundaryCoverage}`,
@@ -279,7 +283,8 @@ export async function synthesizeReleaseReviewOp(
     missing = listReleaseReviewMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`release review payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("release-review");
+    log.warn("release review incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }

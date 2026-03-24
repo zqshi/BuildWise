@@ -16,6 +16,7 @@
 
 # Runtime workspace data
 **/*.runtime.json
+**/.buildwise/
 v2/backend/data.json
 v2/backend/backups/
 

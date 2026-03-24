@@ -1,11 +1,21 @@
+import { lazy, Suspense } from "react";
 import type { IterationArtifactWorkflowItem } from "../../domain/workspace/iterationTypes";
 import type { ArtifactPreviewKind, HtmlPreviewInteractionPayload, HtmlPreviewHistoryItem } from "./iterationWorkspacePanelTypes";
 import type { AnalysisArtifactSection } from "./analysisArtifactPresenter";
 import type { AttachmentAnalysisReport } from "./iterationWorkspacePanelTypes";
 import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { IterationGeneratedTestCase } from "../../domain/workspace/iterationTypes";
-import { ArtifactCodeViewer, ArtifactTextEditor } from "./ArtifactEditorWidgets";
 import { stripRichTextToPlainText } from "./artifactEditorModel";
+
+const ArtifactTextEditor = lazy(async () => {
+  const module = await import("./ArtifactEditorWidgets");
+  return { default: module.ArtifactTextEditor };
+});
+
+const ArtifactCodeViewer = lazy(async () => {
+  const module = await import("./ArtifactEditorWidgets");
+  return { default: module.ArtifactCodeViewer };
+});
 
 export type ArtifactPreviewPanelProps = {
   selectedDrawerArtifact: IterationArtifactWorkflowItem;
@@ -40,6 +50,10 @@ export type ArtifactPreviewPanelProps = {
   setInteractionInstruction: React.Dispatch<React.SetStateAction<string>>;
   setChangeControlNotice: React.Dispatch<React.SetStateAction<string>>;
 };
+
+function ArtifactEditorFallback() {
+  return <div className="artifact-drawer-empty">正在加载编辑器...</div>;
+}
 
 export function ArtifactPreviewPanel({
   selectedDrawerArtifact,
@@ -122,7 +136,8 @@ export function ArtifactPreviewPanel({
   );
 
   return (
-    <div className="deliverable-preview-focus">
+    <Suspense fallback={<ArtifactEditorFallback />}>
+      <div className="deliverable-preview-focus">
       {selectedArtifactKind === "analysis-report" ? (
         artifactDraftContent.trim() ? (
           <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} readOnly showTitle={false} />
@@ -382,6 +397,7 @@ export function ArtifactPreviewPanel({
           actions={renderTextArtifactActions()}
         />
       ) : null}
-    </div>
+      </div>
+    </Suspense>
   );
 }

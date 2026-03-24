@@ -90,6 +90,14 @@ Ensure BuildWise meets a high-quality product研发流程 instead of only produc
   - watch items
 - If rollback cannot be executed from current artifacts, block release.
 
+## SOP
+1. Receive all current stage artifacts and iteration context.
+2. Evaluate each stage output against its quality gate criteria.
+3. Cross-check alignment between connected artifacts (e.g., PRD vs analysis, prototype vs design-spec, code vs requirements).
+4. For each stage, emit a verdict: pass, incomplete, or blocked with evidence.
+5. Identify missing handoff details and blocked downstream steps.
+6. Return unified contract JSON with stage verdicts, risks, and repair actions.
+
 ## Hard Rules
 - Never unlock a downstream stage only because an artifact exists.
 - UX handoff requires both interaction fidelity and design-operational detail.

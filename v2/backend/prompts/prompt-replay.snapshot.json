@@ -3,27 +3,27 @@
   "items": [
     {
       "file": "agent.iteration-coach.v2.md",
-      "systemLength": 2409,
+      "systemLength": 1044,
       "userLength": 99,
       "rendered": [
         {
           "scenario": 1,
-          "systemHash": "0c902edbd955867c",
+          "systemHash": "0a17c818fe5c9399",
           "userHash": "79a3e7be213edea9"
         },
         {
           "scenario": 2,
-          "systemHash": "0c902edbd955867c",
+          "systemHash": "0a17c818fe5c9399",
           "userHash": "afe65f891561db2b"
         },
         {
           "scenario": 3,
-          "systemHash": "0c902edbd955867c",
+          "systemHash": "0a17c818fe5c9399",
           "userHash": "aa8fe902104b28dd"
         },
         {
           "scenario": 4,
-          "systemHash": "0c902edbd955867c",
+          "systemHash": "0a17c818fe5c9399",
           "userHash": "6c141586865419ea"
         }
       ]

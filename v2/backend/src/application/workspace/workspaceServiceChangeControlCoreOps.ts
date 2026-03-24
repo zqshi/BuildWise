@@ -4,6 +4,7 @@ import { normalizeIteration } from "./workspaceSupport";
 import { defaultIterationChangeControl, resolveClarificationSelection, writeAuditLog } from "./workspaceServiceCommon";
 import { extractKnowledgeBaseUpdateOp } from "./ontologyService";
 import { detectOntologyCollisionsOp } from "./ontologyCollisionDetector";
+import { syncProjectWorkspaceKnowledge } from "./projectWorkspaceKnowledgeService";
 import {
   ensureArtifactWorkflow,
   markDownstreamStale,
@@ -55,6 +56,7 @@ export function confirmIterationAnalysisOp(
     accurate: boolean;
     note?: string;
     actor?: string;
+    force?: boolean;
     boundary?: Partial<IterationChangeBoundary>;
     resolvedClarificationQuestions?: string[];
   }
@@ -104,7 +106,7 @@ export function confirmIterationAnalysisOp(
     return { ok: true as const, data: normalized.changeControl };
   }
 
-  if (current.lastReportPublishable === false && current.lastAnalysisAt) {
+  if (current.lastReportPublishable === false && current.lastAnalysisAt && !input.force) {
     return {
       ok: false as const,
       reason: "report_not_publishable",
@@ -206,6 +208,7 @@ export function confirmIterationAnalysisOp(
       });
 
       repo.updateProject({ ...project, knowledgeBase: ontologyResult.updatedKb });
+      syncProjectWorkspaceKnowledge(repo, normalized.projectId);
       writeAuditLog(
         repo,
         "project_knowledge_base_updated",

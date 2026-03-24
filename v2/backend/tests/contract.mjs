@@ -60,13 +60,23 @@ function versionedPath(p) {
 
 async function getJson(path) {
   const url = versionedPath(path);
-  const res = await fetchWithRetry(`${BASE}${url}`);
+  const res = await fetchWithRetry(`${BASE}${url}`, {
+    headers: { "x-role": "owner", "x-user-id": "contract-owner" }
+  });
   assert(res.ok, `Request failed: ${path} -> ${res.status}`);
   return res.json();
 }
 
 async function request(path, options) {
-  const res = await fetchWithRetry(`${BASE}${versionedPath(path)}`, options);
+  const headers = {
+    "x-role": "owner",
+    "x-user-id": "contract-owner",
+    ...(options?.headers || {})
+  };
+  const res = await fetchWithRetry(`${BASE}${versionedPath(path)}`, {
+    ...options,
+    headers
+  });
   const contentType = res.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await res.json() : await res.text();
   return { res, payload };
@@ -266,7 +276,7 @@ try {
 
   const policyExecute = await request("/api/iterations/1/policy-execute", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-role": "owner" },
     body: JSON.stringify({ action: "contract-global-policy-check", message: "执行全局策略检查" })
   });
   assert(policyExecute.res.status === 200, "policy execute should return 200 under global orchestration policy");

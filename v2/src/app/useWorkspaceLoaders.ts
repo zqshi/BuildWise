@@ -164,8 +164,13 @@ export function useWorkspaceLoaders({
       setCurrentIterationId(null);
       return;
     }
-    const current = data.find((item) => item.current) ?? data[data.length - 1];
-    setCurrentIterationId(current.id);
+    setCurrentIterationId((prev) => {
+      if (prev !== null && data.some((item) => item.id === prev)) {
+        return prev;
+      }
+      const current = data.find((item) => item.current) ?? data[data.length - 1];
+      return current.id;
+    });
   };
 
   const loadIterationDetail = async (iterationId: number) => {

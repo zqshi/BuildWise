@@ -12,10 +12,7 @@ import { parsePolicyIntentFromReply } from "./policyIntentParser";
 import { mergePolicyDeltaOp, GLOBAL_ORCHESTRATION_SCOPE_PROJECT_ID } from "../workspace/workspaceServicePolicyOps";
 import { buildKnowledgeSyncContext } from "../workspace/knowledgeSyncService";
 
-// ---------------------------------------------------------------------------
 // LLM response sanitization — strip internal model markers
-// ---------------------------------------------------------------------------
-
 /**
  * 清洗 LLM 回复中的内部标记（如 MiniMax 的 tool_call XML、内部思考标签等）。
  * 在存储和返回给前端之前调用。
@@ -39,10 +36,7 @@ function sanitizeLlmReply(raw: string): string {
   return text.trim();
 }
 
-// ---------------------------------------------------------------------------
 // System prompt 用于全局业务助手对话
-// ---------------------------------------------------------------------------
-
 const GLOBAL_ASSISTANT_SYSTEM_PROMPT = [
   "你是 OpenClaw，BuildWise 平台的业务助手。你像一位懂技术的业务顾问——帮用户理清思路、制定策略、把经验沉淀下来。",
   "",
@@ -67,10 +61,7 @@ const GLOBAL_ASSISTANT_SYSTEM_PROMPT = [
   "注意：这个标记对用户不可见，用于系统自动更新流程配置。每次回复最多一个策略变更标记。如果用户只是在讨论或提问，不要输出此标记。"
 ].join("\n");
 
-// ---------------------------------------------------------------------------
 // Service
-// ---------------------------------------------------------------------------
-
 export class OpenclawGlobalService {
   private readonly repo: OpenclawGlobalRepository;
   private readonly agentRunner: AgentRunner | null;
@@ -297,10 +288,7 @@ export class OpenclawGlobalService {
   }
 }
 
-// ---------------------------------------------------------------------------
 // 全局对话项目知识概要 — 聚合所有活跃项目的 KB 摘要
-// ---------------------------------------------------------------------------
-
 function buildGlobalProjectsKnowledgeSummary(workspaceRepo: WorkspaceRepository): string {
   const projects = workspaceRepo.listProjects().filter((p) => p.status === "active" || p.status === "in-progress");
   if (projects.length === 0) return "";

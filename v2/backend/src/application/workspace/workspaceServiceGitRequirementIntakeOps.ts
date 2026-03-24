@@ -59,11 +59,17 @@ export function detectGitRequirementReadDecision(message: string): GitReadDecisi
   if (!text) {
     return "unknown";
   }
-  if (/^(no|n|not now|later|否|不用|暂不|先不|不读取仓库|不读取git)$/.test(text) || /(暂不|先不).*(读取|拉取).*(仓库|git)/.test(text)) {
+  // 明确拒绝（优先匹配否定表达，避免「暂不读取仓库」被 accept 正则误匹配）
+  if (/^(no|n|not now|later|否|不用|暂不|先不|不读取仓库|不读取git)$/.test(text) || /(暂不|先不|不要|不用).*(读取|拉取).*(仓库|git)/.test(text)) {
     return "decline";
   }
+  // 明确接受
   if (/^(yes|y|ok|sure|read|go|是|好|可以|读取仓库|读取git|读取代码仓库)$/.test(text) || /读取.*(仓库|git)/.test(text)) {
     return "accept";
+  }
+  // 用户发了较长文本（>20字符），说明已在讨论需求，视为隐式 decline
+  if (text.length > 20) {
+    return "decline";
   }
   return "unknown";
 }

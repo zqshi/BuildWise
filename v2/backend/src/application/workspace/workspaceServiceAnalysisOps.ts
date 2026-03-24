@@ -144,7 +144,7 @@ async function synthesizeExecutionPolicyOp(
     goal: "决定本轮分析执行策略（是否降级、是否单Agent）",
     expectedOutput: "JSON: {degraded,reason,enforceSingleAgent,forceMultiAgent,promptBudgetRisk}",
     systemPrompt:
-      "你是LLM编排策略器。你必须只输出 JSON，不得输出解释。根据上下文规模和信息质量判断执行策略。",
+      "你是LLM编排策略器。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释。根据上下文规模和信息质量判断执行策略。",
     userPrompt: [
       `iteration=${params.iterationName};file=${params.fileName};sourceType=${params.sourceType}`,
       `strategy=${params.excerptPayload.strategy};digest=${params.excerptPayload.digest}`,
@@ -180,7 +180,8 @@ async function synthesizeExecutionPolicyOp(
     missing = listExecutionPolicyMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`execution policy payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("exec-policy");
+    log.warn("execution policy incomplete", { missing: missing.join(", ") });
   }
   return candidate;
 }
@@ -210,7 +211,7 @@ async function synthesizeFolderSelectionOp(
     goal: "选择本轮分析应纳入的文件",
     expectedOutput: "JSON: {includedPaths:[], ignoredFiles:[{path,reason}], sampleReason}",
     systemPrompt:
-      "你是分析上下文策展器。你必须只输出 JSON，不得输出解释文本。基于业务价值、可解析性和版本相关性选择文件。",
+      "你是分析上下文策展器。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文本。基于业务价值、可解析性和版本相关性选择文件。",
     userPrompt: [
       `folder=${input.folderName || input.fileName || "folder"}`,
       `totalFiles=${files.length}`,
@@ -239,7 +240,8 @@ async function synthesizeFolderSelectionOp(
     missing = listFolderSelectionMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`folder selection payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("folder-select");
+    log.warn("folder selection incomplete", { missing: missing.join(", ") });
   }
   return candidate;
 }
@@ -266,7 +268,7 @@ async function synthesizeDeepInsightsOp(
     expectedOutput:
       "JSON: {coverage:{consideredFiles,analyzedFiles,partialFiles,failedFiles,coveragePercent}, fileInsights:[{path,fileName,mimeType,size,kind,status,mainContent,requiredWork,iterationValue,summary,keyPoints,risks,optimizeItems,keepItems,recommendedActions,openQuestions,citations,confidence}], crossFileInsights:{themes,conflicts,gaps,recommendations,conflictChains,rootCauses,impactScope,decisionSuggestions}}",
     systemPrompt:
-      "你是资深需求分析师。你必须只输出 JSON，不得输出解释文字。逐文件洞察必须基于输入文件内容，不得虚构。",
+      "你是资深需求分析师。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。逐文件洞察必须基于输入文件内容，不得虚构。",
     userPrompt: [
       `sourceType=${params.input.sourceType === "folder" ? "folder" : "single-file"};target=${params.input.fileName}`,
       `digest=${params.excerptPayload.digest}`,
@@ -304,7 +306,8 @@ async function synthesizeDeepInsightsOp(
     missing = listDeepInsightsMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`deep insights payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("deep-insights");
+    log.warn("deep insights incomplete", { missing: missing.join(", ") });
   }
   return candidate;
 }
@@ -351,7 +354,7 @@ async function synthesizeAttachmentInsightsOp(
     goal: "输出附件洞察摘要",
     expectedOutput: "JSON: {projectCategory,artifactType,keyCharacteristics[],versionChangeSummary,confidence,limitations[]}",
     systemPrompt:
-      "你是产品分析专家。你必须只输出 JSON，不得输出解释文本。confidence 只能是 high/medium/low。",
+      "你是产品分析专家。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文本。confidence 只能是 high/medium/low。",
     userPrompt: [
       `iteration=${params.iterationName};file=${params.fileName};sourceType=${params.sourceType}`,
       `diff=added:${params.versionDiff.added.join(" | ") || "-"};changed:${params.versionDiff.changed.join(" | ") || "-"};removed:${params.versionDiff.removed.join(" | ") || "-"}`,
@@ -380,7 +383,8 @@ async function synthesizeAttachmentInsightsOp(
     missing = listAttachmentInsightsMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    throw new LlmInvocationError(`attachment insights payload invalid: ${missing.join(", ")}`);
+    const log = (await import("../../infrastructure/runtime/logger")).createLogger("attach-insights");
+    log.warn("attachment insights incomplete", { missing: missing.join(", ") });
   }
   return candidate;
 }

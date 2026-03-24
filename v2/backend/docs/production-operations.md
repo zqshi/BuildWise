@@ -22,6 +22,15 @@ npm run ops:preflight
 - `2`：触发告警
 - `1`：检查失败（网络/接口错误）
 
+发布前额外人工确认：
+
+1. 探针配置使用 `/health` 作为 liveness，`/ready` 作为 readiness。
+2. `AUTH_MODE=jwt` 且 `JWT_SECRET` 已替换为生产密钥。
+3. `CORS_ORIGINS` 已按生产域名显式配置。
+4. `STORAGE_BACKEND=sqlite`。
+5. 每个项目的 `workspacePath` 独立且具备读写权限。
+6. `workspacePath/.buildwise/` 已纳入备份策略并排除 Git 管理。
+
 ## 2. 告警基线检查
 
 ```bash
@@ -121,6 +130,41 @@ PROJECT_ID=1 npm run ops:rollback
 - 基于项目最新部署环境创建一个“回滚部署”
 - 继承部署对应 `iterationId`（若可用）
 - 默认自动把回滚部署状态推进到 `success`
+
+## 4.2 项目 workspace 运维约束
+
+绑定接口：
+
+```bash
+curl -sS -X POST http://127.0.0.1:5055/api/v1/projects/1/workspace/bind \
+  -H "Content-Type: application/json" -H "x-role: owner" \
+  -d '{"openclawProfile":"buildwise-local","agentId":"main","workspacePath":"/srv/buildwise/openclaw/project-1","runtimeMode":"openclaw-native","locked":true}'
+```
+
+要求：
+
+1. `workspacePath` 使用绝对路径。
+2. 每个项目必须独立路径，不得复用。
+3. 同一路径重复绑定不同项目时接口返回 `409 workspace_path_already_bound`。
+4. BuildWise 项目知识资产会写入 `workspacePath/.buildwise/`。
+
+建议备份目录：
+
+1. `workspacePath/.buildwise/workspace.json`
+2. `workspacePath/.buildwise/memory/`
+3. `workspacePath/.buildwise/shards/`
+4. `workspacePath/.buildwise/index/`
+
+## 4.3 健康检查语义
+
+1. `/health`
+   - 用于 liveness
+   - 只表示进程是否仍然存活
+   - 仅在优雅停机期间返回 `503`
+2. `/ready`
+   - 用于 readiness
+   - 反映存储依赖、模型文件探针和 LLM 连通性
+   - 下游抖动时可以返回 `503`，但不应触发进程重启
 
 ## 4.1 发布硬门禁（新增）
 
