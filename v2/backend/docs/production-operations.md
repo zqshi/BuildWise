@@ -1,6 +1,6 @@
 # BuildWise v2 Backend Production Operations
 
-更新时间：2026-02-18
+更新时间：2026-03-24
 
 ## 1. 发布前聚合检查（推荐）
 
@@ -30,6 +30,7 @@ npm run ops:preflight
 4. `STORAGE_BACKEND=sqlite`。
 5. 每个项目的 `workspacePath` 独立且具备读写权限。
 6. `workspacePath/.buildwise/` 已纳入备份策略并排除 Git 管理。
+7. 当前发布分支必须先通过 `npm run check:boundaries` 与 `npm run verify:prod-readiness`，否则不能作为最终放行版本。
 
 ## 2. 告警基线检查
 

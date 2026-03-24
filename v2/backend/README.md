@@ -1,6 +1,15 @@
 # BuildWise v2 Backend
 
-## 快速开始
+BuildWise 后端负责：
+
+- 项目 / 迭代数据管理
+- 项目建模与领域建模统一视图
+- 交付物、测试矩阵与发布评审
+- 项目级 workspace 绑定与知识物化
+- OpenClaw 非侵入式接入
+- 仓库治理、发布与回滚链路
+
+## 1. 快速开始
 
 ```bash
 cd v2/backend
@@ -15,212 +24,174 @@ npm run start
 npm run dev
 ```
 
-环境变量加载：
+## 2. 环境变量
 
-- 服务启动会自动读取当前目录的 `.env`（路径：`v2/backend/.env`）。
-- 默认会优先采用 `.env` 中的 LLM/Anthropic 相关配置，避免旧 shell 环境变量污染。
-- 若需保持 shell 环境变量优先，可设置 `BUILDWISE_PREFER_PROCESS_ENV=1`。
-- 可从模板复制：
+启动时自动读取：
+
+- `v2/backend/.env`
+
+可从模板复制：
 
 ```bash
-cd v2/backend
 cp .env.example .env
 ```
 
-## 质量门禁
+关键变量：
+
+- `HOST` / `PORT`
+- `NODE_ENV`
+- `CORS_ORIGINS`
+- `AUTH_MODE=off | token | jwt`
+- `AUTH_TOKENS_JSON`
+- `JWT_SECRET`
+- `JWT_ACCESS_TTL_SEC`
+- `JWT_REFRESH_TTL_SEC`
+- `AUTH_PUBLIC_PATH_PREFIXES`
+- `STORAGE_BACKEND=json | sqlite`
+- `WORKSPACE_DB_FILE`
+- `WORKSPACE_DATA_FILE`
+- `LLM_PROVIDER`
+- `LLM_API_BASE`
+- `LLM_API_KEY`
+- `LLM_MODEL`
+- `LLM_REQUIRED`
+- `DEPENDENCY_REQUIRED`
+- `OPENCLAW_GATEWAY_URL`
+- `OPENCLAW_AGENT_ID`
+- `OPENCLAW_HOME`
+- `BUILDWISE_OPENCLAW_SKILLS_ENABLED`
+- `GITHUB_TOKEN`
+- `PROJECT_REPO_ROOT`
+
+说明：
+
+- 生产环境建议 `AUTH_MODE=jwt`
+- 生产环境建议 `STORAGE_BACKEND=sqlite`
+- 每个项目必须使用独立 `workspacePath`
+- 项目知识目录写入 `workspacePath/.buildwise/`
+
+## 3. 质量门禁
 
 ```bash
+npm run check:hygiene
 npm run check:boundaries
+npm run check:prompts
+npm run check:prompts:replay
+npm run check:agents
+npm run check:skills
 npm run typecheck
 npm run build
+npm run test
 npm run test:contract
-npm run test:e2e
-npm run test:contract:sqlite
 npm run verify:prod-readiness
 npm run verify:prod-readiness:sqlite
-npm run ops:preflight
-npm run ops:llm-check
-npm run ops:alerts
-npm run ops:rollback
-npm run ops:backup-drill
-npm run e2e:agent-flow
 ```
 
-`e2e:agent-flow` 会在运行结束后输出结构化报告 JSON（默认目录 `tmp/e2e-reports/`，可用 `E2E_REPORT_DIR` 覆盖）。
+补充：
 
-投产差距与分项评分见：
-`v2/backend/docs/production-readiness.md`
-投产运维 SOP 见：
-`v2/backend/docs/production-operations.md`
-发布候选收口清单见：
-`v2/backend/docs/release-candidate-checklist.md`
-仓库双轨策略设计见：
-`v2/backend/docs/repository-mode-design.md`
+- `npm run ops:preflight`
+- `npm run ops:llm-check`
+- `npm run ops:alerts`
+- `PROJECT_ID=1 npm run ops:rollback`
+- `STORAGE_BACKEND=sqlite npm run ops:backup-drill`
 
-## 关键接口
+## 4. 关键接口
+
+后端当前统一使用 `/api/v1` 前缀。
+
+核心运行接口：
 
 - `GET /health`
 - `GET /ready`
 - `GET /api/v1/status`
 - `GET /api/ops/runtime`
-- `GET /api/projects`
-- `POST /api/projects`
-- `GET /api/projects/:id/repository`
-- `POST /api/projects/:id/repository/bootstrap`
-- `GET /api/projects/:id/repository/status`
-- `POST /api/projects/:id/repository/mode`
-- `POST /api/projects/:id/repository/provision`
-- `POST /api/projects/:id/repository/scaffold`
-- `POST /api/projects/:id/workspace/bind`
-- `POST /api/iterations/:id/publish`
-- `GET /api/projects/:id/iterations`
-- `POST /api/projects/:id/iterations`
-- `POST /api/projects/:id/policies/restore-initial`（恢复项目级 OpenClaw 初始化编排模式）
-- `POST /api/governance/orchestration/policies/restore-initial`（恢复全局初始化编排模式）
-- `GET /api/iterations/:id/code-link`
-- `POST /api/iterations/:id/code-link`
-- `GET /api/projects/:id/code-trace?ref=<branch|tag|commit|path>`
-- `GET /api/iterations/:id/change-control`
-- `POST /api/iterations/:id/change-control/confirm`
-- `POST /api/iterations/:id/change-control/boundary`
-- `POST /api/iterations/:id/change-control/test-matrix/execution`
-- `POST /api/iterations/:id/change-control/test-artifacts/generate`
-- `GET /api/iterations/:id/release-review`
-- `POST /api/iterations/:id/full-cycle`（分析→确认→边界内改写→测试产物→发布评审→可选发布）
-- `GET /api/model`
-- `GET /api/model/entities`
-- `POST /api/model/entities`
-- `GET /api/rules/compile`
-- `GET /api/rules/bind`
-- `GET /api/sync/report`
-- `GET /api/trace`
-- `GET /api/trace/map`
 
-## 配置
+项目与迭代：
 
-- 默认监听 `127.0.0.1:5055`
-- `PORT` 可覆盖端口
-- `HOST` 可覆盖监听地址
-- `NODE_ENV`：`development | test | production`
-- `SERVICE_NAME`：服务名（默认 `buildwise-v2-backend`）
-- `SERVICE_VERSION`：服务版本（默认 `0.1.0`）
-- `MODEL_FILE` 可覆盖模型文件路径
-- `WORKSPACE_DATA_FILE` 可覆盖工作区数据路径
-- `LLM_API_BASE`：OpenAI 兼容接口地址（必填，用于附件分析真实调用）
-- `LLM_MODEL`：模型名称（默认 `gpt-4o-mini`）
-- `LLM_API_KEY`：模型 API Key（按服务端要求配置）
-- `BUILDWISE_PREFER_PROCESS_ENV`：默认 `0`。为 `1` 时，进程已有环境变量优先于 `.env`；默认情况下 `.env` 会覆盖已有的 LLM/Anthropic 相关环境变量，避免旧 shell 环境污染导致鉴权误判
-- `LLM_REQUIRED`：`true|false`（默认 `false`）。为 `true` 时，`/ready` 需要 LLM 可达才返回 ready
-- `DEPENDENCY_REQUIRED`：`true|false`（默认 `production=true`，其他环境 `false`）。为 `true` 时，`/ready` 需要模型文件和存储依赖探针通过
-- `LLM_FOLDER_MAX_FILES`：文件夹分析纳入文件上限（默认 `120`）
-- `LLM_FOLDER_MANIFEST_MAX_FILES`：文件夹分析 manifest 输出上限（默认 `60`）
-- `LLM_FOLDER_EXCERPT_MAX_FILES`：文件夹分析文本摘录文件上限（默认 `20`）
-- `GITHUB_TOKEN`：GitHub API Token（用于 `repository/provision` 真实建仓）
-- `PROJECT_REPO_ROOT`：本地仓库落盘根目录（用于 `repository/scaffold`）
-- `CORS_ORIGINS`：允许跨域来源，多个值用逗号分隔（生产环境必填）
-- `RATE_LIMIT_WINDOW_MS`：限流窗口毫秒数（默认 `60000`）
-- `RATE_LIMIT_MAX`：窗口内每 IP 请求上限（默认 `2000`）
-- `SHUTDOWN_TIMEOUT_MS`：优雅停机超时毫秒（默认 `10000`）
-- `AUTH_MODE`：`off | token | jwt`（生产建议 `jwt`）
-- `AUTH_TOKENS_JSON`：token 到角色映射 JSON（`AUTH_MODE=token` 时必填）
-- `JWT_SECRET`：`AUTH_MODE=jwt` 时必填，长度至少 32
-- `JWT_ACCESS_TTL_SEC`：JWT access token 有效期，默认 `7200`
-- `JWT_REFRESH_TTL_SEC`：JWT refresh token 有效期，默认 `604800`
-- `AUTH_PUBLIC_PATH_PREFIXES`：免鉴权路径前缀，逗号分隔
-- `STORAGE_BACKEND`：`json | sqlite`（生产建议 `sqlite`）
-- `WORKSPACE_DB_FILE`：SQLite 工作区数据库文件路径
-- `ALERT_MIN_TEST_MATRIX_COVERAGE`：测试矩阵生成覆盖率阈值（`ops:preflight`，默认 `100`）
-- `ALERT_MIN_TEST_MATRIX_EXECUTION_COVERAGE`：测试矩阵执行覆盖率阈值（`ops:preflight`，默认 `100`）
-- `ALERT_MIN_TEST_MATRIX_PASS_RATE`：测试矩阵执行通过率阈值（`ops:preflight`，默认 `95`）
-- `ALERT_MIN_HIGH_VALUE_FINDINGS_COVERAGE`：高价值发现覆盖率阈值（`ops:preflight`，默认 `90`）
-- `ALERT_MAX_P0_FINDINGS_TOTAL`：P0 发现总量上限（`ops:preflight`，默认 `5`）
-- `ALERT_MAX_IGNORED_FILES_RATIO`：分析被忽略文件比例上限（`ops:preflight`，默认 `70`）
-- `BUILDWISE_EDITABLE_RICH_ARTIFACT_IDS`：可富文本编辑的交付物 ID 列表（逗号分隔），默认 `boundary-confirmation,test-matrix,acceptance-checklist`
-- `BUILDWISE_EDITABLE_PROTOTYPE_ARTIFACT_IDS`：可原型元素选择编辑的交付物 ID 列表（逗号分隔），默认 `prototype-preview`
+- `GET /api/v1/projects`
+- `POST /api/v1/projects`
+- `GET /api/v1/projects/:id/iterations`
+- `POST /api/v1/projects/:id/iterations`
+
+项目建模：
+
+- `GET /api/v1/projects/:id/model-view`
+- `GET /api/v1/projects/:id/model/business-summary`
+
+OpenClaw / workspace：
+
+- `POST /api/v1/projects/:id/workspace/bind`
+- `POST /api/v1/projects/:id/policies/restore-initial`
+- `POST /api/governance/orchestration/policies/restore-initial`
+
+仓库治理与发布：
+
+- `GET /api/v1/projects/:id/repository`
+- `POST /api/v1/projects/:id/repository/bootstrap`
+- `GET /api/v1/projects/:id/repository/status`
+- `GET /api/v1/projects/:id/repository/migration-plan`
+- `POST /api/v1/projects/:id/repository/mode`
+- `POST /api/v1/projects/:id/repository/provision`
+- `POST /api/v1/projects/:id/repository/scaffold`
+- `POST /api/v1/iterations/:id/publish`
+- `GET /api/v1/projects/:id/code-trace?ref=<branch|tag|commit|path>`
+
+变更控制：
+
+- `GET /api/v1/iterations/:id/change-control`
+- `POST /api/v1/iterations/:id/change-control/confirm`
+- `POST /api/v1/iterations/:id/change-control/boundary`
+- `POST /api/v1/iterations/:id/change-control/test-matrix/execution`
+- `POST /api/v1/iterations/:id/change-control/test-artifacts/generate`
+- `GET /api/v1/iterations/:id/release-review`
+
+## 5. 运行语义
+
+- `/health`
+  - liveness
+  - 仅表示进程是否存活
+  - 优雅停机期间返回 `503`
+- `/ready`
+  - readiness
+  - 反映存储探针、模型文件和 LLM 连通性
+- `/api/v1/status`
+  - 查看运行时摘要
 
 说明：
 
-- `/api/iterations/:id/analysis` 已禁用 fallback mock 路径。
-- 若未配置可用 LLM（例如缺少 `LLM_API_BASE`），该接口将返回 `503`。
-- 服务启动会探测一次 LLM 连通性，`/api/status` 与 `/api/ops/runtime` 的 `runtime.llm` 字段可查看 `configured/reachable/error`。
-- 服务启动会异步探测一次 LLM 连通性，`/api/v1/status` 与 `/api/ops/runtime` 的 `runtime.llm` 字段可查看 `configured/reachable/error`。
-- `runtime.llmRequired` 可查看当前是否启用“LLM 强依赖就绪门禁”。
-- `runtime.dependencies` 与 `runtime.dependencyRequired` 可查看“模型文件/存储”依赖探针状态与是否启用强依赖门禁。
-- `/health` 只表示进程是否存活，只有优雅停机期间才返回 `503`。
-- `/ready` 表示是否可接流量，会综合依赖探针和 LLM 就绪状态。
-- 仓库模式支持：
-  - `external_git`：外部 Git 为主（生产推荐）
-  - `managed_local`：本地托管仓库（PoC/离线）
-  - `hybrid`：本地托管 + 远端绑定（推荐过渡方案）
-- 默认治理策略：`production` 要求远端仓库可配置（`requireRemoteForProduction=true`），`staging` 默认不强制远端。
-- 项目级 OpenClaw binding 要求每个项目独立 `workspacePath`。
-- 项目知识资产默认写入 `workspacePath/.buildwise/`，该目录应保留读写权限、纳入备份、排除 Git 管理。
-- 同一路径不能绑定多个项目，冲突时 `POST /api/projects/:id/workspace/bind` 返回 `409 workspace_path_already_bound`。
+- 启动阶段会异步探测一次 LLM，不再阻塞监听
+- `runtime.llmRequired` 表示是否启用 LLM 强依赖门禁
+- `runtime.dependencyRequired` 表示是否启用依赖探针强门禁
 
-## 投产补齐能力
+## 6. OpenClaw 与项目 workspace
 
-- 统一错误响应：返回 `requestId` 便于排障。
-- 基础安全响应头：`x-content-type-options`、`x-frame-options`、`referrer-policy`。
-- 进程内限流：按 IP 进行滑动窗口控制，超限返回 `429`。
-- 健康与就绪探针分离：`/health` + `/ready`。
-- 运行时指标快照：`/api/ops/runtime`。
-- 优雅停机：处理 `SIGINT/SIGTERM`，停止接入新请求并等待关闭。
+当前设计是：
 
-## 发布前最小清单
+1. 单 Agent
+2. 每个项目一个独立 workspace
+3. 所有迭代持续沉淀到同一个项目 workspace
+4. BuildWise 只做知识物化、检索和上下文注入，不改 OpenClaw 内核
 
-建议发布前至少确认：
+约束：
 
-1. `npm run verify:prod-readiness` 通过。
-2. `AUTH_MODE=jwt` 且 `JWT_SECRET` 已替换为生产密钥。
-3. `CORS_ORIGINS` 已显式配置，不使用开发默认值。
-4. `STORAGE_BACKEND=sqlite`，不要以 `json` 作为生产主存储。
-5. 每个项目的 `workspacePath` 独立且可写。
-6. `workspacePath/.buildwise/` 已纳入备份策略。
-7. 探针配置区分 liveness(`/health`) 与 readiness(`/ready`)。
+- `workspacePath` 建议使用绝对路径
+- 同一路径不可绑定多个项目
+- 绑定冲突返回 `409 workspace_path_already_bound`
+- 项目知识目录位于：
+  - `workspacePath/.buildwise/workspace.json`
+  - `workspacePath/.buildwise/memory/`
+  - `workspacePath/.buildwise/shards/`
+  - `workspacePath/.buildwise/index/`
 
-## 建仓与追溯示例
+## 7. 投产说明
 
-- 初始化仓库元信息：
-  `POST /api/projects/:id/repository/bootstrap`
-- 真实建仓（GitHub）：
-  `POST /api/projects/:id/repository/provision`，传 `{ "dryRun": false }` 且配置 `GITHUB_TOKEN`
-- 仅演练不落地：
-  `POST /api/projects/:id/repository/provision`，传 `{ "dryRun": true }`
-- 生成本地工程骨架并初始化 git：
-  `POST /api/projects/:id/repository/scaffold`，可传 `{ "rootDir": "/tmp/repos", "initializeGit": true, "createInitialCommit": true }`
-- 发布迭代分支并创建 PR（dry-run 默认 false，显式传 `{"dryRun": true}` 才演练）：
-  `POST /api/iterations/:id/publish`
-- 绑定迭代到代码锚点：
-  `POST /api/iterations/:id/code-link`
-- 根据 commit/branch/path 反查迭代：
-  `GET /api/projects/:id/code-trace?ref=abc123`
+当前投产与运维主文档：
 
-## 存储迁移（JSON -> SQLite）
+- [production-operations.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-operations.md)
+- [production-readiness.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/production-readiness.md)
+- [release-candidate-checklist.md](/Users/zqs/Downloads/project/BuildWise/v2/backend/docs/release-candidate-checklist.md)
 
-```bash
-cd v2/backend
-npm run migrate:sqlite
-```
+注意：
 
-迁移后可通过环境变量切换：
-
-```bash
-STORAGE_BACKEND=sqlite
-WORKSPACE_DB_FILE=./workspace.db
-```
-
-SQLite 模式下已提供分集合表存储与索引（`projects`、`iterations`、`messages`、`audit_logs`），高频读取走 SQL 查询。
-
-## Agent Prompt 维护
-
-- Prompt 模板目录：`v2/backend/agents/prompts`
-- 命名约定：`agent.<role>.v2.md`
-- 当前角色清单来源：`v2/backend/agents/catalog/agents.v1.json`
-- 模板格式要求：
-  - 必须包含 `# system` 与 `# user` 两段
-  - 可用变量：`{{role}}` `{{scope}}` `{{goal}}` `{{context}}` `{{expectedOutput}}`
-- 运行时加载逻辑：
-  - 代码位置：`src/application/workspace/agentAssetRegistry.ts`
-  - 若模板缺失或格式不合法，将自动回退到内置默认模板。
-- LLM 调用链路与 Prompt 体系说明：
-  - `v2/backend/docs/llm-chain-and-prompts.md`
+- 是否“可投产”必须以当前门禁实际结果为准
+- 如果 `check:boundaries`、`verify:prod-readiness` 未全绿，就不能宣称该分支已可直接投产
