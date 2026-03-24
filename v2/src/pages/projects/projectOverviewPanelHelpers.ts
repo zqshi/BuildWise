@@ -1,77 +1,5 @@
-import type { ModelRelationPayload } from "../../domain/workspace/types";
-
-export const MOCK_MODEL_RELATIONS: ModelRelationPayload[] = [
-  {
-    id: "mock-r-1",
-    fromEntityId: "entity_负责人",
-    toEntityId: "entity_线索",
-    type: "one_to_many",
-    name: "负责推进",
-    businessDescription: "一位负责人可以同时负责多条线索，但每条线索在同一时刻只有一个主负责人。",
-    ontologyBasis: "负责人 -> 线索",
-    dataBasis: ["sales_owner.owner_id", "lead.owner_id"]
-  },
-  {
-    id: "mock-r-2",
-    fromEntityId: "entity_线索",
-    toEntityId: "entity_跟进记录",
-    type: "one_to_many",
-    name: "沉淀跟进",
-    businessDescription: "一条线索会持续积累多条跟进记录，形成完整的沟通历史。",
-    ontologyBasis: "线索 -> 跟进记录",
-    dataBasis: ["lead.lead_id", "followup_record.lead_id"]
-  },
-  {
-    id: "mock-r-3",
-    fromEntityId: "entity_线索阶段",
-    toEntityId: "entity_线索",
-    type: "one_to_many",
-    name: "阶段归属",
-    businessDescription: "线索总是处于某个明确阶段，阶段变化会影响列表排序和后续动作提示。",
-    ontologyBasis: "线索阶段 -> 线索",
-    dataBasis: ["lead_stage.stage_code", "lead.stage"]
-  },
-  {
-    id: "mock-r-4",
-    fromEntityId: "entity_线索导出任务",
-    toEntityId: "entity_线索",
-    type: "many_to_many",
-    name: "批量带出",
-    businessDescription: "一次导出任务会命中一批线索，同一条线索也可能被多次导出。",
-    ontologyBasis: "线索导出任务 <-> 线索",
-    dataBasis: ["export_job.job_id", "export_job_lead.lead_id"]
-  },
-  {
-    id: "mock-r-5",
-    fromEntityId: "entity_线索导出任务",
-    toEntityId: "entity_导出结果包",
-    type: "one_to_one",
-    name: "生成结果包",
-    businessDescription: "每次导出任务最终产出一个可下载结果包，便于业务离线流转。",
-    ontologyBasis: "线索导出任务 -> 导出结果包",
-    dataBasis: ["export_job.job_id", "export_file.job_id"]
-  },
-  {
-    id: "mock-r-6",
-    fromEntityId: "entity_线索",
-    toEntityId: "entity_客户公司",
-    type: "many_to_many",
-    name: "关联客户",
-    businessDescription: "同一客户公司可以对应多条线索，线索也可能在不同接触阶段指向同一客户主体。",
-    ontologyBasis: "线索 <-> 客户公司",
-    dataBasis: ["lead_company.lead_id", "lead_company.company_id"]
-  },
-  {
-    id: "mock-r-7",
-    fromEntityId: "entity_跟进记录",
-    toEntityId: "entity_提醒对象",
-    type: "one_to_many",
-    name: "提醒候选",
-    businessDescription: "跟进记录理论上可以挂接提醒对象，但当前演示版本中该能力已延期，不进入上线范围。",
-    ontologyBasis: "跟进记录 -> 提醒对象",
-    dataBasis: ["followup_record.record_id", "mention_target.record_id"]
-  }
-];
+import type { ProjectModelBusinessSummaryPayload } from "../../domain/workspace/modelOpsTypes";
+import type { ProjectModelViewPayload } from "../../domain/workspace/types";
 
 export function toFriendlyName(raw: string) {
   return raw.replace(/^entity_/i, "").replace(/[_-]+/g, " ").trim() || raw;
@@ -153,4 +81,44 @@ export function normalizeInlineMarkdownText(value: string) {
     .replace(/\\([\\`*_#[\]()])/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function buildProjectModelBusinessSummaryFromView(input: {
+  projectId: number;
+  iterationId: number | null;
+  view: ProjectModelViewPayload | null;
+  generatedAt?: string;
+}): ProjectModelBusinessSummaryPayload | null {
+  if (!input.view) {
+    return null;
+  }
+  const generatedAt = input.generatedAt || new Date().toISOString();
+  const entityNames = input.view.entities.slice(0, 3).map((item) => item.businessName || item.name);
+  const blockingTasks = input.view.reviewTasks.filter((item) => item.blocking).map((item) => normalizeInlineMarkdownText(item.title));
+  const evidenceItems = input.view.evidence.slice(0, 2).map((item) => normalizeInlineMarkdownText(item));
+  const focus = [
+    entityNames.length > 0 ? `关键实体：${entityNames.join("、")}` : "",
+    input.view.relations.length > 0 ? `关系沉淀：已形成 ${input.view.relations.length} 条实体关系` : "",
+    input.view.rules.length > 0 ? `规则沉淀：已形成 ${input.view.rules.length} 条业务规则` : ""
+  ].filter(Boolean);
+  const risks = blockingTasks.length > 0 ? blockingTasks : input.view.reviewTasks.slice(0, 2).map((item) => normalizeInlineMarkdownText(item.title));
+  const model = [
+    `已沉淀 ${input.view.entities.length} 个实体`,
+    `${input.view.relations.length} 条关系`,
+    `${input.view.rules.length} 条规则`,
+    evidenceItems.length > 0 ? `依据 ${evidenceItems.join("、")}` : ""
+  ]
+    .filter(Boolean)
+    .join("，");
+
+  return {
+    generatedAt,
+    source: "derived",
+    model,
+    projectId: input.projectId,
+    iterationId: input.iterationId,
+    summary: `${input.view.projectName || "当前项目"} 已形成以${input.view.entities.length} 个实体、${input.view.relations.length} 条关系、${input.view.rules.length} 条规则为核心的建模视图。`,
+    focus,
+    risks
+  };
 }

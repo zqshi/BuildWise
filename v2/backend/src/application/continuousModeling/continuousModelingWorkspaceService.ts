@@ -2,6 +2,7 @@ import type { ContinuousModelingRepository } from "../../domain/continuousModeli
 import type { IterationModelingInput } from "../../domain/continuousModeling/types";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { ContinuousModelingService } from "./continuousModelingService";
+import { getIterationAccessContext, getProjectAccessContext } from "../workspace/workspaceTenantAccess";
 import { buildProjectModelView } from "./continuousModelingProjectView";
 
 export class ContinuousModelingWorkspaceService {
@@ -105,5 +106,13 @@ export class ContinuousModelingWorkspaceService {
       focus,
       risks
     };
+  }
+
+  getProjectAccess(userId: string, projectId: number) {
+    return getProjectAccessContext(this.workspaceRepo, projectId, userId);
+  }
+
+  getIterationAccess(userId: string, iterationId: number) {
+    return getIterationAccessContext(this.workspaceRepo, iterationId, userId);
   }
 }

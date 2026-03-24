@@ -15,8 +15,6 @@ type Props = {
   setModelDetailsView: (view: "summary" | "graph") => void;
   relationTypeFilter: RelationTypeFilter;
   setRelationTypeFilter: (value: RelationTypeFilter) => void;
-  useMockGraphData: boolean;
-  setUseMockGraphData: (updater: (prev: boolean) => boolean) => void;
   relationTypeStats: Array<{ name: string; count: number }>;
   relationFocusEntities: string[];
   businessSummary: ProjectModelBusinessSummaryPayload | null;
@@ -58,8 +56,6 @@ export function ProjectOverviewPanelModelDetails({
   setModelDetailsView,
   relationTypeFilter,
   setRelationTypeFilter,
-  useMockGraphData,
-  setUseMockGraphData,
   relationTypeStats,
   relationFocusEntities,
   businessSummary,
@@ -102,8 +98,8 @@ export function ProjectOverviewPanelModelDetails({
             {showModelDetails ? "收起详情" : "查看详情"}
           </button>
           {showModelDetails && !isUsingMockData ? (
-            <button type="button" className="btn ghost mini" onClick={() => setBusinessSummaryVersion((prev) => prev + 1)} disabled={businessSummaryLoading}>
-              {businessSummaryLoading ? "生成中..." : "重新生成摘要"}
+            <button type="button" className="btn ghost mini" onClick={() => setBusinessSummaryVersion((prev) => prev + 1)}>
+              刷新摘要
             </button>
           ) : null}
         </div>
@@ -157,8 +153,6 @@ export function ProjectOverviewPanelModelDetails({
             <ProjectOverviewPanelModelGraph
               relationTypeFilter={relationTypeFilter}
               setRelationTypeFilter={setRelationTypeFilter}
-              useMockGraphData={useMockGraphData}
-              setUseMockGraphData={setUseMockGraphData}
               relationGraph={relationGraph}
               relationGraphNodeById={relationGraphNodeById}
               filteredRelationGraphEdges={filteredRelationGraphEdges}

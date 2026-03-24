@@ -65,6 +65,7 @@ export function createInMemoryWorkspaceRepo() {
     projectWorkspaceBindings: [],
     policyExecutionLogs: [],
     projectRoleBindings: [],
+    tenantMemberBindings: [],
     platformRoleBindings: [],
     governanceCustomRoles: [],
   };
@@ -144,6 +145,17 @@ export function createInMemoryWorkspaceRepo() {
     removeProjectRoleBinding(projectId, userId) {
       const idx = store.projectRoleBindings.findIndex((r) => r.projectId === projectId && r.userId === userId);
       if (idx >= 0) { store.projectRoleBindings.splice(idx, 1); return true; }
+      return false;
+    },
+    listTenantMemberBindings(tenantId) { return store.tenantMemberBindings.filter((r) => r.tenantId === tenantId); },
+    upsertTenantMemberBinding(record) {
+      const idx = store.tenantMemberBindings.findIndex((r) => r.tenantId === record.tenantId && r.userId === record.userId);
+      if (idx >= 0) { store.tenantMemberBindings[idx] = record; } else { store.tenantMemberBindings.push(record); }
+      return record;
+    },
+    removeTenantMemberBinding(tenantId, userId) {
+      const idx = store.tenantMemberBindings.findIndex((r) => r.tenantId === tenantId && r.userId === userId);
+      if (idx >= 0) { store.tenantMemberBindings.splice(idx, 1); return true; }
       return false;
     },
     listPlatformRoleBindings() { return store.platformRoleBindings; },

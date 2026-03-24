@@ -145,6 +145,15 @@ export type ProjectRoleBindingRecord = {
   updatedAt: string;
 };
 
+export type TenantMemberBindingRecord = {
+  id: number;
+  tenantId: string;
+  userId: string;
+  role: "admin" | "member" | "viewer";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PlatformRoleBindingRecord = {
   id: number;
   userId: string;
@@ -180,6 +189,7 @@ export type WorkspaceStore = {
   projectWorkspaceBindings: ProjectWorkspaceBindingRecord[];
   policyExecutionLogs: PolicyExecutionLogRecord[];
   projectRoleBindings: ProjectRoleBindingRecord[];
+  tenantMemberBindings: TenantMemberBindingRecord[];
   platformRoleBindings: PlatformRoleBindingRecord[];
   governanceCustomRoles: GovernanceCustomRoleRecord[];
 };

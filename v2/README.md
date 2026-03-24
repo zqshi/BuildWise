@@ -88,6 +88,7 @@ npm run verify:all
 - `npm --prefix backend run typecheck`
 - `npm --prefix backend run build`
 - `npm --prefix backend run test:contract`
+- `npm --prefix backend run verify:prod-release`
 
 补充脚本：
 
@@ -95,6 +96,7 @@ npm run verify:all
 - `npm run seed:agentic:flow`
 - `npm run demo:openclaw:real`
 - `npm run e2e:creative-generator:rc`
+- `npm run reset:business-env`
 - `npm run clean:workspace`
 
 ## 6. 演示数据与真实链路
@@ -111,6 +113,20 @@ npm run seed:agentic:flow
 - `v2/backend/data.json`
 - `v2/backend/data.runtime.json`
 - `v2/backend/continuous-modeling.runtime.json`
+
+恢复为干净可投产的初始业务环境：
+
+```bash
+cd v2
+npm run reset:business-env
+```
+
+该命令会：
+
+- 重建 `v2/backend/data.json` 与 `v2/backend/data.runtime.json` 为初始 seed store
+- 清空 `v2/backend/continuous-modeling.runtime.json`
+- 清空 `v2/backend/openclaw-global.runtime.json`
+- 删除 `.artifacts/`、`memory/`、`index/`、`shards/`、`workspace.json`、`.buildwise/`、`tmp/e2e-reports/`
 
 演示项目当前包含：
 
@@ -172,6 +188,13 @@ cd v2/backend
 cp .env.example .env
 ```
 
+生产模板：
+
+```bash
+cd v2/backend
+cp .env.production.example .env
+```
+
 关键项：
 
 - `HOST` / `PORT`
@@ -193,6 +216,13 @@ cp .env.example .env
 - `BUILDWISE_OPENCLAW_SKILLS_ENABLED`
 - `GITHUB_TOKEN`
 - `PROJECT_REPO_ROOT`
+
+受控发布验证：
+
+```bash
+cd v2/backend
+npm run verify:prod-release
+```
 
 OpenClaw 项目绑定约束：
 

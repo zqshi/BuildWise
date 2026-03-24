@@ -87,7 +87,7 @@ export type ModelRelationPayload = {
 
 export type ProjectModelBusinessSummaryPayload = {
   generatedAt: string;
-  source: "llm";
+  source: "llm" | "derived";
   model: string;
   projectId: number;
   iterationId: number | null;

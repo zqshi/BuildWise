@@ -34,6 +34,7 @@ test("rc creative generator runner isolates runtime data outside the repo", () =
 
 test("workspace cleanup script removes generated project knowledge and e2e artifacts", () => {
   const source = readFileSync(cleanScriptPath, "utf-8");
+  assert.match(source, /reset-business-environment\.mjs/);
   assert.match(source, /"\$ROOT_DIR\/\.artifacts"/);
   assert.match(source, /"\$ROOT_DIR\/index"/);
   assert.match(source, /"\$ROOT_DIR\/memory"/);
@@ -41,7 +42,7 @@ test("workspace cleanup script removes generated project knowledge and e2e artif
   assert.match(source, /"\$ROOT_DIR\/workspace\.json"/);
   assert.match(source, /"\$ROOT_DIR\/\.buildwise"/);
   assert.match(source, /"\$ROOT_DIR\/tmp\/e2e-reports"/);
-  assert.match(source, /"\$BACKEND_DIR\/data\.runtime\.json"/);
+  assert.doesNotMatch(source, /"\$BACKEND_DIR\/data\.runtime\.json"/);
 });
 
 test("creative generator setup and seed scripts support isolated runtime overrides", () => {

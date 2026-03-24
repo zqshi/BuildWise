@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
+import { ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export async function registerRepositoryTraceRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/projects/:id/repository", async (request, reply) => {
@@ -9,6 +9,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const repo = service.getProjectRepository(projectId);
     if (!repo) {
@@ -19,16 +23,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/projects/:id/repository/bootstrap", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
       provider?: "github" | "gitlab" | "gitea" | "bitbucket" | "custom";
@@ -66,16 +69,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/projects/:id/repository/validate", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as { url?: string } | null;
     const result = service.validateProjectRepositoryRemote(projectId, { url: body?.url });
@@ -101,6 +103,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       reply.code(400);
       return { message: "invalid project id" };
     }
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     const status = service.getProjectRepositoryStatus(projectId);
     if (!status) {
       reply.code(404);
@@ -116,6 +122,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       reply.code(400);
       return { message: "invalid project id" };
     }
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     const plan = service.getProjectRepositoryMigrationPlan(projectId);
     if (!plan) {
       reply.code(404);
@@ -125,16 +135,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/projects/:id/repository/mode", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
       repoMode?: "external_git" | "managed_local" | "hybrid";
@@ -154,16 +163,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/projects/:id/repository/provision", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
       ownerType?: "org" | "user";
@@ -199,16 +207,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/projects/:id/repository/scaffold", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
       rootDir?: string;
@@ -234,16 +241,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/iterations/:id/publish", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       commitMessage?: string;
@@ -291,16 +297,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
   });
 
   app.post("/iterations/:id/code-link", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       branch?: string;
@@ -332,6 +337,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const codeLink = service.getIterationCodeLink(iterationId);
     if (!codeLink) {
       reply.code(404);
@@ -346,6 +355,10 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const query = request.query as { ref?: string } | null;
     const ref = query?.ref?.trim() || "";

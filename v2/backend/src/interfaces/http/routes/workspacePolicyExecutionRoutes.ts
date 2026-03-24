@@ -1,19 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
+import { ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.post("/projects/:id/openclaw/chat", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (!isAdmin(role)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
       return { message: "invalid project id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as { message?: string } | null;
     const message = body?.message?.trim() || "";
@@ -36,20 +35,23 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     return service.listPolicyExecutionLogs(iterationId);
   });
 
   app.post("/iterations/:id/policy-execute", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { action?: string; message?: string } | null;
     const action = body?.action?.trim() || "manual-step";

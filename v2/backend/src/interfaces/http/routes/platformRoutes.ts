@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { PlatformService } from "../../../application/platform/platformService";
 import { hasPermission } from "../../../application/platform/platformSupport";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 function ensurePermission(authRole: string | undefined, permission: string, workspaceService: WorkspaceService) {
   const role = currentRole(authRole);
@@ -21,6 +21,10 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       reply.code(400);
       return { message: "projectId is required" };
     }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     return service.listVersionSnapshots(projectId);
   });
 
@@ -37,6 +41,17 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     if (!projectId || !iterationId || !name) {
       reply.code(400);
       return { message: "projectId, iterationId and name are required" };
+    }
+    const projectAccess = ensureProjectAccess(workspaceService, request, reply, projectId, "write");
+    if (!projectAccess) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    const iterationAccess = ensureIterationAccess(workspaceService, request, reply, iterationId, "write");
+    if (!iterationAccess || iterationAccess.iteration?.projectId !== projectId) {
+      if (reply.statusCode === 200) {
+        reply.code(iterationAccess ? 404 : reply.statusCode);
+      }
+      return { message: iterationAccess ? "project or iteration not found" : "permission denied" };
     }
     const created = service.createVersionSnapshot(projectId, iterationId, name, body?.note?.trim() || "");
     if (!created) {
@@ -73,6 +88,10 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       reply.code(400);
       return { message: "projectId is required" };
     }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     return service.listProjectShares(projectId);
   });
 
@@ -87,6 +106,10 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     if (!projectId || !body?.permission) {
       reply.code(400);
       return { message: "projectId and permission are required" };
+    }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const ttlHours = typeof body.ttlHours === "number" && body.ttlHours > 0 ? Math.floor(body.ttlHours) : 72;
     const created = service.createProjectShare(projectId, body.permission, ttlHours);
@@ -114,6 +137,10 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       reply.code(400);
       return { message: "projectId is required" };
     }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     const result = service.runTemplateWithParams(params.id, projectId, body?.parameters || {});
     if (!result) {
       reply.code(404);
@@ -122,10 +149,18 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result;
   });
 
-  app.get("/templates/runs", async (request) => {
+  app.get("/templates/runs", async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
-    return service.listTemplateRuns(projectId || undefined);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "projectId is required" };
+    }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    return service.listTemplateRuns(projectId);
   });
 
   app.get("/collab/share/:token", async (request, reply) => {
@@ -160,10 +195,18 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.get("/ops/deployments", async (request) => {
+  app.get("/ops/deployments", async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
-    return service.listDeployments(projectId || undefined);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "projectId is required" };
+    }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    return service.listDeployments(projectId);
   });
 
   app.post("/ops/deployments", async (request, reply) => {
@@ -185,6 +228,19 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     if (!projectId || !environment || !version) {
       reply.code(400);
       return { message: "projectId, environment and version are required" };
+    }
+    const projectAccess = ensureProjectAccess(workspaceService, request, reply, projectId, "write");
+    if (!projectAccess) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    if (typeof iterationId === "number") {
+      const iterationAccess = ensureIterationAccess(workspaceService, request, reply, iterationId, "write");
+      if (!iterationAccess || iterationAccess.iteration?.projectId !== projectId) {
+        if (reply.statusCode === 200) {
+          reply.code(iterationAccess ? 404 : reply.statusCode);
+        }
+        return { message: iterationAccess ? "project or iteration not found" : "permission denied" };
+      }
     }
     if (!["staging", "production"].includes(environment)) {
       reply.code(400);
@@ -219,6 +275,15 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
       reply.code(400);
       return { message: "deployment id and toStatus are required" };
     }
+    const deployment = service.getDeployment(deploymentId);
+    if (!deployment) {
+      reply.code(404);
+      return { message: "deployment not found" };
+    }
+    const access = ensureProjectAccess(workspaceService, request, reply, deployment.projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
     const result = service.transitionDeployment(deploymentId, body.toStatus);
     if (!result.ok) {
       if (result.reason === "deployment_not_found") {
@@ -235,10 +300,18 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.getOpsMetrics();
   });
 
-  app.get("/ops/triage-templates", async (request) => {
+  app.get("/ops/triage-templates", async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
-    return service.listOpsTriageTemplatesByProject(projectId || undefined);
+    if (projectId === null) {
+      reply.code(400);
+      return { message: "projectId is required" };
+    }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    return service.listOpsTriageTemplatesByProject(projectId);
   });
 
   app.post("/ops/triage-templates", async (request, reply) => {
@@ -258,6 +331,12 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     const category = body?.category?.trim() || "general";
     const keywords = Array.isArray(body?.keywords) ? body?.keywords : [];
     const commands = Array.isArray(body?.commands) ? body?.commands : [];
+    if (typeof body?.projectId === "number") {
+      const access = ensureProjectAccess(workspaceService, request, reply, body.projectId, "write");
+      if (!access) {
+        return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+      }
+    }
     const result = service.upsertOpsTriageTemplate({
       id: body?.id,
       projectId: typeof body?.projectId === "number" ? body.projectId : undefined,
@@ -311,6 +390,10 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     if (!projectId || !title) {
       reply.code(400);
       return { message: "projectId and title are required" };
+    }
+    const access = ensureProjectAccess(workspaceService, request, reply, projectId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     return service.analyzeOpsAlert({
       projectId,

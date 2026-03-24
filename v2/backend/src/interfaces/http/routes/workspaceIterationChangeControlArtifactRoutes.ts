@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { resolveArtifactId, resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
-import { currentRole } from "./workspaceRouteUtils";
+import { ensureIterationAccess } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlArtifactRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/iterations/:id/change-control/artifacts", async (request, reply) => {
@@ -9,6 +9,10 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const result = service.getIterationArtifactWorkflow(iterationId);
     if (!result) {
@@ -19,16 +23,15 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/iterations/:id/change-control/artifacts/:artifactId/draft", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
       return { message: "invalid iteration id or artifact id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { content?: string; media?: string[]; actor?: string } | null;
     const content = body?.content?.trim() || "";
@@ -53,16 +56,15 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/iterations/:id/change-control/artifacts/:artifactId/commit", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
       return { message: "invalid iteration id or artifact id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { actor?: string; summary?: string; evidence?: string[]; source?: string } | null;
     const result = service.commitIterationArtifact(iterationId, artifactId, {
@@ -83,16 +85,15 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/iterations/:id/change-control/artifacts/:artifactId/confirm", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
       return { message: "invalid iteration id or artifact id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { actor?: string; passed?: boolean; note?: string } | null;
     const result = service.confirmIterationArtifact(iterationId, artifactId, {
@@ -112,16 +113,15 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/iterations/:id/change-control/artifacts/:artifactId/add-to-chat", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
       return { message: "invalid iteration id or artifact id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { actor?: string; prompt?: string } | null;
     const result = service.appendIterationArtifactToConversation(iterationId, artifactId, {
@@ -140,15 +140,14 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
   });
 
   app.post("/iterations/:id/change-control/stage/transition", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    if (role === "viewer") {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       toStage?: "clarification" | "scope" | "interaction" | "development" | "testing" | "release" | "archive";

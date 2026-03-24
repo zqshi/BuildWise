@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { resolveAppRoute, type AppRoute } from "./authRouting";
-import { requestSmsLoginCode, verifySmsLoginCode, logoutSession } from "./workspaceApi";
+import { fetchAuthSession, requestSmsLoginCode, verifySmsLoginCode, logoutSession } from "./workspaceApi";
 import { getDefaultLoginMode, getLoginModeSubmitError, type LoginMode } from "./authLoginMode";
 import { saveTokens, clearTokens } from "../infrastructure/auth/tokenStore";
 import { ensureFreshToken } from "../infrastructure/auth/tokenRefresh";
+import {
+  clearAuthTenantSession,
+  persistAuthTenants,
+  persistCurrentTenantId,
+  readStoredAuthTenants,
+  readStoredCurrentTenantId,
+  resolveCurrentTenant,
+  resolveCurrentTenantId,
+  type AuthTenantSummary
+} from "./authTenantSession";
 
 export function useAuthController() {
   const [route, setRoute] = useState<AppRoute>(() => resolveAppRoute(window.location.hash));
@@ -31,8 +41,25 @@ export function useAuthController() {
       ? cached
       : "viewer";
   });
+  const [tenants, setTenants] = useState<AuthTenantSummary[]>(() => readStoredAuthTenants());
+  const [currentTenantId, setCurrentTenantIdState] = useState(() => resolveCurrentTenantId(readStoredAuthTenants(), readStoredCurrentTenantId()));
   const loginPhoneRef = useRef<HTMLInputElement | null>(null);
   const loginCodeRef = useRef<HTMLInputElement | null>(null);
+
+  const applyTenantSession = (nextTenants: AuthTenantSummary[], requestedTenantId: string, fallbackRole = workspaceRole) => {
+    const resolvedTenantId = resolveCurrentTenantId(nextTenants, requestedTenantId);
+    const currentTenant = resolveCurrentTenant(nextTenants, resolvedTenantId);
+    persistAuthTenants(nextTenants);
+    persistCurrentTenantId(resolvedTenantId);
+    setTenants(nextTenants);
+    setCurrentTenantIdState(resolvedTenantId);
+    setWorkspaceRole(currentTenant?.workspaceRole || fallbackRole);
+    window.dispatchEvent(
+      new CustomEvent("buildwise:auth-tenant-updated", {
+        detail: { tenantId: resolvedTenantId, workspaceRole: currentTenant?.workspaceRole || fallbackRole }
+      })
+    );
+  };
 
   // On page load, if the persistent auth flag says "logged_in" but the
   // in-memory access token is gone (page refresh), silently re-acquire
@@ -46,11 +73,24 @@ export function useAuthController() {
         // Refresh cookie expired or invalid — force re-login
         clearTokens();
         localStorage.setItem("buildwise:auth", "logged_out");
+        localStorage.removeItem("buildwise:auth-phone");
         localStorage.removeItem("buildwise:auth-role");
+        clearAuthTenantSession();
         setIsAuthenticated(false);
         setWorkspaceRole("viewer");
         window.location.hash = "/login";
+        return;
       }
+      fetchAuthSession()
+        .then((session) => {
+          if (cancelled) return;
+          localStorage.setItem("buildwise:auth-phone", session.user.phone);
+          localStorage.setItem("buildwise:auth-role", session.user.workspaceRole);
+          applyTenantSession(session.tenants, readStoredCurrentTenantId() || session.currentTenantId, session.user.workspaceRole);
+        })
+        .catch(() => {
+          // keep local tenant session as fallback
+        });
     });
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -76,7 +116,9 @@ export function useAuthController() {
     const handleExpired = () => {
       clearTokens();
       localStorage.setItem("buildwise:auth", "logged_out");
+      localStorage.removeItem("buildwise:auth-phone");
       localStorage.removeItem("buildwise:auth-role");
+      clearAuthTenantSession();
       setIsAuthenticated(false);
       setWorkspaceRole("viewer");
       window.location.hash = "/login";
@@ -132,8 +174,9 @@ export function useAuthController() {
       }
       const role = result.user.workspaceRole;
       localStorage.setItem("buildwise:auth", "logged_in");
+      localStorage.setItem("buildwise:auth-phone", result.user.phone);
       localStorage.setItem("buildwise:auth-role", role);
-      setWorkspaceRole(role);
+      applyTenantSession(result.tenants, result.currentTenantId, role);
       window.dispatchEvent(new CustomEvent("buildwise:auth-role-updated", { detail: { role } }));
       setIsAuthenticated(true);
       setLoginCode("");
@@ -166,10 +209,25 @@ export function useAuthController() {
     localStorage.removeItem("buildwise:userAvatar");
     localStorage.removeItem("buildwise:auth-phone");
     localStorage.removeItem("buildwise:auth-role");
+    clearAuthTenantSession();
     setIsAuthenticated(false);
     setWorkspaceRole("viewer");
     window.location.hash = "/login";
     return true;
+  };
+
+  const switchTenant = (tenantId: string) => {
+    const normalizedTenantId = resolveCurrentTenantId(tenants, tenantId);
+    const nextTenant = resolveCurrentTenant(tenants, normalizedTenantId);
+    persistCurrentTenantId(normalizedTenantId);
+    setCurrentTenantIdState(normalizedTenantId);
+    setWorkspaceRole(nextTenant?.workspaceRole || "viewer");
+    localStorage.setItem("buildwise:auth-role", nextTenant?.workspaceRole || "viewer");
+    window.dispatchEvent(
+      new CustomEvent("buildwise:auth-tenant-updated", {
+        detail: { tenantId: normalizedTenantId, workspaceRole: nextTenant?.workspaceRole || "viewer" }
+      })
+    );
   };
 
   const phoneError = !loginPhone.trim() ? "请输入手机号" : !/^1\d{10}$/.test(loginPhone.trim()) ? "请输入11位手机号" : "";
@@ -181,6 +239,8 @@ export function useAuthController() {
     route,
     isAuthenticated,
     workspaceRole,
+    tenants,
+    currentTenantId,
     loginPhone,
     setLoginPhone,
     loginCode,
@@ -201,6 +261,7 @@ export function useAuthController() {
     loginCodeRef,
     handleRequestCode,
     handleLogin,
+    switchTenant,
     logout
   };
 }

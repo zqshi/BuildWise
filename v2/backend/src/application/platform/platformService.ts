@@ -397,6 +397,10 @@ export class PlatformService {
     return { ok: true as const, data: deployment };
   }
 
+  getDeployment(deploymentId: number) {
+    return this.workspaceRepo.findDeployment(deploymentId);
+  }
+
   accessShare(token: string) {
     const share = this.workspaceRepo.findProjectShareByToken(token);
     if (!share) {

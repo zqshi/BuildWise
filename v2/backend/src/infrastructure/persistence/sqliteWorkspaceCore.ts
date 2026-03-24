@@ -38,6 +38,7 @@ export const seedStore: WorkspaceStore = {
   projectWorkspaceBindings: [],
   policyExecutionLogs: [],
   projectRoleBindings: [],
+  tenantMemberBindings: [],
   platformRoleBindings: [],
   governanceCustomRoles: []
 };
@@ -58,6 +59,7 @@ export const collectionKeys: Array<keyof WorkspaceStore> = [
   "projectWorkspaceBindings",
   "policyExecutionLogs",
   "projectRoleBindings",
+  "tenantMemberBindings",
   "platformRoleBindings",
   "governanceCustomRoles"
 ];
@@ -77,9 +79,11 @@ export class SqliteWorkspaceCore {
   readonly db: DatabaseSync;
 
   private readonly seedDataFile?: string;
+  private readonly bootstrapMode: "seed" | "empty";
 
-  constructor(dbFile: string, seedDataFile?: string) {
+  constructor(dbFile: string, seedDataFile?: string, options?: { bootstrapMode?: "seed" | "empty" }) {
     this.seedDataFile = seedDataFile;
+    this.bootstrapMode = options?.bootstrapMode === "empty" ? "empty" : "seed";
     const dir = dirname(dbFile);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
@@ -95,6 +99,31 @@ export class SqliteWorkspaceCore {
       );
     `);
     runMigrations(this.db, [initialSchema]);
+  }
+
+  private initialStore(): WorkspaceStore {
+    return this.bootstrapMode === "empty"
+      ? {
+          projects: [],
+          iterations: [],
+          messages: [],
+          snapshots: [],
+          transitions: [],
+          auditLogs: [],
+          versionSnapshots: [],
+          projectShares: [],
+          deployments: [],
+          templateRuns: [],
+          opsTriageTemplates: [],
+          projectPolicies: [],
+          projectWorkspaceBindings: [],
+          policyExecutionLogs: [],
+          projectRoleBindings: [],
+          tenantMemberBindings: [],
+          platformRoleBindings: [],
+          governanceCustomRoles: []
+        }
+      : seedStore;
   }
 
   private static readonly NEXT_ID_SQL: Record<string, string> = {
@@ -149,14 +178,15 @@ export class SqliteWorkspaceCore {
       .prepare("SELECT 1 AS ok FROM workspace_collections WHERE collection_name = ? LIMIT 1")
       .get("projects") as { ok?: number } | undefined;
     if (!hasDataRow?.ok) {
-      if (this.seedDataFile && existsSync(this.seedDataFile)) {
+      if (this.bootstrapMode === "seed" && this.seedDataFile && existsSync(this.seedDataFile)) {
         const raw = readFileSync(this.seedDataFile, "utf-8");
         const seeded = JSON.parse(raw) as WorkspaceStore;
         this.writeStore(seeded);
         return seeded;
       }
-      this.writeStore(seedStore);
-      return seedStore;
+      const initial = this.initialStore();
+      this.writeStore(initial);
+      return initial;
     }
     const parsed: Record<string, unknown> = {};
     const stmt = this.db.prepare("SELECT payload FROM workspace_collections WHERE collection_name = ?");
@@ -189,6 +219,7 @@ export class SqliteWorkspaceCore {
       projectWorkspaceBindings: toArray(parsed.projectWorkspaceBindings),
       policyExecutionLogs: toArray(parsed.policyExecutionLogs),
       projectRoleBindings: toArray(parsed.projectRoleBindings),
+      tenantMemberBindings: toArray(parsed.tenantMemberBindings),
       platformRoleBindings: toArray(parsed.platformRoleBindings),
       governanceCustomRoles: toArray(parsed.governanceCustomRoles)
     };

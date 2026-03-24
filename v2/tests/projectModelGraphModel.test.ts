@@ -60,9 +60,9 @@ test("project overview includes model detail view toggle for graph mode", () => 
   assert.match(source, /is-flash/);
   assert.match(source, /model-relation-graph-viewport/);
   assert.match(source, /centerGraphOnPoint/);
-  assert.match(source, /加载演示数据/);
-  assert.match(source, /恢复真实数据/);
-  assert.match(source, /演示数据（mock）/);
+  assert.doesNotMatch(source, /加载演示数据/);
+  assert.doesNotMatch(source, /恢复真实数据/);
+  assert.doesNotMatch(source, /演示数据（mock）/);
   assert.match(source, /建模依据：当前项目沉淀数据实体/);
   assert.match(source, /model-entity-card-grid/);
   assert.match(source, /model-rule-mapping-list/);

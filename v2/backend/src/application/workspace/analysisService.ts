@@ -218,6 +218,15 @@ export class AnalysisService {
     };
   }
 
+  findAttachmentReportIterationId(reportId: string) {
+    for (const report of this.reportIndexesByJobId.values()) {
+      if (report.reportId === reportId) {
+        return report.iterationId;
+      }
+    }
+    return null;
+  }
+
   toPublicAnalysisJob(job: AttachmentAnalysisJobRuntime): AttachmentAnalysisJob {
     const { input: _input, inputFingerprint: _inputFingerprint, ...publicJob } = job;
     return publicJob;

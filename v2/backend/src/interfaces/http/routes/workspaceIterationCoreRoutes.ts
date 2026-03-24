@@ -3,7 +3,7 @@ import { hasPermission } from "../../../application/platform/platformSupport";
 import { isIterationStatus } from "../../../application/workspace/workspaceSupport";
 import type { AttachmentReportSection, AttachmentUploadInput } from "../../../domain/workspace/types";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { currentRole, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
+import { currentRole, ensureIterationAccess, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
 
 function parseAttachmentUploadInput(body: {
   fileName?: string;
@@ -120,6 +120,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     return service.listMessages(iterationId);
   });
 
@@ -134,6 +138,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { role?: string; content?: string } | null;
     const ALLOWED_ROLES = ["user", "assistant", "system"] as const;
@@ -159,6 +167,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       hasPrototypeAssets?: boolean;
@@ -192,6 +204,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { message?: string } | null;
     const message = body?.message?.trim() || "";
@@ -228,6 +244,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       message?: string;
@@ -278,6 +298,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const body = request.body as { instruction?: string; dryRun?: boolean; maxFiles?: number } | null;
     const instruction = body?.instruction?.trim() || "";
     if (!instruction) {
@@ -318,6 +342,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const body = request.body as Parameters<typeof parseAttachmentUploadInput>[0];
     const parsed = parseAttachmentUploadInput(body);
     if (!parsed.input) {
@@ -353,6 +381,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as {
       analysisInput?: Parameters<typeof parseAttachmentUploadInput>[0];
@@ -430,6 +462,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const body = request.body as Parameters<typeof parseUploadInitBody>[0];
     const parsed = parseUploadInitBody(body);
     if (!parsed.input) {
@@ -467,6 +503,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid path params" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const body = request.body as { dataBase64?: string } | null;
     const dataBase64 = body?.dataBase64?.trim() || "";
     if (!dataBase64) {
@@ -501,6 +541,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const completed = service.completeAttachmentUpload(iterationId, params.uploadId);
     if (!completed) {
       reply.code(404);
@@ -524,6 +568,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as Parameters<typeof parseAttachmentUploadInput>[0];
     const parsed = parseAttachmentUploadInput(body);
@@ -562,6 +610,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const body = request.body as { uploadId?: string; schemaVersion?: string } | null;
     const uploadId = body?.uploadId?.trim() || "";
     if (!uploadId) {
@@ -599,6 +651,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     let created;
     try {
       created = service.retryLatestFailedAttachmentAnalysisJob(iterationId);
@@ -630,6 +686,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const body = request.body as { scope?: "job" | "batch" } | null;
     let created;
     try {
@@ -660,6 +720,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const jobId = (params.jobId || "").trim();
     if (!jobId) {
       reply.code(400);
@@ -680,6 +744,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const report = service.getAttachmentReportIndexByJob(iterationId, params.jobId);
     if (!report) {
       reply.code(404);
@@ -691,6 +759,15 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   app.get("/reports/:reportId/sections/:sectionKey", async (request, reply) => {
     const params = request.params as { reportId: string; sectionKey: AttachmentReportSection["sectionKey"] };
     const query = request.query as { cursor?: string; limit?: string };
+    const iterationId = service.findAttachmentReportIterationId(params.reportId);
+    if (iterationId === null) {
+      reply.code(404);
+      return { message: "section not found" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "section not found" : "permission denied" };
+    }
     const cursor = Number.parseInt((query?.cursor || "").trim(), 10);
     const limit = Number.parseInt((query?.limit || "").trim(), 10);
     const section = service.getAttachmentReportSection(
@@ -713,6 +790,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const context = service.getIterationContext(iterationId);
     if (!context) {
       reply.code(404);
@@ -728,6 +809,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const stateMachine = service.getStateMachine(iterationId);
     if (!stateMachine) {
       reply.code(404);
@@ -737,17 +822,21 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
   });
 
   app.post("/iterations/:id/state/transition", async (request, reply) => {
-    const role = currentRole(request.authRole);
-    const grantedPermissions = service.resolveRolePermissions(role);
-    if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
-      reply.code(403);
-      return { message: "permission denied" };
-    }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
+    const role = access.projectAccess.workspaceRole;
+    const grantedPermissions = service.resolveRolePermissions(role);
+    if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
+      reply.code(403);
+      return { message: "permission denied" };
     }
     const body = request.body as { toStatus?: string; reason?: string } | null;
     const toStatus = body?.toStatus?.trim();
@@ -800,6 +889,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     const result = service.getAssessment(iterationId);
     if (!result) {
       reply.code(404);
@@ -815,6 +908,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "invalid iteration id" };
     }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
     return service.listAssessmentSnapshots(iterationId);
   });
 
@@ -829,6 +926,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null) {
       reply.code(400);
       return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const result = service.recomputeAssessment(iterationId);
     if (!result) {
@@ -850,6 +951,10 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (iterationId === null || snapshotId === null) {
       reply.code(400);
       return { message: "invalid iteration id or snapshot id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const result = service.restoreSnapshot(iterationId, snapshotId);
     if (!result) {

@@ -213,6 +213,34 @@ button:focus-visible,input:focus-visible,textarea:focus-visible {
   color:#111827;
 }
 
+.auth-brand-home {
+  appearance:none;
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  font-size:30px;
+  line-height:1;
+  font-weight:700;
+  color:#111827;
+  cursor:pointer;
+  justify-self:start;
+}
+
+.auth-brand-home:hover,
+.auth-brand-home:focus-visible {
+  color:#0b63f3;
+}
+
+.auth-brand-home:focus-visible {
+  outline:2px solid rgba(11,99,243,.28);
+  outline-offset:6px;
+  border-radius:12px;
+}
+
 .auth-brand-kicker {
   font-size:var(--text-xs);
   letter-spacing:.08em;

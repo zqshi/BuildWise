@@ -105,6 +105,8 @@ export function normalizeProject(project: Project): Project {
   const repo = project.repository ?? createDefaultProjectRepository(project);
   return {
     ...project,
+    tenantId: typeof project.tenantId === "string" ? project.tenantId.trim() : typeof project.ownerUserId === "string" ? project.ownerUserId.trim() : "",
+    ownerUserId: typeof project.ownerUserId === "string" ? project.ownerUserId.trim() : typeof project.tenantId === "string" ? project.tenantId.trim() : "",
     knowledgeBase: {
       ontologyTerms: Array.isArray(project.knowledgeBase?.ontologyTerms) ? project.knowledgeBase?.ontologyTerms : [],
       stableRules: Array.isArray(project.knowledgeBase?.stableRules) ? project.knowledgeBase?.stableRules : [],

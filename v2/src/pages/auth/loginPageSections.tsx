@@ -2,11 +2,15 @@ type LoginSocialSectionProps = {
   onRegisterClick: () => void;
 };
 
-export function LoginBrandPanel() {
+type LoginBrandPanelProps = {
+  onHomeClick: () => void;
+};
+
+export function LoginBrandPanel({ onHomeClick }: LoginBrandPanelProps) {
   return (
     <article className="auth-brand-panel">
       <div className="auth-brand-head">
-        <p className="auth-brand-title">
+        <button type="button" className="auth-brand-home" onClick={onHomeClick} aria-label="返回 BuildWise 官网">
           <span className="auth-brand-logo" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
               <path d="M7 6a2 2 0 0 1 2-2h6v4H9a2 2 0 0 1-2-2Z" fill="currentColor" />
@@ -15,7 +19,7 @@ export function LoginBrandPanel() {
             </svg>
           </span>
           BuildWise
-        </p>
+        </button>
         <p className="auth-mini-badge">AI 原生软件交付工作台</p>
         <h1>
           业务人员直接推进

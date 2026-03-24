@@ -15,6 +15,7 @@ npm run ops:preflight
 - LLM 配置与连通性
 - 运行时告警阈值（并发/延迟/限流/发布成功率）
 - 测试矩阵覆盖率（基于已分析迭代）
+- Prometheus 指标导出接口可访问性（通过 `/metrics` 或 `/api/v1/ops/metrics/prometheus` 抓取）
 
 返回码：
 
@@ -53,6 +54,27 @@ npm run ops:alerts
 - `0`：基线通过
 - `2`：触发告警
 - `1`：检查失败（网络/接口错误）
+
+## 2.2 Prometheus 指标导出
+
+内部抓取地址：
+
+```bash
+curl -sS http://127.0.0.1:5055/metrics
+```
+
+兼容地址：
+
+```bash
+curl -sS http://127.0.0.1:5055/api/v1/ops/metrics/prometheus
+```
+
+当前导出内容：
+
+1. 进程与 readiness 基础指标（`buildwise_up`、`buildwise_runtime_ready`、`buildwise_runtime_uptime_seconds`）
+2. 请求与限流指标（`buildwise_requests_total`、`buildwise_request_errors_total`、`buildwise_request_avg_latency_ms`）
+3. LLM 与存储依赖探针（`buildwise_llm_reachable`、`buildwise_dependency_storage_healthy`）
+4. 业务运维指标（如 `buildwise_deployment_success_rate`、`buildwise_iteration_test_matrix_pass_rate`）
 
 ## 2.1 排障模板中心（新增）
 
@@ -192,6 +214,12 @@ cd v2/backend
 STORAGE_BACKEND=sqlite npm run ops:backup-drill
 ```
 
+默认解析策略：
+
+- 未显式传入 `WORKSPACE_DB_FILE` 时，脚本会优先使用当前目录下的 `workspace.db`
+- 若不存在 `workspace.db`，则回退到由 `WORKSPACE_DATA_FILE` 推导出的同名 `.db`
+- JSON 模式默认优先使用 `data.runtime.json`
+
 可选参数：
 
 - `WORKSPACE_DATA_FILE`：JSON 数据文件路径
@@ -204,3 +232,22 @@ STORAGE_BACKEND=sqlite npm run ops:backup-drill
 - 备份目录 `backups/drill-<timestamp>`
 - 恢复检查文件（JSON 或 SQLite）
 - 控制台输出演练报告（包含项目数/文件大小/校验结果）
+
+## 6. 受控发布验证
+
+推荐在 release candidate 阶段执行：
+
+```bash
+cd v2/backend
+npm run verify:prod-release
+```
+
+该命令会串行完成：
+
+1. `verify:prod-readiness`
+2. `verify:prod-readiness:sqlite`
+3. 生产模式临时实例启动（`NODE_ENV=production`、`AUTH_MODE=jwt`、`STORAGE_BACKEND=sqlite`、`ALLOW_SEED_DATA_BOOTSTRAP=false`）
+4. `ops:preflight`
+5. `ops:alerts`
+6. `ops:llm-check`（宽松模式）
+7. `ops:backup-drill`

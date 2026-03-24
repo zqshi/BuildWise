@@ -1,4 +1,5 @@
 import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
+import type { WorkspaceService } from "../../../application/workspace/workspaceService";
 import { DuplicateAttachmentUploadError, WorkspaceBindingConflictError } from "../../../application/workspace/workspaceErrors";
 import { resolveErrorMessage } from "../../../shared/utils";
 
@@ -15,6 +16,132 @@ export function currentRole(authRole: string | undefined) {
 
 export function isAdmin(role: string) {
   return role === "owner";
+}
+
+export function currentUserId(request: import("fastify").FastifyRequest) {
+  if (request.authSub) {
+    return request.authSub;
+  }
+  const raw = request.headers["x-user-id"];
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+export function currentTenantId(request: import("fastify").FastifyRequest) {
+  if (request.authTenantId) {
+    return request.authTenantId.trim();
+  }
+  const raw = request.headers["x-tenant-id"];
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+export function ensureAuthenticatedUser(request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) {
+  const userId = currentUserId(request);
+  if (!userId) {
+    reply.code(401);
+    return null;
+  }
+  return userId;
+}
+
+export function ensureProjectAccess(
+  service: WorkspaceService,
+  request: import("fastify").FastifyRequest,
+  reply: import("fastify").FastifyReply,
+  projectId: number,
+  access: "read" | "write" | "admin"
+) {
+  const role = currentRole(request.authRole);
+  if (role === "owner") {
+    const project = service.findProject(projectId);
+    if (!project) {
+      reply.code(404);
+      return null;
+    }
+    const tenantId = (project.tenantId || project.ownerUserId || "").trim();
+    if (!tenantId) {
+      return {
+        project: {
+          ...project,
+          currentUserRole: "owner" as const
+        },
+        tenantId: "",
+        tenantRole: "admin" as const,
+        workspaceRole: "owner" as const,
+        canRead: true,
+        canWrite: true,
+        canManageTenant: true
+      };
+    }
+  }
+  const userId = ensureAuthenticatedUser(request, reply);
+  if (!userId) {
+    return null;
+  }
+  const context = service.getProjectAccess(userId, projectId);
+  if (!context.project) {
+    reply.code(404);
+    return null;
+  }
+  const allowed = access === "read" ? context.canRead : access === "write" ? context.canWrite : context.canManageTenant;
+  if (!allowed) {
+    reply.code(403);
+    return null;
+  }
+  return context;
+}
+
+export function ensureIterationAccess(
+  service: WorkspaceService,
+  request: import("fastify").FastifyRequest,
+  reply: import("fastify").FastifyReply,
+  iterationId: number,
+  access: "read" | "write" | "admin"
+) {
+  const role = currentRole(request.authRole);
+  if (role === "owner") {
+    const iteration = service.findIteration(iterationId);
+    if (!iteration) {
+      reply.code(404);
+      return null;
+    }
+    const project = service.findProject(iteration.projectId);
+    const tenantId = (project?.tenantId || project?.ownerUserId || "").trim();
+    if (!tenantId) {
+      return {
+        iteration,
+        projectAccess: {
+          project: project
+            ? {
+                ...project,
+                currentUserRole: "owner" as const
+              }
+            : null,
+          tenantId: "",
+          tenantRole: "admin" as const,
+          workspaceRole: "owner" as const,
+          canRead: true,
+          canWrite: true,
+          canManageTenant: true
+        }
+      };
+    }
+  }
+  const userId = ensureAuthenticatedUser(request, reply);
+  if (!userId) {
+    return null;
+  }
+  const context = service.getIterationAccess(userId, iterationId);
+  if (!context.iteration) {
+    reply.code(404);
+    return null;
+  }
+  const allowed =
+    access === "read" ? context.projectAccess.canRead : access === "write" ? context.projectAccess.canWrite : context.projectAccess.canManageTenant;
+  if (!allowed) {
+    reply.code(403);
+    return null;
+  }
+  return context;
 }
 
 export function isValidPhone(phone: string) {

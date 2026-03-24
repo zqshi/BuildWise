@@ -84,6 +84,10 @@ jobs:
         run: npm run test:contract
         working-directory: v2/backend
 
+      - name: Backend Production Release Verify
+        run: npm run verify:prod-release
+        working-directory: v2/backend
+
   e2e-agent-flow:
     if: ${{ vars.HAS_LLM_CONFIG == 'true' }}
     needs: verify
@@ -208,6 +212,14 @@ jobs:
         run: |
           node scripts/check-llm-baseline.mjs > ../../tmp/ops-reports/ops-llm-check.json
 
+      - name: Run Ops Alerts
+        working-directory: v2/backend
+        env:
+          API_BASE: http://127.0.0.1:5055
+          ALERT_MIN_DEPLOYMENT_SUCCESS_RATE: "0"
+        run: |
+          node scripts/check-alert-baseline.mjs > ../../tmp/ops-reports/ops-alerts.json
+
       - name: Upload Ops Reports
         if: always()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -216,6 +228,7 @@ jobs:
           path: |
             tmp/ops-reports/ops-preflight.json
             tmp/ops-reports/ops-llm-check.json
+            tmp/ops-reports/ops-alerts.json
           if-no-files-found: warn
 
       - name: Stop Backend

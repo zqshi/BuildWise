@@ -12,7 +12,6 @@ import {
   fetchProjectPolicies,
   configureProjectRepositoryMode,
   fetchProjectRoleBindings,
-  fetchProjectModelBusinessSummary,
   fetchProjectModelView,
   fetchProjectRepositoryMigrationPlan,
   fetchProjectRepositoryStatus,
@@ -25,17 +24,15 @@ import {
   type ProjectPolicyPayload,
   type ProjectRoleBindingPayload
 } from "../../app/workspaceApi";
-import type { ProjectModelBusinessSummaryPayload } from "../../domain/workspace/modelOpsTypes";
 import { buildModelRelationGraph } from "./projectModelGraphModel";
 import { composeOpenclawProjectMessage, type OpenclawDialogMode } from "../layout/openclawPromptComposer";
 import {
-  MOCK_MODEL_RELATIONS,
   computeProjectOverviewHealthScore,
   guessRepoName,
   inferProviderFromRepoUrl,
   looksLikeGitUrl,
+  buildProjectModelBusinessSummaryFromView,
   normalizeInlineMarkdownText,
-  toBusinessSummaryErrorMessage,
   toFriendlyName,
   toFriendlyRelationType
 } from "./projectOverviewPanelHelpers";
@@ -118,10 +115,7 @@ export function ProjectOverviewPanel({
       action: string;
     }>;
   } | null>(null);
-  const [businessSummary, setBusinessSummary] = useState<ProjectModelBusinessSummaryPayload | null>(null);
   const [projectModelView, setProjectModelView] = useState<ProjectModelViewPayload | null>(null);
-  const [businessSummaryLoading, setBusinessSummaryLoading] = useState(false);
-  const [businessSummaryError, setBusinessSummaryError] = useState("");
   const [businessSummaryVersion, setBusinessSummaryVersion] = useState(0);
   const [modelDetailsView, setModelDetailsView] = useState<"summary" | "graph">("summary");
   const [relationTypeFilter, setRelationTypeFilter] = useState<"all" | "one_to_one" | "one_to_many" | "many_to_many">("all");
@@ -129,7 +123,6 @@ export function ProjectOverviewPanel({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [highlightedEdgeId, setHighlightedEdgeId] = useState<string | null>(null);
   const [graphViewportOffset, setGraphViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [useMockGraphData, setUseMockGraphData] = useState(false);
   const [showPolicyDrawer, setShowPolicyDrawer] = useState(false);
   const [showOpenclawDrawer, setShowOpenclawDrawer] = useState(false);
   const [activePolicy, setActivePolicy] = useState<ProjectPolicyPayload | null>(null);
@@ -157,9 +150,6 @@ export function ProjectOverviewPanel({
     setRepoMigrationPlan(null);
     setRepoValidationError("");
     setRepoConfigNotice("");
-    setBusinessSummary(null);
-    setBusinessSummaryError("");
-    setBusinessSummaryLoading(false);
     setProjectModelView(null);
   }, [currentProject?.id, currentProject?.repository?.url, currentProject?.repository?.governance?.requireRemoteForProduction, currentProject?.repository?.governance?.requireRemoteForStaging]);
 
@@ -266,6 +256,18 @@ export function ProjectOverviewPanel({
       .slice(0, 3)
       .map(([entityId, count]) => `${toFriendlyName(entityId)}(${count})`);
   }, [displayedModelRelations]);
+  const businessSummary = useMemo(
+    () =>
+      currentProject && !isUsingMockData
+        ? buildProjectModelBusinessSummaryFromView({
+            projectId: currentProject.id,
+            iterationId: currentIteration?.id ?? null,
+            view: projectModelView,
+            generatedAt: new Date(Date.now() + businessSummaryVersion).toISOString()
+          })
+        : null,
+    [businessSummaryVersion, currentIteration?.id, currentProject, isUsingMockData, projectModelView]
+  );
   const summaryGeneratedAtText = businessSummary?.generatedAt ? new Date(businessSummary.generatedAt).toLocaleString("zh-CN") : "";
   const domainRuleDescriptions = useMemo(() => {
     const lines: string[] = [];
@@ -288,18 +290,9 @@ export function ProjectOverviewPanel({
     return issues;
   }, [displayedModelEntityCount, displayedModelRuleCount, displayedModelRelations.length]);
   const summaryHeadline = businessSummary?.summary?.trim() || modelSummaryText;
-  const graphSourceRelations = useMockGraphData ? MOCK_MODEL_RELATIONS : displayedModelRelations;
-  const mockEntitySet = useMemo(() => {
-    const ids = new Set<string>();
-    for (const item of MOCK_MODEL_RELATIONS) {
-      ids.add(item.fromEntityId);
-      ids.add(item.toEntityId);
-    }
-    return ids;
-  }, []);
   const relationGraph = useMemo(
-    () => buildModelRelationGraph(graphSourceRelations, useMockGraphData ? mockEntitySet.size : displayedModelEntityCount, 80, projectModelView?.entities),
-    [displayedModelEntityCount, graphSourceRelations, mockEntitySet.size, projectModelView?.entities, useMockGraphData]
+    () => buildModelRelationGraph(displayedModelRelations, displayedModelEntityCount, 80, projectModelView?.entities),
+    [displayedModelEntityCount, displayedModelRelations, projectModelView?.entities]
   );
   const relationGraphNodeById = useMemo(
     () => new Map(relationGraph.nodes.map((node) => [node.id, node])),
@@ -401,51 +394,11 @@ export function ProjectOverviewPanel({
   }, [currentProject?.id]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (!currentProject || isUsingMockData) {
-      setBusinessSummary(null);
-      setBusinessSummaryError("");
-      setBusinessSummaryLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    setBusinessSummaryLoading(true);
-    setBusinessSummaryError("");
-    fetchProjectModelBusinessSummary(currentProject.id, currentIteration?.id)
-      .then((payload) => {
-        if (cancelled) return;
-        setBusinessSummary(payload);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setBusinessSummary(null);
-        setBusinessSummaryError(toBusinessSummaryErrorMessage(error));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setBusinessSummaryLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    currentProject?.id,
-    currentIteration?.id,
-    modelRuleCount,
-    modelEntityCount,
-    modelPageCount,
-    modelRelations.length,
-    isUsingMockData,
-    businessSummaryVersion
-  ]);
-
-  useEffect(() => {
     setHoveredNodeId(null);
     setSelectedNodeId(null);
     setHighlightedEdgeId(null);
     setGraphViewportOffset({ x: 0, y: 0 });
-  }, [relationTypeFilter, useMockGraphData]);
+  }, [relationTypeFilter]);
 
   useEffect(() => {
     if (!highlightedEdgeId) return;
@@ -601,7 +554,7 @@ export function ProjectOverviewPanel({
     if (!currentProject || !isAdmin) return;
     try {
       setPolicyBusy(true);
-      await createProjectPolicyDraft(currentProject.id, undefined, "owner", "admin-1");
+      await createProjectPolicyDraft(currentProject.id);
       await loadPolicyData();
       setPolicyNotice("已创建策略草案。");
     } catch (error) {
@@ -620,7 +573,7 @@ export function ProjectOverviewPanel({
     }
     try {
       setPolicyBusy(true);
-      await activateProjectPolicy(currentProject.id, draft.version, "owner", "admin-1");
+      await activateProjectPolicy(currentProject.id, draft.version);
       await loadPolicyData();
       setPolicyNotice(`策略 v${draft.version} 已激活。`);
     } catch (error) {
@@ -634,7 +587,7 @@ export function ProjectOverviewPanel({
     if (!currentProject || !isAdmin) return;
     try {
       setPolicyBusy(true);
-      const restored = await restoreProjectPolicyToInitialMode(currentProject.id, "owner", "admin-1");
+      const restored = await restoreProjectPolicyToInitialMode(currentProject.id);
       await loadPolicyData();
       setPolicyNotice(`已恢复到初始化编排模式（v${restored.version}）。`);
     } catch (error) {
@@ -648,18 +601,13 @@ export function ProjectOverviewPanel({
     if (!currentProject || !isAdmin) return;
     try {
       setPolicyBusy(true);
-      await bindProjectWorkspace(
-        currentProject.id,
-        {
-          openclawProfile: bindingProfile.trim(),
-          agentId: bindingAgentId.trim() || "main",
-          workspacePath: bindingWorkspacePath.trim(),
-          runtimeMode: bindingRuntimeMode,
-          locked: true
-        },
-        "owner",
-        "admin-1"
-      );
+      await bindProjectWorkspace(currentProject.id, {
+        openclawProfile: bindingProfile.trim(),
+        agentId: bindingAgentId.trim() || "main",
+        workspacePath: bindingWorkspacePath.trim(),
+        runtimeMode: bindingRuntimeMode,
+        locked: true
+      });
       setPolicyNotice("OpenClaw 工作区绑定已更新。");
     } catch (error) {
       setPolicyNotice(error instanceof Error ? error.message : "绑定工作区失败");
@@ -674,7 +622,7 @@ export function ProjectOverviewPanel({
       setPolicyBusy(true);
       await upsertProjectRoleBinding(currentProject.id, { userId: newRoleUserId.trim(), role: newRoleValue }, "owner");
       await loadPolicyData();
-      setPolicyNotice(`已更新用户 ${newRoleUserId.trim()} 的项目角色。`);
+      setPolicyNotice(`已更新租户成员 ${newRoleUserId.trim()} 的访问角色。`);
     } catch (error) {
       setPolicyNotice(error instanceof Error ? error.message : "更新角色失败");
     } finally {
@@ -688,7 +636,7 @@ export function ProjectOverviewPanel({
       setPolicyBusy(true);
       await removeProjectRoleBinding(currentProject.id, userId.trim(), "owner");
       await loadPolicyData();
-      setPolicyNotice(`已移除用户 ${userId.trim()} 的项目角色。`);
+      setPolicyNotice(`已移除租户成员 ${userId.trim()}。`);
     } catch (error) {
       setPolicyNotice(error instanceof Error ? error.message : "移除角色失败");
     } finally {
@@ -857,18 +805,16 @@ export function ProjectOverviewPanel({
           setShowModelDetails={setShowModelDetails}
           isUsingMockData={isUsingMockData}
           setBusinessSummaryVersion={setBusinessSummaryVersion}
-          businessSummaryLoading={businessSummaryLoading}
+          businessSummaryLoading={false}
           modelDetailsView={modelDetailsView}
           setModelDetailsView={setModelDetailsView}
           relationTypeFilter={relationTypeFilter}
           setRelationTypeFilter={setRelationTypeFilter}
-          useMockGraphData={useMockGraphData}
-          setUseMockGraphData={setUseMockGraphData}
           relationTypeStats={relationTypeStats}
           relationFocusEntities={relationFocusEntities}
           businessSummary={businessSummary}
           summaryGeneratedAtText={summaryGeneratedAtText}
-          businessSummaryError={businessSummaryError}
+          businessSummaryError=""
           domainRuleDescriptions={domainRuleDescriptions}
           relationGraph={relationGraph}
           relationGraphNodeById={relationGraphNodeById}

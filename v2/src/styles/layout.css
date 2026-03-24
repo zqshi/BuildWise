@@ -122,13 +122,28 @@
   position:absolute;
   left:42px;
   bottom:0;
-  width:120px;
+  width:180px;
   padding:6px;
   border-radius:var(--radius-md);
   border:1px solid var(--border-default);
   background:var(--bg-surface);
   box-shadow:var(--shadow-pop);
   animation:fade-up var(--duration-fast) var(--ease-standard)
+}
+
+.dock-user-menu-section {
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding-bottom:6px;
+  margin-bottom:6px;
+  border-bottom:1px solid var(--border-default)
+}
+
+.dock-user-menu-title {
+  padding:4px 8px 2px;
+  font-size:var(--text-xs);
+  color:var(--text-secondary)
 }
 
 .dock-user-menu-item {
@@ -144,6 +159,12 @@
 
 .dock-user-menu-item:hover {
   background:var(--bg-surface-muted)
+}
+
+.dock-user-menu-item.active {
+  background:var(--brand-50);
+  color:var(--brand-700);
+  font-weight:var(--font-weight-medium)
 }
 
 .board {
