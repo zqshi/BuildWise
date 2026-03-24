@@ -1,4 +1,5 @@
-import type { ProjectModelViewPayload } from "../../domain/workspace/modelOpsTypes";
+import type { ProjectModelViewPayload } from "../../domain/workspace/modelOpsTypes.ts";
+import { normalizeProjectModelViewPayload } from "../../app/projectModelViewNormalization.ts";
 import { normalizeInlineMarkdownText, toFriendlyName, toFriendlyRelationType } from "./projectOverviewPanelHelpers.ts";
 
 export type ModelEntityCard = {
@@ -27,7 +28,7 @@ function findOntologyTerm(view: ProjectModelViewPayload, entityName: string, bus
   return (
     view.ontologyTerms.find((item) => item.businessTerm === businessName) ||
     view.ontologyTerms.find((item) => item.businessTerm === entityName) ||
-    view.ontologyTerms.find((item) => item.aliases.includes(businessName) || item.aliases.includes(entityName))
+    view.ontologyTerms.find((item) => (item.aliases || []).includes(businessName) || (item.aliases || []).includes(entityName))
   );
 }
 
@@ -35,10 +36,11 @@ export function buildModelEntityCards(view: ProjectModelViewPayload | null): Mod
   if (!view) {
     return [];
   }
-  return view.entities.map((entity) => {
-    const term = findOntologyTerm(view, entity.name, entity.businessName);
-    const relationCount = view.relations.filter((item) => item.fromEntityId === entity.id || item.toEntityId === entity.id).length;
-    const ruleCount = view.rules.filter((item) => item.linkedEntityIds.includes(entity.id)).length;
+  const normalizedView = normalizeProjectModelViewPayload(view);
+  return normalizedView.entities.map((entity) => {
+    const term = findOntologyTerm(normalizedView, entity.name, entity.businessName);
+    const relationCount = normalizedView.relations.filter((item) => item.fromEntityId === entity.id || item.toEntityId === entity.id).length;
+    const ruleCount = normalizedView.rules.filter((item) => item.linkedEntityIds.includes(entity.id)).length;
     return {
       id: entity.id,
       title: entity.businessName || toFriendlyName(entity.id),
@@ -46,7 +48,7 @@ export function buildModelEntityCards(view: ProjectModelViewPayload | null): Mod
       definition: term?.definition || "暂无业务定义，请在项目知识中补充术语或规则说明。",
       aliases: term?.aliases || [],
       technicalAliases: term?.technicalAliases || [],
-      fieldPreview: entity.fields.slice(0, 6).map((field) => `${field.name}:${field.type}${field.required ? " *" : ""}`),
+      fieldPreview: (entity.fields || []).slice(0, 6).map((field) => `${field.name}:${field.type}${field.required ? " *" : ""}`),
       relationCount,
       ruleCount
     };
@@ -57,15 +59,16 @@ export function buildModelRuleMappings(view: ProjectModelViewPayload | null): Mo
   if (!view) {
     return [];
   }
-  const entityNameById = new Map(view.entities.map((entity) => [entity.id, entity.businessName || entity.name]));
-  return view.rules.map((rule) => ({
+  const normalizedView = normalizeProjectModelViewPayload(view);
+  const entityNameById = new Map(normalizedView.entities.map((entity) => [entity.id, entity.businessName || entity.name]));
+  return normalizedView.rules.map((rule) => ({
     id: rule.id,
     name: rule.name,
     statement: normalizeInlineMarkdownText(rule.statement || rule.name),
     source: rule.source,
-    linkedEntities: rule.linkedEntityIds.map((item) => entityNameById.get(item) || toFriendlyName(item)),
-    linkedSurfaces: rule.linkedSurfaceIds,
-    linkedApis: rule.linkedApiIds
+    linkedEntities: (rule.linkedEntityIds || []).map((item) => entityNameById.get(item) || toFriendlyName(item)),
+    linkedSurfaces: rule.linkedSurfaceIds || [],
+    linkedApis: rule.linkedApiIds || []
   }));
 }
 
@@ -73,8 +76,9 @@ export function buildModelRelationNarratives(view: ProjectModelViewPayload | nul
   if (!view) {
     return [];
   }
-  const entityNameById = new Map(view.entities.map((entity) => [entity.id, entity.businessName || entity.name]));
-  return view.relations.map((relation) => ({
+  const normalizedView = normalizeProjectModelViewPayload(view);
+  const entityNameById = new Map(normalizedView.entities.map((entity) => [entity.id, entity.businessName || entity.name]));
+  return normalizedView.relations.map((relation) => ({
     id: relation.id,
     title: `${entityNameById.get(relation.fromEntityId) || toFriendlyName(relation.fromEntityId)} ${toFriendlyRelationType(relation.type)} ${entityNameById.get(relation.toEntityId) || toFriendlyName(relation.toEntityId)}`,
     meaning: normalizeInlineMarkdownText(relation.businessMeaning || "暂无业务关系说明")

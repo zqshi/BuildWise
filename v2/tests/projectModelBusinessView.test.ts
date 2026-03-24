@@ -80,3 +80,23 @@ test("projectModelBusinessView builds rule mappings and relation narratives", ()
   assert.match(narratives[0]?.title || "", /客户 一对多 entity customer tag|客户 一对多/);
   assert.match(narratives[0]?.meaning || "", /多个标签/);
 });
+
+test("projectModelBusinessView tolerates legacy sparse model payloads", () => {
+  const sparseView = {
+    projectId: 1,
+    entities: [{ id: "entity_customer", name: "CustomerProfile", businessName: "客户" }],
+    rules: [{ id: "rule-1", name: "标签留痕", source: "snapshot" as const }],
+    relations: [{ id: "rel-1", fromEntityId: "entity_customer", toEntityId: "entity_tag", type: "one_to_many" as const }]
+  } as const;
+
+  const cards = buildModelEntityCards(sparseView as never);
+  const mappings = buildModelRuleMappings(sparseView as never);
+  const narratives = buildModelRelationNarratives(sparseView as never);
+
+  assert.equal(cards[0]?.fieldPreview.length, 0);
+  assert.equal(cards[0]?.ruleCount, 0);
+  assert.deepEqual(mappings[0]?.linkedEntities, []);
+  assert.deepEqual(mappings[0]?.linkedSurfaces, []);
+  assert.deepEqual(mappings[0]?.linkedApis, []);
+  assert.match(narratives[0]?.title || "", /客户 一对多/);
+});

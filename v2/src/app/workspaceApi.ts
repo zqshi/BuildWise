@@ -29,6 +29,7 @@ import type {
 } from "../domain/workspace/platformTypes";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { ensureArray } from "../shared/ensureArray";
+import { normalizeProjectModelViewPayload } from "./projectModelViewNormalization.ts";
 import { API_BASE, API_PREFIX, isApiNotFound } from "./workspaceApiCore";
 
 export * from "./workspaceApiAgentOps";
@@ -153,7 +154,8 @@ export async function fetchProjectModelView(projectId: number, iterationId?: num
     typeof iterationId === "number" && iterationId > 0
       ? `${API_BASE}${API_PREFIX}/projects/${projectId}/model-view?iterationId=${iterationId}`
       : `${API_BASE}${API_PREFIX}/projects/${projectId}/model-view`;
-  return fetchJSON<ProjectModelViewPayload>(endpoint);
+  const payload = await fetchJSON<unknown>(endpoint);
+  return normalizeProjectModelViewPayload(payload);
 }
 
 export async function fetchProjectIterations(projectId: number) {

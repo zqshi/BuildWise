@@ -43,6 +43,7 @@ import { ProjectOverviewPanelModelDetails } from "./ProjectOverviewPanelModelDet
 import { ProjectOverviewPanelDrawers } from "./ProjectOverviewPanelDrawers";
 import { buildModelEntityCards, buildModelRelationNarratives, buildModelRuleMappings } from "./projectModelBusinessView";
 import { toModelRelationsFromView } from "./projectModelViewAdapter";
+import { normalizeProjectModelViewPayload } from "../../app/projectModelViewNormalization.ts";
 
 type ProjectOverviewPanelProps = {
   currentProject: Project | null;
@@ -187,7 +188,7 @@ export function ProjectOverviewPanel({
     fetchProjectModelView(currentProject.id, currentIteration?.id)
       .then((view) => {
         if (!cancelled) {
-          setProjectModelView(view);
+          setProjectModelView(normalizeProjectModelViewPayload(view));
         }
       })
       .catch(() => {
@@ -207,7 +208,9 @@ export function ProjectOverviewPanel({
   const displayedModelRuleCount = projectModelView?.rules.length ?? modelRuleCount;
   const displayedModelEntityCount = projectModelView?.entities.length ?? modelEntityCount;
   const displayedModelPageCount =
-    projectModelView ? Array.from(new Set(projectModelView.rules.flatMap((item) => item.linkedSurfaceIds))).length || modelPageCount : modelPageCount;
+    projectModelView
+      ? Array.from(new Set(projectModelView.rules.flatMap((item) => item.linkedSurfaceIds || []))).length || modelPageCount
+      : modelPageCount;
   const entityCards = useMemo(() => buildModelEntityCards(projectModelView), [projectModelView]);
   const ruleMappings = useMemo(() => buildModelRuleMappings(projectModelView), [projectModelView]);
   const relationNarratives = useMemo(() => buildModelRelationNarratives(projectModelView), [projectModelView]);
