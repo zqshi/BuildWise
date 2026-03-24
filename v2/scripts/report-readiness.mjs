@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const root = path.resolve(path.join(import.meta.dirname, ".."));
@@ -112,7 +113,18 @@ const placeholderCount = (frontendSources.match(/>图表区域</g) || []).length
 const faviconExists = existsSync(path.join(workspaceRoot, "v2/public/favicon.svg"));
 
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-const outDir = path.join(workspaceRoot, "docs", "milestones");
+function resolveReportOutputDir() {
+  const explicitDir = process.env.BUILDWISE_READINESS_OUTPUT_DIR?.trim();
+  if (explicitDir) {
+    return path.resolve(workspaceRoot, explicitDir);
+  }
+  if (process.env.BUILDWISE_READINESS_WRITE_REPO === "1") {
+    return path.join(workspaceRoot, "docs", "milestones");
+  }
+  return path.join(os.tmpdir(), "buildwise-readiness");
+}
+
+const outDir = resolveReportOutputDir();
 mkdirSync(outDir, { recursive: true });
 const reportFile = path.join(outDir, `readiness-${timestamp}.md`);
 

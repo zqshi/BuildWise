@@ -18,6 +18,7 @@
 8. `VITE_API_BASE` 已显式配置。
 9. 每个项目 `workspacePath` 独立且可写。
 10. `workspacePath/.buildwise/` 已纳入备份策略。
+11. 运行验证脚本不会默认向仓库写入临时报告；如需归档 `readiness` 报告，必须显式设置 `BUILDWISE_READINESS_WRITE_REPO=1` 或 `BUILDWISE_READINESS_OUTPUT_DIR`。
 
 ## 3. 运行语义确认
 
