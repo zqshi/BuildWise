@@ -273,5 +273,7 @@ test("buildProjectModelView merges project knowledge and latest snapshot into on
   assert.ok(view.ontologyTerms.some((item) => item.businessTerm === "客户标签"));
   assert.ok(view.rules.some((item) => item.name === "客户档案必须唯一"));
   assert.ok(view.rules.some((item) => item.name === "客户标签变更必须留痕"));
+  assert.ok(view.entities.some((item) => Array.isArray(item.fields)));
+  assert.ok(view.rules.some((item) => Array.isArray(item.linkedEntityIds)));
   assert.equal(view.reviewTasks.length, 1);
 });

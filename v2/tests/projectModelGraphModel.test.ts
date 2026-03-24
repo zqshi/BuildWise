@@ -44,6 +44,9 @@ test("project overview includes model detail view toggle for graph mode", () => 
   assert.match(source, /建模详情视图切换/);
   assert.match(source, /结构化摘要/);
   assert.match(source, /节点关系图/);
+  assert.match(source, /业务实体卡片/);
+  assert.match(source, /规则映射与业务约束/);
+  assert.match(source, /业务关系叙事/);
   assert.match(source, /建模节点关系图/);
   assert.match(source, /关系类型筛选/);
   assert.match(source, /已高亮与「/);
@@ -59,6 +62,8 @@ test("project overview includes model detail view toggle for graph mode", () => 
   assert.match(source, /恢复真实数据/);
   assert.match(source, /演示数据（mock）/);
   assert.match(source, /建模依据：当前项目沉淀数据实体/);
+  assert.match(source, /model-entity-card-grid/);
+  assert.match(source, /model-rule-mapping-list/);
   assert.match(source, /edge\.businessDescription/);
   assert.match(source, /本体依据：/);
   assert.match(source, /数据依据：/);

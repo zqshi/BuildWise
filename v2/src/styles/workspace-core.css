@@ -673,6 +673,94 @@
 .project-model-detail-list li {
   font-size:var(--text-xs);
 }
+.model-entity-card-grid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:10px;
+}
+.model-entity-card,
+.model-entity-detail-card {
+  display:grid;
+  gap:8px;
+  padding:12px;
+  border:1px solid color-mix(in srgb,var(--border-default) 80%, transparent);
+  border-radius:12px;
+  background:var(--bg-surface);
+}
+.model-entity-card-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.model-entity-card-head strong {
+  font-size:var(--text-sm);
+  color:var(--text-primary);
+}
+.model-entity-card-head span {
+  font-size:var(--text-2xs);
+  color:var(--text-muted);
+}
+.model-entity-card p,
+.model-entity-detail-card p {
+  margin:0;
+  font-size:var(--text-xs);
+  line-height:1.6;
+  color:var(--text-secondary);
+}
+.model-entity-chip-row {
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.model-entity-chip-row span {
+  display:inline-flex;
+  align-items:center;
+  padding:4px 8px;
+  border-radius:999px;
+  background:var(--bg-canvas);
+  border:1px solid var(--border-default);
+  font-size:var(--text-2xs);
+  color:var(--text-muted);
+}
+.model-entity-field-list {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.model-entity-field-list code {
+  display:inline-flex;
+  align-items:center;
+  padding:4px 6px;
+  border-radius:8px;
+  background:color-mix(in srgb,var(--bg-canvas) 92%, var(--brand-50));
+  border:1px solid color-mix(in srgb,var(--border-default) 82%, transparent);
+  font-size:11px;
+  color:var(--text-secondary);
+}
+.model-rule-mapping-list {
+  margin:0;
+  padding-left:18px;
+  display:grid;
+  gap:8px;
+}
+.model-rule-mapping-list li {
+  color:var(--text-secondary);
+}
+.model-rule-mapping-list li > strong {
+  color:var(--text-primary);
+}
+.model-rule-mapping-list li > p {
+  margin:4px 0 0;
+  font-size:var(--text-xs);
+  line-height:1.6;
+}
+.model-inline-list {
+  margin:0;
+  padding-left:18px;
+  display:grid;
+  gap:4px;
+}
 .model-details-view-switch {
   display:flex;
   gap:8px;

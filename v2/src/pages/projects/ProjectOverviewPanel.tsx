@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import type { Iteration, Project, StatusPayload } from "../../domain/workspace/types";
+import type { Iteration, Project, ProjectModelViewPayload, StatusPayload } from "../../domain/workspace/types";
 import type { OpsMetricsPayload } from "../../domain/workspace/platformTypes";
 import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import {
@@ -13,6 +13,7 @@ import {
   configureProjectRepositoryMode,
   fetchProjectRoleBindings,
   fetchProjectModelBusinessSummary,
+  fetchProjectModelView,
   fetchProjectRepositoryMigrationPlan,
   fetchProjectRepositoryStatus,
   validateProjectRepositoryRemote,
@@ -40,6 +41,8 @@ import {
 } from "./projectOverviewPanelHelpers";
 import { ProjectOverviewPanelModelDetails } from "./ProjectOverviewPanelModelDetails";
 import { ProjectOverviewPanelDrawers } from "./ProjectOverviewPanelDrawers";
+import { buildModelEntityCards, buildModelRelationNarratives, buildModelRuleMappings } from "./projectModelBusinessView";
+import { toModelRelationsFromView } from "./projectModelViewAdapter";
 
 type ProjectOverviewPanelProps = {
   currentProject: Project | null;
@@ -115,6 +118,7 @@ export function ProjectOverviewPanel({
     }>;
   } | null>(null);
   const [businessSummary, setBusinessSummary] = useState<ProjectModelBusinessSummaryPayload | null>(null);
+  const [projectModelView, setProjectModelView] = useState<ProjectModelViewPayload | null>(null);
   const [businessSummaryLoading, setBusinessSummaryLoading] = useState(false);
   const [businessSummaryError, setBusinessSummaryError] = useState("");
   const [businessSummaryVersion, setBusinessSummaryVersion] = useState(0);
@@ -155,6 +159,7 @@ export function ProjectOverviewPanel({
     setBusinessSummary(null);
     setBusinessSummaryError("");
     setBusinessSummaryLoading(false);
+    setProjectModelView(null);
   }, [currentProject?.id, currentProject?.repository?.url, currentProject?.repository?.governance?.requireRemoteForProduction, currentProject?.repository?.governance?.requireRemoteForStaging]);
 
   useEffect(() => {
@@ -172,10 +177,40 @@ export function ProjectOverviewPanel({
   const recentIterations = useMemo(() => sortedIterations.slice(-5), [sortedIterations]);
   const completedIterations = sortedIterations.filter((item) => item.status === "completed").length;
   const activeIterations = sortedIterations.length - completedIterations;
-  const displayedModelRelations = modelRelations;
-  const displayedModelRuleCount = modelRuleCount;
-  const displayedModelEntityCount = modelEntityCount;
-  const displayedModelPageCount = modelPageCount;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentProject) {
+      setProjectModelView(null);
+      return;
+    }
+    fetchProjectModelView(currentProject.id, currentIteration?.id)
+      .then((view) => {
+        if (!cancelled) {
+          setProjectModelView(view);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectModelView(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProject?.id, currentIteration?.id]);
+
+  const displayedModelRelations = useMemo(
+    () => (projectModelView ? toModelRelationsFromView(projectModelView) : modelRelations),
+    [modelRelations, projectModelView]
+  );
+  const displayedModelRuleCount = projectModelView?.rules.length ?? modelRuleCount;
+  const displayedModelEntityCount = projectModelView?.entities.length ?? modelEntityCount;
+  const displayedModelPageCount =
+    projectModelView ? Array.from(new Set(projectModelView.rules.flatMap((item) => item.linkedSurfaceIds))).length || modelPageCount : modelPageCount;
+  const entityCards = useMemo(() => buildModelEntityCards(projectModelView), [projectModelView]);
+  const ruleMappings = useMemo(() => buildModelRuleMappings(projectModelView), [projectModelView]);
+  const relationNarratives = useMemo(() => buildModelRelationNarratives(projectModelView), [projectModelView]);
 
   const healthScore = useMemo(
     () =>
@@ -231,14 +266,17 @@ export function ProjectOverviewPanel({
   const summaryGeneratedAtText = businessSummary?.generatedAt ? new Date(businessSummary.generatedAt).toLocaleString("zh-CN") : "";
   const domainRuleDescriptions = useMemo(() => {
     const lines: string[] = [];
-    for (const item of displayedModelRelations.slice(0, 8)) {
+    for (const item of displayedModelRelations.slice(0, 4)) {
       const from = toFriendlyName(item.fromEntityId);
       const to = toFriendlyName(item.toEntityId);
       const relation = toFriendlyRelationType(item.type);
       lines.push(`规则：${from}与${to}之间建立${relation}约束。`);
     }
+    for (const item of ruleMappings.slice(0, 4)) {
+      lines.push(`规则：${item.name}；映射对象：${item.linkedEntities.join("、") || "待补充实体映射"}`);
+    }
     return lines;
-  }, [displayedModelRelations]);
+  }, [displayedModelRelations, ruleMappings]);
   const modelHighlights = useMemo(() => {
     const issues: string[] = [];
     if (displayedModelEntityCount === 0) issues.push("尚未沉淀数据实体");
@@ -257,8 +295,8 @@ export function ProjectOverviewPanel({
     return ids;
   }, []);
   const relationGraph = useMemo(
-    () => buildModelRelationGraph(graphSourceRelations, useMockGraphData ? mockEntitySet.size : displayedModelEntityCount),
-    [displayedModelEntityCount, graphSourceRelations, mockEntitySet.size, useMockGraphData]
+    () => buildModelRelationGraph(graphSourceRelations, useMockGraphData ? mockEntitySet.size : displayedModelEntityCount, 80, projectModelView?.entities),
+    [displayedModelEntityCount, graphSourceRelations, mockEntitySet.size, projectModelView?.entities, useMockGraphData]
   );
   const relationGraphNodeById = useMemo(
     () => new Map(relationGraph.nodes.map((node) => [node.id, node])),
@@ -847,6 +885,9 @@ export function ProjectOverviewPanel({
           selectedNode={selectedNode}
           selectedNodeOutgoingEdges={selectedNodeOutgoingEdges}
           selectedNodeIncomingEdges={selectedNodeIncomingEdges}
+          entityCards={entityCards}
+          ruleMappings={ruleMappings}
+          relationNarratives={relationNarratives}
           displayedModelEntityCount={displayedModelEntityCount}
           displayedModelRelations={displayedModelRelations}
           displayedModelRuleCount={displayedModelRuleCount}

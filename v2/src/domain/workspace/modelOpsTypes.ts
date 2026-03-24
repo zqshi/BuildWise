@@ -100,7 +100,16 @@ export type ProjectModelViewPayload = {
   projectName?: string;
   iterationName?: string;
   iterationStatus?: string;
-  entities: Array<{ id: string; name: string }>;
+  entities: Array<{
+    id: string;
+    name: string;
+    businessName: string;
+    fields: Array<{
+      name: string;
+      type: string;
+      required: boolean;
+    }>;
+  }>;
   relations: Array<{
     id: string;
     fromEntityId: string;
@@ -108,9 +117,23 @@ export type ProjectModelViewPayload = {
     type: "one_to_one" | "one_to_many" | "many_to_many";
     businessMeaning?: string;
   }>;
-  rules: Array<{ name: string; statement?: string }>;
+  rules: Array<{
+    id: string;
+    name: string;
+    statement?: string;
+    source: "project_knowledge" | "snapshot";
+    linkedEntityIds: string[];
+    linkedSurfaceIds: string[];
+    linkedApiIds: string[];
+  }>;
   reviewTasks: Array<{ title: string; blocking: boolean }>;
-  ontologyTerms: Array<{ businessTerm: string }>;
+  ontologyTerms: Array<{
+    businessTerm: string;
+    aliases: string[];
+    technicalAliases: string[];
+    definition: string;
+    source: "project_knowledge" | "snapshot";
+  }>;
   evidence: string[];
   latestSnapshotId: string | null;
   latestSnapshotStatus: "none" | "candidate" | "published" | "superseded";

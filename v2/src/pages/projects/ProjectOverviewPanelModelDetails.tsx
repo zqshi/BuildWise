@@ -2,6 +2,7 @@ import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes"
 import type { ProjectModelBusinessSummaryPayload } from "../../domain/workspace/modelOpsTypes";
 import type { RelationGraphEdge, RelationGraphNode, RelationGraphPayload } from "./projectModelGraphModel";
 import { normalizeInlineMarkdownText, toFriendlyName, toFriendlyRelationType } from "./projectOverviewPanelHelpers";
+import type { ModelEntityCard, ModelRuleMapping } from "./projectModelBusinessView";
 type RelationTypeFilter = "all" | "one_to_one" | "one_to_many" | "many_to_many";
 type Props = {
   showModelDetails: boolean;
@@ -39,6 +40,9 @@ type Props = {
   selectedNode: RelationGraphNode | null;
   selectedNodeOutgoingEdges: RelationGraphEdge[];
   selectedNodeIncomingEdges: RelationGraphEdge[];
+  entityCards: ModelEntityCard[];
+  ruleMappings: ModelRuleMapping[];
+  relationNarratives: Array<{ id: string; title: string; meaning: string }>;
   displayedModelEntityCount: number;
   displayedModelRelations: ModelRelationPayload[];
   displayedModelRuleCount: number;
@@ -79,8 +83,15 @@ export function ProjectOverviewPanelModelDetails({
   selectedNode,
   selectedNodeOutgoingEdges,
   selectedNodeIncomingEdges,
+  entityCards,
+  ruleMappings,
+  relationNarratives,
   displayedModelEntityCount, displayedModelRelations, displayedModelRuleCount
 }: Props) {
+  const selectedEntityCard = selectedNode ? entityCards.find((item) => item.id === selectedNode.id) || null : null;
+  const selectedRuleMappings = selectedNode
+    ? ruleMappings.filter((item) => item.linkedEntities.some((entity) => entity === selectedEntityCard?.title || entity === selectedEntityCard?.technicalName))
+    : [];
   return (
     <div className="info-box project-model-box">
       <div className="panel-head tight">
@@ -179,6 +190,71 @@ export function ProjectOverviewPanelModelDetails({
                   <ul>
                     {domainRuleDescriptions.map((item) => (
                       <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="info-box">
+                <h3>业务实体卡片</h3>
+                {entityCards.length === 0 ? (
+                  <p className="hint">当前尚未形成可展示的业务实体。</p>
+                ) : (
+                  <div className="model-entity-card-grid">
+                    {entityCards.map((item) => (
+                      <article key={item.id} className="model-entity-card">
+                        <div className="model-entity-card-head">
+                          <strong>{item.title}</strong>
+                          <span>{item.technicalName}</span>
+                        </div>
+                        <p>{item.definition}</p>
+                        {item.aliases.length > 0 ? <p className="hint">别名：{item.aliases.join("、")}</p> : null}
+                        {item.technicalAliases.length > 0 ? <p className="hint">技术映射：{item.technicalAliases.join("、")}</p> : null}
+                        <div className="model-entity-chip-row">
+                          <span>{item.relationCount} 条关系</span>
+                          <span>{item.ruleCount} 条规则</span>
+                          <span>{item.fieldPreview.length} 个属性</span>
+                        </div>
+                        {item.fieldPreview.length > 0 ? (
+                          <div className="model-entity-field-list">
+                            {item.fieldPreview.map((field) => (
+                              <code key={`${item.id}-${field}`}>{field}</code>
+                            ))}
+                          </div>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="info-box">
+                <h3>规则映射与业务约束</h3>
+                {ruleMappings.length === 0 ? (
+                  <p className="hint">暂无规则映射，建议补充业务规则与实体绑定。</p>
+                ) : (
+                  <ul className="model-rule-mapping-list">
+                    {ruleMappings.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.name}</strong>
+                        <p>{item.statement}</p>
+                        <p className="hint">作用实体：{item.linkedEntities.join("、") || "未绑定实体"}</p>
+                        {item.linkedSurfaces.length > 0 ? <p className="hint">关联页面：{item.linkedSurfaces.join("、")}</p> : null}
+                        {item.linkedApis.length > 0 ? <p className="hint">关联 API：{item.linkedApis.join("、")}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="info-box">
+                <h3>业务关系叙事</h3>
+                {relationNarratives.length === 0 ? (
+                  <p className="hint">暂无关系叙事，可先补充实体关系与业务含义。</p>
+                ) : (
+                  <ul className="model-rule-mapping-list">
+                    {relationNarratives.slice(0, 8).map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.title}</strong>
+                        <p>{item.meaning}</p>
+                      </li>
                     ))}
                   </ul>
                 )}
@@ -285,6 +361,20 @@ export function ProjectOverviewPanelModelDetails({
                       </div>
                       <div className="model-relation-detail-grid">
                         <div>
+                          {selectedEntityCard ? (
+                            <div className="model-entity-detail-card">
+                              <p className="hint">实体定义</p>
+                              <strong>{selectedEntityCard.title}</strong>
+                              <p>{selectedEntityCard.definition}</p>
+                              {selectedEntityCard.fieldPreview.length > 0 ? (
+                                <div className="model-entity-field-list">
+                                  {selectedEntityCard.fieldPreview.map((field) => (
+                                    <code key={`${selectedEntityCard.id}-${field}`}>{field}</code>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                           <p>出边关系（{selectedNodeOutgoingEdges.length}）</p>
                           {selectedNodeOutgoingEdges.length === 0 ? (
                             <p className="hint">暂无出边关系</p>
@@ -314,6 +404,16 @@ export function ProjectOverviewPanelModelDetails({
                           )}
                         </div>
                         <div>
+                          {selectedRuleMappings.length > 0 ? (
+                            <div className="model-entity-detail-card">
+                              <p className="hint">关联规则</p>
+                              <ul className="model-inline-list">
+                                {selectedRuleMappings.slice(0, 4).map((rule) => (
+                                  <li key={rule.id}>{rule.name}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
                           <p>入边关系（{selectedNodeIncomingEdges.length}）</p>
                           {selectedNodeIncomingEdges.length === 0 ? (
                             <p className="hint">暂无入边关系</p>

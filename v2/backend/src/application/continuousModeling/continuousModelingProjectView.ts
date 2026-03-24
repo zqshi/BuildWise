@@ -61,15 +61,23 @@ export function buildProjectModelView(
   }
   const knowledgeRules =
     knowledge?.stableRules.map((item) => ({
+      id: `kb-rule-${item.rule}`,
       name: item.rule,
       statement: item.rationale || item.rule,
-      source: "project_knowledge" as const
+      source: "project_knowledge" as const,
+      linkedEntityIds: [] as string[],
+      linkedSurfaceIds: [] as string[],
+      linkedApiIds: [] as string[]
     })) || [];
   const snapshotRules =
     latestSnapshot?.rules.map((item) => ({
+      id: item.id,
       name: item.name,
       statement: item.statement,
-      source: "snapshot" as const
+      source: "snapshot" as const,
+      linkedEntityIds: item.linkedEntityIds,
+      linkedSurfaceIds: item.linkedSurfaceIds,
+      linkedApiIds: item.linkedApiIds
     })) || [];
   const rules: ProjectModelView["rules"] = [...knowledgeRules];
   for (const rule of snapshotRules) {
@@ -92,7 +100,8 @@ export function buildProjectModelView(
       latestSnapshot?.entities.map((item) => ({
         id: item.id,
         name: item.name,
-        businessName: item.businessName
+        businessName: item.businessName,
+        fields: item.fields
       })) || [],
     relations:
       latestSnapshot?.relations.map((item) => ({
