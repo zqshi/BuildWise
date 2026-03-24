@@ -19,6 +19,7 @@ test("artifact drawer uses flat content layout without nested stage cards", () =
   assert.match(previewSource, /profile="prd"/, "prd drawer should pass document profile for structured viewing");
   assert.match(previewSource, /profile="design-spec"/, "design spec drawer should pass document profile for structured viewing");
   assert.match(previewSource, /profile="technical-architecture"/, "technical architecture drawer should pass document profile for structured viewing");
+  assert.match(previewSource, /selectedArtifactKind === "code"[\s\S]*value=\{artifactDraftContent \|\| selectedDrawerArtifact\.summary \|\| "暂无代码内容"\}/, "code drawer should keep raw artifact content for structural parsing");
   assert.doesNotMatch(drawerSource, /deliverable-stage-view/, "artifact drawer should not wrap content in nested deliverable stage cards");
   assert.doesNotMatch(drawerSource, /artifact-review-stage/, "artifact confirmation should not render as a separate nested card");
   assert.doesNotMatch(drawerSource, />分析报告抽屉</, "artifact drawer should not render an extra nested section title for analysis");
@@ -29,6 +30,7 @@ test("artifact drawer styles define flat structured content and footer", () => {
 
   assert.match(styles, /\.artifact-drawer-structured-content,\s*\.artifact-drawer-composer\s*\{[\s\S]*?display:grid/, "drawer content should use flat structured layout helpers");
   assert.match(styles, /\.artifact-review-footer\s*\{[\s\S]*?border-top:1px solid var\(--border-default\)/, "review footer should be a flat footer separated by a top border");
+  assert.match(styles, /\.artifact-code-structure-layout\s*\{[\s\S]*?grid-template-columns:minmax\(220px, 280px\) minmax\(0,1fr\)/, "code drawer should expose a file-list and editor pane layout");
   assert.doesNotMatch(styles, /\.deliverable-stage-view\s*\{/, "legacy nested stage card styles should be removed");
 });
 

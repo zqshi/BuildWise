@@ -326,7 +326,7 @@ export function ArtifactPreviewPanel({
       {selectedArtifactKind === "code" ? (
         <ArtifactCodeViewer
           title={selectedDrawerArtifact.title}
-          value={stripRichTextToPlainText(artifactDraftContent || selectedDrawerArtifact.summary || "暂无代码内容")}
+          value={artifactDraftContent || selectedDrawerArtifact.summary || "暂无代码内容"}
           actions={(
             <button
               type="button"
