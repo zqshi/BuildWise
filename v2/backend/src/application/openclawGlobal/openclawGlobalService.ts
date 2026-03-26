@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { createLogger } from "../shared/logger";
+const log = createLogger("openclaw-global-service");
 import type { OpenclawGlobalRepository } from "../../domain/openclawGlobal/repository";
 import type {
   OpenclawGlobalConversation,
@@ -144,7 +146,7 @@ export class OpenclawGlobalService {
       if (this.workspaceRepo) {
         const projectsSummary = buildGlobalProjectsKnowledgeSummary(this.workspaceRepo);
         if (projectsSummary) {
-          systemPrompt = systemPrompt + "\n\n" + projectsSummary;
+          systemPrompt = `${systemPrompt}\n\n${projectsSummary}`;
         }
       }
       try {
@@ -157,7 +159,7 @@ export class OpenclawGlobalService {
         replyMetadata = { model: result.model, source: "agent-runner" };
       } catch (error) {
         const errorDetail = error instanceof Error ? error.message : "unknown_error";
-        replyContent = `抱歉，当前 AI 服务暂时不可用，请稍后重试。`;
+        replyContent = "抱歉，当前 AI 服务暂时不可用，请稍后重试。";
         replyMetadata = { source: "agent-runner-error", error: errorDetail };
       }
     } else {
@@ -200,7 +202,7 @@ export class OpenclawGlobalService {
         }
       } catch (err) {
         // 策略回写失败记录警告，不阻塞主流程
-        console.warn("[policy-write-failed]", err instanceof Error ? err.message : String(err));
+        log.warn("policy write failed", { error: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -311,5 +313,5 @@ function buildGlobalProjectsKnowledgeSummary(workspaceRepo: WorkspaceRepository)
   }
 
   if (summaries.length === 0) return "";
-  return "当前活跃项目的知识概要：\n\n" + summaries.join("\n\n");
+  return `当前活跃项目的知识概要：\n\n${summaries.join("\n\n")}`;
 }

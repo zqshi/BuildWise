@@ -41,13 +41,19 @@ function isValidPhone(phone: string) {
   return /^1\d{10}$/.test(phone);
 }
 
+function replyWithRetryAfter(reply: import("fastify").FastifyReply, message: string, retryAfterSec: number) {
+  reply.header("retry-after", String(Math.max(1, Math.ceil(retryAfterSec))));
+  reply.code(429);
+  return { message };
+}
+
 function setRefreshTokenCookie(reply: import("fastify").FastifyReply, refreshToken: string, maxAgeSec: number, isSecure: boolean) {
   const parts = [
     `buildwise_rt=${refreshToken}`,
-    `HttpOnly`,
-    `Path=/api/v1/auth`,
+    "HttpOnly",
+    "Path=/api/v1/auth",
     `Max-Age=${maxAgeSec}`,
-    `SameSite=Strict`
+    "SameSite=Strict"
   ];
   if (isSecure) {
     parts.push("Secure");
@@ -92,7 +98,16 @@ function buildAuthSessionPayload(
 
 export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceService, config: RuntimeConfig) {
   // POST /api/auth/sms/request
-  app.post("/auth/sms/request", async (request, reply) => {
+  app.post("/auth/sms/request", {
+    schema: {
+      body: {
+        type: "object",
+        required: ["phone"],
+        properties: { phone: { type: "string", pattern: "^1\\d{10}$" } },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const body = request.body as { phone?: string } | null;
     const phone = (body?.phone || "").trim();
     if (!isValidPhone(phone)) {
@@ -110,8 +125,11 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     if (ipEntry) {
       if (now - ipEntry.windowStart < SMS_IP_WINDOW_MS) {
         if (ipEntry.count >= SMS_IP_MAX_PER_WINDOW) {
-          reply.code(429);
-          return { message: "请求过于频繁，请稍后再试" };
+          return replyWithRetryAfter(
+            reply,
+            "请求过于频繁，请稍后再试",
+            (SMS_IP_WINDOW_MS - (now - ipEntry.windowStart)) / 1000
+          );
         }
         ipEntry.count += 1;
       } else {
@@ -122,18 +140,33 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     }
     const lastSentAt = smsRateStore.get(phone);
     if (lastSentAt && now - lastSentAt < SMS_RATE_LIMIT_MS) {
-      reply.code(429);
-      return { message: "请稍后再试，每60秒只能发送一次验证码" };
+      return replyWithRetryAfter(
+        reply,
+        "请稍后再试，每60秒只能发送一次验证码",
+        (SMS_RATE_LIMIT_MS - (now - lastSentAt)) / 1000
+      );
     }
     const code = `${randomInt(100000, 999999)}`;
     const expireAt = now + 5 * 60 * 1000;
     smsCodeStore.set(phone, { code, expireAt, createdAt: now, failedAttempts: 0 });
     smsRateStore.set(phone, now);
-    return { ok: true, expireAt: new Date(expireAt).toISOString(), debugCode: config.nodeEnv === "development" ? code : undefined };
+    return { ok: true, expireAt: new Date(expireAt).toISOString(), debugCode: config.nodeEnv === "development" && process.env.AUTH_DEBUG === "true" ? code : undefined };
   });
 
   // POST /api/auth/sms/verify
-  app.post("/auth/sms/verify", async (request, reply) => {
+  app.post("/auth/sms/verify", {
+    schema: {
+      body: {
+        type: "object",
+        required: ["phone", "code"],
+        properties: {
+          phone: { type: "string", pattern: "^1\\d{10}$" },
+          code: { type: "string", pattern: "^\\d{6}$" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const body = request.body as { phone?: string; code?: string } | null;
     const phone = (body?.phone || "").trim();
     const code = (body?.code || "").trim();
@@ -168,7 +201,7 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     // JWT 模式：签发 token 对
     if (config.authMode === "jwt") {
       const tokens = createTokenPair(phone, workspaceRole, config.jwtSecret, config.jwtAccessTtlSec, config.jwtRefreshTtlSec);
-      log.info("jwt issued", { phone: phone.slice(0, 3) + "****" + phone.slice(7), role: workspaceRole });
+      log.info("jwt issued", { phone: `${phone.slice(0, 3)}****${phone.slice(7)}`, role: workspaceRole });
       const isSecure = config.nodeEnv === "production" || request.protocol === "https" || request.headers["x-forwarded-proto"] === "https";
       setRefreshTokenCookie(reply, tokens.refreshToken, config.jwtRefreshTtlSec, isSecure);
       return {
@@ -237,7 +270,7 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     revokeToken(refreshToken, payload.exp);
     const latestRole = service.resolveWorkspaceRole(binding.role);
     const tokens = createTokenPair(payload.sub, latestRole, config.jwtSecret, config.jwtAccessTtlSec, config.jwtRefreshTtlSec);
-    log.info("jwt refreshed", { sub: payload.sub.slice(0, 3) + "****" + payload.sub.slice(7), role: latestRole });
+    log.info("jwt refreshed", { sub: `${payload.sub.slice(0, 3)}****${payload.sub.slice(7)}`, role: latestRole });
     const isSecure = config.nodeEnv === "production" || request.protocol === "https" || request.headers["x-forwarded-proto"] === "https";
     setRefreshTokenCookie(reply, tokens.refreshToken, config.jwtRefreshTtlSec, isSecure);
     return {

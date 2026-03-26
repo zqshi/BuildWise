@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AssessmentPayload,
@@ -70,6 +70,7 @@ type UseWorkspaceLoadersParams = {
   setStatus: Dispatch<SetStateAction<StatusPayload | null>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setProjects: Dispatch<SetStateAction<Project[]>>;
+  setProjectsHydrated: Dispatch<SetStateAction<boolean>>;
   setCurrentProjectId: Dispatch<SetStateAction<number | null>>;
   setIterations: Dispatch<SetStateAction<Iteration[]>>;
   setCurrentIterationId: Dispatch<SetStateAction<number | null>>;
@@ -93,6 +94,7 @@ export function useWorkspaceLoaders({
   setStatus,
   setError,
   setProjects,
+  setProjectsHydrated,
   setCurrentProjectId,
   setIterations,
   setCurrentIterationId,
@@ -126,7 +128,7 @@ export function useWorkspaceLoaders({
   const isAuthError = (msg: string) =>
     msg.includes("401") || msg.includes("unauthorized") || msg.includes("bearer token");
 
-  const probeStatus = async () => {
+  const probeStatus = useCallback(async () => {
     try {
       const statusData = await fetchJSON<StatusPayload>(`${API_BASE}${API_PREFIX}/status`);
       const wasOffline = statusRef.current?.status === "offline";
@@ -141,23 +143,28 @@ export function useWorkspaceLoaders({
       statusRef.current = offlineStatus;
       return { ok: false as const, raw, recovered: false };
     }
-  };
+  }, [setError, setStatus]);
 
-  const loadProjects = async () => {
-    const projectData = await fetchProjects();
-    setProjects(projectData);
-    if (projectData.length === 0) {
-      setCurrentProjectId(null);
+  const loadProjects = useCallback(async () => {
+    setProjectsHydrated(false);
+    try {
+      const projectData = await fetchProjects();
+      setProjects(projectData);
+      if (projectData.length === 0) {
+        setCurrentProjectId(null);
+        return projectData;
+      }
+      const hasCurrentProject = projectData.some((item) => item.id === currentProjectId);
+      if (!currentProjectId || !hasCurrentProject) {
+        setCurrentProjectId(projectData[0].id);
+      }
       return projectData;
+    } finally {
+      setProjectsHydrated(true);
     }
-    const hasCurrentProject = projectData.some((item) => item.id === currentProjectId);
-    if (!currentProjectId || !hasCurrentProject) {
-      setCurrentProjectId(projectData[0].id);
-    }
-    return projectData;
-  };
+  }, [currentProjectId, setCurrentProjectId, setProjects, setProjectsHydrated]);
 
-  const loadIterations = async (projectId: number) => {
+  const loadIterations = useCallback(async (projectId: number) => {
     const data = await fetchProjectIterations(projectId);
     setIterations(data);
     if (data.length === 0) {
@@ -171,9 +178,9 @@ export function useWorkspaceLoaders({
       const current = data.find((item) => item.current) ?? data[data.length - 1];
       return current.id;
     });
-  };
+  }, [setCurrentIterationId, setIterations]);
 
-  const loadIterationDetail = async (iterationId: number) => {
+  const loadIterationDetail = useCallback(async (iterationId: number) => {
     const [{ messages, context, assessment, history }, machine] = await Promise.all([
       fetchIterationDetail(iterationId),
       fetchIterationStateMachine(iterationId)
@@ -194,9 +201,9 @@ export function useWorkspaceLoaders({
     setAssessmentData(assessment);
     setAssessmentHistory(history);
     setStateMachine(machine);
-  };
+  }, [setAssessmentData, setAssessmentHistory, setChatMessages, setContextData, setStateMachine]);
 
-  const loadPlatformOps = async (projectId?: number) => {
+  const loadPlatformOps = useCallback(async (projectId?: number) => {
     try {
       const reports = await fetchPlatformOps(projectId);
       setTemplates(reports.templates);
@@ -209,9 +216,9 @@ export function useWorkspaceLoaders({
         setError(msg);
       }
     }
-  };
+  }, [setDeployments, setError, setOpsMetrics, setTemplateRuns, setTemplates]);
 
-  const loadGovernance = async () => {
+  const loadGovernance = useCallback(async () => {
     try {
       const data = await fetchGovernance();
       setGovernanceRoles(data.roles);
@@ -222,9 +229,9 @@ export function useWorkspaceLoaders({
         setError(msg);
       }
     }
-  };
+  }, [setAuditLogs, setError, setGovernanceRoles]);
 
-  const loadCollaboration = async (projectId: number) => {
+  const loadCollaboration = useCallback(async (projectId: number) => {
     try {
       const data = await fetchCollaboration(projectId);
       setVersionSnapshots(data.snapshots);
@@ -235,7 +242,7 @@ export function useWorkspaceLoaders({
         setError(msg);
       }
     }
-  };
+  }, [setError, setProjectShares, setVersionSnapshots]);
 
   useEffect(() => {
     let stopped = false;
@@ -301,8 +308,8 @@ export function useWorkspaceLoaders({
       if (result.recovered) {
         try {
           await Promise.all([loadProjects(), loadGovernance()]);
-        } catch {
-          /* recovery best-effort */
+        } catch (recoveryErr) {
+          console.warn("[workspace] recovery reload failed:", recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr));
         }
       }
     }, STATUS_POLL_INTERVAL_MS);
@@ -313,5 +320,8 @@ export function useWorkspaceLoaders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { loadProjects, loadIterations, loadIterationDetail, loadPlatformOps, loadGovernance, loadCollaboration };
+  return useMemo(
+    () => ({ loadProjects, loadIterations, loadIterationDetail, loadPlatformOps, loadGovernance, loadCollaboration, probeStatus }),
+    [loadCollaboration, loadGovernance, loadIterationDetail, loadIterations, loadPlatformOps, loadProjects, probeStatus]
+  );
 }

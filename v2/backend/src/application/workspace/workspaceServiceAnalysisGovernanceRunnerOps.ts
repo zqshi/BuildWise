@@ -1,23 +1,12 @@
 import { LlmUnavailableError, type AgentRunOptions, type AgentRunResult, type AgentRunner } from "./agentRunner";
 import type { AttachmentAnalysisReport, IterationAgentPrompt, VisionPayload } from "../../domain/workspace/types";
-import {
-  listBusinessConfirmationMissingReasons,
-  parseBusinessConfirmationCandidate
-} from "./workspaceServiceAnalysisBusinessConfirmationOps";
+import { listBusinessConfirmationMissingReasons, parseBusinessConfirmationCandidate } from "./workspaceServiceAnalysisBusinessConfirmationOps";
 import { listGovernanceInsightsMissingReasons, parseGovernanceInsightsCandidate } from "./workspaceServiceAnalysisGovernanceOps";
-import {
-  buildGovernanceInsightsPrompt,
-  buildGovernanceInsightsRepairPrompt
-} from "./workspaceServiceAnalysisGovernancePromptOps";
+import { buildGovernanceInsightsPrompt, buildGovernanceInsightsRepairPrompt } from "./workspaceServiceAnalysisGovernancePromptOps";
 import { listReleaseReviewMissingReasons, parseReleaseReviewCandidate } from "./workspaceServiceAnalysisReleaseReviewOps";
 import { listReportQualityMissingReasons, parseReportQualityCandidate } from "./workspaceServiceAnalysisReportQualityOps";
-
-type RunAnalysisPrompt = (
-  agentRunner: AgentRunner,
-  prompt: IterationAgentPrompt,
-  options?: AgentRunOptions
-) => Promise<AgentRunResult>;
-
+import { hydrateGovernanceInsightsCandidate, hydrateReleaseReviewCandidate, hydrateReportQualityCandidate } from "./workspaceServiceAnalysisGovernanceHydrationOps";
+type RunAnalysisPrompt = (agentRunner: AgentRunner, prompt: IterationAgentPrompt, options?: AgentRunOptions) => Promise<AgentRunResult>;
 export async function synthesizeBusinessConfirmationOp(
   agentRunner: AgentRunner | null,
   params: {
@@ -39,12 +28,16 @@ export async function synthesizeBusinessConfirmationOp(
     runAnalysisPrompt: RunAnalysisPrompt;
   }
 ) {
+  const compactSingleFile = params.sourceType === "single-file";
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
+  const confirmationRole: "requirements-analyst" | "orchestrator" = compactSingleFile
+    ? "requirements-analyst"
+    : "orchestrator";
   const prompt = {
-    agentId: "agent-business-confirmation-1",
-    role: "orchestrator" as const,
+    agentId: compactSingleFile ? "agent-business-confirmation-compact-1" : "agent-business-confirmation-1",
+    role: confirmationRole,
     scope: "attachment" as const,
     goal: "输出可让业务角色直接确认的边界与版本差异说明",
     expectedOutput:
@@ -62,26 +55,27 @@ export async function synthesizeBusinessConfirmationOp(
       `版本差异=新增:${params.versionDiff.added.join(" | ") || "-"};修改:${params.versionDiff.changed.join(" | ") || "-"};移除:${params.versionDiff.removed.join(" | ") || "-"}`,
       `差异定位=${params.diffLocations.map((item) => `${item.dimension}/${item.changeType}:${item.baselineItem || "-"}->${item.currentItem}`).join(" | ") || "-"}`,
       `优先级发现=${params.prioritizedFindings.map((item) => `${item.priority}:${item.content}`).join(" | ") || "-"}`,
-      `附件文本节选=${params.excerpt.slice(0, 2800) || "-"}`,
+      `附件文本节选=${params.excerpt.slice(0, compactSingleFile ? 1800 : 2800) || "-"}`,
       "输出要求：",
       "0) coreIntent: 一句话说明上传附件的核心任务与业务目标。",
-      "0.1) successCriteria: 3-8条可验证成功标准。",
-      "0.2) interactionInsights: 必须包含 primaryFlow/keyInteractions/exceptionPaths/usabilityRisks，尤其要说明HTML或原型的交互形态与关键状态变化。",
+      compactSingleFile ? "0.1) successCriteria: 3-5条可验证成功标准。" : "0.1) successCriteria: 3-8条可验证成功标准。",
+      "0.2) interactionInsights: 必须包含 primaryFlow/keyInteractions/exceptionPaths/usabilityRisks，说明关键交互与异常路径。",
       "0.3) necessityAssessment: 必须包含 mustDo/shouldDo/canDefer/outOfScope/rationale，体现对当前迭代是否必要的判断。",
-      "0.4) evidenceRefs: 3-12条证据，格式建议“文件名/路径: 证据点”。",
+      compactSingleFile ? "0.4) evidenceRefs: 2-6条证据，格式建议“文件名/路径: 证据点”。" : "0.4) evidenceRefs: 3-12条证据，格式建议“文件名/路径: 证据点”。",
       "1) boundarySummary: 一段业务可读边界总结。",
-      "2) functionalPoints: 5-12条需求功能点描述。",
-      "3) confirmationChecklist: 4-10条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。",
+      compactSingleFile ? "2) functionalPoints: 4-8条需求功能点描述。" : "2) functionalPoints: 5-12条需求功能点描述。",
+      compactSingleFile ? "3) confirmationChecklist: 3-6条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。" : "3) confirmationChecklist: 4-10条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。",
       "4) versionDiffSummary: 对比上版本的业务影响摘要。",
-      "5) diffNarratives: 4-12条业务化差异描述。",
-      "6) diffConfirmationOrder: 3-10条，按优先级顺序给出需确认的差异项。"
+      compactSingleFile ? "5) diffNarratives: 3-6条业务化差异描述。" : "5) diffNarratives: 4-12条业务化差异描述。",
+      compactSingleFile ? "6) diffConfirmationOrder: 2-5条，按优先级顺序给出需确认的差异项。" : "6) diffConfirmationOrder: 3-10条，按优先级顺序给出需确认的差异项。"
     ].join("\n\n")
   };
   const imageDataUrls = (params.visionPayloads || []).map((item) => item.dataUrl).filter(Boolean);
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt, { imageDataUrls });
   let candidate = parseBusinessConfirmationCandidate(selected.content);
   let missing = listBusinessConfirmationMissingReasons(candidate);
-  for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
+  const repairLimit = compactSingleFile ? 1 : 2;
+  for (let attempt = 1; attempt <= repairLimit && missing.length > 0; attempt += 1) {
     const repairPrompt = {
       ...prompt,
       agentId: `agent-business-confirmation-repair-${attempt}`,
@@ -97,12 +91,11 @@ export async function synthesizeBusinessConfirmationOp(
     missing = listBusinessConfirmationMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    const log = (await import("../../infrastructure/runtime/logger")).createLogger("biz-confirm");
+    const log = (await import("../shared/logger")).createLogger("biz-confirm");
     log.warn("business confirmation incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
-
 export async function synthesizeReportQualityGateOp(
   agentRunner: AgentRunner | null,
   params: {
@@ -121,9 +114,11 @@ export async function synthesizeReportQualityGateOp(
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
+  const compactSingleFile = params.sourceType === "single-file";
+  const qualityRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
   const prompt = {
-    agentId: "agent-report-quality-gate-1",
-    role: "orchestrator" as const,
+    agentId: compactSingleFile ? "agent-report-quality-gate-compact-1" : "agent-report-quality-gate-1",
+    role: qualityRole,
     scope: "attachment" as const,
     goal: "评审当前分析报告是否达到可发布质量",
     expectedOutput: "JSON: {publishable,score,summary,missingItems[],actionRequired[]}",
@@ -149,13 +144,13 @@ export async function synthesizeReportQualityGateOp(
       "输出要求：",
       "1) publishable: true/false",
       "2) score: 0-100",
-      "3) summary: 1-2句质量结论",
+      compactSingleFile ? "3) summary: 1句质量结论" : "3) summary: 1-2句质量结论",
       "4) missingItems: 缺失项列表（可为空）",
       "5) actionRequired: 需补充动作列表（可为空）"
     ].join("\n\n")
   };
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt);
-  let candidate = parseReportQualityCandidate(selected.content);
+  let candidate = hydrateReportQualityCandidate(parseReportQualityCandidate(selected.content), params);
   let missing = listReportQualityMissingReasons(candidate);
   for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
     const repairPrompt = {
@@ -169,21 +164,21 @@ export async function synthesizeReportQualityGateOp(
       ].join("\n\n")
     };
     selected = await deps.runAnalysisPrompt(agentRunner, repairPrompt);
-    candidate = parseReportQualityCandidate(selected.content);
+    candidate = hydrateReportQualityCandidate(parseReportQualityCandidate(selected.content), params);
     missing = listReportQualityMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    const log = (await import("../../infrastructure/runtime/logger")).createLogger("report-quality");
+    const log = (await import("../shared/logger")).createLogger("report-quality");
     log.warn("report quality incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
-
 export async function synthesizeGovernanceInsightsOp(
   agentRunner: AgentRunner | null,
   params: {
     iterationName: string;
     baselineIterationName: string;
+    sourceType: "single-file" | "folder";
     excerpt: string;
     diffLocations: AttachmentAnalysisReport["diffLocations"];
     added: string[];
@@ -204,26 +199,26 @@ export async function synthesizeGovernanceInsightsOp(
   }
   const prompt = buildGovernanceInsightsPrompt(params);
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt);
-  let candidate = parseGovernanceInsightsCandidate(selected.content);
+  let candidate = hydrateGovernanceInsightsCandidate(parseGovernanceInsightsCandidate(selected.content), params);
   let missing = listGovernanceInsightsMissingReasons(candidate);
   for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
     const repairPrompt = buildGovernanceInsightsRepairPrompt(prompt, missing, selected.content, attempt);
     selected = await deps.runAnalysisPrompt(agentRunner, repairPrompt);
-    candidate = parseGovernanceInsightsCandidate(selected.content);
+    candidate = hydrateGovernanceInsightsCandidate(parseGovernanceInsightsCandidate(selected.content), params);
     missing = listGovernanceInsightsMissingReasons(candidate);
   }
   // Governance insights are best-effort: if still incomplete after repair, log and return what we have
   if (missing.length > 0) {
-    const log = (await import("../../infrastructure/runtime/logger")).createLogger("gov-insights");
+    const log = (await import("../shared/logger")).createLogger("gov-insights");
     log.warn("governance insights incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
-
 export async function synthesizeReleaseReviewOp(
   agentRunner: AgentRunner | null,
   params: {
     iterationName: string;
+    sourceType: "single-file" | "folder";
     excerpt: string;
     prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"];
     blockers: string[];
@@ -244,9 +239,11 @@ export async function synthesizeReleaseReviewOp(
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
+  const compactSingleFile = params.sourceType === "single-file";
+  const releaseRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
   const prompt = {
-    agentId: "agent-release-review-1",
-    role: "orchestrator" as const,
+    agentId: compactSingleFile ? "agent-release-review-compact-1" : "agent-release-review-1",
+    role: releaseRole,
     scope: "release" as const,
     goal: "输出发布评审结论",
     expectedOutput: "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}",
@@ -260,12 +257,12 @@ export async function synthesizeReleaseReviewOp(
       `candidateReleaseGates=${params.releaseGates.join(" | ") || "-"}`,
       `rollbackPlan=${params.rollbackPlan.join(" | ") || "-"}`,
       `recommendations=${params.recommendations.join(" | ") || "-"}`,
-      `excerpt=${params.excerpt.slice(0, 2200) || "-"}`,
-      "要求：给出可执行 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。"
+      `excerpt=${params.excerpt.slice(0, compactSingleFile ? 1600 : 2200) || "-"}`,
+      compactSingleFile ? "要求：给出最小可执行的 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。" : "要求：给出可执行 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。"
     ].join("\n\n")
   };
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt);
-  let candidate = parseReleaseReviewCandidate(selected.content, params.qualitySignals);
+  let candidate = hydrateReleaseReviewCandidate(parseReleaseReviewCandidate(selected.content, params.qualitySignals), params);
   let missing = listReleaseReviewMissingReasons(candidate);
   for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
     const repairPrompt = {
@@ -279,11 +276,11 @@ export async function synthesizeReleaseReviewOp(
       ].join("\n\n")
     };
     selected = await deps.runAnalysisPrompt(agentRunner, repairPrompt);
-    candidate = parseReleaseReviewCandidate(selected.content, params.qualitySignals);
+    candidate = hydrateReleaseReviewCandidate(parseReleaseReviewCandidate(selected.content, params.qualitySignals), params);
     missing = listReleaseReviewMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    const log = (await import("../../infrastructure/runtime/logger")).createLogger("release-review");
+    const log = (await import("../shared/logger")).createLogger("release-review");
     log.warn("release review incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;

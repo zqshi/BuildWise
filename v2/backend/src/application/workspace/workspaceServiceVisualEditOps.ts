@@ -3,6 +3,7 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { LlmInvocationError, LlmUnavailableError, type AgentRunner } from "./agentRunner";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import { normalizeIteration } from "./workspaceSupport";
+import { pickString } from "../../shared/utils";
 
 type VisualEditTarget = {
   mode?: "html" | "image" | "prototype";
@@ -18,10 +19,6 @@ type VisualEditTarget = {
 
 function normalizeText(message: string) {
   return message.trim().replace(/\s+/g, " ");
-}
-
-function pickString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function clamp(value: number, min: number, max: number) {

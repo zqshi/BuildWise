@@ -55,7 +55,14 @@ function ensureIterationAccess(
 }
 
 export async function registerContinuousModelingRoutes(app: FastifyInstance, service: ContinuousModelingWorkspaceService) {
-  app.get("/projects/:id/model-snapshots", async (request, reply) => {
+  app.get("/projects/:id/model-snapshots", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -74,7 +81,15 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return snapshots;
   });
 
-  app.post("/projects/:id/model-snapshots/plan", async (request, reply) => {
+  app.post("/projects/:id/model-snapshots/plan", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string" } }
+      },
+      body: { type: "object" }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     const body = (request.body || {}) as Record<string, unknown>;
@@ -114,7 +129,15 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     };
   });
 
-  app.post("/projects/:id/model-snapshots/candidate", async (request, reply) => {
+  app.post("/projects/:id/model-snapshots/candidate", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string" } }
+      },
+      body: { type: "object" }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id?: string };
     const projectId = parsePositiveInt(params.id);
     const body = (request.body || {}) as Record<string, unknown>;
@@ -146,7 +169,17 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return saved.data;
   });
 
-  app.post("/projects/:id/model-snapshots/:snapshotId/publish", async (request, reply) => {
+  app.post("/projects/:id/model-snapshots/:snapshotId/publish", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", minLength: 1 },
+          snapshotId: { type: "string", minLength: 1 }
+        }
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id?: string; snapshotId?: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -171,7 +204,18 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     return result;
   });
 
-  app.get("/projects/:id/model-view", async (request, reply) => {
+  app.get("/projects/:id/model-view", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } }
+      },
+      querystring: {
+        type: "object",
+        properties: { iterationId: { type: "string" } }
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id?: string };
     const query = request.query as { iterationId?: string } | undefined;
     const projectId = parsePositiveInt(params.id);

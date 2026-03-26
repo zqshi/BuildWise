@@ -111,7 +111,10 @@ export function triggerAnalysisQueueOp(params: {
     }
     setRunningWorkers(Math.max(0, getRunningWorkers()) + 1);
     void runJobWithTimeout(nextJobId)
-      .catch(() => undefined)
+      .catch(async (err) => {
+        const log = (await import("../shared/logger")).createLogger("analysis-queue");
+        log.warn("analysis job failed", { jobId: nextJobId, error: err instanceof Error ? err.message : String(err) });
+      })
       .finally(() => {
         setRunningWorkers(Math.max(0, getRunningWorkers() - 1));
         triggerAgain();

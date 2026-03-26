@@ -1,4 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createLogger } from "../runtime/logger";
+const log = createLogger("workspace-repo");
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   AssessmentSnapshot,
@@ -125,7 +127,7 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       parsed = JSON.parse(raw) as Partial<WorkspaceStore>;
     } catch {
       const initial = this.initialStore();
-      console.error(`[workspace-repo] data file corrupted, resetting to ${this.bootstrapMode}: ${this.dataFile}`);
+      log.error(`data file corrupted, resetting to ${this.bootstrapMode}`, { file: this.dataFile });
       this.write(initial);
       return initial;
     }

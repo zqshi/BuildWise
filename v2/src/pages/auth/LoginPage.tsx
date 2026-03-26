@@ -131,11 +131,11 @@ export function LoginPage({
               />
             </div>
             {showPhoneError ? (
-              <p id="loginPhoneError" className="auth-error">
+              <p id="loginPhoneError" className="auth-error auth-field-feedback-tight">
                 {phoneError}
               </p>
             ) : (
-              <p className="auth-hint auth-placeholder-hint" aria-hidden="true">
+              <p className="auth-hint auth-placeholder-hint auth-field-feedback-tight" aria-hidden="true">
                 &nbsp;
               </p>
             )}

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { resolveAppRoute, type AppRoute } from "./authRouting";
 import { fetchAuthSession, requestSmsLoginCode, verifySmsLoginCode, logoutSession } from "./workspaceApi";
 import { getDefaultLoginMode, getLoginModeSubmitError, type LoginMode } from "./authLoginMode";
+import { extractRetryAfterSeconds, formatSmsRateLimitMessage } from "./authRateLimit";
 import { saveTokens, clearTokens } from "../infrastructure/auth/tokenStore";
 import { ensureFreshToken } from "../infrastructure/auth/tokenRefresh";
 import {
@@ -46,7 +47,7 @@ export function useAuthController() {
   const loginPhoneRef = useRef<HTMLInputElement | null>(null);
   const loginCodeRef = useRef<HTMLInputElement | null>(null);
 
-  const applyTenantSession = (nextTenants: AuthTenantSummary[], requestedTenantId: string, fallbackRole = workspaceRole) => {
+  const applyTenantSession = useCallback((nextTenants: AuthTenantSummary[], requestedTenantId: string, fallbackRole = workspaceRole) => {
     const resolvedTenantId = resolveCurrentTenantId(nextTenants, requestedTenantId);
     const currentTenant = resolveCurrentTenant(nextTenants, resolvedTenantId);
     persistAuthTenants(nextTenants);
@@ -59,7 +60,33 @@ export function useAuthController() {
         detail: { tenantId: resolvedTenantId, workspaceRole: currentTenant?.workspaceRole || fallbackRole }
       })
     );
-  };
+  }, [workspaceRole]);
+
+  const resetAuthState = useCallback(() => {
+    clearTokens();
+    localStorage.setItem("buildwise:auth", "logged_out");
+    localStorage.removeItem("buildwise:auth-phone");
+    localStorage.removeItem("buildwise:auth-role");
+    clearAuthTenantSession();
+    setIsAuthenticated(false);
+    setWorkspaceRole("viewer");
+    window.location.hash = "/login";
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const ok = await ensureFreshToken();
+    if (!ok) {
+      resetAuthState();
+      return false;
+    }
+    const session = await fetchAuthSession();
+    localStorage.setItem("buildwise:auth", "logged_in");
+    localStorage.setItem("buildwise:auth-phone", session.user.phone);
+    localStorage.setItem("buildwise:auth-role", session.user.workspaceRole);
+    applyTenantSession(session.tenants, readStoredCurrentTenantId() || session.currentTenantId, session.user.workspaceRole);
+    setIsAuthenticated(true);
+    return true;
+  }, [applyTenantSession, resetAuthState]);
 
   // On page load, if the persistent auth flag says "logged_in" but the
   // in-memory access token is gone (page refresh), silently re-acquire
@@ -67,30 +94,9 @@ export function useAuthController() {
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    ensureFreshToken().then((ok) => {
+    refreshSession().catch(() => {
       if (cancelled) return;
-      if (!ok) {
-        // Refresh cookie expired or invalid — force re-login
-        clearTokens();
-        localStorage.setItem("buildwise:auth", "logged_out");
-        localStorage.removeItem("buildwise:auth-phone");
-        localStorage.removeItem("buildwise:auth-role");
-        clearAuthTenantSession();
-        setIsAuthenticated(false);
-        setWorkspaceRole("viewer");
-        window.location.hash = "/login";
-        return;
-      }
-      fetchAuthSession()
-        .then((session) => {
-          if (cancelled) return;
-          localStorage.setItem("buildwise:auth-phone", session.user.phone);
-          localStorage.setItem("buildwise:auth-role", session.user.workspaceRole);
-          applyTenantSession(session.tenants, readStoredCurrentTenantId() || session.currentTenantId, session.user.workspaceRole);
-        })
-        .catch(() => {
-          // keep local tenant session as fallback
-        });
+      // keep local tenant session as fallback
     });
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -114,14 +120,7 @@ export function useAuthController() {
 
   useEffect(() => {
     const handleExpired = () => {
-      clearTokens();
-      localStorage.setItem("buildwise:auth", "logged_out");
-      localStorage.removeItem("buildwise:auth-phone");
-      localStorage.removeItem("buildwise:auth-role");
-      clearAuthTenantSession();
-      setIsAuthenticated(false);
-      setWorkspaceRole("viewer");
-      window.location.hash = "/login";
+      resetAuthState();
     };
     window.addEventListener("buildwise:auth-expired", handleExpired);
     return () => window.removeEventListener("buildwise:auth-expired", handleExpired);
@@ -139,12 +138,20 @@ export function useAuthController() {
       setLoginError("");
       const result = await requestSmsLoginCode(phone);
       setCountdown(60);
-      setDebugCodeHint(import.meta.env.DEV && result.debugCode ? `测试验证码：${result.debugCode}` : "");
-      if (import.meta.env.DEV && result.debugCode) {
-        setLoginCode(result.debugCode);
+      const debugCode = (result.debugCode || "").trim();
+      setDebugCodeHint(debugCode ? `测试验证码：${debugCode}` : "");
+      if (debugCode) {
+        setLoginCode(debugCode);
       }
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "验证码发送失败");
+      const message = error instanceof Error ? error.message : "验证码发送失败";
+      const retryAfterSeconds = extractRetryAfterSeconds(message);
+      if (retryAfterSeconds > 0) {
+        setCountdown(retryAfterSeconds);
+        setLoginError(formatSmsRateLimitMessage(retryAfterSeconds));
+      } else {
+        setLoginError(message);
+      }
     } finally {
       setSendingCode(false);
     }
@@ -203,7 +210,9 @@ export function useAuthController() {
       return false;
     }
     // Fire-and-forget: clear httpOnly cookie on server
-    logoutSession().catch(() => {});
+    logoutSession().catch((err) => {
+      console.warn("[logout] server session cleanup failed:", err instanceof Error ? err.message : String(err));
+    });
     clearTokens();
     localStorage.setItem("buildwise:auth", "logged_out");
     localStorage.removeItem("buildwise:userAvatar");
@@ -255,6 +264,7 @@ export function useAuthController() {
     loginMode,
     setLoginMode,
     debugCodeHint,
+    refreshSession,
     sendingCode,
     countdown,
     loginPhoneRef,

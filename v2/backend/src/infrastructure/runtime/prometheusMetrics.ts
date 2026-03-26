@@ -55,7 +55,7 @@ export function buildPrometheusMetrics(runtime: RuntimeSnapshot, ops: OpsMetrics
       continue;
     }
     lines.push(`# HELP buildwise_${sanitized} BuildWise ops metric (${metric.unit || "count"}).`);
-    lines.push("# TYPE buildwise_" + sanitized + " gauge");
+    lines.push(`# TYPE buildwise_${sanitized} gauge`);
     lines.push(`buildwise_${sanitized} ${Number.isFinite(metric.value) ? metric.value : 0}`);
   }
 

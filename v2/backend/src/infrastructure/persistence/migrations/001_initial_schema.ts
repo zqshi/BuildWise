@@ -162,5 +162,21 @@ export const initialSchema: Migration = {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_report_sections_unique ON attachment_report_sections(report_id, section_key);
     `);
+  },
+  down(db) {
+    db.exec(`
+      DROP TABLE IF EXISTS attachment_report_sections;
+      DROP TABLE IF EXISTS attachment_reports;
+      DROP TABLE IF EXISTS attachment_analysis_batches;
+      DROP TABLE IF EXISTS attachment_analysis_jobs;
+      DROP TABLE IF EXISTS attachment_ingest_jobs;
+      DROP TABLE IF EXISTS attachment_file_chunks;
+      DROP TABLE IF EXISTS attachment_upload_files;
+      DROP TABLE IF EXISTS attachment_uploads;
+      DROP TABLE IF EXISTS audit_logs;
+      DROP TABLE IF EXISTS messages;
+      DROP TABLE IF EXISTS iterations;
+      DROP TABLE IF EXISTS projects;
+    `);
   }
 };

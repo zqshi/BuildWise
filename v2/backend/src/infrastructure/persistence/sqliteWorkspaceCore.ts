@@ -361,22 +361,66 @@ export class SqliteWorkspaceCore {
   }
 
   private syncTypedTables(data: WorkspaceStore) {
-    this.db.exec("DELETE FROM projects; DELETE FROM iterations; DELETE FROM messages; DELETE FROM audit_logs;");
-    const projectStmt = this.db.prepare("INSERT INTO projects (id, name, description, status, last_updated, payload) VALUES (?, ?, ?, ?, ?, ?)");
+    const projectIds = new Set(data.projects.map((p) => p.id));
+    const iterationIds = new Set(data.iterations.map((i) => i.id));
+    const messageIds = new Set(data.messages.map((m) => m.id));
+    const auditLogIds = new Set(data.auditLogs.map((a) => a.id));
+
+    // Upsert projects
+    const projectStmt = this.db.prepare(
+      `INSERT INTO projects (id, name, description, status, last_updated, payload) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, status=excluded.status, last_updated=excluded.last_updated, payload=excluded.payload`
+    );
     for (const item of data.projects) {
       projectStmt.run(item.id, item.name, item.description, item.status, item.lastUpdated || null, JSON.stringify(item));
     }
-    const iterationStmt = this.db.prepare("INSERT INTO iterations (id, project_id, status, current_flag, created_at, payload) VALUES (?, ?, ?, ?, ?, ?)");
+    // Remove projects no longer in store
+    const existingProjectIds = (this.db.prepare("SELECT id FROM projects").all() as Array<{ id: number }>).map((r) => r.id);
+    const deleteProjectStmt = this.db.prepare("DELETE FROM projects WHERE id = ?");
+    for (const id of existingProjectIds) {
+      if (!projectIds.has(id)) deleteProjectStmt.run(id);
+    }
+
+    // Upsert iterations
+    const iterationStmt = this.db.prepare(
+      `INSERT INTO iterations (id, project_id, status, current_flag, created_at, payload) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id, status=excluded.status, current_flag=excluded.current_flag, created_at=excluded.created_at, payload=excluded.payload`
+    );
     for (const item of data.iterations) {
       iterationStmt.run(item.id, item.projectId, item.status, item.current ? 1 : 0, item.createdAt, JSON.stringify(item));
     }
-    const messageStmt = this.db.prepare("INSERT INTO messages (id, iteration_id, created_at, payload) VALUES (?, ?, ?, ?)");
+    const existingIterationIds = (this.db.prepare("SELECT id FROM iterations").all() as Array<{ id: number }>).map((r) => r.id);
+    const deleteIterationStmt = this.db.prepare("DELETE FROM iterations WHERE id = ?");
+    for (const id of existingIterationIds) {
+      if (!iterationIds.has(id)) deleteIterationStmt.run(id);
+    }
+
+    // Upsert messages
+    const messageStmt = this.db.prepare(
+      `INSERT INTO messages (id, iteration_id, created_at, payload) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET iteration_id=excluded.iteration_id, created_at=excluded.created_at, payload=excluded.payload`
+    );
     for (const item of data.messages) {
       messageStmt.run(item.id, item.iterationId, item.createdAt, JSON.stringify(item));
     }
-    const auditStmt = this.db.prepare("INSERT INTO audit_logs (id, action, resource, created_at, payload) VALUES (?, ?, ?, ?, ?)");
+    const existingMessageIds = (this.db.prepare("SELECT id FROM messages").all() as Array<{ id: number }>).map((r) => r.id);
+    const deleteMessageStmt = this.db.prepare("DELETE FROM messages WHERE id = ?");
+    for (const id of existingMessageIds) {
+      if (!messageIds.has(id)) deleteMessageStmt.run(id);
+    }
+
+    // Upsert audit logs
+    const auditStmt = this.db.prepare(
+      `INSERT INTO audit_logs (id, action, resource, created_at, payload) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET action=excluded.action, resource=excluded.resource, created_at=excluded.created_at, payload=excluded.payload`
+    );
     for (const item of data.auditLogs) {
       auditStmt.run(item.id, item.action, item.resource, item.createdAt, JSON.stringify(item));
+    }
+    const existingAuditIds = (this.db.prepare("SELECT id FROM audit_logs").all() as Array<{ id: number }>).map((r) => r.id);
+    const deleteAuditStmt = this.db.prepare("DELETE FROM audit_logs WHERE id = ?");
+    for (const id of existingAuditIds) {
+      if (!auditLogIds.has(id)) deleteAuditStmt.run(id);
     }
   }
 }

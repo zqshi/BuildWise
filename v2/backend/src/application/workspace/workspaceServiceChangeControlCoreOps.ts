@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import { ALLOWED_EXECUTION_STATUSES } from "../../domain/workspace/iterationTypes";
 import type { IterationChangeBoundary } from "../../domain/workspace/types";
 import { normalizeIteration } from "./workspaceSupport";
 import { defaultIterationChangeControl, resolveClarificationSelection, writeAuditLog } from "./workspaceServiceCommon";
@@ -11,8 +12,6 @@ import {
   summarizeMatrixExecution,
   type TestMatrixExecutionUpdate
 } from "./workspaceServiceChangeControlArtifactWorkflow";
-
-const allowedExecutionStatuses = new Set(["pending", "passed", "failed", "blocked", "skipped"]);
 
 function mergeAcceptanceChecks(...sources: Array<string[] | undefined>) {
   const merged: string[] = [];
@@ -325,7 +324,7 @@ export function updateIterationTestMatrixExecutionOp(
         .filter((item) => item.caseId.length > 0)
     : [];
 
-  if (normalizedUpdates.length === 0 || normalizedUpdates.some((item) => !allowedExecutionStatuses.has(item.status))) {
+  if (normalizedUpdates.length === 0 || normalizedUpdates.some((item) => !ALLOWED_EXECUTION_STATUSES.has(item.status))) {
     return { ok: false as const, reason: "invalid_updates" };
   }
 

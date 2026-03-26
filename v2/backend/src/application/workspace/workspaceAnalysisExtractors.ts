@@ -9,6 +9,9 @@ import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
  */
 export const parseJsonObjectFromText = safeJsonParse;
 
+export const normalizeConfidence = (value: string): "high" | "medium" | "low" =>
+  value === "high" || value === "medium" || value === "low" ? value : "medium";
+
 export function isLowSignalText(value: string) {
   const normalized = (value || "").trim();
   if (!normalized) return true;
@@ -16,7 +19,7 @@ export function isLowSignalText(value: string) {
   return /暂无|无明显|待补充|可继续确认|按需补充|请结合业务验收|后续确认/.test(normalized);
 }
 
-export function listParsedRoleOutputs(agentOutputs: IterationAgentOutput[], role: IterationAgentOutput["role"]) {
+function listParsedRoleOutputs(agentOutputs: IterationAgentOutput[], role: IterationAgentOutput["role"]) {
   return agentOutputs
     .filter((item) => item.role === role && item.status === "success")
     .map((item) => parseJsonObjectFromText(item.content))

@@ -3,7 +3,15 @@ import type { WorkspaceService } from "../../../application/workspace/workspaceS
 import { ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export async function registerRepositoryTraceRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/projects/:id/repository", async (request, reply) => {
+  app.get("/projects/:id/repository", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -22,7 +30,29 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return repo;
   });
 
-  app.post("/projects/:id/repository/bootstrap", async (request, reply) => {
+  app.post("/projects/:id/repository/bootstrap", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          provider: { type: "string", enum: ["github", "gitlab", "gitea", "bitbucket", "custom"] },
+          organization: { type: "string" },
+          name: { type: "string" },
+          url: { type: "string" },
+          defaultBranch: { type: "string" },
+          repoMode: { type: "string", enum: ["external_git", "managed_local", "hybrid"] },
+          requireRemoteForProduction: { type: "boolean" },
+          requireRemoteForStaging: { type: "boolean" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -68,7 +98,22 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return repo.data;
   });
 
-  app.post("/projects/:id/repository/validate", async (request, reply) => {
+  app.post("/projects/:id/repository/validate", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          url: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -96,7 +141,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.get("/projects/:id/repository/status", async (request, reply) => {
+  app.get("/projects/:id/repository/status", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -115,7 +168,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return status;
   });
 
-  app.get("/projects/:id/repository/migration-plan", async (request, reply) => {
+  app.get("/projects/:id/repository/migration-plan", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -134,7 +195,24 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return plan;
   });
 
-  app.post("/projects/:id/repository/mode", async (request, reply) => {
+  app.post("/projects/:id/repository/mode", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          repoMode: { type: "string", enum: ["external_git", "managed_local", "hybrid"] },
+          requireRemoteForProduction: { type: "boolean" },
+          requireRemoteForStaging: { type: "boolean" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -162,7 +240,28 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return configured;
   });
 
-  app.post("/projects/:id/repository/provision", async (request, reply) => {
+  app.post("/projects/:id/repository/provision", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          ownerType: { type: "string", enum: ["org", "user"] },
+          organization: { type: "string" },
+          name: { type: "string" },
+          defaultBranch: { type: "string" },
+          visibility: { type: "string", enum: ["private", "public"] },
+          autoInit: { type: "boolean" },
+          dryRun: { type: "boolean" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -206,7 +305,25 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.post("/projects/:id/repository/scaffold", async (request, reply) => {
+  app.post("/projects/:id/repository/scaffold", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          rootDir: { type: "string" },
+          initializeGit: { type: "boolean" },
+          createInitialCommit: { type: "boolean" },
+          dryRun: { type: "boolean" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -240,7 +357,26 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.post("/iterations/:id/publish", async (request, reply) => {
+  app.post("/iterations/:id/publish", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          commitMessage: { type: "string" },
+          openPr: { type: "boolean" },
+          prTitle: { type: "string" },
+          prBody: { type: "string" },
+          dryRun: { type: "boolean" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -296,7 +432,27 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return result.data;
   });
 
-  app.post("/iterations/:id/code-link", async (request, reply) => {
+  app.post("/iterations/:id/code-link", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          branch: { type: "string" },
+          tag: { type: "string" },
+          commit: { type: "string" },
+          pr: { type: "string" },
+          paths: { type: "array", items: { type: "string" } },
+          note: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -330,7 +486,15 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return linked;
   });
 
-  app.get("/iterations/:id/code-link", async (request, reply) => {
+  app.get("/iterations/:id/code-link", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -349,7 +513,22 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     return codeLink;
   });
 
-  app.get("/projects/:id/code-trace", async (request, reply) => {
+  app.get("/projects/:id/code-trace", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      querystring: {
+        type: "object",
+        properties: {
+          ref: { type: "string", minLength: 1 }
+        },
+        required: ["ref"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {

@@ -1,4 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createLogger } from "../runtime/logger";
+const log = createLogger("continuous-modeling-repo");
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import type { ModelSnapshot, SnapshotStatus } from "../../domain/continuousModeling/types";
 
@@ -41,7 +43,7 @@ export class JsonContinuousModelingRepository implements ContinuousModelingRepos
     try {
       parsed = JSON.parse(raw) as Partial<ContinuousModelingStore>;
     } catch {
-      console.error(`[continuous-modeling-repo] data file corrupted, resetting: ${this.dataFile}`);
+      log.error("data file corrupted, resetting", { file: this.dataFile });
       const initial = { snapshots: [] as ModelSnapshot[] };
       this.writeStore(initial);
       return initial;

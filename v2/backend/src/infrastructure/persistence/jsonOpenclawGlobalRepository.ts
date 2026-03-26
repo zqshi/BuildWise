@@ -1,4 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createLogger } from "../runtime/logger";
+const log = createLogger("openclaw-global-repo");
 import type { OpenclawGlobalRepository } from "../../domain/openclawGlobal/repository";
 import type {
   OpenclawGlobalConversation,
@@ -42,7 +44,7 @@ export class JsonOpenclawGlobalRepository implements OpenclawGlobalRepository {
     try {
       parsed = JSON.parse(raw) as Partial<OpenclawGlobalStore>;
     } catch {
-      console.error(`[openclaw-global-repo] data file corrupted, resetting: ${this.dataFile}`);
+      log.error("data file corrupted, resetting", { file: this.dataFile });
       const initial = defaultOpenclawGlobalStore();
       this.writeStore(initial);
       return initial;

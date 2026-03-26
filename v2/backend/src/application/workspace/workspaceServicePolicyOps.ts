@@ -407,13 +407,13 @@ function applyDeltaToStrategy(
     }
     case "remove-gate": {
       if (delta.gate) {
-        result.gates = result.gates.filter((g) => g.stage !== delta.gate!.stage);
+        result.gates = result.gates.filter((g) => g.stage !== delta.gate?.stage);
       }
       break;
     }
     case "modify-gate": {
       if (delta.gate) {
-        const idx = result.gates.findIndex((g) => g.stage === delta.gate!.stage);
+        const idx = result.gates.findIndex((g) => g.stage === delta.gate?.stage);
         if (idx >= 0) {
           result.gates[idx] = { ...delta.gate };
         } else {

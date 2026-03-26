@@ -41,6 +41,8 @@ export function useWorkspaceState() {
     // ProjectContext
     projects: proj.projects,
     setProjects: proj.setProjects,
+    projectsHydrated: proj.projectsHydrated,
+    setProjectsHydrated: proj.setProjectsHydrated,
     currentProjectId: proj.currentProjectId,
     setCurrentProjectId: proj.setCurrentProjectId,
     showCreateProject: proj.showCreateProject,

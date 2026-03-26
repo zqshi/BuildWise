@@ -7,7 +7,7 @@
 
 import type { AgentRunner, AgentRunResult, AgentRunOptions, ConversationMessage } from "./agentRunner";
 import type { IterationAgentPrompt } from "../../domain/workspace/types";
-import { createLogger } from "../../infrastructure/runtime/logger";
+import { createLogger } from "../shared/logger";
 
 const log = createLogger("continuation");
 
@@ -44,7 +44,7 @@ function mergeChunks(existing: string, chunk: string): string {
   }
   return bestOverlap > 0
     ? existing + chunk.slice(bestOverlap)
-    : existing + "\n" + chunk;
+    : `${existing}\n${chunk}`;
 }
 
 /**

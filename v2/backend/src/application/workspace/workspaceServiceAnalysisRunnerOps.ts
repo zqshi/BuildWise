@@ -110,7 +110,7 @@ export async function runAttachmentAnalysisJobOp(params: {
                 job.progress.llmCallCount = (job.progress.llmCallCount || 0) + 1;
                 job.progress.llmInFlightCount = Math.max(0, (job.progress.llmInFlightCount || 0) + 1);
                 job.progress.lastLlmCallAt = new Date().toISOString();
-                job.progress.stageHint = `batch:${batchIndex + 1}/${batches.length}:llm:${prompt.role}`;
+                job.progress.stageHint = `batch:${batchIndex + 1}/${batches.length}:llm:${prompt.role}:${prompt.agentId}`;
                 try {
                   const result = await agentRunner.run(prompt, options);
                   job.progress.llmSuccessCount = (job.progress.llmSuccessCount || 0) + 1;
@@ -125,7 +125,11 @@ export async function runAttachmentAnalysisJobOp(params: {
             } as AgentRunner)
           : null;
         try {
-          const report = await analyzeAttachmentOp(repo, runnerForJob, transitionIteration, job.iterationId, batch);
+          const report = await analyzeAttachmentOp(repo, runnerForJob, transitionIteration, job.iterationId, batch, {
+            onStageChange: (stage) => {
+              job.progress.stageHint = `batch:${batchIndex + 1}/${batches.length}:${stage}`;
+            }
+          });
           if (!report) {
             throw new Error("iteration not found");
           }

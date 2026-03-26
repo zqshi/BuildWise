@@ -3,4 +3,13 @@ dist
 backend
 .DS_Store
 .env
-.env.local
+.env.*
+!.env.example
+*.log
+.git
+.github
+coverage
+tests
+scripts
+tmp
+.artifacts

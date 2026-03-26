@@ -47,6 +47,7 @@ export function useAppController() {
     setStatus: state.setStatus,
     setError: state.setError,
     setProjects: state.setProjects,
+    setProjectsHydrated: state.setProjectsHydrated,
     setCurrentProjectId: state.setCurrentProjectId,
     setIterations: state.setIterations,
     setCurrentIterationId: state.setCurrentIterationId,
@@ -65,6 +66,22 @@ export function useAppController() {
     setDeployments: state.setDeployments
   });
 
+  const loadProjectsWithSessionRecovery = useCallback(async () => {
+    try {
+      return await loaders.loadProjects();
+    } catch (err) {
+      const message = resolveErrorMessage(err);
+      if (!auth.isAuthenticated || !/API error: 403\b|permission denied/i.test(message)) {
+        throw err;
+      }
+      const recovered = await auth.refreshSession();
+      if (!recovered) {
+        throw err;
+      }
+      return await loaders.loadProjects();
+    }
+  }, [auth.isAuthenticated, auth.refreshSession, loaders.loadProjects]);
+
   // NOTE: localStorage persistence for activeView, projectPanelMode,
   // currentProjectId, and currentIterationId is now handled by the
   // corresponding Context providers (NavigationProvider, ProjectProvider,
@@ -80,6 +97,7 @@ export function useAppController() {
       return;
     }
     state.setProjects([]);
+    state.setProjectsHydrated(false);
     state.setCurrentProjectId(null);
     state.setIterations([]);
     state.setCurrentIterationId(null);
@@ -87,16 +105,55 @@ export function useAppController() {
     state.setVersionSnapshots([]);
     state.setProjectShares([]);
     state.setShareAccess(null);
-    loaders.loadProjects().catch((err) => {
+    loadProjectsWithSessionRecovery().catch((err) => {
       const msg = resolveErrorMessage(err);
       if (!msg.includes("401")) {
         state.setError(msg);
       }
     });
-  }, [auth.currentTenantId]);
+  }, [auth.isAuthenticated, auth.currentTenantId, loadProjectsWithSessionRecovery]);
+
+  useEffect(() => {
+    projectLoadRetryCountRef.current = 0;
+    if (projectRetryTimerRef.current !== null) {
+      window.clearTimeout(projectRetryTimerRef.current);
+      projectRetryTimerRef.current = null;
+    }
+  }, [auth.isAuthenticated, auth.currentTenantId]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || state.projects.length > 0 || !state.projectsHydrated) {
+      if (projectRetryTimerRef.current !== null) {
+        window.clearTimeout(projectRetryTimerRef.current);
+        projectRetryTimerRef.current = null;
+      }
+      return;
+    }
+    if (state.status?.status === "offline" || projectLoadRetryCountRef.current >= 3) {
+      return;
+    }
+    projectRetryTimerRef.current = window.setTimeout(() => {
+      projectRetryTimerRef.current = null;
+      projectLoadRetryCountRef.current += 1;
+      loadProjectsWithSessionRecovery().catch((err) => {
+        const msg = resolveErrorMessage(err);
+        if (!msg.includes("401")) {
+          state.setError(msg);
+        }
+      });
+    }, 1200);
+    return () => {
+      if (projectRetryTimerRef.current !== null) {
+        window.clearTimeout(projectRetryTimerRef.current);
+        projectRetryTimerRef.current = null;
+      }
+    };
+  }, [auth.isAuthenticated, auth.currentTenantId, loadProjectsWithSessionRecovery, state.projects.length, state.projectsHydrated, state.status?.status]);
 
   // Guard: only load platformOps once per project switch, not on every state change
   const platformOpsLoadedForRef = useRef<number | null>(null);
+  const projectRetryTimerRef = useRef<number | null>(null);
+  const projectLoadRetryCountRef = useRef(0);
 
   // Track whether the current project actually exists in the loaded list
   const projectExistsInList = derived.currentProject !== null && derived.currentProject.id === state.currentProjectId;
@@ -232,13 +289,13 @@ export function useAppController() {
     if (state.projects.length > 0 || state.status?.status === "offline") {
       return;
     }
-    loaders.loadProjects().catch((err) => {
+    loadProjectsWithSessionRecovery().catch((err) => {
       const msg = resolveErrorMessage(err);
       if (!msg.includes("401")) {
         state.setError(msg);
       }
     });
-  }, [state.activeView, state.projects.length, state.status?.status]);
+  }, [loadProjectsWithSessionRecovery, state.activeView, state.projects.length, state.status?.status]);
 
   // Guard: only load platformOps once per view switch (not re-triggered by state changes from loadPlatformOps itself)
   useEffect(() => {

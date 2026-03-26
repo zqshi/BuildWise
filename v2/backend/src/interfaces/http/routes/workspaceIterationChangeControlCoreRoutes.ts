@@ -4,7 +4,15 @@ import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelper
 import { ensureIterationAccess } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/iterations/:id/change-control", async (request, reply) => {
+  app.get("/iterations/:id/change-control", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -22,7 +30,36 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     return result;
   });
 
-  app.post("/iterations/:id/change-control/confirm", async (request, reply) => {
+  app.post("/iterations/:id/change-control/confirm", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          accurate: { type: "boolean" },
+          note: { type: "string" },
+          actor: { type: "string" },
+          force: { type: "boolean" },
+          resolvedClarificationQuestions: { type: "array", items: { type: "string" } },
+          boundary: {
+            type: "object",
+            properties: {
+              requirementRefs: { type: "array", items: { type: "string" } },
+              componentRefs: { type: "array", items: { type: "string" } },
+              codePaths: { type: "array", items: { type: "string" } },
+              note: { type: "string" }
+            }
+          }
+        },
+        required: ["accurate"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -78,7 +115,25 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     return result.data;
   });
 
-  app.post("/iterations/:id/change-control/boundary", async (request, reply) => {
+  app.post("/iterations/:id/change-control/boundary", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          requirementRefs: { type: "array", items: { type: "string" } },
+          componentRefs: { type: "array", items: { type: "string" } },
+          codePaths: { type: "array", items: { type: "string" } },
+          note: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -107,7 +162,22 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     return result;
   });
 
-  app.post("/iterations/:id/change-control/draft", async (request, reply) => {
+  app.post("/iterations/:id/change-control/draft", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          resolvedQuestions: { type: "array", items: { type: "string" } }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {

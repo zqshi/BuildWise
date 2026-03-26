@@ -4,6 +4,10 @@ import type { RuntimeConfig } from "./runtimeConfig";
 import { createLogger } from "./logger";
 import { applyCorsResponseHeaders } from "./runtimeCors";
 
+function toErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, config: RuntimeConfig) {
   const log = createLogger("http");
   app.addHook("onRequest", async (request, reply) => {
@@ -38,14 +42,15 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, 
 
   app.setErrorHandler(async (error, request, reply) => {
     const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
-    const isKnown = error.message === "too many requests" || error.message === "service is shutting down";
+    const errorMessage = toErrorMessage(error);
+    const isKnown = errorMessage === "too many requests" || errorMessage === "service is shutting down";
     if (!isKnown && statusCode >= 500) {
-      log.error("unhandled request error", { requestId: request.id, error: error.message });
+      log.error("unhandled request error", { requestId: request.id, error: errorMessage });
     }
     const isDev = config.nodeEnv === "development";
     return reply.code(statusCode).send({
       error: statusCode >= 500 ? "internal_error" : "request_error",
-      message: statusCode >= 500 ? (isDev ? error.message : "Internal server error") : error.message,
+      message: statusCode >= 500 ? (isDev ? errorMessage : "Internal server error") : errorMessage,
       requestId: request.id
     });
   });

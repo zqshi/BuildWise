@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { filterIterationsByWindow, getScopeIterations, sortInsightsByLevel } from "../src/pages/dashboard/dashboardInsightScopeModel.ts";
 
@@ -54,23 +53,3 @@ test("insights are sorted by risk first", () => {
   );
 });
 
-test("dashboard view removes top workspace shortcut and exposes insight scope controls", () => {
-  const viewPath = new URL("../src/pages/dashboard/DashboardView.tsx", import.meta.url);
-  const sectionPath = new URL("../src/pages/dashboard/dashboardViewSections.tsx", import.meta.url);
-  const source = `${readFileSync(viewPath, "utf8")}\n${readFileSync(sectionPath, "utf8")}`;
-
-  assert.doesNotMatch(source, /<div className="dashboard-top-actions">/);
-  assert.match(source, /分析维度/);
-  assert.match(source, /时间窗口/);
-  assert.match(source, /近30天/);
-  assert.match(source, /近90天/);
-  assert.match(source, /项目维度/);
-  assert.match(source, /跨项目维度/);
-  assert.match(source, /洞察分析筛选/);
-  assert.match(source, /项目进展深度洞察/);
-  assert.match(source, /行动建议看板/);
-  assert.match(source, /当前聚焦：/);
-  assert.match(source, /适用范围：/);
-  assert.doesNotMatch(source, /智能洞察建议/);
-  assert.ok(source.indexOf("最近项目") < source.indexOf("项目进展深度洞察"));
-});

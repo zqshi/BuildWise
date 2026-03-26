@@ -13,7 +13,16 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.listGovernancePermissionPoints();
   });
 
-  app.get("/governance/audit-logs", async (request, reply) => {
+  app.get("/governance/audit-logs", {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: {
+          limit: { type: "string" }
+        }
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -37,7 +46,19 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.listPlatformRoleBindings();
   });
 
-  app.post("/governance/platform-role-bindings", async (request, reply) => {
+  app.post("/governance/platform-role-bindings", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+          role: { type: "string" }
+        },
+        required: ["userId", "role"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -64,7 +85,17 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.upsertPlatformRoleBinding({ userId, role: roleKey });
   });
 
-  app.delete("/governance/platform-role-bindings/:userId", async (request, reply) => {
+  app.delete("/governance/platform-role-bindings/:userId", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          userId: { type: "string", minLength: 1 }
+        },
+        required: ["userId"]
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -142,11 +173,51 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
   };
 
   app.get("/governance/custom-roles", listCustomRolesHandler);
-  app.post("/governance/custom-roles", upsertCustomRolesHandler);
-  app.delete("/governance/custom-roles/:roleKey", removeCustomRoleHandler);
+  app.post("/governance/custom-roles", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          roleKey: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          level: { type: "number" },
+          permissions: { type: "array", items: { type: "string" } }
+        },
+        required: ["name"],
+        additionalProperties: false
+      }
+    }
+  }, upsertCustomRolesHandler);
+  app.delete("/governance/custom-roles/:roleKey", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          roleKey: { type: "string", minLength: 1 }
+        },
+        required: ["roleKey"]
+      }
+    }
+  }, removeCustomRoleHandler);
   // Legacy underscore aliases
   app.get("/governance/custom_roles", listCustomRolesHandler);
-  app.post("/governance/custom_roles", upsertCustomRolesHandler);
+  app.post("/governance/custom_roles", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          roleKey: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          level: { type: "number" },
+          permissions: { type: "array", items: { type: "string" } }
+        },
+        required: ["name"],
+        additionalProperties: false
+      }
+    }
+  }, upsertCustomRolesHandler);
 
   app.get("/governance/openclaw/status", async () => {
     return service.probeOpenclawIntegration();
@@ -169,7 +240,19 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return service.listProjectsForUser(userId, tenantId || undefined);
   });
 
-  app.post("/projects", async (request, reply) => {
+  app.post("/projects", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" }
+        },
+        required: ["name"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -200,7 +283,17 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     });
   });
 
-  app.delete("/projects/:id", async (request, reply) => {
+  app.delete("/projects/:id", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -223,7 +316,17 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     };
   });
 
-  app.get("/projects/:id/iterations", async (request, reply) => {
+  app.get("/projects/:id/iterations", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -242,7 +345,30 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return items;
   });
 
-  app.post("/projects/:id/iterations", async (request, reply) => {
+  app.post("/projects/:id/iterations", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          versionType: { type: "string", enum: ["major", "minor", "patch"] },
+          goals: { type: "array", items: { type: "string" } },
+          scope: { type: "object" },
+          aiSummary: { type: "string" }
+        },
+        required: ["name"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {

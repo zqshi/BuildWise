@@ -80,6 +80,23 @@ function buildPrompt(
   };
 }
 
+export function shouldUseCompactSingleFileAnalysis(params: {
+  attachmentSignals?: {
+    sourceType: "single-file" | "folder";
+    hasPrototypeEvidence: boolean;
+    hasDocumentEvidence: boolean;
+    totalFiles: number;
+  };
+}) {
+  return Boolean(
+    params.attachmentSignals &&
+      params.attachmentSignals.sourceType === "single-file" &&
+      params.attachmentSignals.totalFiles <= 1 &&
+      params.attachmentSignals.hasDocumentEvidence &&
+      !params.attachmentSignals.hasPrototypeEvidence
+  );
+}
+
 export function buildIterationAgentPlan(params: {
   iteration: Iteration;
   previous: Iteration | null;
@@ -101,6 +118,7 @@ export function buildIterationAgentPlan(params: {
 }): IterationAgentPlan {
   const { iteration, previous, scope, diffLocations, risks, fileName, attachmentMeta, attachmentSignals } = params;
   const strategy: IterationAgentPlan["strategy"] = "single-agent";
+  const compactSingleFileContext = shouldUseCompactSingleFileAnalysis({ attachmentSignals });
   const recommendedTransition = suggestNextTransition(iteration.status, risks, diffLocations.length);
   const objective = `基于附件 ${fileName} 驱动迭代 ${iteration.name} 全周期闭环执行`;
   const diffDigest =
@@ -142,21 +160,32 @@ export function buildIterationAgentPlan(params: {
   const dynamicWorkflowHint = loadDynamicWorkflowHint(scope);
   const agentScopeHint = loadAgentScopeAdapterHint();
   const contextBase = `项目迭代=${iteration.name}；当前状态=${iteration.status}；基线=${previous?.name ?? "无"}；差异=${diffDigest}；风险=${risks.join("；") || "无"}；验收标准=${acceptanceDigest}`;
-  const contextWithControl = [
-    contextBase,
-    `执行验收约束=${acceptanceChecksDigest}`,
-    `确认状态=${confirmationDigest}`,
-    `变更边界=${boundaryDigest}`,
-    attachmentDigest,
-    attachmentPreview,
-    attachmentSignalHint,
-    infoCompletionHint,
-    skillPackHint,
-    dynamicWorkflowHint,
-    agentScopeHint
-  ]
-    .filter(Boolean)
-    .join("；");
+  const contextParts = compactSingleFileContext
+    ? [
+        "contextMode=compact-single-file",
+        contextBase,
+        `确认状态=${confirmationDigest}`,
+        `变更边界=${boundaryDigest}`,
+        attachmentDigest,
+        attachmentPreview,
+        attachmentSignalHint,
+        "仅基于文本需求执行首轮闭环编排，避免展开与当前需求无关的原型/协作推断。",
+        dynamicWorkflowHint
+      ]
+    : [
+        contextBase,
+        `执行验收约束=${acceptanceChecksDigest}`,
+        `确认状态=${confirmationDigest}`,
+        `变更边界=${boundaryDigest}`,
+        attachmentDigest,
+        attachmentPreview,
+        attachmentSignalHint,
+        infoCompletionHint,
+        skillPackHint,
+        dynamicWorkflowHint,
+        agentScopeHint
+      ];
+  const contextWithControl = contextParts.filter(Boolean).join("；");
 
   const workflowTemplate = loadWorkflowTemplate({
     scope,
@@ -184,15 +213,27 @@ export function buildIterationAgentPlan(params: {
     recommendedTransition,
     executionLoop: workflowTemplate.executionLoop,
     prompts: [
-      buildPrompt({
-        agentId: "agent-project-manager-1",
-        role: "orchestrator",
-        scope,
-        goal: "基于 skills 执行统一编排并输出可执行全周期计划",
-        context: contextFinal,
-        expectedOutput:
-          "JSON: {summary, infoCompletion:{required,missingInputs[],assumptions[],completionActions[]}, stagePlan:[{stage,goal,entryCriteria,exitCriteria,owner,inBoundary:boolean}], blockers:[{id,reason,severity,evidence}], handoffPlan:[{fromRole,toRole,condition}], unknowns[], humanConfirmation:{required,questions[]}, nextAction}"
-      })
+      buildPrompt(
+        compactSingleFileContext
+          ? {
+              agentId: "agent-requirements-analyst-compact-1",
+              role: "requirements-analyst",
+              scope,
+              goal: "基于当前文本需求输出轻量结构化分析输入，供后续业务确认与治理合成复用",
+              context: contextFinal,
+              expectedOutput:
+                "JSON: {infoCompletion:{required,missingInputs[],assumptions[]}, diff:{summary,added[],changed[],removed[]}, risks:[...], clarificationQuestions:[...]}"
+            }
+          : {
+              agentId: "agent-project-manager-1",
+              role: "orchestrator",
+              scope,
+              goal: "基于 skills 执行统一编排并输出可执行全周期计划",
+              context: contextFinal,
+              expectedOutput:
+                "JSON: {summary, infoCompletion:{required,missingInputs[],assumptions[],completionActions[]}, stagePlan:[{stage,goal,entryCriteria,exitCriteria,owner,inBoundary:boolean}], blockers:[{id,reason,severity,evidence}], handoffPlan:[{fromRole,toRole,condition}], unknowns[], humanConfirmation:{required,questions[]}, nextAction}"
+            }
+      )
     ]
   };
 }

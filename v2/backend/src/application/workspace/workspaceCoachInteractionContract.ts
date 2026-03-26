@@ -83,7 +83,7 @@ function toStringList(value: unknown, max: number) {
     .slice(0, max);
 }
 
-export function loadCoachInteractionContract(): CoachInteractionContract {
+function loadCoachInteractionContract(): CoachInteractionContract {
   const contractPath = resolve(process.cwd(), "agents", "workflows", "dynamic", "iteration-coach.contract.json");
   if (!existsSync(contractPath)) {
     return fallbackContract;

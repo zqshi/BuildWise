@@ -144,8 +144,21 @@ export function useDashboardInsights({
   const scopeInProgress = scopeDataReady ? scopedIterations.filter((item) => item.status !== "completed").length : fallbackInProgress;
   const scopeProgressBuckets = scopeDataReady ? buildProgressBuckets(scopedIterations) : fallbackProgressBuckets;
   const scopeMonthlyTrend = scopeDataReady ? buildMonthlyTrend(scopedIterations) : fallbackMonthlyTrend;
+  const hasScopeIterations = scopeIterationCount > 0;
+  const hasMeaningfulTrend = scopeMonthlyTrend.some((point) => point.label !== "暂无" && point.count > 0);
 
   const insightModel = useMemo(() => {
+    if (!hasScopeIterations) {
+      return {
+        healthScore: 0,
+        healthLevel: "暂无数据",
+        completionRate: 0,
+        lowProgressRatio: 0,
+        throughputDelta: 0,
+        insights: [],
+        recommendations: []
+      };
+    }
     const lowProgressCount = scopeProgressBuckets
       .filter((bucket) => bucket.label === "0-25%" || bucket.label === "26-50%")
       .reduce((sum, bucket) => sum + bucket.count, 0);
@@ -224,7 +237,7 @@ export function useDashboardInsights({
     const visibleRecommendations = recommendations.filter((item) => item.scope === "both" || item.scope === insightScope);
 
     return { healthScore, healthLevel, completionRate, lowProgressRatio, throughputDelta, insights: sortInsightsByLevel(insights), recommendations: visibleRecommendations };
-  }, [displayStatus, insightScope, scopeCompleted, scopeInProgress, scopeIterationCount, scopeMonthlyTrend, scopeProgressBuckets, serviceHealthy]);
+  }, [displayStatus, hasScopeIterations, insightScope, scopeCompleted, scopeInProgress, scopeIterationCount, scopeMonthlyTrend, scopeProgressBuckets, serviceHealthy]);
 
   return {
     insightScope,
@@ -239,6 +252,8 @@ export function useDashboardInsights({
     scopeInProgress,
     scopeProgressBuckets,
     scopeMonthlyTrend,
+    hasScopeIterations,
+    hasMeaningfulTrend,
     insightModel
   };
 }

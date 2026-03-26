@@ -560,6 +560,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible {
 .auth-placeholder-hint {
   min-height:16px;
 }
+.auth-field-feedback-tight {
+  margin-bottom:-6px;
+}
 
 .auth-form .btn {
   margin-top:8px;

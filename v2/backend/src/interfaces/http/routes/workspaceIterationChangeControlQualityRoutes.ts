@@ -1,12 +1,38 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import { ALLOWED_EXECUTION_STATUSES } from "../../../domain/workspace/iterationTypes";
 import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
 import { ensureIterationAccess } from "./workspaceRouteUtils";
 
-const allowedExecutionStatuses = new Set(["pending", "passed", "failed", "blocked", "skipped"]);
-
 export function registerWorkspaceIterationChangeControlQualityRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.post("/iterations/:id/change-control/test-matrix/execution", async (request, reply) => {
+  app.post("/iterations/:id/change-control/test-matrix/execution", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          updates: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                caseId: { type: "string" },
+                status: { type: "string", enum: ["pending", "passed", "failed", "blocked", "skipped"] },
+                by: { type: "string" },
+                note: { type: "string" }
+              }
+            }
+          }
+        },
+        required: ["updates"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -27,7 +53,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
           note: typeof item?.note === "string" ? item.note : ""
         }))
       : [];
-    if (updates.length === 0 || updates.some((item) => !item.caseId.trim() || !allowedExecutionStatuses.has(item.status))) {
+    if (updates.length === 0 || updates.some((item) => !item.caseId.trim() || !ALLOWED_EXECUTION_STATUSES.has(item.status))) {
       reply.code(400);
       return { message: "updates[] requires caseId and status(pending|passed|failed|blocked|skipped)" };
     }
@@ -54,7 +80,22 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     return result;
   });
 
-  app.post("/iterations/:id/change-control/test-artifacts/generate", async (request, reply) => {
+  app.post("/iterations/:id/change-control/test-artifacts/generate", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          dryRun: { type: "boolean" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -73,7 +114,15 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     return result;
   });
 
-  app.get("/iterations/:id/release-review", async (request, reply) => {
+  app.get("/iterations/:id/release-review", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {

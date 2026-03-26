@@ -13,6 +13,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.production.example
 
 # Runtime workspace data
 **/*.runtime.json

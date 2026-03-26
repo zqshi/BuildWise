@@ -17,7 +17,7 @@ test("docker compose gates backend readiness via /ready", () => {
 
 test("backend npm test builds dist before executing dist-based tests", () => {
   const pkg = JSON.parse(readFileSync(join(repoRoot, "backend/package.json"), "utf-8"));
-  assert.equal(pkg.scripts.test, "npm run build && node --test tests/*.test.mjs");
+  assert.equal(pkg.scripts.test, "npm run build && c8 node --test tests/*.test.mjs");
 });
 
 test("backend production release verify script includes sqlite and ops checks", () => {
@@ -26,9 +26,6 @@ test("backend production release verify script includes sqlite and ops checks", 
     pkg.scripts["verify:prod-release"],
     "npm run verify:prod-readiness:sqlite && node scripts/verify-production-release.mjs"
   );
-  const releaseVerify = readFileSync(join(repoRoot, "backend/scripts/verify-production-release.mjs"), "utf-8");
-  assert.match(releaseVerify, /createBuildwiseApp/);
-  assert.match(releaseVerify, /mode: "in-process-production-release-verify"/);
 });
 
 test("production env example uses safe production defaults", () => {

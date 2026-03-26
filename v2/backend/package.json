@@ -14,7 +14,7 @@
     "check:hygiene": "node ../scripts/check-repo-hygiene.mjs",
     "reset:business-env": "node ../scripts/reset-business-environment.mjs",
     "clean:workspace": "bash ../scripts/clean-workspace.sh",
-    "test": "npm run build && node --test tests/*.test.mjs",
+    "test": "npm run build && c8 node --test tests/*.test.mjs",
     "test:contract": "node tests/contract.mjs && node tests/contract.git-intake.mjs",
     "test:e2e": "npm run build && npm run e2e:agent-flow",
     "test:contract:sqlite": "STORAGE_BACKEND=sqlite node tests/contract.mjs && STORAGE_BACKEND=sqlite node tests/contract.git-intake.mjs",
@@ -38,10 +38,10 @@
     "format:write": "biome format --write ./src"
   },
   "dependencies": {
-    "@fastify/cors": "^9.0.1",
-    "@fastify/helmet": "^11.1.1",
-    "@fastify/rate-limit": "^9.1.0",
-    "fastify": "^4.28.1"
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.8.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
@@ -49,5 +49,9 @@
     "c8": "^10.1.0",
     "tsx": "^4.20.5",
     "typescript": "^5.5.4"
+  },
+  "overrides": {
+    "ajv": "8.18.0",
+    "glob": "13.0.6"
   }
 }

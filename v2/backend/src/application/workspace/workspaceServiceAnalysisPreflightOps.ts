@@ -14,6 +14,36 @@ export function parseExecutionPolicyCandidate(content: string) {
   };
 }
 
+export function resolveExecutionPolicyHeuristically(input: {
+  sourceType: "single-file" | "folder";
+  excerptLength: number;
+  chunkCount: number;
+  totalFiles: number;
+  binaryFiles: number;
+  forceMultiAgentHint?: boolean;
+}) {
+  if (input.forceMultiAgentHint) {
+    return null;
+  }
+  if (
+    input.sourceType === "single-file" &&
+    input.totalFiles <= 1 &&
+    input.binaryFiles === 0 &&
+    input.excerptLength > 0 &&
+    input.excerptLength <= 12000 &&
+    input.chunkCount <= 1
+  ) {
+    return {
+      degraded: false,
+      reason: "heuristic-simple-single-file",
+      enforceSingleAgent: true,
+      forceMultiAgent: false,
+      promptBudgetRisk: input.excerptLength > 8000 ? "medium" : "low"
+    } as const;
+  }
+  return null;
+}
+
 export function listExecutionPolicyMissingReasons(candidate: ReturnType<typeof parseExecutionPolicyCandidate>) {
   const reasons: string[] = [];
   if (!candidate.reason) reasons.push("missing reason");

@@ -17,6 +17,8 @@ function readStorageNumber(key: string): number | null {
 type ProjectContextValue = {
   projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  projectsHydrated: boolean;
+  setProjectsHydrated: React.Dispatch<React.SetStateAction<boolean>>;
   currentProjectId: number | null;
   setCurrentProjectId: React.Dispatch<React.SetStateAction<number | null>>;
   currentProject: Project | null;
@@ -32,6 +34,7 @@ const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsHydrated, setProjectsHydrated] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(
     () => readStorageNumber("buildwise:current-project-id")
   );
@@ -60,6 +63,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     () => ({
       projects,
       setProjects,
+      projectsHydrated,
+      setProjectsHydrated,
       currentProjectId,
       setCurrentProjectId,
       currentProject,
@@ -70,7 +75,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       projectDesc,
       setProjectDesc,
     }),
-    [projects, currentProjectId, currentProject, showCreateProject, projectName, projectDesc]
+    [projects, projectsHydrated, currentProjectId, currentProject, showCreateProject, projectName, projectDesc]
   );
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

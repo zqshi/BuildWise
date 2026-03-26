@@ -145,20 +145,3 @@ export function summarizeProjectModelView(view: ProjectModelView | null) {
   ].join("\n");
 }
 
-export function summarizePortfolioModelViews(
-  workspaceRepo: WorkspaceRepository,
-  modelingRepo: ContinuousModelingRepository | null,
-  limit = 6
-) {
-  const projects = workspaceRepo.listProjects().slice(0, limit);
-  if (projects.length === 0) {
-    return "";
-  }
-  return [
-    "[主窗口统一模型视图上下文]",
-    ...projects.map((project) => {
-      const modelView = buildProjectModelView(workspaceRepo, modelingRepo, project.id);
-      return summarizeProjectModelView(modelView).replace("[统一模型视图]", `[项目 ${project.id}]`);
-    })
-  ].join("\n");
-}

@@ -1,11 +1,9 @@
-import { parseJsonObjectFromText, pickString, pickStringList } from "./workspaceAnalysisExtractors";
+import { normalizeConfidence, parseJsonObjectFromText, pickString, pickStringList } from "./workspaceAnalysisExtractors";
 
 const normalizeKind = (value: string): "document" | "code" | "image" | "prototype" | "binary" =>
   value === "document" || value === "code" || value === "image" || value === "prototype" || value === "binary" ? value : "document";
 const normalizeStatus = (value: string): "analyzed" | "partial" | "failed" =>
   value === "analyzed" || value === "partial" || value === "failed" ? value : "partial";
-const normalizeConfidence = (value: string): "high" | "medium" | "low" =>
-  value === "high" || value === "medium" || value === "low" ? value : "medium";
 
 export function parseDeepInsightsCandidate(content: string) {
   const parsed = parseJsonObjectFromText(content) as Record<string, unknown> | null;
@@ -65,7 +63,13 @@ export function parseDeepInsightsCandidate(content: string) {
 export function listDeepInsightsMissingReasons(candidate: ReturnType<typeof parseDeepInsightsCandidate>) {
   const reasons: string[] = [];
   if (candidate.fileInsights.length === 0) reasons.push("fileInsights is empty");
-  if (candidate.fileInsights.some((item) => !item.mainContent || !item.requiredWork || !item.iterationValue || item.recommendedActions.length === 0)) {
+  if (
+    candidate.fileInsights.some(
+      (item) =>
+        item.status === "analyzed" &&
+        (!item.mainContent || !item.requiredWork || !item.iterationValue || item.recommendedActions.length === 0)
+    )
+  ) {
     reasons.push("fileInsights missing mainContent/requiredWork/iterationValue/recommendedActions");
   }
   if (candidate.crossFileInsights.themes.length === 0 && candidate.crossFileInsights.gaps.length === 0) {

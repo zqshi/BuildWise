@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import { pickString } from "../../shared/utils";
 import { safeJsonParse } from "../workspace/workspaceServiceAttachmentUtils";
 import {
   deploymentTransitions,
@@ -29,9 +30,7 @@ export class PlatformService {
     });
   }
 
-  private pickString(value: unknown) {
-    return typeof value === "string" ? value.trim() : "";
-  }
+  private pickString = pickString;
 
   private async runOpsAdvisorLlm(input: {
     severity: "low" | "medium" | "high" | "critical";
@@ -711,7 +710,7 @@ export class PlatformService {
         ...item,
         commands:
           Array.isArray((item as { commands?: string[] }).commands) && ((item as { commands?: string[] }).commands?.length ?? 0) > 0
-            ? (item as { commands?: string[] }).commands!.slice(0, 4)
+            ? (item as { commands?: string[] }).commands?.slice(0, 4)
             : [
                 "curl -sS {{apiBase}}/api/ops/runtime",
                 "curl -sS {{apiBase}}/api/ops/metrics"

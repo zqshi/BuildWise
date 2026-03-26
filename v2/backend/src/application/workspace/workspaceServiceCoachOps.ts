@@ -10,6 +10,7 @@ import { normalizeIteration } from "./workspaceSupport";
 import {
   isRequirementChangeMessage
 } from "./workspaceCoachImpactAssessment";
+import { pickString } from "../../shared/utils";
 import { handlePendingGitRequirementIntake } from "./workspaceServiceCoachGitIntakeOps";
 import { handleCoachPeriodicRepositorySync } from "./workspaceServiceCoachRepositorySyncOps";
 import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } from "./workspaceOpenclawSkillsBridge";
@@ -79,10 +80,6 @@ function loadCoachPromptTemplate(): CoachPromptTemplate {
 
 function renderTemplate(template: string, vars: Record<string, string>) {
   return template.replace(/\{\{(\w+)\}\}/g, (_all, key: string) => vars[key] ?? "");
-}
-
-function pickString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function pickStringList(value: unknown, max = 8) {
