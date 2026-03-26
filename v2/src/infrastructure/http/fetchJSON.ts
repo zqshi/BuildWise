@@ -47,7 +47,7 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
     ...options,
     headers,
     credentials: "include",
-    signal: options?.signal ?? controller.signal
+    signal: options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
   };
   let res: Response;
   try {
@@ -110,12 +110,14 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
 
   if (!res.ok) {
     const contentType = res.headers.get("content-type") || "";
+    const retryAfter = res.headers.get("retry-after") || "";
     let detail = "";
     if (contentType.includes("application/json")) {
       const payload = (await res.json().catch(() => null)) as { message?: string } | null;
       detail = payload?.message ? `: ${payload.message}` : "";
     }
-    throw new Error(`API error: ${res.status}${detail}`);
+    const retryAfterDetail = retryAfter ? ` [retry-after=${retryAfter}]` : "";
+    throw new Error(`API error: ${res.status}${detail}${retryAfterDetail}`);
   }
   // 204 No Content — 无 body，直接返回 null
   if (res.status === 204) {

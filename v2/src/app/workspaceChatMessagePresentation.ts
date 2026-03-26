@@ -125,12 +125,12 @@ export function buildIterationChatDisplayItems(messages: IterationMessage[]) {
       let lastCardIndex = index + 1;
       while (
         messages[lastCardIndex + 1]?.role === "assistant" &&
-        hasEquivalentArtifactReferenceMessage(messages[lastCardIndex]!.content, messages[lastCardIndex + 1]!.content)
+        hasEquivalentArtifactReferenceMessage(messages[lastCardIndex]?.content, messages[lastCardIndex + 1]?.content)
       ) {
         lastCardIndex += 1;
       }
       items.push({
-        key: `${current.id}-${messages[lastCardIndex]!.id}`,
+        key: `${current.id}-${messages[lastCardIndex]?.id}`,
         leadMessage: current,
         textMessage: current,
         cardMessage: messages[lastCardIndex]!

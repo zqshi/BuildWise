@@ -1,4 +1,4 @@
-import { createLogger } from "../../infrastructure/runtime/logger";
+import { createLogger } from "../shared/logger";
 
 const log = createLogger("github-api");
 

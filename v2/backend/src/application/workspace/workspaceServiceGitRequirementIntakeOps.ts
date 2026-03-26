@@ -67,9 +67,9 @@ export function detectGitRequirementReadDecision(message: string): GitReadDecisi
   if (/^(yes|y|ok|sure|read|go|是|好|可以|读取仓库|读取git|读取代码仓库)$/.test(text) || /读取.*(仓库|git)/.test(text)) {
     return "accept";
   }
-  // 用户发了较长文本（>20字符），说明已在讨论需求，视为隐式 decline
+  // 用户发了较长文本（>20字符），更可能是在继续描述需求，不能直接视为拒绝读取仓库
   if (text.length > 20) {
-    return "decline";
+    return "unknown";
   }
   return "unknown";
 }

@@ -14,7 +14,14 @@ function ensurePermission(authRole: string | undefined, permission: string, work
 }
 
 export async function registerPlatformRoutes(app: FastifyInstance, service: PlatformService, workspaceService: WorkspaceService) {
-  app.get("/collab/snapshots", async (request, reply) => {
+  app.get("/collab/snapshots", {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: { projectId: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     if (projectId === null) {
@@ -28,7 +35,20 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listVersionSnapshots(projectId);
   });
 
-  app.post("/collab/snapshots", async (request, reply) => {
+  app.post("/collab/snapshots", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          projectId: { type: "integer" },
+          iterationId: { type: "integer" },
+          name: { type: "string" },
+          note: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -61,7 +81,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return created;
   });
 
-  app.post("/collab/snapshots/:id/restore", async (request, reply) => {
+  app.post("/collab/snapshots/:id/restore", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -81,7 +108,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result;
   });
 
-  app.get("/collab/shares", async (request, reply) => {
+  app.get("/collab/shares", {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: { projectId: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId);
     if (projectId === null) {
@@ -95,7 +129,19 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listProjectShares(projectId);
   });
 
-  app.post("/collab/shares", async (request, reply) => {
+  app.post("/collab/shares", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          projectId: { type: "integer" },
+          permission: { type: "string", enum: ["read", "comment"] },
+          ttlHours: { type: "integer" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "collab:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -124,7 +170,22 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listTemplates();
   });
 
-  app.post("/templates/:id/run", async (request, reply) => {
+  app.post("/templates/:id/run", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string" } }
+      },
+      body: {
+        type: "object",
+        properties: {
+          projectId: { type: "integer" },
+          parameters: { type: "object" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "template:run", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -149,7 +210,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result;
   });
 
-  app.get("/templates/runs", async (request, reply) => {
+  app.get("/templates/runs", {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: { projectId: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
     if (projectId === null) {
@@ -163,7 +231,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listTemplateRuns(projectId);
   });
 
-  app.get("/collab/share/:token", async (request, reply) => {
+  app.get("/collab/share/:token", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { token: { type: "string", minLength: 1 } }
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { token: string };
     const access = service.accessShare(params.token);
     if (!access.ok) {
@@ -173,7 +248,21 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return access.data;
   });
 
-  app.post("/collab/share/:token/comments", async (request, reply) => {
+  app.post("/collab/share/:token/comments", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { token: { type: "string" } }
+      },
+      body: {
+        type: "object",
+        properties: {
+          content: { type: "string", minLength: 1 }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { token: string };
     const body = request.body as { content?: string } | null;
     const content = body?.content?.trim() || "";
@@ -195,7 +284,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.get("/ops/deployments", async (request, reply) => {
+  app.get("/ops/deployments", {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: { projectId: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
     if (projectId === null) {
@@ -209,7 +305,20 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listDeployments(projectId);
   });
 
-  app.post("/ops/deployments", async (request, reply) => {
+  app.post("/ops/deployments", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          projectId: { type: "integer" },
+          iterationId: { type: "integer" },
+          environment: { type: "string", enum: ["staging", "production"] },
+          version: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -262,7 +371,21 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return created.data;
   });
 
-  app.post("/ops/deployments/:id/transition", async (request, reply) => {
+  app.post("/ops/deployments/:id/transition", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } }
+      },
+      body: {
+        type: "object",
+        properties: {
+          toStatus: { type: "string", enum: ["running", "success", "failed"] }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:transition", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -300,7 +423,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.getOpsMetrics();
   });
 
-  app.get("/ops/triage-templates", async (request, reply) => {
+  app.get("/ops/triage-templates", {
+    schema: {
+      querystring: {
+        type: "object",
+        properties: { projectId: { type: "string", pattern: "^\\d+$" } }
+      }
+    }
+  }, async (request, reply) => {
     const query = request.query as { projectId?: string } | null;
     const projectId = parsePositiveInt(query?.projectId ?? "");
     if (projectId === null) {
@@ -314,7 +444,22 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return service.listOpsTriageTemplatesByProject(projectId);
   });
 
-  app.post("/ops/triage-templates", async (request, reply) => {
+  app.post("/ops/triage-templates", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          projectId: { type: "integer" },
+          category: { type: "string" },
+          keywords: { type: "array", items: { type: "string" } },
+          commands: { type: "array", items: { type: "string" } },
+          note: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -352,7 +497,14 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return result.data;
   });
 
-  app.delete("/ops/triage-templates/:id", async (request, reply) => {
+  app.delete("/ops/triage-templates/:id", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", minLength: 1 } }
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "deploy:write", workspaceService);
     if (!permit.ok) {
       reply.code(403);
@@ -372,7 +524,21 @@ export async function registerPlatformRoutes(app: FastifyInstance, service: Plat
     return { ok: true };
   });
 
-  app.post("/ops/triage/analyze", async (request, reply) => {
+  app.post("/ops/triage/analyze", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          projectId: { type: "integer" },
+          severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
+          title: { type: "string" },
+          description: { type: "string" },
+          signals: { type: "array", items: { type: "string" } }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const permit = ensurePermission(request.authRole, "ops:triage", workspaceService);
     if (!permit.ok) {
       reply.code(403);

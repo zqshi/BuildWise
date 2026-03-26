@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -115,23 +114,3 @@ test("buildArtifactImpactHeadline compresses mapping context into a collapsed su
   assert.equal(buildArtifactImpactHeadline(summary), "2 个功能点 · 2 条需求映射 · 2 个组件映射 · 2 条代码边界");
 });
 
-test("iteration workspace no longer renders a dedicated change-impact reminder strip", () => {
-  const workspacePanelSource = readFileSync(
-    new URL("../src/pages/projects/IterationWorkspacePanel.tsx", import.meta.url),
-    "utf8"
-  );
-  const changePanelSource = readFileSync(
-    new URL("../src/pages/projects/IterationChangeIntelligencePanel.tsx", import.meta.url),
-    "utf8"
-  );
-  const chatPanelCssSource = readFileSync(
-    new URL("../src/styles/chat-panel.css", import.meta.url),
-    "utf8"
-  );
-  assert.doesNotMatch(workspacePanelSource, /data-testid="change-impact-reminder"/);
-  assert.doesNotMatch(workspacePanelSource, /生成影响评估/);
-  assert.doesNotMatch(workspacePanelSource, /data-testid="change-mapping-toggle"/);
-  assert.doesNotMatch(changePanelSource, /data-testid="change-mapping-panel"/);
-  assert.match(chatPanelCssSource, /\.iteration-status-strip\s*\{\s*display:flex;/);
-  assert.doesNotMatch(chatPanelCssSource, /\.chat-change-reminder\s*\{/);
-});

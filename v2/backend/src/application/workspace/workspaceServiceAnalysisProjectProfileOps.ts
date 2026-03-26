@@ -42,19 +42,19 @@ function resolvePrioritizedFindings(parsed: Record<string, unknown> | null): unk
 
 function normalizePrioritizedItem(item: Record<string, unknown>): { priority: string; content: string; reason: string } {
   return {
-    priority: pickString(item.priority || item["优先级"]),
-    content: pickString(item.content || item["发现"] || item["内容"]),
-    reason: pickString(item.reason || item["原因"] || item["理由"])
+    priority: pickString(item.priority || item.优先级),
+    content: pickString(item.content || item.发现 || item.内容),
+    reason: pickString(item.reason || item.原因 || item.理由)
   };
 }
 
 export function parseProjectProfileCandidate(content: string) {
   const parsed = parseJsonObjectFromText(content);
   const rawProject = resolveProjectDetection(parsed);
-  const projectName = pickString(rawProject.projectName || rawProject["项目名称"]);
-  const productName = pickString(rawProject.productName || rawProject["产品名称"]);
-  const projectCategory = pickString(rawProject.projectCategory || rawProject["项目类别"]);
-  const evidence = pickStringList(rawProject.evidence || rawProject["依据"], 4);
+  const projectName = pickString(rawProject.projectName || rawProject.项目名称);
+  const productName = pickString(rawProject.productName || rawProject.产品名称);
+  const projectCategory = pickString(rawProject.projectCategory || rawProject.项目类别);
+  const evidence = pickStringList(rawProject.evidence || rawProject.依据, 4);
   const meaningfulFindings = pickStringList(resolveMeaningfulFindings(parsed), 8);
   const prioritizedFindings = parsePrioritizedFindingsFromText(content);
   const nextActions = pickStringList(resolveNextActions(parsed), 6);
@@ -86,9 +86,9 @@ export function parseProjectDetectionFromText(content: string) {
   const parsed = parseJsonObjectFromText(content);
   const rawProject = resolveProjectDetection(parsed);
   return {
-    projectName: pickString(rawProject.projectName || rawProject["项目名称"]),
-    productName: pickString(rawProject.productName || rawProject["产品名称"]),
-    projectCategory: pickString(rawProject.projectCategory || rawProject["项目类别"]),
-    evidence: pickStringList(rawProject.evidence || rawProject["依据"], 4)
+    projectName: pickString(rawProject.projectName || rawProject.项目名称),
+    productName: pickString(rawProject.productName || rawProject.产品名称),
+    projectCategory: pickString(rawProject.projectCategory || rawProject.项目类别),
+    evidence: pickStringList(rawProject.evidence || rawProject.依据, 4)
   };
 }

@@ -12,14 +12,15 @@
 2. `npm run check:boundaries` 通过。
 3. `npm run verify:prod-readiness` 通过。
 4. `npm run verify:prod-readiness:sqlite` 在 CI 或真实环境通过。
-5. `AUTH_MODE=jwt`。
-6. `JWT_SECRET` 已替换为生产密钥，长度不少于 32。
-7. `CORS_ORIGINS` 已配置为真实域名。
-8. `STORAGE_BACKEND=sqlite`。
-9. `VITE_API_BASE` 已显式配置。
-10. 每个项目 `workspacePath` 独立且可写。
-11. `workspacePath/.buildwise/` 已纳入备份策略。
-12. 运行验证脚本不会默认向仓库写入临时报告；如需归档 `readiness` 报告，必须显式设置 `BUILDWISE_READINESS_WRITE_REPO=1` 或 `BUILDWISE_READINESS_OUTPUT_DIR`。
+5. CI 中 `npm audit --audit-level=high --registry=https://registry.npmjs.org` 前后端均通过。
+6. `AUTH_MODE=jwt`。
+7. `JWT_SECRET` 已替换为生产密钥，长度不少于 32。
+8. `CORS_ORIGINS` 已配置为真实域名。
+9. `STORAGE_BACKEND=sqlite`。
+10. `VITE_API_BASE` 已显式配置。
+11. 每个项目 `workspacePath` 独立且可写。
+12. `workspacePath/.buildwise/` 已纳入备份策略。
+13. 运行验证脚本不会默认向仓库写入临时报告；如需归档 `readiness` 报告，必须显式设置 `BUILDWISE_READINESS_WRITE_REPO=1` 或 `BUILDWISE_READINESS_OUTPUT_DIR`。
 
 ## 3. 运行语义确认
 

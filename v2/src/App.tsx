@@ -13,12 +13,12 @@ import { DockSidebar } from "./pages/layout/DockSidebar";
 import { OpenclawWorkspacePanel } from "./pages/layout/OpenclawWorkspacePanel";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
+import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
 
 const MarketingHomePage = lazy(() => import("./pages/marketing/MarketingHomePage").then((m) => ({ default: m.MarketingHomePage })));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
 const DashboardView = lazy(() => import("./pages/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
 const PermissionSettingsPage = lazy(() => import("./pages/governance/PermissionSettingsPage").then((m) => ({ default: m.PermissionSettingsPage })));
-const ProjectsWorkspace = lazy(() => import("./pages/projects/ProjectsWorkspace").then((m) => ({ default: m.ProjectsWorkspace })));
 
 /**
  * Nests all 7 domain-specific Context providers.
@@ -171,6 +171,7 @@ function AppInner() {
             <Suspense fallback={<div className="loading-spinner" />}>
               <DashboardView
                 projects={controller.projects}
+                projectsHydrated={controller.projectsHydrated}
                 inProgressIterations={controller.inProgressIterations}
                 completedIterations={controller.completedIterations}
                 status={controller.status}
@@ -187,9 +188,9 @@ function AppInner() {
               <PermissionSettingsPage currentRole={controller.currentRole} />
             </Suspense>
           ) : (
-            <Suspense fallback={<div className="loading-spinner" />}>
             <ProjectsWorkspace
               projects={controller.projects}
+              projectsHydrated={controller.projectsHydrated}
               currentProjectId={controller.currentProjectId}
               currentRole={controller.currentRole}
               currentProject={controller.currentProject}
@@ -268,7 +269,6 @@ function AppInner() {
                 });
               }}
             />
-            </Suspense>
           )}
         </ViewErrorBoundary>
       </main>

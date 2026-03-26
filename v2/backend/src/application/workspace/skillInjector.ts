@@ -44,7 +44,7 @@ export function buildSkillPromptInjection(
     let sopText = skill.sopContent || "";
     const available = Math.max(0, perSkillBudget - headerLine.length);
     if (sopText.length > available) {
-      sopText = sopText.slice(0, available - 3) + "...";
+      sopText = `${sopText.slice(0, available - 3)}...`;
     }
 
     const block = headerLine + sopText;

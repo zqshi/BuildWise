@@ -9,7 +9,6 @@ import { fileURLToPath } from "node:url";
 const testDir = dirname(fileURLToPath(import.meta.url));
 const v2Dir = resolve(testDir, "..");
 const scriptPath = resolve(v2Dir, "scripts", "reset-business-environment.mjs");
-const cleanScriptPath = resolve(v2Dir, "scripts", "clean-workspace.sh");
 
 test("reset-business-environment restores workspace runtime files to initial state", () => {
   const sandboxRoot = mkdtempSync(join(tmpdir(), "buildwise-reset-env-"));
@@ -51,6 +50,8 @@ test("reset-business-environment restores workspace runtime files to initial sta
   assert.equal(runtimeData.projects.length, 1);
   assert.equal(runtimeData.projects[0]?.name, "构想智造平台");
   assert.deepEqual(runtimeData.iterations, []);
+  assert.deepEqual(runtimeData.snapshots, []);
+  assert.deepEqual(runtimeData.transitions, []);
   assert.deepEqual(runtimeData.messages, []);
   assert.deepEqual(seedData.iterations, []);
   assert.deepEqual(modelingData.snapshots, []);
@@ -59,8 +60,43 @@ test("reset-business-environment restores workspace runtime files to initial sta
   assert.equal(existsSync(memoryDir), false);
 });
 
-test("clean-workspace delegates to business environment reset script", () => {
-  const source = readFileSync(cleanScriptPath, "utf-8");
-  assert.match(source, /reset-business-environment\.mjs/);
-  assert.doesNotMatch(source, /data\.runtime\.json"/);
+test("reset-business-environment clears dashboard source datasets", () => {
+  const sandboxRoot = mkdtempSync(join(tmpdir(), "buildwise-reset-dashboard-"));
+  const backendDir = resolve(sandboxRoot, "backend");
+
+  mkdirSync(backendDir, { recursive: true });
+  writeFileSync(
+    resolve(backendDir, "data.runtime.json"),
+    JSON.stringify(
+      {
+        projects: [
+          { id: 7, name: "旧项目", status: "completed" },
+          { id: 8, name: "另一个项目", status: "in-progress" }
+        ],
+        iterations: [
+          { id: 71, projectId: 7, status: "completed", progress: 100, createdAt: "2026-02-01T00:00:00.000Z" },
+          { id: 81, projectId: 8, status: "in-progress", progress: 40, createdAt: "2026-03-01T00:00:00.000Z" }
+        ],
+        snapshots: [{ id: 1, iterationId: 71, progress: 100 }],
+        transitions: [{ id: 2, iterationId: 81, fromStatus: "planned", toStatus: "in-progress" }]
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  execFileSync("node", [scriptPath], {
+    cwd: v2Dir,
+    env: { ...process.env, BUILDWISE_RESET_ROOT: sandboxRoot },
+    stdio: "pipe"
+  });
+
+  const runtimeData = JSON.parse(readFileSync(resolve(backendDir, "data.runtime.json"), "utf-8")) as Record<string, any>;
+
+  assert.equal(runtimeData.projects.length, 1);
+  assert.deepEqual(runtimeData.iterations, []);
+  assert.deepEqual(runtimeData.snapshots, []);
+  assert.deepEqual(runtimeData.transitions, []);
 });
+

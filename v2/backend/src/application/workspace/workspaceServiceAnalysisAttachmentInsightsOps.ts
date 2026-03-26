@@ -1,7 +1,4 @@
-import { parseJsonObjectFromText, pickString, pickStringList } from "./workspaceAnalysisExtractors";
-
-const normalizeConfidence = (value: string): "high" | "medium" | "low" =>
-  value === "high" || value === "medium" || value === "low" ? value : "medium";
+import { normalizeConfidence, parseJsonObjectFromText, pickString, pickStringList } from "./workspaceAnalysisExtractors";
 
 export function parseAttachmentInsightsCandidate(content: string) {
   const parsed = parseJsonObjectFromText(content) as Record<string, unknown> | null;

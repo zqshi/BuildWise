@@ -1,6 +1,6 @@
 # LLM 调用链路与 Prompt 体系（BuildWise）
 
-更新时间：2026-03-06
+更新时间：2026-03-25
 
 ## 1. 目标定义
 
@@ -155,7 +155,7 @@
    - 必须把不确定项放入 `unknowns`
    - 缺少证据时只能要求澄清，不能直接推进执行
 5. 降级策略：
-   - LLM 不可用时直接失败（`/api/iterations/:id/analysis` 返回 `503`），避免 mock/fallback 误导
+   - LLM 不可用时（`agentRunner` 为 null），所有分析接口直接抛出 `LlmUnavailableError`，返回明确错误信息，不做任何兜底或固定结构输出
    - 上下文预算超阈值时进入保守输出模式（并输出降级原因）
 6. 自动澄清：
    - 当触发降级或 unknown 信号过多时，自动生成 `clarificationQuestions` 供人工确认

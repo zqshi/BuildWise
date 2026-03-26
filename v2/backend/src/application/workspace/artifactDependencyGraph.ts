@@ -7,7 +7,7 @@
  * can produce coherent, chain-linked deliverables.
  */
 
-export const ARTIFACT_UPSTREAM_DEPS: Record<string, string[]> = {
+const ARTIFACT_UPSTREAM_DEPS: Record<string, string[]> = {
   "analysis-report": [],
   "product-requirements-doc": ["analysis-report"],
   "boundary-confirmation": ["analysis-report", "product-requirements-doc"],

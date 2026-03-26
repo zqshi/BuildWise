@@ -11,7 +11,17 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     };
   });
 
-  app.post("/governance/orchestration/policies", async (request, reply) => {
+  app.post("/governance/orchestration/policies", {
+    schema: {
+      body: {
+        type: "object",
+        properties: {
+          strategy: { type: "object" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -22,7 +32,17 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return service.createGlobalOrchestrationPolicyDraft(actor, body?.strategy);
   });
 
-  app.post("/governance/orchestration/policies/:version/activate", async (request, reply) => {
+  app.post("/governance/orchestration/policies/:version/activate", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          version: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["version"]
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -58,7 +78,17 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return restored;
   });
 
-  app.get("/projects/:id/policies", async (request, reply) => {
+  app.get("/projects/:id/policies", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -75,7 +105,24 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     };
   });
 
-  app.post("/projects/:id/policies", async (request, reply) => {
+  app.post("/projects/:id/policies", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          strategy: { type: "object" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -91,7 +138,18 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return service.createProjectPolicyDraft(projectId, actor, body?.strategy);
   });
 
-  app.post("/projects/:id/policies/:version/activate", async (request, reply) => {
+  app.post("/projects/:id/policies/:version/activate", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          version: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id", "version"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string; version: string };
     const projectId = parsePositiveInt(params.id);
     const version = parsePositiveInt(params.version);
@@ -112,7 +170,17 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return activated;
   });
 
-  app.post("/projects/:id/policies/restore-initial", async (request, reply) => {
+  app.post("/projects/:id/policies/restore-initial", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -132,7 +200,29 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return restored;
   });
 
-  app.post("/projects/:id/workspace/bind", async (request, reply) => {
+  app.post("/projects/:id/workspace/bind", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          openclawProfile: { type: "string" },
+          agentId: { type: "string" },
+          workspacePath: { type: "string" },
+          runtimeMode: { type: "string", enum: ["openclaw-native", "bridge"] },
+          locked: { type: "boolean" }
+        },
+        required: ["openclawProfile", "workspacePath"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -175,7 +265,17 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     }
   });
 
-  app.get("/projects/:id/roles", async (request, reply) => {
+  app.get("/projects/:id/roles", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -189,7 +289,26 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     return service.listTenantMemberBindings(access.tenantId);
   });
 
-  app.post("/projects/:id/roles", async (request, reply) => {
+  app.post("/projects/:id/roles", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          userId: { type: "string" },
+          role: { type: "string", enum: ["admin", "member", "viewer"] }
+        },
+        required: ["userId", "role"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -212,7 +331,18 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     });
   });
 
-  app.delete("/projects/:id/roles/:userId", async (request, reply) => {
+  app.delete("/projects/:id/roles/:userId", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          userId: { type: "string", minLength: 1 }
+        },
+        required: ["id", "userId"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string; userId: string };
     const projectId = parsePositiveInt(params.id);
     const userId = (params.userId || "").trim();

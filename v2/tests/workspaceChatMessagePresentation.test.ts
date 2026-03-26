@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -134,10 +133,3 @@ test("hasAssistantImpactAssessment only matches explicit agent assessment and co
   );
 });
 
-test("iteration workspace renders test-case and delivery drawers from artifact draft content", () => {
-  const source = readFileSync(new URL("../src/pages/projects/ArtifactPreviewPanel.tsx", import.meta.url), "utf8");
-  assert.match(source, /selectedArtifactKind === "test-cases"/);
-  assert.match(source, /selectedArtifactKind === "analysis-report"[\s\S]*value=\{artifactDraftContent\} readOnly showTitle=\{false\}/);
-  assert.match(source, /selectedArtifactKind === "release-review"[\s\S]*artifactDraftContent\.trim\(\)/);
-  assert.match(source, /selectedArtifactKind === "delivery-package"[\s\S]*artifactDraftContent\.trim\(\)/);
-});

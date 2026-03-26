@@ -30,8 +30,8 @@ export const handleUpdateTestMatrixExecution = async (
     return;
   }
   await withBusyAction(deps, async () => {
-    await updateIterationTestMatrixExecution(deps.currentIteration!.id, updates);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await updateIterationTestMatrixExecution(deps.currentIteration?.id, updates);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     await deps.loadGovernance();
   });
 };
@@ -41,7 +41,7 @@ export const handleGenerateTestArtifacts = async (deps: QualityActionDeps) => {
     return;
   }
   await withBusyAction(deps, async () => {
-    const result = await generateIterationTestArtifacts(deps.currentIteration!.id);
+    const result = await generateIterationTestArtifacts(deps.currentIteration?.id);
     deps.setAnalysisReport((prev) =>
       prev
         ? {
@@ -54,12 +54,12 @@ export const handleGenerateTestArtifacts = async (deps: QualityActionDeps) => {
         : prev
     );
     const created = await createIterationMessage(
-      deps.currentIteration!.id,
+      deps.currentIteration?.id,
       "assistant",
       `${result.summary}\n产物文件：${result.generatedFiles.join("；") || "无"}`
     );
     deps.setChatMessages((prev) => [...prev, created]);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     await deps.loadGovernance();
   });
 };
@@ -69,7 +69,7 @@ export const handleRefreshReleaseReview = async (deps: QualityActionDeps) => {
     return;
   }
   await withBusyAction(deps, async () => {
-    const review = await fetchIterationReleaseReview(deps.currentIteration!.id);
+    const review = await fetchIterationReleaseReview(deps.currentIteration?.id);
     deps.setAnalysisReport((prev) =>
       prev
         ? {
@@ -92,7 +92,7 @@ export const handleRefreshReleaseReview = async (deps: QualityActionDeps) => {
         : prev
     );
     const created = await createIterationMessage(
-      deps.currentIteration!.id,
+      deps.currentIteration?.id,
       "assistant",
       `发布评审刷新：${review.decision.toUpperCase()}（score=${review.score}）`
     );

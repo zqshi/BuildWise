@@ -66,7 +66,7 @@ npm run dev
 
 - 当前前端在本地会优先通过同源 `/api` 代理访问后端，避免跨源白屏。
 - 未显式设置 `VITE_API_BASE` 时，Vite dev/preview 会代理到本地后端。
-- 若显式设置了本地跨端口 `VITE_API_BASE`，运行时会自动回退到同源 `/api`。
+- 若显式设置了本地跨端口 `VITE_API_BASE`，构建期 CSP 会自动放行对应 API origin；未显式设置时，运行时会回退到同源 `/api`。
 
 ## 5. 质量门禁
 
@@ -89,6 +89,11 @@ npm run verify:all
 - `npm --prefix backend run build`
 - `npm --prefix backend run test:contract`
 - `npm --prefix backend run verify:prod-release`
+
+CI 额外固定执行：
+
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`（前端）
+- `npm audit --audit-level=high --registry=https://registry.npmjs.org`（后端）
 
 补充脚本：
 

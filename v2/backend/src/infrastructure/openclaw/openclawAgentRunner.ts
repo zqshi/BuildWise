@@ -12,11 +12,11 @@
 import type { IterationAgentPrompt } from "../../domain/workspace/types";
 import { resolveErrorMessage } from "../../shared/utils";
 import type {
-  AgentRunner,
   AgentRunResult,
   AgentRunOptions,
-  ConversationMessage
-} from "../../application/workspace/agentRunner";
+  ConversationMessage,
+  GatewayCapableRunner
+} from "../../domain/shared/agentRunner";
 import { createLogger } from "../runtime/logger";
 import {
   OpenClawGatewayClient,
@@ -26,7 +26,7 @@ import {
 
 const log = createLogger("openclaw-run");
 
-export class OpenClawAgentRunner implements AgentRunner {
+export class OpenClawAgentRunner implements GatewayCapableRunner {
   private readonly client: OpenClawGatewayClient;
   private readonly agentId: string;
 

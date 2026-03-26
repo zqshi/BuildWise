@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { Iteration, IterationChangeControl, IterationCodeLink, Project } from "../../domain/workspace/types";
-import { normalizeIteration, normalizeProject } from "./workspaceSupport";
+import { normalizeProject } from "./workspaceSupport";
 import { buildDefaultArtifactWorkflow } from "./workspaceServiceDefaultArtifactWorkflow";
 
 export function writeAuditLog(repo: WorkspaceRepository, action: string, resource: string, detail: string) {
@@ -201,13 +201,6 @@ export function listProjectsNormalized(repo: WorkspaceRepository): Project[] {
     .listProjects()
     .map(normalizeProject)
     .filter((project) => !project.deletedAt);
-}
-
-export function listIterationsNormalized(repo: WorkspaceRepository, projectId: number): Iteration[] | null {
-  if (!hasProject(repo, projectId)) {
-    return null;
-  }
-  return repo.listIterations(projectId).map(normalizeIteration);
 }
 
 export function normalizeRelPath(input: string) {

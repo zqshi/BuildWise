@@ -16,10 +16,12 @@ import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes"
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
+import { ProjectsWorkspaceEmptyState } from "./ProjectsWorkspaceEmptyState";
 import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
 
 type ProjectsWorkspaceProps = {
   projects: Project[];
+  projectsHydrated: boolean;
   currentProjectId: number | null;
   currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
   currentProject: Project | null;
@@ -117,6 +119,7 @@ type ProjectsWorkspaceProps = {
 
 export function ProjectsWorkspace({
   projects,
+  projectsHydrated,
   currentProjectId,
   currentRole,
   currentProject,
@@ -181,6 +184,7 @@ export function ProjectsWorkspace({
   const hasProjects = projects.length > 0;
   const [projectSearch, setProjectSearch] = useState("");
   const showWorkspaceHero = false;
+  const showProjectsLoading = !projectsHydrated && !hasProjects;
   const filteredProjects = useMemo(() => {
     const keyword = projectSearch.trim().toLowerCase();
     if (!keyword) {
@@ -191,6 +195,7 @@ export function ProjectsWorkspace({
   const backendUnavailable =
     status?.status === "offline" ||
     Boolean(error && (error.includes("后端服务不可达") || error.includes("后端服务不可用") || error.includes("network unavailable")));
+  const showProjectLoadError = !hasProjects && projectsHydrated && Boolean(error) && !backendUnavailable;
   return (
     <section className="projects-view">
       {showWorkspaceHero ? (
@@ -204,26 +209,16 @@ export function ProjectsWorkspace({
           </div>
         </header>
       ) : null}
-      {!hasProjects ? (
-        <section className="workspace-empty">
-          <article className="panel project-empty-panel">
-            <div className="project-empty-content">
-              <div className="empty-illustration" aria-hidden="true">
-                ⬡
-              </div>
-              <h2>欢迎进入项目管理</h2>
-              <p>当前还没有项目。请先创建一个项目，然后在右侧项目面板中继续新增迭代版本。</p>
-              <button
-                className="btn primary"
-                onClick={onShowCreateProject}
-                disabled={backendUnavailable}
-                title={backendUnavailable ? "后端服务未连接，暂不可创建项目" : undefined}
-              >
-                立即创建项目
-              </button>
-            </div>
-          </article>
-        </section>
+      {showProjectsLoading ? (
+        <ProjectsWorkspaceEmptyState mode="loading" onShowCreateProject={onShowCreateProject} />
+      ) : showProjectLoadError ? (
+        <ProjectsWorkspaceEmptyState mode="error" error={error} onShowCreateProject={onShowCreateProject} />
+      ) : !hasProjects ? (
+        <ProjectsWorkspaceEmptyState
+          mode="empty"
+          backendUnavailable={backendUnavailable}
+          onShowCreateProject={onShowCreateProject}
+        />
       ) : (
         projectPanelMode === "project" ? (
           <section className="workspace-grid project-mode">

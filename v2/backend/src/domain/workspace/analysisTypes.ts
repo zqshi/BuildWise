@@ -444,7 +444,7 @@ export type AttachmentReportIndex = {
   summary: Record<string, unknown>;
   sections: Array<{
     sectionId: string;
-    sectionKey: AttachmentReportSection["sectionKey"];
+    sectionKey: "overview" | "projectDetection" | "findings" | "risks" | "traceability" | "appendix";
     status: AttachmentReportSectionStatus;
     itemCount: number;
     updatedAt: string;

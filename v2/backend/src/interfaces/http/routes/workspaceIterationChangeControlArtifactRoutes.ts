@@ -4,7 +4,15 @@ import { resolveArtifactId, resolveIterationId } from "./workspaceIterationChang
 import { ensureIterationAccess } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationChangeControlArtifactRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/iterations/:id/change-control/artifacts", async (request, reply) => {
+  app.get("/iterations/:id/change-control/artifacts", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
@@ -22,7 +30,28 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/iterations/:id/change-control/artifacts/:artifactId/draft", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/draft", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          artifactId: { type: "string", minLength: 1 }
+        },
+        required: ["id", "artifactId"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          content: { type: "string" },
+          media: { type: "array", items: { type: "string" } },
+          actor: { type: "string" }
+        },
+        required: ["content"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -55,7 +84,28 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/iterations/:id/change-control/artifacts/:artifactId/commit", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/commit", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          artifactId: { type: "string", minLength: 1 }
+        },
+        required: ["id", "artifactId"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          actor: { type: "string" },
+          summary: { type: "string" },
+          evidence: { type: "array", items: { type: "string" } },
+          source: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -84,7 +134,27 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/iterations/:id/change-control/artifacts/:artifactId/confirm", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/confirm", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          artifactId: { type: "string", minLength: 1 }
+        },
+        required: ["id", "artifactId"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          actor: { type: "string" },
+          passed: { type: "boolean" },
+          note: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -112,7 +182,26 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/iterations/:id/change-control/artifacts/:artifactId/add-to-chat", async (request, reply) => {
+  app.post("/iterations/:id/change-control/artifacts/:artifactId/add-to-chat", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          artifactId: { type: "string", minLength: 1 }
+        },
+        required: ["id", "artifactId"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          actor: { type: "string" },
+          prompt: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string; artifactId: string };
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
@@ -139,7 +228,25 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     return result;
   });
 
-  app.post("/iterations/:id/change-control/stage/transition", async (request, reply) => {
+  app.post("/iterations/:id/change-control/stage/transition", {
+    schema: {
+      params: {
+        type: "object",
+        properties: { id: { type: "string", pattern: "^\\d+$" } },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          toStage: { type: "string", enum: ["clarification", "scope", "interaction", "development", "testing", "release", "archive"] },
+          actor: { type: "string" },
+          note: { type: "string" }
+        },
+        required: ["toStage"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {

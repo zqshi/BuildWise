@@ -1,7 +1,7 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 export { nowIso } from "../../shared/utils";
 
-export const rolePermissions: Record<string, string[]> = {
+const rolePermissions: Record<string, string[]> = {
   admin: ["*"],
   owner: ["*"],
   pm: ["collab:write", "collab:read", "template:run", "deploy:read", "iteration:transition", "iteration:transition:complete", "policy:read"],

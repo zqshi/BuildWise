@@ -10,7 +10,15 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 创建对话 ----
-  app.post("/openclaw/conversations", async (request, reply) => {
+  app.post("/openclaw/conversations", {
+    schema: {
+      body: {
+        type: "object",
+        properties: { title: { type: "string" } },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -21,7 +29,15 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 查询对话消息 ----
-  app.get("/openclaw/conversations/:id/messages", async (request, reply) => {
+  app.get("/openclaw/conversations/:id/messages", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string", minLength: 1 } }
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id?: string };
     const conversationId = (params.id || "").trim();
     if (!conversationId) {
@@ -37,7 +53,21 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 发送消息 ----
-  app.post("/openclaw/conversations/:id/messages", async (request, reply) => {
+  app.post("/openclaw/conversations/:id/messages", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string", minLength: 1 } }
+      },
+      body: {
+        type: "object",
+        required: ["content"],
+        properties: { content: { type: "string", minLength: 1 } },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
@@ -75,7 +105,15 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 激活 Skill ----
-  app.post("/openclaw/skills/:id/activate", async (request, reply) => {
+  app.post("/openclaw/skills/:id/activate", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string", minLength: 1 } }
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);
@@ -96,7 +134,15 @@ export async function registerOpenclawGlobalRoutes(app: FastifyInstance, service
   });
 
   // ---- 废弃 Skill ----
-  app.post("/openclaw/skills/:id/deprecate", async (request, reply) => {
+  app.post("/openclaw/skills/:id/deprecate", {
+    schema: {
+      params: {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string", minLength: 1 } }
+      }
+    }
+  }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (!isAdmin(role)) {
       reply.code(403);

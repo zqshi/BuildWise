@@ -32,11 +32,11 @@ export const handleTransitionState = async (toStatus: IterationStatus, deps: Cha
     return;
   }
   await withBusyAction(deps, async () => {
-    await transitionIterationState(deps.currentIteration!.id, { toStatus });
+    await transitionIterationState(deps.currentIteration?.id, { toStatus });
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     await deps.loadGovernance();
     deps.setStateMachine((prev) =>
       prev
@@ -54,8 +54,8 @@ export const handleUpdateClarificationDraft = async (resolvedQuestions: string[]
     return;
   }
   await withBusyAction(deps, async () => {
-    await updateClarificationDraft(deps.currentIteration!.id, resolvedQuestions);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await updateClarificationDraft(deps.currentIteration?.id, resolvedQuestions);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     await deps.loadGovernance();
   });
 };
@@ -79,26 +79,26 @@ export const handleConfirmIterationAnalysis = async (
     return;
   }
   await withBusyAction(deps, async () => {
-    await confirmIterationAnalysis(deps.currentIteration!.id, {
+    await confirmIterationAnalysis(deps.currentIteration?.id, {
       ...payload,
       actor: deps.currentRole
     });
     if (payload.decisionEvent === "understanding-accurate") {
       const created = await createIterationMessage(
-        deps.currentIteration!.id,
+        deps.currentIteration?.id,
         "system",
         `分析理解确认：理解准确。${payload.note?.trim() ? `备注：${payload.note.trim()}` : ""}`
       );
       deps.setChatMessages((prev) => [...prev, created]);
     } else if (payload.decisionEvent === "understanding-inaccurate") {
       const created = await createIterationMessage(
-        deps.currentIteration!.id,
+        deps.currentIteration?.id,
         "system",
         `分析理解确认：理解不准确，已进入澄清流程。${payload.note?.trim() ? `备注：${payload.note.trim()}` : ""}`
       );
       deps.setChatMessages((prev) => [...prev, created]);
     }
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -119,8 +119,8 @@ export const handleUpdateIterationBoundary = async (
     return;
   }
   await withBusyAction(deps, async () => {
-    await updateIterationBoundary(deps.currentIteration!.id, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await updateIterationBoundary(deps.currentIteration?.id, payload);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     await deps.loadGovernance();
   });
 };

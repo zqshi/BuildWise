@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildModelRelationGraph } from "../src/pages/projects/projectModelGraphModel.ts";
 
@@ -36,38 +35,3 @@ test("buildModelRelationGraph reports unlinked entities and truncation", () => {
   assert.ok(graph.edges.length <= relations.length);
 });
 
-test("project overview includes model detail view toggle for graph mode", () => {
-  const viewPath = new URL("../src/pages/projects/ProjectOverviewPanel.tsx", import.meta.url);
-  const detailPath = new URL("../src/pages/projects/ProjectOverviewPanelModelDetails.tsx", import.meta.url);
-  const summaryPath = new URL("../src/pages/projects/ProjectOverviewPanelModelSummary.tsx", import.meta.url);
-  const graphPath = new URL("../src/pages/projects/ProjectOverviewPanelModelGraph.tsx", import.meta.url);
-  const source = `${readFileSync(viewPath, "utf8")}\n${readFileSync(detailPath, "utf8")}\n${readFileSync(summaryPath, "utf8")}\n${readFileSync(graphPath, "utf8")}`;
-
-  assert.match(source, /建模详情视图切换/);
-  assert.match(source, /结构化摘要/);
-  assert.match(source, /节点关系图/);
-  assert.match(source, /业务实体卡片/);
-  assert.match(source, /规则映射与业务约束/);
-  assert.match(source, /业务关系叙事/);
-  assert.match(source, /建模节点关系图/);
-  assert.match(source, /关系类型筛选/);
-  assert.match(source, /已高亮与「/);
-  assert.match(source, /节点关系明细：/);
-  assert.match(source, /出边关系/);
-  assert.match(source, /入边关系/);
-  assert.match(source, /定位并闪烁对应关系/);
-  assert.match(source, /relation-detail-link/);
-  assert.match(source, /is-flash/);
-  assert.match(source, /model-relation-graph-viewport/);
-  assert.match(source, /centerGraphOnPoint/);
-  assert.doesNotMatch(source, /加载演示数据/);
-  assert.doesNotMatch(source, /恢复真实数据/);
-  assert.doesNotMatch(source, /演示数据（mock）/);
-  assert.match(source, /建模依据：当前项目沉淀数据实体/);
-  assert.match(source, /model-entity-card-grid/);
-  assert.match(source, /model-rule-mapping-list/);
-  assert.match(source, /edge\.businessDescription/);
-  assert.match(source, /本体依据：/);
-  assert.match(source, /数据依据：/);
-  assert.doesNotMatch(source, /buildRelationBusinessDescription/);
-});

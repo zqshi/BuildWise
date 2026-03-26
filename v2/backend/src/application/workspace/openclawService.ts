@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { AgentRunner } from "./agentRunner";
-import { OpenClawAgentRunner } from "../../infrastructure/openclaw/openclawAgentRunner";
+import { isGatewayCapableRunner } from "./agentRunner";
 import {
   openclawDirectChatOp,
   probeOpenclawIntegrationOp,
@@ -19,7 +19,7 @@ export class OpenclawService {
 
   openclawDirectChat(projectId: number, message: string): OpenclawDirectChatResult | Promise<OpenclawDirectChatResult> {
     // When agentRunner is an OpenClaw Gateway runner, use it for session-persistent chat
-    if (this.agentRunner instanceof OpenClawAgentRunner) {
+    if (this.agentRunner && isGatewayCapableRunner(this.agentRunner)) {
       return this.gatewayProjectChat(projectId, message);
     }
     // Fallback to CLI direct execution
@@ -31,7 +31,7 @@ export class OpenclawService {
   }
 
   private async gatewayProjectChat(projectId: number, message: string): Promise<OpenclawDirectChatResult> {
-    const runner = this.agentRunner as OpenClawAgentRunner;
+    const runner = this.agentRunner!;
     const project = this.repo.findProject(projectId);
     const binding = this.repo.listProjectWorkspaceBindings(projectId)[0] || null;
 

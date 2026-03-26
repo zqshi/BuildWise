@@ -7,7 +7,6 @@ import {
   parseProjectDetectionFromText,
   parseProjectProfileCandidate
 } from "./workspaceServiceAnalysisProjectProfileOps";
-
 type SynthesisLlmConfig = {
   fallbackModels: string[];
   repairAttemptsSingleFile: number;
@@ -34,6 +33,7 @@ export async function synthesizeProjectProfileOp(
     agentOutputs: IterationAgentOutput[];
     contextLabel?: string;
     visionPayloads?: VisionPayload[];
+    contextMode?: "primary" | "supplemental";
   },
   deps: {
     runAnalysisPrompt: RunAnalysisPrompt;
@@ -46,6 +46,9 @@ export async function synthesizeProjectProfileOp(
   nextActions: string[];
   synthesisOutput?: IterationAgentOutput;
 }> {
+  const isSupplementalContext = params.contextMode === "supplemental";
+  const isCompactPrimaryContext =
+    !isSupplementalContext && params.sourceType === "single-file" && params.fileStats.totalFiles <= 1;
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
@@ -54,15 +57,19 @@ export async function synthesizeProjectProfileOp(
     .slice(0, 6)
     .map((item) => `${item.role}:${item.status}\n${(item.content || "").slice(0, compactOutputLength)}`)
     .join("\n\n---\n\n");
+  const synthesisRole: "requirements-analyst" | "orchestrator" = isCompactPrimaryContext
+    ? "requirements-analyst"
+    : "orchestrator";
   const prompt = {
-    agentId: "agent-report-synthesis-1",
-    role: "orchestrator" as const,
+    agentId: isCompactPrimaryContext ? "agent-report-synthesis-compact-1" : "agent-report-synthesis-1",
+    role: synthesisRole,
     scope: "attachment" as const,
     goal: "识别项目/产品并输出高价值发现",
     expectedOutput:
       "JSON: {projectDetection:{projectName,productName,projectCategory,evidence[]}, meaningfulFindings:[...], prioritizedFindings:[{priority,content,reason}], nextActions:[...]}",
     systemPrompt: [
-      "你是资深产品分析师。你必须只输出严格 JSON（不要用 ```json 包裹），不得输出任何解释文字。",
+      isCompactPrimaryContext ? "你是资深需求分析师。" : "你是资深产品分析师。",
+      "你必须只输出严格 JSON（不要用 ```json 包裹），不得输出任何解释文字。",
       "所有 JSON key 必须使用英文，严格遵循以下 schema：",
       '{"projectDetection":{"projectName":"...","productName":"...","projectCategory":"...","evidence":["..."]},"meaningfulFindings":["..."],"prioritizedFindings":[{"priority":"P0","content":"...","reason":"..."}],"nextActions":["..."]}',
       "priority 只允许 P0/P1/P2。输出必须具体、可证据化，禁止空泛话术。"
@@ -73,9 +80,11 @@ export async function synthesizeProjectProfileOp(
       `版本差异=added:${params.versionDiff.added.join(" | ") || "-"};changed:${params.versionDiff.changed.join(" | ") || "-"};removed:${
         params.versionDiff.removed.join(" | ") || "-"
       }`,
-      `附件节选:\n${params.excerpt.slice(0, 2500) || "无"}`,
-      `多Agent输出:\n${compactOutputs || "无"}`,
-      "请输出：1)projectDetection(projectName/productName/projectCategory/evidence<=4条) 2)meaningfulFindings(2-8条，必须具体且可验证) 3)prioritizedFindings(<=8条，每条含priority/content/reason) 4)nextActions(<=6条)。所有key必须英文。"
+      `附件节选:\n${params.excerpt.slice(0, isCompactPrimaryContext ? 1600 : 2500) || "无"}`,
+      isCompactPrimaryContext ? "" : `多Agent输出:\n${compactOutputs || "无"}`,
+      isCompactPrimaryContext
+        ? "请输出：1)projectDetection(projectName/productName/projectCategory/evidence<=3条) 2)meaningfulFindings(2-4条，必须具体且可验证) 3)prioritizedFindings(<=4条，每条含priority/content/reason) 4)nextActions(<=3条)。所有key必须英文。"
+        : "请输出：1)projectDetection(projectName/productName/projectCategory/evidence<=4条) 2)meaningfulFindings(2-8条，必须具体且可验证) 3)prioritizedFindings(<=8条，每条含priority/content/reason) 4)nextActions(<=6条)。所有key必须英文。"
     ].join("\n\n")
   };
   try {
@@ -96,7 +105,8 @@ export async function synthesizeProjectProfileOp(
       params.sourceType === "single-file" && params.fileStats.totalFiles <= 1
         ? deps.synthesisLlmConfig.repairAttemptsSingleFile
         : deps.synthesisLlmConfig.repairAttemptsBatch;
-    for (let attempt = 1; attempt <= maxRepairAttempts && missingReasons.length > 0; attempt += 1) {
+    const effectiveRepairAttempts = isSupplementalContext || isCompactPrimaryContext ? Math.min(1, maxRepairAttempts) : maxRepairAttempts;
+    for (let attempt = 1; attempt <= effectiveRepairAttempts && missingReasons.length > 0; attempt += 1) {
       const repairPrompt = {
         ...prompt,
         agentId: `agent-report-synthesis-repair-${attempt}`,
@@ -117,7 +127,7 @@ export async function synthesizeProjectProfileOp(
       missingReasons = listProjectProfileMissingReasons(candidate);
     }
 
-    if (candidate.prioritizedFindings.length === 0 && candidate.meaningfulFindings.length > 0) {
+    if (!isSupplementalContext && !isCompactPrimaryContext && candidate.prioritizedFindings.length === 0 && candidate.meaningfulFindings.length > 0) {
       const prioritizePrompt = {
         agentId: "agent-report-prioritize-1",
         role: "orchestrator" as const,
@@ -139,7 +149,11 @@ export async function synthesizeProjectProfileOp(
       }
     }
 
-    for (let attempt = 1; attempt <= deps.synthesisLlmConfig.findingsRepairAttempts && candidate.meaningfulFindings.length === 0; attempt += 1) {
+    for (
+      let attempt = 1;
+      !isSupplementalContext && !isCompactPrimaryContext && attempt <= deps.synthesisLlmConfig.findingsRepairAttempts && candidate.meaningfulFindings.length === 0;
+      attempt += 1
+    ) {
       const findingsPrompt = {
         agentId: `agent-report-findings-${attempt}`,
         role: "orchestrator" as const,
@@ -170,7 +184,11 @@ export async function synthesizeProjectProfileOp(
 
     for (
       let attempt = 1;
-      attempt <= deps.synthesisLlmConfig.projectDetectionRepairAttempts && !candidate.projectName && !candidate.productName;
+      !isSupplementalContext &&
+      !isCompactPrimaryContext &&
+      attempt <= deps.synthesisLlmConfig.projectDetectionRepairAttempts &&
+      !candidate.projectName &&
+      !candidate.productName;
       attempt += 1
     ) {
       const detectionPrompt = {
@@ -209,7 +227,7 @@ export async function synthesizeProjectProfileOp(
     }
 
     // Only hard-fail on the most fundamental check; everything else is best-effort
-    if (!candidate.projectName && !candidate.productName) {
+    if (!isSupplementalContext && !candidate.projectName && !candidate.productName) {
       throw new LlmInvocationError("LLM synthesis returned invalid payload: missing projectDetection.projectName/productName");
     }
     {
@@ -220,7 +238,7 @@ export async function synthesizeProjectProfileOp(
       if (candidate.meaningfulFindings.every(isLowSignalText)) warnings.push("low-signal meaningfulFindings");
       if (candidate.nextActions.every(isLowSignalText)) warnings.push("low-signal nextActions");
       if (warnings.length > 0) {
-        const log = (await import("../../infrastructure/runtime/logger")).createLogger("proj-profile");
+        const log = (await import("../shared/logger")).createLogger("proj-profile");
         log.warn("project profile partially incomplete", { warnings: warnings.join(", ") });
       }
     }

@@ -1,3 +1,6 @@
+export type ExecutionStatus = "pending" | "passed" | "failed" | "blocked" | "skipped";
+export const ALLOWED_EXECUTION_STATUSES: ReadonlySet<string> = new Set<ExecutionStatus>(["pending", "passed", "failed", "blocked", "skipped"]);
+
 export type IterationScope = {
   inScope: string[];
   outOfScope: string[];

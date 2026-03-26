@@ -1,5 +1,7 @@
+import type { IterationVersionType } from "./iterationTypes";
+
 type VersionTriplet = { major: number; minor: number; patch: number };
-export type IterationVersionType = "major" | "minor" | "patch";
+export type { IterationVersionType } from "./iterationTypes";
 
 function parseVersionTriplet(input: string | undefined): VersionTriplet | null {
   if (!input) {

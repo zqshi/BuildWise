@@ -1,27 +1,15 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { buildContentSecurityPolicy } from "./viteCsp";
+import { resolveViteRuntimeEnv } from "./viteRuntimeEnv";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "VITE_");
-  if (mode === "production" && !env.VITE_API_BASE) {
+  const runtimeEnv = resolveViteRuntimeEnv(mode, process.cwd());
+  if (mode === "production" && !runtimeEnv.apiBase) {
     console.warn("[buildwise] VITE_API_BASE is empty — API calls will use same-origin relative paths");
   }
-  const proxyTarget = env.VITE_API_PROXY_TARGET || "http://127.0.0.1:5055";
-  const csp = buildContentSecurityPolicy({
-    apiBase: env.VITE_API_BASE,
-    mode
-  });
+  const proxyTarget = runtimeEnv.apiProxyTarget;
   return {
-    plugins: [
-      react(),
-      {
-        name: "buildwise-csp",
-        transformIndexHtml(html) {
-          return html.replace("__BUILDWISE_CSP__", csp);
-        }
-      }
-    ],
+    plugins: [react()],
     build: {
       target: "es2020",
       sourcemap: false,

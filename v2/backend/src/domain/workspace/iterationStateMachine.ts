@@ -1,7 +1,7 @@
 import type { IterationStatus } from "./iterationTypes";
 
 /** Domain-level iteration status transition rules */
-export const iterationStatusTransitions: Record<IterationStatus, IterationStatus[]> = {
+const iterationStatusTransitions: Record<IterationStatus, IterationStatus[]> = {
   planned: ["in-progress", "blocked"],
   "in-progress": ["review", "blocked", "completed"],
   review: ["in-progress", "completed", "blocked"],

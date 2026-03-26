@@ -1,3 +1,12 @@
+/**
+ * Analysis domain types — shared contract with backend.
+ *
+ * AUTHORITATIVE SOURCE: backend/src/domain/workspace/analysisTypes.ts
+ *
+ * When modifying shared types, always update the backend file first,
+ * then synchronize changes here. Frontend-only UI types are at the
+ * bottom of this file, clearly separated.
+ */
 import type { IterationStatus } from "./iterationTypes";
 
 export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
@@ -420,6 +429,8 @@ export type AttachmentIngestJob = {
   errorCode: string;
   errorMessage: string;
 };
+
+// ─── Frontend-only UI types (not shared with backend) ───────────────
 
 export type AttachmentUploadInitResponse = {
   uploadId: string;

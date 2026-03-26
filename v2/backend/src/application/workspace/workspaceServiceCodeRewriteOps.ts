@@ -3,16 +3,13 @@ import { join } from "node:path";
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { IterationCodeRewriteResponse } from "../../domain/workspace/types";
+import { pickString } from "../../shared/utils";
 import { buildProjectModelView, summarizeProjectModelView } from "../continuousModeling/continuousModelingProjectView";
 import { LlmUnavailableError, type AgentRunner } from "./agentRunner";
 import { assertBoundaryWhitelist, resolveBoundaryFileCandidates } from "./boundaryGuard";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import { normalizeIteration, normalizeProject } from "./workspaceSupport";
 import { normalizeRelPath } from "./workspaceServiceCommon";
-
-function pickString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
 
 function previewText(content: string, maxLength = 320) {
   return content.replace(/\s+/g, " ").slice(0, maxLength);

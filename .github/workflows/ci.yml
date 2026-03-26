@@ -41,11 +41,11 @@ jobs:
         working-directory: v2/backend
 
       - name: Audit Frontend
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org
         working-directory: v2
 
       - name: Audit Backend
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org
         working-directory: v2/backend
 
       - name: Frontend Typecheck

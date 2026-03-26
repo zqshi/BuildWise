@@ -39,17 +39,17 @@ function toTenantRoleProjectFallback(repo: WorkspaceRepository, projectId: numbe
   return binding.role;
 }
 
-export function mapTenantRoleToWorkspaceRole(role: TenantMemberRole | null): ProjectAccessContext["workspaceRole"] {
+function mapTenantRoleToWorkspaceRole(role: TenantMemberRole | null): ProjectAccessContext["workspaceRole"] {
   if (role === "admin") return "owner";
   if (role === "member") return "pm";
   return "viewer";
 }
 
-export function resolveProjectTenantId(project: Project) {
+function resolveProjectTenantId(project: Project) {
   return (project.tenantId || project.ownerUserId || "").trim();
 }
 
-export function resolveTenantRole(repo: WorkspaceRepository, tenantId: string, projectId: number, userId: string): TenantMemberRole | null {
+function resolveTenantRole(repo: WorkspaceRepository, tenantId: string, projectId: number, userId: string): TenantMemberRole | null {
   if (!tenantId || !userId) {
     return null;
   }
@@ -118,15 +118,6 @@ export function listAccessibleTenants(repo: WorkspaceRepository, userId: string)
     }
     return a.tenantId.localeCompare(b.tenantId);
   });
-}
-
-export function resolveCurrentTenantId(repo: WorkspaceRepository, userId: string, requestedTenantId: string) {
-  const requested = requestedTenantId.trim();
-  const accessible = listAccessibleTenants(repo, userId);
-  if (requested && accessible.some((item) => item.tenantId === requested)) {
-    return requested;
-  }
-  return accessible[0]?.tenantId || userId;
 }
 
 export function getProjectAccessContext(repo: WorkspaceRepository, projectId: number, userId: string): ProjectAccessContext {

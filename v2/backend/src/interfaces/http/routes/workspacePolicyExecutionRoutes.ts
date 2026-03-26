@@ -3,7 +3,25 @@ import type { WorkspaceService } from "../../../application/workspace/workspaceS
 import { ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.post("/projects/:id/openclaw/chat", async (request, reply) => {
+  app.post("/projects/:id/openclaw/chat", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          message: { type: "string", minLength: 1 }
+        },
+        required: ["message"],
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
@@ -28,7 +46,17 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     }
   });
 
-  app.get("/iterations/:id/policy-log", async (request, reply) => {
+  app.get("/iterations/:id/policy-log", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
@@ -42,7 +70,25 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     return service.listPolicyExecutionLogs(iterationId);
   });
 
-  app.post("/iterations/:id/policy-execute", async (request, reply) => {
+  app.post("/iterations/:id/policy-execute", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id"]
+      },
+      body: {
+        type: "object",
+        properties: {
+          action: { type: "string" },
+          message: { type: "string" }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {

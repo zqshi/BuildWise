@@ -16,21 +16,21 @@ import { normalizeThreePartVersion } from "../../domain/workspace/versioning";
 import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
 import { canTransitionTo, allowedTransitionsFrom, suggestNextTransition } from "../../domain/workspace/iterationStateMachine";
 
-export const iterationStatuses: IterationStatus[] = ["planned", "in-progress", "review", "blocked", "completed"];
+const iterationStatuses: IterationStatus[] = ["planned", "in-progress", "review", "blocked", "completed"];
 
 export function isIterationStatus(value: string): value is IterationStatus {
   return (iterationStatuses as string[]).includes(value);
 }
 
 export { canTransitionTo, allowedTransitionsFrom, suggestNextTransition };
-export function fallbackScope(goals: string[]): IterationScope {
+function fallbackScope(goals: string[]): IterationScope {
   return {
     inScope: goals,
     outOfScope: [],
     acceptanceCriteria: goals.map((goal) => `${goal} 可演示并通过验收`)
   };
 }
-export function fallbackContinuity(): ContinuityMeta {
+function fallbackContinuity(): ContinuityMeta {
   return {
     inheritedFromIterationId: null,
     inheritedSummary: "首个迭代，无需继承。",
@@ -39,7 +39,7 @@ export function fallbackContinuity(): ContinuityMeta {
     carriedDecisions: []
   };
 }
-export function fallbackAssessment(scope: IterationScope, summary: string): VersionAssessment {
+function fallbackAssessment(scope: IterationScope, summary: string): VersionAssessment {
   return {
     baselineIterationId: null,
     baselineIterationName: "无基线",
@@ -63,7 +63,7 @@ function defaultRepositoryLayout(): ProjectRepository["layout"] {
     { path: ".github/workflows", purpose: "CI/CD 流水线", required: true }
   ];
 }
-export function createDefaultProjectRepository(project: Pick<Project, "id" | "name">): ProjectRepository {
+function createDefaultProjectRepository(project: Pick<Project, "id" | "name">): ProjectRepository {
   const now = new Date().toISOString();
   const repoName = toRepoSlug(project.name, `project-${project.id}`);
   return {
@@ -258,7 +258,7 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
     lastAttachmentIngestJobId: control?.lastAttachmentIngestJobId || "",
     lastAttachmentAnalysisJobId: control?.lastAttachmentAnalysisJobId || "",
     lastAttachmentReportId: control?.lastAttachmentReportId || "",
-    clarificationRounds: Number.isInteger(control?.clarificationRounds) ? control!.clarificationRounds! : 0,
+    clarificationRounds: Number.isInteger(control?.clarificationRounds) ? control?.clarificationRounds! : 0,
     clarificationQuestions: Array.isArray(control?.clarificationQuestions) ? control?.clarificationQuestions : [],
     clarificationDraftResolvedQuestions: Array.isArray(control?.clarificationDraftResolvedQuestions)
       ? control?.clarificationDraftResolvedQuestions
@@ -541,24 +541,6 @@ export function recomputeAssessment(current: Iteration, previous: Iteration | nu
     pendingItems: currScope,
     risks: current.continuity.carriedRisks
   };
-}
-export function summarizeFromExcerpt(excerpt: string, fallback: string) {
-  const clean = excerpt.replace(/\s+/g, " ").trim();
-  if (!clean) {
-    return fallback;
-  }
-  return `已解析附件片段，关键内容：${clean.slice(0, 120)}${clean.length > 120 ? "..." : ""}`;
-}
-export function inferRisksFromExcerpt(excerpt: string) {
-  const lowered = excerpt.toLowerCase();
-  const risks: string[] = [];
-  if (lowered.includes("延期") || lowered.includes("delay")) {
-    risks.push("附件提及进度风险，建议补充里程碑缓冲。");
-  }
-  if (lowered.includes("待确认") || lowered.includes("todo")) {
-    risks.push("附件存在待确认项，建议在版本评审前补齐决策。");
-  }
-  return risks;
 }
 function mergeList(primary: string[] | undefined, fallback: string[]) {
   if (Array.isArray(primary) && primary.length > 0) {

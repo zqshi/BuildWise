@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { RuntimeConfig } from "./runtimeConfig";
-import type { LlmRuntimeStatus } from "../../application/workspace/agentRunner";
+import type { LlmRuntimeStatus } from "../../domain/shared/agentRunner";
 import type { RuntimeDependencyStatus } from "./runtimeDependencyProbe";
 
 type RateBucket = {

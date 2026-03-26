@@ -27,8 +27,8 @@ export const handleSaveArtifactDraft = async (
 ) => {
   if (!deps.currentIteration) return;
   await withBusyAction(deps, async () => {
-    await saveIterationArtifactDraft(deps.currentIteration!.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await saveIterationArtifactDraft(deps.currentIteration?.id, artifactId, payload);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -42,8 +42,8 @@ export const handleCommitArtifact = async (
 ) => {
   if (!deps.currentIteration) return;
   await withBusyAction(deps, async () => {
-    await commitIterationArtifact(deps.currentIteration!.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await commitIterationArtifact(deps.currentIteration?.id, artifactId, payload);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -57,8 +57,8 @@ export const handleConfirmArtifact = async (
 ) => {
   if (!deps.currentIteration) return;
   await withBusyAction(deps, async () => {
-    await confirmIterationArtifact(deps.currentIteration!.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await confirmIterationArtifact(deps.currentIteration?.id, artifactId, payload);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -72,7 +72,7 @@ export const handleAppendArtifactToChat = async (
 ) => {
   if (!deps.currentIteration) return;
   await withBusyAction(deps, async () => {
-    const result = await appendIterationArtifactToChat(deps.currentIteration!.id, artifactId, payload);
+    const result = await appendIterationArtifactToChat(deps.currentIteration?.id, artifactId, payload);
     deps.setChatMessages((prev) => [...prev, result.message]);
   });
 };
@@ -83,9 +83,9 @@ export const handleTransitionArtifactStage = async (
 ) => {
   if (!deps.currentIteration) return;
   await withBusyAction(deps, async () => {
-    await transitionIterationArtifactStage(deps.currentIteration!.id, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
-    await fetchIterationArtifactWorkflow(deps.currentIteration!.id);
+    await transitionIterationArtifactStage(deps.currentIteration?.id, payload);
+    await deps.loadIterationDetail(deps.currentIteration?.id);
+    await fetchIterationArtifactWorkflow(deps.currentIteration?.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }

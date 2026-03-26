@@ -156,8 +156,8 @@ export const handleSend = async (
       });
       const changed = rewrite.edits.map((item) => item.path).join("；") || "无变更";
       const header = rewrite.dryRun
-        ? `我先预览了一下改动范围，还没有真正执行。`
-        : `改动已经执行完了。`;
+        ? "我先预览了一下改动范围，还没有真正执行。"
+        : "改动已经执行完了。";
       await createMessage(currentIteration.id, "assistant", `${header}${rewrite.summary}\n涉及的文件：${changed}`, deps.setChatMessages);
       if (rewrite.outOfBoundaryFiles.length > 0) {
         await createMessage(currentIteration.id, "system", `有几个文件超出了本轮迭代的变更边界，没有动：${rewrite.outOfBoundaryFiles.join("；")}`, deps.setChatMessages);
@@ -247,10 +247,10 @@ export const handleSend = async (
         parts.push(`后端：${backendLane.status}${backendLane.note ? `（${backendLane.note}）` : ""}`);
       }
       if (reviewReportFiles.length > 0) {
-        parts.push(`发布评审报告已生成。`);
+        parts.push("发布评审报告已生成。");
       }
       if (deliveryPackageFiles.length > 0) {
-        parts.push(`交付包已打好，可以部署了。`);
+        parts.push("交付包已打好，可以部署了。");
       }
       await createMessage(currentIteration.id, "assistant", parts.join(""), deps.setChatMessages);
     }
