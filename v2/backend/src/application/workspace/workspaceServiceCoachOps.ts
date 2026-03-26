@@ -576,6 +576,9 @@ export async function coachIterationConversationOp(
         ]
       });
     }
+    // 持久化用户消息和 Coach 回复到消息历史
+    repo.createMessage(iterationId, "user", message);
+    repo.createMessage(iterationId, "assistant", response.reply);
     return response;
   } catch (error) {
     if (error instanceof LlmInvocationError) {

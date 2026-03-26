@@ -108,7 +108,7 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     dataFile: options.dataFile || join(backendRoot, "data.runtime.json")
   });
   const runtime = new RuntimeState(config);
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, requestTimeout: 600_000 });
   registerRuntimeHooks(app, runtime, config);
   await app.register(helmet, {
     contentSecurityPolicy: {
