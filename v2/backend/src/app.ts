@@ -158,6 +158,24 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   }
   const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
   const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo);
+
+  // Bootstrap: 自动创建初始管理员（仅当平台无任何成员时生效）
+  const bootstrapAdminPhone = (options.env?.BOOTSTRAP_ADMIN_PHONE || "").trim();
+  if (bootstrapAdminPhone && /^1\d{10}$/.test(bootstrapAdminPhone)) {
+    const existingBindings = workspaceRepo.listPlatformRoleBindings();
+    if (existingBindings.length === 0) {
+      const now = new Date().toISOString();
+      workspaceRepo.upsertPlatformRoleBinding({
+        id: 1,
+        userId: bootstrapAdminPhone,
+        role: "admin",
+        createdAt: now,
+        updatedAt: now
+      });
+      log.info("bootstrap admin created", { phone: `${bootstrapAdminPhone.slice(0, 3)}****${bootstrapAdminPhone.slice(7)}` });
+    }
+  }
+
   const platformService = new PlatformService(workspaceRepo);
   const continuousModelingService = new ContinuousModelingService(continuousModelingRepo);
   const continuousModelingWorkspaceService = new ContinuousModelingWorkspaceService(continuousModelingService, workspaceRepo, continuousModelingRepo);
