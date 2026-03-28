@@ -20,8 +20,14 @@ import {
 
 export class ChangeControlService {
   private readonly repo: WorkspaceRepository;
+  private _onAnalysisConfirmed: ((iterationId: number, projectId: number) => void) | null = null;
+
   constructor(repo: WorkspaceRepository) {
     this.repo = repo;
+  }
+
+  setOnAnalysisConfirmed(cb: (iterationId: number, projectId: number) => void) {
+    this._onAnalysisConfirmed = cb;
   }
 
   getIterationChangeControl(iterationId: number) {
@@ -70,7 +76,12 @@ export class ChangeControlService {
       resolvedClarificationQuestions?: string[];
     }
   ) {
-    return confirmIterationAnalysisOp(this.repo, iterationId, input);
+    const result = confirmIterationAnalysisOp(this.repo, iterationId, input);
+    if (result?.ok && this._onAnalysisConfirmed) {
+      const iteration = this.repo.findIteration(iterationId);
+      if (iteration) this._onAnalysisConfirmed(iterationId, iteration.projectId);
+    }
+    return result;
   }
 
   updateIterationBoundary(iterationId: number, input: Partial<IterationChangeBoundary>) {

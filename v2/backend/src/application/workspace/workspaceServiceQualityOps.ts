@@ -90,8 +90,8 @@ export function generateIterationTestArtifactsOp(
       content: [
         `describe("iteration ${iterationId} generated unit checklist", () => {`,
         ...(quality?.unitTests?.length
-          ? quality.unitTests.slice(0, 32).map((item, idx) => `  it("unit case ${idx + 1}: ${item.replace(/"/g, '\\"')}", () => {\n    // TODO: implement\n    expect(true).toBe(true);\n  });`)
-          : ['  it("placeholder", () => {\n    expect(true).toBe(true);\n  });']),
+          ? quality.unitTests.slice(0, 32).map((item, idx) => `  it.skip("unit case ${idx + 1}: ${item.replace(/"/g, '\\"')} [stub - needs implementation]", () => {\n    // TODO: implement real assertion\n    expect(true).toBe(true);\n  });`)
+          : ['  it.skip("placeholder [stub - needs implementation]", () => {\n    expect(true).toBe(true);\n  });']),
         "});"
       ].join("\n")
     },
@@ -104,8 +104,8 @@ export function generateIterationTestArtifactsOp(
         ...(quality?.contractTests?.length
           ? quality.contractTests
               .slice(0, 32)
-              .map((item, idx) => `  it("contract case ${idx + 1}: ${item.replace(/"/g, '\\"')}", async () => {\n    // TODO: implement\n    assert.equal(true, true);\n  });`)
-          : ['  it("placeholder", async () => {\n    assert.equal(true, true);\n  });']),
+              .map((item, idx) => `  it.skip("contract case ${idx + 1}: ${item.replace(/"/g, '\\"')} [stub - needs implementation]", async () => {\n    // TODO: implement real assertion\n    assert.equal(true, true);\n  });`)
+          : ['  it.skip("placeholder [stub - needs implementation]", async () => {\n    assert.equal(true, true);\n  });']),
         "});"
       ].join("\n")
     }

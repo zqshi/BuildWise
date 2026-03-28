@@ -1,5 +1,6 @@
 import type { Iteration, IterationArtifactStage } from "../../domain/workspace/types";
 import { defaultIterationChangeControl } from "./workspaceServiceCommon";
+import { synthesizeArtifactDraftContent } from "./artifactDraftSynthesizer";
 
 export const artifactStageOrder: IterationArtifactStage[] = [
   "clarification",
@@ -155,6 +156,18 @@ export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType
     archive.summary = preferSummary(archive.summary, `materializedFiles=${files.length}`);
     archive.evidence = preferEvidence(archive.evidence, files.slice(0, 6));
   }
+  // 自动合成 draft.content — 如果 draft 为空但有 metadata 可用，生成可读内容
+  for (const item of nextItems) {
+    if (!item.draft.content.trim()) {
+      const synthesized = synthesizeArtifactDraftContent(item.id, iteration, control);
+      if (synthesized) {
+        item.draft.content = synthesized;
+        item.draft.updatedAt = item.draft.updatedAt || now;
+        item.draft.updatedBy = item.draft.updatedBy || "system";
+      }
+    }
+  }
+
   const activeStage = (control.artifactWorkflow?.activeStage as IterationArtifactStage) || fallback.activeStage;
   return {
     activeStage,
@@ -166,16 +179,19 @@ export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType
 export function markDownstreamStale(
   items: ReturnType<typeof defaultIterationChangeControl>["artifactWorkflow"]["items"],
   artifactId: string
-) {
+): Array<{ id: string; title: string }> {
   const target = items.find((item) => item.id === artifactId);
-  if (!target) return;
+  if (!target) return [];
   const impacted = new Set(target.downstreamImpacts);
+  const staleItems: Array<{ id: string; title: string }> = [];
   for (const item of items) {
     if (impacted.has(item.stage)) {
       item.stale = true;
       item.gateStatus = "pending";
+      staleItems.push({ id: item.id, title: item.title });
     }
   }
+  return staleItems;
 }
 
 export type TestMatrixExecutionUpdate = {

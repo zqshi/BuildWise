@@ -78,6 +78,8 @@ export const createMessage = async (
 
 /* ── handleSend ──────────────────────────────────────────────────────── */
 
+let _sendInFlight = false;
+
 export const handleSend = async (
   deps: ChatActionDeps,
   options?: {
@@ -101,6 +103,8 @@ export const handleSend = async (
   if (!text || !deps.currentIteration) {
     return null;
   }
+  if (_sendInFlight) return null;
+  _sendInFlight = true;
   const currentIteration = deps.currentIteration;
   deps.setChatSendStatus("sending");
   deps.setChatInput("");
@@ -263,5 +267,7 @@ export const handleSend = async (
       deps.setChatSendStatus("failed");
     }
     return null;
+  } finally {
+    _sendInFlight = false;
   }
 };

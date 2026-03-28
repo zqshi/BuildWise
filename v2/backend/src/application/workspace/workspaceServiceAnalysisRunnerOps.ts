@@ -201,8 +201,9 @@ export async function runAttachmentAnalysisJobOp(params: {
       if (onAnalysisCompleted && job.result) {
         try {
           onAnalysisCompleted(job.iterationId, job.result);
-        } catch {
+        } catch (err) {
           // modeling trigger must not block analysis pipeline
+          console.error("[AnalysisRunner] onAnalysisCompleted callback failed for iteration", job.iterationId, err);
         }
       }
     }

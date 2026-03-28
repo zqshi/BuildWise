@@ -35,8 +35,8 @@ export class IterationService {
     return createIterationOp(this.repo, projectId, payload);
   }
 
-  listMessages(iterationId: number) {
-    return listMessagesOp(this.repo, iterationId);
+  listMessages(iterationId: number, opts?: { limit?: number; offset?: number }) {
+    return listMessagesOp(this.repo, iterationId, opts);
   }
 
   createMessage(iterationId: number, role: "system" | "assistant" | "user", content: string) {

@@ -311,8 +311,11 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     return created;
   }
 
-  listMessages(iterationId: number) {
-    return this.read().messages.filter((item) => item.iterationId === iterationId);
+  listMessages(iterationId: number, opts?: { limit?: number; offset?: number }) {
+    const all = this.read().messages.filter((item) => item.iterationId === iterationId);
+    const limit = opts?.limit && Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : 500;
+    const offset = opts?.offset && Number.isInteger(opts.offset) && opts.offset >= 0 ? opts.offset : 0;
+    return all.slice(offset, offset + limit);
   }
 
   createMessage(iterationId: number, role: IterationMessage["role"], content: string) {

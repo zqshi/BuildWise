@@ -100,13 +100,13 @@ export function selectOpenclawSkillsFromRegistry(
   // 2. Stage-based selection — 按迭代阶段自动选择对应 skill
   if (selected.size === 0 && activeStage) {
     const stageDefaultSkills: Record<string, string[]> = {
-      clarification: ["00-orchestrator-sop", "01-ontology-mapping"],
-      scope: ["02-impact-analysis", "03-deliverable-governance", "04-cross-iteration"],
-      interaction: ["09-deliverable-content-contract", "08-agentic-flow-contract", "05-exception-recovery"],
-      development: ["09-deliverable-content-contract", "08-agentic-flow-contract", "05-exception-recovery"],
-      testing: ["06-quality-release-gate", "11-product-rd-quality-contract"],
-      release: ["07-audit-trace", "06-quality-release-gate"],
-      archive: ["07-audit-trace"]
+      clarification: ["00-orchestrator-sop", "01-intake-requirements", "02-analyze-materials", "03-ontology-extraction", "04-ontology-collision", "05-clarify-scope", "06-model-snapshot-publish"],
+      scope: ["07-impact-analysis", "08-lock-boundary", "09-generate-prd"],
+      interaction: ["10-design-interaction"],
+      development: ["11-plan-architecture", "12-generate-code", "13-business-rule-ingestion"],
+      testing: ["14-generate-tests"],
+      release: ["15-release-review", "16-package-delivery"],
+      archive: ["16-package-delivery", "17-baseline-evolution"]
     };
     const stageSkills = stageDefaultSkills[activeStage];
     if (stageSkills) {

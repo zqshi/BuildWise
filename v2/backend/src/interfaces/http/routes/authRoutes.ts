@@ -233,6 +233,10 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
   // POST /api/auth/refresh — 刷新 token
   app.post("/auth/refresh", async (request, reply) => {
     if (config.authMode !== "jwt") {
+      // AUTH_MODE=off: return a mock token so the frontend refresh flow doesn't break
+      if (config.authMode === "off") {
+        return { accessToken: "dev-off-mode-token", expiresIn: 86400 };
+      }
       reply.code(404);
       return { message: "token refresh is only available in jwt auth mode" };
     }

@@ -48,7 +48,7 @@ export interface IterationRepository {
 }
 
 export interface MessageRepository {
-  listMessages(iterationId: number): IterationMessage[];
+  listMessages(iterationId: number, opts?: { limit?: number; offset?: number }): IterationMessage[];
   createMessage(iterationId: number, role: IterationMessage["role"], content: string): IterationMessage;
 }
 

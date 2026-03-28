@@ -8,7 +8,7 @@ import type {
 } from "../../domain/workspace/types";
 import { buildMergedIterationPayload, normalizeIteration, normalizeProject, allowedTransitionsFrom } from "./workspaceSupport";
 import { buildDefaultIterationCodeLink, defaultIterationChangeControl, hasProject, writeAuditLog } from "./workspaceServiceCommon";
-import { buildGitRequirementIntakePrompt, hasGitRequirementIntakeTarget } from "./workspaceServiceGitRequirementIntakeOps";
+import { hasGitRequirementIntakeTarget } from "./workspaceServiceGitRequirementIntakeOps";
 import { normalizeIterationMessageContent } from "./workspaceMessageSanitizer";
 
 export function listIterationsOp(repo: WorkspaceRepository, projectId: number) {
@@ -64,7 +64,7 @@ export function createIterationOp(repo: WorkspaceRepository, projectId: number, 
         lastUpdatedAt: now,
         lastAttachmentName: normalized.interactionState?.lastAttachmentName || "",
         gitRequirementIntake: {
-          status: "pending-confirmation",
+          status: "available",
           askedAt: now,
           decidedAt: "",
           branch: projectRepo.defaultBranch || "main",
@@ -75,14 +75,13 @@ export function createIterationOp(repo: WorkspaceRepository, projectId: number, 
       }
     });
     repo.updateIteration(normalized);
-    repo.createMessage(normalized.id, "assistant", buildGitRequirementIntakePrompt(projectRepo));
-    writeAuditLog(repo, "iteration_git_intake_prompted", `iteration:${normalized.id}`, `repo=${projectRepo.url};branch=${projectRepo.defaultBranch}`);
+    writeAuditLog(repo, "iteration_git_intake_available", `iteration:${normalized.id}`, `repo=${projectRepo.url};branch=${projectRepo.defaultBranch}`);
   }
   return normalized;
 }
 
-export function listMessagesOp(repo: WorkspaceRepository, iterationId: number) {
-  return repo.listMessages(iterationId);
+export function listMessagesOp(repo: WorkspaceRepository, iterationId: number, opts?: { limit?: number; offset?: number }) {
+  return repo.listMessages(iterationId, opts);
 }
 
 export function createMessageOp(repo: WorkspaceRepository, iterationId: number, role: "system" | "assistant" | "user", content: string) {

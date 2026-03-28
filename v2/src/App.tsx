@@ -154,8 +154,8 @@ function AppInner() {
         {backendOffline ? (
           <section className="backend-offline-banner" role="status" aria-live="polite">
             {import.meta.env.DEV
-              ? "后端未连接（127.0.0.1:5055）。请执行：`npm --prefix v2/backend run dev`"
-              : "服务暂时不可用，请稍后重试"}
+              ? "后端服务未启动。请执行：npm --prefix v2/backend run dev"
+              : "服务连接中断，正在尝试重连…"}
           </section>
         ) : null}
         <ViewErrorBoundary

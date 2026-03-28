@@ -17,6 +17,7 @@ import { buildOpenclawSkillSelectionContext, runOpenclawSkillChainForCoach } fro
 import { buildKnowledgeSyncContext } from "./knowledgeSyncService";
 import { buildCoachContractContext } from "./workspaceCoachInteractionContract";
 import { buildUpstreamExcerpts, formatUpstreamContext } from "./artifactDependencyGraph";
+import { publishArtifactReferenceMessage } from "./workspaceArtifactConversationPolicy";
 import { safeJsonParse } from "./workspaceServiceAttachmentUtils";
 import {
   appendPolicyExecutionLogOp,
@@ -50,14 +51,19 @@ const coachPromptFallback: CoachPromptTemplate = {
     "输出格式：",
     "先用自然语言直接回复用户——这部分用户会完整看到，所以要自然、有温度、有针对性。",
     "然后在回复的最末尾，另起一行用 HTML 注释附带结构化控制信息（用户看不到这部分）：",
-    '<!-- coach:{"intent":"意图标签","execution":{"action":"none|rewrite|confirm-accurate|confirm-inaccurate|enter-clarify-mode|run-full-cycle","instruction":"执行指令","apply":false},"guidance":{"uploadRecommended":false,"suggestedUploadTypes":[],"suggestedActions":[],"clarificationChecklist":[]}} -->',
+    '<!-- coach:{"intent":"意图标签","execution":{"action":"none|rewrite|confirm-accurate|confirm-inaccurate|enter-clarify-mode|run-full-cycle","instruction":"执行指令","apply":false,"artifacts":[]},"guidance":{"uploadRecommended":false,"suggestedUploadTypes":[],"suggestedActions":[],"clarificationChecklist":[]}} -->',
+    "",
+    "execution.artifacts 说明：",
+    "当你认为当前对话已经产出了足够信息来生成某个交付物时，在 artifacts 数组中声明交付物 id。系统会自动触发交付物草稿合成并在对话中显示卡片。",
+    "可用的交付物 id：analysis-report, product-requirements-doc, boundary-confirmation, prototype-preview, design-spec, technical-architecture, api-specification, database-design, frontend-code, backend-code, test-matrix, acceptance-checklist, release-review, deployment-plan, delivery-package",
+    "大多数情况 artifacts 为空数组。只有当你判断信息充足、用户意图明确时才声明。",
     "",
     "完整示例：",
     "---",
     "退款功能确实需要做，不过我建议我们先聊清楚几个关键点：退款触发的条件是什么？是用户手动发起还是系统自动判定？另外退款金额的计算规则需要确认——是全额退还是按比例？",
     "",
     "这些搞清楚之后，我再帮你拆解任务优先级。如果你有相关的业务文档或流程图，先传上来我看看。",
-    '<!-- coach:{"intent":"clarify","execution":{"action":"none","instruction":"","apply":false},"guidance":{"uploadRecommended":true,"suggestedUploadTypes":["业务流程文档"],"suggestedActions":["确认退款触发条件","确认退款金额计算规则"],"clarificationChecklist":["退款是用户发起还是系统自动","退款金额是全额还是按比例"]}} -->',
+    '<!-- coach:{"intent":"clarify","execution":{"action":"none","instruction":"","apply":false,"artifacts":[]},"guidance":{"uploadRecommended":true,"suggestedUploadTypes":["业务流程文档"],"suggestedActions":["确认退款触发条件","确认退款金额计算规则"],"clarificationChecklist":["退款是用户发起还是系统自动","退款金额是全额还是按比例"]}} -->',
     "---",
     "",
     "intent 可选值：collect-attachment / clarify / confirm-boundary / plan / qa / release / full-cycle / general",
@@ -334,6 +340,9 @@ function buildCoachContext(iteration: Iteration, previous: Iteration | null, pro
     iteration.changeControl?.pendingHumanConfirmation
       ? "有待用户确认的事项。"
       : "",
+    project?.repository?.url
+      ? `项目已配置代码仓库（${project.repository.url}，分支 ${project.repository.defaultBranch || "main"}），如果需要可以引导用户决定是否读取仓库来辅助需求分析。`
+      : "",
     unresolved.length > 0
       ? `还有未解决的澄清问题：${unresolved.join("；")}。`
       : "",
@@ -456,7 +465,7 @@ export async function coachIterationConversationOp(
     role: "iteration-coach" as const,
     scope: "iteration" as const,
     goal: "用自然沟通引导用户推进迭代澄清与边界确认",
-    expectedOutput: "",
+    expectedOutput: "先用自然语言直接回复用户，最后一行附带 <!-- coach:{...} --> 结构化标记",
     systemPrompt: renderTemplate(promptTemplate.systemPrompt, {
       role: "iteration-coach",
       scope: "iteration",
@@ -576,9 +585,27 @@ export async function coachIterationConversationOp(
         ]
       });
     }
-    // 持久化用户消息和 Coach 回复到消息历史
-    repo.createMessage(iterationId, "user", message);
-    repo.createMessage(iterationId, "assistant", response.reply);
+    // Coach 声明的交付物产出 → 发布交付物引用消息到对话流
+    const declaredArtifacts = pickStringList(executionRaw.artifacts, 5);
+    if (declaredArtifacts.length > 0) {
+      const workflow = normalized.changeControl?.artifactWorkflow;
+      if (workflow) {
+        for (const artifactId of declaredArtifacts) {
+          const item = workflow.items.find((i) => i.id === artifactId);
+          if (item) {
+            publishArtifactReferenceMessage(repo, iterationId, {
+              title: item.title,
+              summary: item.summary || item.description,
+              evidence: item.evidence || [],
+              prompt: `请围绕交付物「${item.title}」继续与用户确认，不要直接跨阶段推进。`
+            });
+          }
+        }
+      }
+    }
+
+    // 消息持久化由前端统一负责（前端在发送前和收到回复后分别 POST /messages）
+    // 后端 Coach 流程不再重复持久化，避免消息重复
     return response;
   } catch (error) {
     if (error instanceof LlmInvocationError) {

@@ -3,7 +3,10 @@ import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Editor from "react-simple-code-editor";
+import _SimpleCodeEditor from "react-simple-code-editor";
+
+// react-simple-code-editor CJS interop: default import may be { default: Component } wrapper
+const Editor = (typeof _SimpleCodeEditor === "function" ? _SimpleCodeEditor : (_SimpleCodeEditor as Record<string, unknown>).default || _SimpleCodeEditor) as typeof _SimpleCodeEditor;
 import Prism from "prismjs";
 import "prismjs/components/prism-markup.js";
 import "prismjs/components/prism-css.js";

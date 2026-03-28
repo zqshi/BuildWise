@@ -287,10 +287,12 @@ export class SqliteWorkspaceCore {
     return this.parsePayload<Iteration>(row?.payload) ?? null;
   }
 
-  listMessages(iterationId: number) {
+  listMessages(iterationId: number, opts?: { limit?: number; offset?: number }) {
+    const limit = opts?.limit && Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : 500;
+    const offset = opts?.offset && Number.isInteger(opts.offset) && opts.offset >= 0 ? opts.offset : 0;
     const rows = this.db
-      .prepare("SELECT payload FROM messages WHERE iteration_id = ? ORDER BY id ASC")
-      .all(iterationId) as Array<{ payload?: string }>;
+      .prepare("SELECT payload FROM messages WHERE iteration_id = ? ORDER BY id ASC LIMIT ? OFFSET ?")
+      .all(iterationId, limit, offset) as Array<{ payload?: string }>;
     return rows
       .map((row) => this.parsePayload<IterationMessage>(row.payload))
       .filter((item): item is IterationMessage => Boolean(item));

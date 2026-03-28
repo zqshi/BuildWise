@@ -133,7 +133,7 @@ export function useHtmlPreviewInteraction(
           actions: result.actions
         }
       },
-      "*"
+      "*" // srcdoc iframe has origin "null", targetOrigin must be "*"; security enforced by source field check on receive side
     );
   };
 

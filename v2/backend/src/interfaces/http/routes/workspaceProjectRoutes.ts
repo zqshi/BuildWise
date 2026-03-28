@@ -200,24 +200,6 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       }
     }
   }, removeCustomRoleHandler);
-  // Legacy underscore aliases
-  app.get("/governance/custom_roles", listCustomRolesHandler);
-  app.post("/governance/custom_roles", {
-    schema: {
-      body: {
-        type: "object",
-        properties: {
-          roleKey: { type: "string" },
-          name: { type: "string" },
-          description: { type: "string" },
-          level: { type: "number" },
-          permissions: { type: "array", items: { type: "string" } }
-        },
-        required: ["name"],
-        additionalProperties: false
-      }
-    }
-  }, upsertCustomRolesHandler);
 
   app.get("/governance/openclaw/status", async () => {
     return service.probeOpenclawIntegration();

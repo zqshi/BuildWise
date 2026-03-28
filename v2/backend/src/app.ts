@@ -9,7 +9,7 @@ import { OpenclawGlobalService } from "./application/openclawGlobal/openclawGlob
 import { PlatformService } from "./application/platform/platformService";
 import { createAgentRunnerFromEnv, probeLlmRuntimeStatus } from "./application/workspace/agentRunner";
 import { extractKnowledgeBaseUpdateOp } from "./application/workspace/ontologyService";
-import { buildModelingInputFromAnalysis } from "./application/workspace/ontologyModelingBridge";
+import { buildModelingInputFromAnalysis, buildTraceabilityMapFromDomainEntries } from "./application/workspace/ontologyModelingBridge";
 import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from "./application/workspace/projectWorkspaceKnowledgeService";
 import { WorkspaceService } from "./application/workspace/workspaceService";
 import type { WorkspaceRepository } from "./domain/workspace/repository";
@@ -128,10 +128,12 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     crossOriginEmbedderPolicy: false
   });
   await app.register(cors, { origin: resolveCorsOriginOption(config.corsOrigins), credentials: true });
-  await app.register(rateLimit, {
-    max: config.rateLimitMax,
-    timeWindow: config.rateLimitWindowMs
-  });
+  if (config.rateLimitMax > 0) {
+    await app.register(rateLimit, {
+      max: config.rateLimitMax,
+      timeWindow: config.rateLimitWindowMs
+    });
+  }
   registerRuntimeAuth(app, config);
   if (options.registerProcessHandlers !== false) {
     registerGracefulShutdown(app, runtime, config, resolveProcessHooks());
@@ -208,11 +210,14 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
       evidence: t.evidence
     }));
 
+    // 从 domainEntries 聚合构建 Bridge 所需的 TraceabilityMap
+    const bridgeTraceMap = buildTraceabilityMapFromDomainEntries(domainEntries);
+
     if (project) {
       const existingKb = project.knowledgeBase ?? emptyKb();
       const ontologyResult = extractKnowledgeBaseUpdateOp(existingKb, {
         domainKnowledgeEntries: domainEntries,
-        traceabilityMap: null,
+        traceabilityMap: bridgeTraceMap,
         boundary: null,
         analysisReport: report
       });
@@ -220,15 +225,43 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
       syncProjectWorkspaceKnowledge(workspaceRepo, projectId);
     }
 
-    const kb = project?.knowledgeBase ?? emptyKb();
+    const kb = workspaceRepo.findProject(projectId)?.knowledgeBase ?? emptyKb();
     const modelingInput = buildModelingInputFromAnalysis({
       projectId,
       iterationId,
       knowledgeBase: kb,
       domainKnowledgeEntries: domainEntries,
-      traceabilityMap: null
+      traceabilityMap: bridgeTraceMap,
+      reportTraceabilityMap: report.traceabilityMap
     });
     continuousModelingWorkspaceService.saveCandidate(modelingInput);
+  });
+
+  // 分析确认后，刷新快照 + 自动发布
+  workspaceService.changeControl.setOnAnalysisConfirmed((iterationId, projectId) => {
+    const project = workspaceRepo.findProject(projectId);
+    if (!project) return;
+    const kb = project.knowledgeBase ?? emptyKb();
+    const iteration = workspaceRepo.findIteration(iterationId);
+    if (!iteration) return;
+    const dk = (iteration as Record<string, unknown>).changeControl as Record<string, unknown> | undefined;
+    const domainEntries = (dk?.domainKnowledgeEntries ?? []) as Array<{
+      term: string; definition: string;
+      mappedPages: string[]; mappedApis: string[]; mappedEntities: string[]; mappedCodePaths: string[];
+      evidence: string;
+    }>;
+    const bridgeTraceMap = buildTraceabilityMapFromDomainEntries(domainEntries);
+    const modelingInput = buildModelingInputFromAnalysis({
+      projectId,
+      iterationId,
+      knowledgeBase: kb,
+      domainKnowledgeEntries: domainEntries,
+      traceabilityMap: bridgeTraceMap,
+    });
+    const saveResult = continuousModelingWorkspaceService.saveCandidate(modelingInput);
+    if (saveResult.ok && saveResult.data?.snapshotId) {
+      continuousModelingWorkspaceService.publishSnapshot(saveResult.data.snapshotId, projectId);
+    }
   });
 
   await registerSystemRoutes(app, {
