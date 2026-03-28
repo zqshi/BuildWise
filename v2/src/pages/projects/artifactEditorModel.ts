@@ -67,6 +67,11 @@ export function extractArtifactPrototypeHtml(value: string) {
   if (/^\s*<(?:!doctype html|html[\s>]|head[\s>]|body[\s>])/i.test(text)) {
     return text;
   }
+  // Fallback: wrap non-HTML content (e.g. Markdown) in a basic HTML page for preview
+  if (text.length > 10) {
+    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;padding:24px;line-height:1.6;color:#333;max-width:800px;margin:0 auto}pre{white-space:pre-wrap;word-wrap:break-word}</style></head><body><pre>${escaped}</pre></body></html>`;
+  }
   return "";
 }
 

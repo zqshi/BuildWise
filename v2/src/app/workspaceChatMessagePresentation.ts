@@ -169,3 +169,19 @@ export function hasAssistantImpactAssessment(messages: IterationMessage[]) {
     return IMPACT_ASSESSMENT_SIGNAL.test(content) && IMPACT_CONFIRMATION_SIGNAL.test(content);
   });
 }
+
+export type ChangeImpactMessage = {
+  items: string[];
+  note: string;
+};
+
+export function parseChangeImpactMessage(content: string): ChangeImpactMessage | null {
+  if (!content.startsWith("【变更影响】")) return null;
+  const body = content.replace(/^【变更影响】/, "");
+  const parts = body.split("｜");
+  const itemsStr = (parts[0] || "").trim();
+  const note = (parts[1] || "已自动标记待同步").trim();
+  const items = itemsStr.split("·").map((s) => s.trim()).filter(Boolean);
+  if (items.length === 0) return null;
+  return { items, note };
+}

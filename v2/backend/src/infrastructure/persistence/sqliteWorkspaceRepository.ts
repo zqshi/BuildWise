@@ -209,8 +209,8 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     return created;
   }
 
-  listMessages(iterationId: number) {
-    return this.core.listMessages(iterationId);
+  listMessages(iterationId: number, opts?: { limit?: number; offset?: number }) {
+    return this.core.listMessages(iterationId, opts);
   }
 
   createMessage(iterationId: number, role: IterationMessage["role"], content: string) {

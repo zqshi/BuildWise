@@ -43,11 +43,26 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
     headers.set("Authorization", `Bearer ${freshToken}`);
   }
 
+  // 合并 timeout signal 和调用方 signal — 兼容不支持 AbortSignal.any 的浏览器
+  let mergedSignal: AbortSignal;
+  if (options?.signal) {
+    if (typeof AbortSignal.any === "function") {
+      mergedSignal = AbortSignal.any([controller.signal, options.signal]);
+    } else {
+      // fallback: 任一 signal abort 时触发 controller.abort
+      const onExternalAbort = () => controller.abort();
+      options.signal.addEventListener("abort", onExternalAbort, { once: true });
+      mergedSignal = controller.signal;
+    }
+  } else {
+    mergedSignal = controller.signal;
+  }
+
   const mergedOptions: RequestInit = {
     ...options,
     headers,
     credentials: "include",
-    signal: options?.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal
+    signal: mergedSignal
   };
   let res: Response;
   try {
@@ -108,16 +123,38 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
     }
   }
 
+  // 429 Too Many Requests — 等待 retry-after 后自动重试一次，避免触发 recovery 风暴
+  if (res.status === 429) {
+    const retryAfter = Number.parseInt(res.headers.get("retry-after") || "5", 10);
+    const waitMs = Math.min(Math.max(retryAfter, 2), 60) * 1000;
+    await new Promise((r) => setTimeout(r, waitMs));
+    const retryController = new AbortController();
+    const retryTimeout = setTimeout(() => retryController.abort(), timeoutMs);
+    try {
+      const retryRes = await fetch(url, { ...mergedOptions, signal: retryController.signal });
+      clearTimeout(retryTimeout);
+      if (retryRes.ok) {
+        if (retryRes.status === 204) return null as T;
+        const ct = retryRes.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) throw new Error("API error: invalid response format");
+        return (await retryRes.json()) as T;
+      }
+      // 重试后仍失败，走下面的通用错误处理
+      res = retryRes;
+    } catch {
+      clearTimeout(retryTimeout);
+      throw new Error("API error: too many requests, retry failed");
+    }
+  }
+
   if (!res.ok) {
     const contentType = res.headers.get("content-type") || "";
-    const retryAfter = res.headers.get("retry-after") || "";
     let detail = "";
     if (contentType.includes("application/json")) {
       const payload = (await res.json().catch(() => null)) as { message?: string } | null;
       detail = payload?.message ? `: ${payload.message}` : "";
     }
-    const retryAfterDetail = retryAfter ? ` [retry-after=${retryAfter}]` : "";
-    throw new Error(`API error: ${res.status}${detail}${retryAfterDetail}`);
+    throw new Error(`API error: ${res.status}${detail}`);
   }
   // 204 No Content — 无 body，直接返回 null
   if (res.status === 204) {

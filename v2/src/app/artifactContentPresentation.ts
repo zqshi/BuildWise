@@ -113,6 +113,7 @@ function parseJsonObjectFromText(value: string) {
         try {
           return JSON.parse(candidate.slice(start, end + 1)) as Record<string, unknown>;
         } catch {
+          // JSON parse fallback failed, continue to next candidate
         }
       }
     }

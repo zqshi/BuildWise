@@ -249,3 +249,25 @@
   font-size:var(--text-2xs);
   color:var(--text-secondary);
 }
+
+/* 变更影响警示条 */
+.impact-alert-bar {
+  background:#fef3cd;
+  border:1px solid #ffc107;
+  border-radius:var(--radius-sm);
+  padding:8px 12px;
+  font-size:var(--text-sm);
+  color:#856404;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.impact-alert-icon {
+  flex-shrink:0;
+}
+.impact-alert-note {
+  opacity:0.7;
+  font-size:var(--text-xs);
+  margin-left:auto;
+}

@@ -345,8 +345,9 @@ export class AnalysisService {
     if (this.onAnalysisCompletedCallback) {
       try {
         this.onAnalysisCompletedCallback(iterationId, report);
-      } catch {
+      } catch (err) {
         // modeling trigger failure must not block analysis pipeline
+        console.error("[AnalysisService] onAnalysisCompleted callback failed for iteration", iterationId, err);
       }
     }
   }

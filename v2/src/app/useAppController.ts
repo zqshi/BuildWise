@@ -92,10 +92,19 @@ export function useAppController() {
     state.setCurrentRole(projectScopedRole || auth.workspaceRole);
   }, [auth.workspaceRole, derived.currentProject?.currentUserRole, state.setCurrentRole]);
 
+  const lastTenantRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!auth.isAuthenticated) {
+      lastTenantRef.current = null;
       return;
     }
+    const tenantKey = auth.currentTenantId || "";
+    // 同一租户重复触发时跳过全量重置，避免页面闪烁
+    if (lastTenantRef.current === tenantKey) {
+      return;
+    }
+    lastTenantRef.current = tenantKey;
     state.setProjects([]);
     state.setProjectsHydrated(false);
     state.setCurrentProjectId(null);
@@ -213,6 +222,9 @@ export function useAppController() {
     state.setUploadAnalysisProgress(null);
     state.setUploadToastMessage(null);
     state.setUploadedFile(null);
+    state.setAnalysisReport(null);
+    state.setShowAnalysisPanel(false);
+    state.setIsAnalyzingAttachment(false);
     try {
       const rawUpload = localStorage.getItem(uploadedAttachmentCacheKey(state.currentIterationId));
       if (rawUpload) {
@@ -221,8 +233,8 @@ export function useAppController() {
           state.setUploadedFile(parsed);
         }
       }
-    } catch {
-      // ignore broken cache and continue with backend data
+    } catch (err) {
+      console.debug("[AppController] failed to parse upload cache from localStorage", err);
     }
     try {
       const raw = localStorage.getItem(analysisReportCacheKey(state.currentIterationId));
@@ -232,8 +244,8 @@ export function useAppController() {
           state.setAnalysisReport(parsed);
         }
       }
-    } catch {
-      // ignore broken cache and continue with backend data
+    } catch (err) {
+      console.debug("[AppController] failed to parse analysis report cache from localStorage", err);
     }
     loaders.loadIterationDetail(state.currentIterationId).catch(async (err) => {
       const message = resolveErrorMessage(err);
@@ -244,8 +256,8 @@ export function useAppController() {
         if (state.currentProjectId) {
           try {
             await loaders.loadIterations(state.currentProjectId);
-          } catch {
-            // keep existing behavior: only surface the original fetch error if recovery fails
+          } catch (recoveryErr) {
+            console.warn("[AppController] iteration list recovery after 404 failed", recoveryErr);
           }
         }
         return;
@@ -263,8 +275,8 @@ export function useAppController() {
     }
     try {
       localStorage.setItem(analysisReportCacheKey(state.currentIterationId), JSON.stringify(state.analysisReport));
-    } catch {
-      // ignore storage failure
+    } catch (err) {
+      console.debug("[AppController] localStorage write failed (analysis report cache)", err);
     }
   }, [state.currentIterationId, state.analysisReport]);
 
@@ -277,8 +289,8 @@ export function useAppController() {
     }
     try {
       localStorage.setItem(uploadedAttachmentCacheKey(state.currentIterationId), JSON.stringify(state.uploadedFile));
-    } catch {
-      // ignore storage failure
+    } catch (err) {
+      console.debug("[AppController] localStorage write failed (upload cache)", err);
     }
   }, [state.currentIterationId, state.uploadedFile]);
 

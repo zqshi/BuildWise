@@ -137,11 +137,10 @@ export const toUploadProgress = (job: AttachmentAnalysisJob): UploadAnalysisProg
     const llmLastCallTime = job.progress.lastLlmCallAt
       ? new Date(job.progress.lastLlmCallAt).toLocaleTimeString("zh-CN", { hour12: false })
       : "无";
-    const stageHint = (job.progress.stageHint || "").trim();
     return {
       stage: "running",
       label: "正在调用大模型分析",
-      detail: `批次 ${Math.min(effectiveDoneBatches + 1, totalBatches)}/${totalBatches} · 已处理 ${processedFiles}/${totalFiles} 文件 · LLM调用 ${llmCallCount} 次（进行中 ${llmInFlightCount} / 失败 ${llmFailureCount}）· 最近调用 ${llmLastCallTime}${stageHint ? ` · 阶段 ${stageHint}` : ""}`,
+      detail: `批次 ${Math.min(effectiveDoneBatches + 1, totalBatches)}/${totalBatches} · 已处理 ${processedFiles}/${totalFiles} 文件 · LLM调用 ${llmCallCount} 次（进行中 ${llmInFlightCount} / 失败 ${llmFailureCount}）· 最近调用 ${llmLastCallTime}`,
       percent: Math.max(12, Math.min(96, basePercent)),
       jobId: job.jobId
     };
@@ -369,8 +368,8 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
       lastAttachmentName: isBatch ? `${folderName} (${files.length} files)` : files[0].name
     });
     await deps.loadIterations(deps.currentProjectId ?? currentIteration.projectId);
-  } catch {
-    // keep upload flow usable even if state persistence fails
+  } catch (err) {
+    console.warn("[Upload] interaction state persistence failed, continuing upload flow", err);
   }
   try {
     deps.setUploadToastMessage(null);
@@ -388,14 +387,30 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
           : hasPrototypeAssets && !hasDocumentAssets
             ? "原型"
             : "附件";
+      const displayText = isBatch
+        ? `已上传${uploadLabel}：${folderName}（${files.length} 个文件）`
+        : `已上传${uploadLabel}：${files[0].name}`;
+      const fileEntries = files.slice(0, 30).map((f) => ({
+        name: f.name,
+        path: getFilePath(f) || f.name,
+        size: f.size,
+        type: f.type || ""
+      }));
+      const uploadMeta = JSON.stringify({
+        kind: uploadKind,
+        sourceType: isBatch ? "folder" : "single-file",
+        folderName: isBatch ? folderName : undefined,
+        totalFiles: files.length,
+        files: fileEntries
+      });
       await appendMessage(
         currentIteration.id,
         "system",
-        isBatch ? `已上传${uploadLabel}：${folderName}（${files.length} 个文件）` : `已上传${uploadLabel}：${files[0].name}`,
+        `${displayText}\n<!-- upload:${uploadMeta} -->`,
         deps.setChatMessages
       );
-    } catch {
-      // ignore upload event message failure
+    } catch (err) {
+      console.warn("[Upload] failed to post upload event message", err);
     }
     if (hasPrototypeAssets && !hasDocumentAssets) {
       deps.setLastUploadFailed(false);
@@ -485,8 +500,8 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     });
     try {
       await appendMessage(currentIteration.id, "system", message, deps.setChatMessages);
-    } catch {
-      // ignore secondary message failure
+    } catch (err) {
+      console.warn("[Upload] failed to post secondary message", err);
     }
   } finally {
     deps.setIsAnalyzingAttachment(false);
@@ -557,8 +572,8 @@ export const handleRetryUpload = async (deps: UploadActionDeps) => {
     });
     try {
       await appendMessage(currentIteration.id, "system", message, deps.setChatMessages);
-    } catch {
-      // ignore secondary message failure
+    } catch (err) {
+      console.warn("[Upload] failed to post secondary message", err);
     }
   } finally {
     deps.setIsAnalyzingAttachment(false);

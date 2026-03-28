@@ -291,7 +291,7 @@ export type Iteration = {
     lastUpdatedAt: string;
     lastAttachmentName: string;
     gitRequirementIntake?: {
-      status: "idle" | "pending-confirmation" | "accepted-read" | "declined" | "read-failed";
+      status: "idle" | "available" | "pending-confirmation" | "accepted-read" | "declined" | "read-failed";
       askedAt: string;
       decidedAt: string;
       branch: string;

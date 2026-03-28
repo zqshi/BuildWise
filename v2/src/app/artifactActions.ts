@@ -4,7 +4,6 @@ import {
   appendIterationArtifactToChat,
   commitIterationArtifact,
   confirmIterationArtifact,
-  fetchIterationArtifactWorkflow,
   saveIterationArtifactDraft,
   transitionIterationArtifactStage
 } from "./workspaceApi";
@@ -85,7 +84,6 @@ export const handleTransitionArtifactStage = async (
   await withBusyAction(deps, async () => {
     await transitionIterationArtifactStage(deps.currentIteration!.id, payload);
     await deps.loadIterationDetail(deps.currentIteration!.id);
-    await fetchIterationArtifactWorkflow(deps.currentIteration!.id);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }

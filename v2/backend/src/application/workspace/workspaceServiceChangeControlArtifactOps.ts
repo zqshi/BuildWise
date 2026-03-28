@@ -3,7 +3,7 @@ import type { IterationArtifactStage } from "../../domain/workspace/types";
 import { normalizeIteration } from "./workspaceSupport";
 import { defaultIterationChangeControl, writeAuditLog } from "./workspaceServiceCommon";
 import { artifactStageOrder, ensureArtifactWorkflow, markDownstreamStale } from "./workspaceServiceChangeControlArtifactWorkflow";
-import { publishArtifactReferenceMessage } from "./workspaceArtifactConversationPolicy";
+import { publishArtifactReferenceMessage, publishChangeImpactMessage } from "./workspaceArtifactConversationPolicy";
 
 
 function notifyAdminConfirmation(
@@ -108,7 +108,8 @@ export function commitIterationArtifactOp(
   item.gateStatus = "pending";
   item.stale = false;
   item.updatedAt = now;
-  markDownstreamStale(workflow.items, artifactId);
+  const staleAfterCommit = markDownstreamStale(workflow.items, artifactId);
+  if (staleAfterCommit.length > 0) publishChangeImpactMessage(repo, iterationId, staleAfterCommit);
   normalized.changeControl = { ...current, artifactWorkflow: workflow };
   repo.updateIteration(normalized);
   publishArtifactReferenceMessage(repo, iterationId, {
@@ -199,13 +200,14 @@ export function transitionIterationArtifactStageOp(
   if (toIndex < 0 || fromIndex < 0) {
     return { ok: false as const, reason: "invalid_stage" };
   }
-  if (toIndex !== fromIndex + 1) {
+  if (toIndex <= fromIndex) {
     return {
       ok: false as const,
       reason: "invalid_stage_order",
       expectedNext: artifactStageOrder[fromIndex + 1] || fromStage
     };
   }
+  // 只检查当前阶段的门禁，允许跨阶段前进
   const blockers: string[] = [];
   const fromStageItems = workflow.items.filter((item) => item.stage === fromStage);
   if (fromStageItems.some((item) => item.gateStatus !== "passed")) {

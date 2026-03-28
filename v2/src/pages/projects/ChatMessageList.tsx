@@ -3,10 +3,12 @@ import {
   buildIterationChatDisplayItems,
   compactArtifactCardSummary,
   parseArtifactReferenceMessage,
+  parseChangeImpactMessage,
   shouldSuppressArtifactTextMessage
 } from "../../app/workspaceChatMessagePresentation";
 import { buildAnalysisArtifactPreview } from "./analysisArtifactPresenter";
 import { resolveArtifactPreviewKind } from "./iterationWorkspacePanelUtils";
+import { parseUploadMeta, UploadFileCard } from "./UploadFileCard";
 import type { IterationMessage } from "./iterationWorkspacePanelTypes";
 import type { IterationArtifactWorkflowItem } from "../../domain/workspace/iterationTypes";
 
@@ -15,16 +17,21 @@ export type ChatMessageListProps = {
   artifactItems: IterationArtifactWorkflowItem[];
   canOpenAnalysisPanel: boolean;
   showInteractionEntry: boolean;
+  analysisConfirmed: boolean;
   lastUploadMessageId: number | undefined;
   openAnalysisDrawer: () => void;
   openInteractionPanel: () => void;
   openArtifactPreviewByTitle: (title: string) => void;
+  onConfirmAnalysis: () => void;
 };
 
 const getRoleLabel = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "迭代教练" : "系统");
 const getRoleAvatar = (role: IterationMessage["role"]) => (role === "user" ? "我" : role === "assistant" ? "AI" : "系");
 
 const getMsgKind = (msg: IterationMessage) => {
+  if (msg.role === "system" && msg.content.startsWith("【变更影响】")) {
+    return "event-impact-alert";
+  }
   if (msg.role === "system" && (msg.content.startsWith("已上传附件") || msg.content.startsWith("已上传文件夹"))) {
     return "event-upload";
   }
@@ -53,10 +60,6 @@ const getMsgTheme = (msg: IterationMessage) => {
 
 const formatTime = (value: string) =>
   new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
-
-const resolveGuidanceText = (_content: string) => {
-  return "";
-};
 
 const resolveDeliverableCardData = (content: string, artifactItems: IterationArtifactWorkflowItem[]) => {
   const deliverable = parseArtifactReferenceMessage(content);
@@ -88,10 +91,12 @@ export function ChatMessageList({
   artifactItems,
   canOpenAnalysisPanel,
   showInteractionEntry,
+  analysisConfirmed,
   lastUploadMessageId,
   openAnalysisDrawer,
   openInteractionPanel,
   openArtifactPreviewByTitle,
+  onConfirmAnalysis,
 }: ChatMessageListProps) {
   const displayMessages = useMemo(() => buildIterationChatDisplayItems(chatMessages), [chatMessages]);
 
@@ -106,7 +111,7 @@ export function ChatMessageList({
           const deliverable = cardMessage ? resolveDeliverableCardData(cardMessage.content, artifactItems) : null;
           const textMessage = item.textMessage;
           const resolvedCardSummary = deliverable ? compactArtifactCardSummary(deliverable.summary || "") : "";
-          const rawTextContent = textMessage ? resolveGuidanceText(textMessage.content) || textMessage.content : "";
+          const rawTextContent = textMessage ? textMessage.content : "";
           const shouldHideTextContent =
             Boolean(textMessage && deliverable && shouldSuppressArtifactTextMessage(rawTextContent, resolvedCardSummary, deliverable.title));
           const textContent = shouldHideTextContent ? "" : rawTextContent;
@@ -144,7 +149,24 @@ export function ChatMessageList({
                     </div>
                   </div>
                 ) : null}
-                {!textMessage && !deliverable ? <p>{resolveGuidanceText(msg.content) || msg.content}</p> : null}
+                {!textMessage && !deliverable ? (() => {
+                  const kind = getMsgKind(msg);
+                  if (kind === "event-impact-alert") {
+                    const impact = parseChangeImpactMessage(msg.content);
+                    if (impact) {
+                      return (
+                        <div className="impact-alert-bar">
+                          <span className="impact-alert-icon">⚡</span>
+                          <span>变更影响（{impact.items.length} 项）：{impact.items.join("·")}</span>
+                          <span className="impact-alert-note">{impact.note}</span>
+                        </div>
+                      );
+                    }
+                  }
+                  const uploadMeta = kind === "event-upload" ? parseUploadMeta(msg.content) : null;
+                  if (uploadMeta) return <UploadFileCard meta={uploadMeta} />;
+                  return <p>{msg.content}</p>;
+                })() : null}
                 {getMsgKind(msg) === "event-upload" && msg.id === lastUploadMessageId ? (
                   <div className="msg-inline-actions">
                     {canOpenAnalysisPanel ? (
@@ -155,6 +177,18 @@ export function ChatMessageList({
                     {showInteractionEntry ? (
                       <button type="button" className="btn ghost mini" onClick={openInteractionPanel}>
                         交互界面
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {getMsgKind(msg) === "event-analysis" && !analysisConfirmed ? (
+                  <div className="msg-inline-actions">
+                    <button type="button" className="btn primary mini" onClick={onConfirmAnalysis}>
+                      确认分析
+                    </button>
+                    {canOpenAnalysisPanel ? (
+                      <button type="button" className="btn ghost mini" onClick={openAnalysisDrawer}>
+                        查看分析报告
                       </button>
                     ) : null}
                   </div>

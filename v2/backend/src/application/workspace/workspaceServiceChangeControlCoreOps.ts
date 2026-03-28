@@ -12,6 +12,7 @@ import {
   summarizeMatrixExecution,
   type TestMatrixExecutionUpdate
 } from "./workspaceServiceChangeControlArtifactWorkflow";
+import { publishArtifactReferenceMessage, publishChangeImpactMessage } from "./workspaceArtifactConversationPolicy";
 
 function mergeAcceptanceChecks(...sources: Array<string[] | undefined>) {
   const merged: string[] = [];
@@ -167,7 +168,8 @@ export function confirmIterationAnalysisOp(
     analysisItem.outputVersion += 1;
     analysisItem.updatedAt = now;
     analysisItem.stale = false;
-    markDownstreamStale(normalized.changeControl.artifactWorkflow.items, analysisItem.id);
+    const staleAfterAnalysis = markDownstreamStale(normalized.changeControl.artifactWorkflow.items, analysisItem.id);
+    if (staleAfterAnalysis.length > 0) publishChangeImpactMessage(repo, iterationId, staleAfterAnalysis);
   }
   writeAuditLog(repo, "iteration_analysis_confirmed", `iteration:${iterationId}`, `confirmedBy=${normalized.changeControl.confirmedBy}`);
 
@@ -187,10 +189,15 @@ export function confirmIterationAnalysisOp(
         updatedAt: ""
       };
 
-      // 碰撞检测 — 填充 knowledgeHits / knowledgeConflicts
+      // 碰撞检测 — 填充 knowledgeHits / knowledgeConflicts / termCollisions
       const collisions = detectOntologyCollisionsOp(kb, domainEntries);
       normalized.changeControl.knowledgeHits = collisions.knowledgeHits;
-      normalized.changeControl.knowledgeConflicts = collisions.knowledgeConflicts;
+      normalized.changeControl.knowledgeConflicts = [
+        ...collisions.knowledgeConflicts,
+        ...collisions.termCollisions.map((tc) =>
+          `术语碰撞：「${tc.newTerm}」(${tc.newDefinition}) 与已有规则「${tc.existingRule}」可能矛盾`
+        )
+      ];
 
       // 构建 OntologyInput — 从 changeControl 中提取可用的 traceability/boundary 数据
       const boundary = normalized.changeControl.boundary;
@@ -217,6 +224,21 @@ export function confirmIterationAnalysisOp(
     }
   }
   repo.updateIteration(normalized);
+
+  // 分析确认后，为当前阶段已就绪的交付物发布引用消息到对话流
+  const confirmedWorkflow = normalized.changeControl?.artifactWorkflow;
+  if (confirmedWorkflow) {
+    for (const artifact of confirmedWorkflow.items) {
+      if (artifact.status === "ready" && artifact.gateStatus === "passed") {
+        publishArtifactReferenceMessage(repo, iterationId, {
+          title: artifact.title,
+          summary: artifact.summary || artifact.description,
+          evidence: artifact.evidence,
+          prompt: `请围绕交付物「${artifact.title}」继续与用户确认，不要直接跨阶段推进。`
+        });
+      }
+    }
+  }
 
   return { ok: true as const, data: normalized.changeControl };
 }
@@ -265,7 +287,8 @@ export function updateIterationBoundaryOp(repo: WorkspaceRepository, iterationId
   if (boundaryItem) {
     boundaryItem.outputVersion += 1;
     boundaryItem.updatedAt = now;
-    markDownstreamStale(normalized.changeControl.artifactWorkflow.items, boundaryItem.id);
+    const staleAfterBoundary = markDownstreamStale(normalized.changeControl.artifactWorkflow.items, boundaryItem.id);
+    if (staleAfterBoundary.length > 0) publishChangeImpactMessage(repo, iterationId, staleAfterBoundary);
   }
   repo.updateIteration(normalized);
   writeAuditLog(repo, "iteration_change_boundary_updated", `iteration:${iterationId}`, normalized.changeControl?.boundary.note || "updated");
@@ -362,7 +385,8 @@ export function updateIterationTestMatrixExecutionOp(
   if (matrixItem) {
     matrixItem.outputVersion += 1;
     matrixItem.updatedAt = now;
-    markDownstreamStale(normalized.changeControl.artifactWorkflow.items, matrixItem.id);
+    const staleAfterMatrix = markDownstreamStale(normalized.changeControl.artifactWorkflow.items, matrixItem.id);
+    if (staleAfterMatrix.length > 0) publishChangeImpactMessage(repo, iterationId, staleAfterMatrix);
   }
   repo.updateIteration(normalized);
 

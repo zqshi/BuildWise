@@ -74,8 +74,9 @@ export function parseAttachmentUploadInput(body: {
 }
 
 export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/iterations/:id/messages", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const] } } }, async (request, reply) => {
+  app.get("/iterations/:id/messages", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const] }, querystring: { type: "object" as const, properties: { limit: { type: "string" as const }, offset: { type: "string" as const } } } } }, async (request, reply) => {
     const params = request.params as { id: string };
+    const query = request.query as { limit?: string; offset?: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
@@ -85,7 +86,9 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    return service.listMessages(iterationId);
+    const limit = query.limit ? parseInt(query.limit, 10) : undefined;
+    const offset = query.offset ? parseInt(query.offset, 10) : undefined;
+    return service.listMessages(iterationId, { limit, offset });
   });
 
   app.post("/iterations/:id/messages", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const] }, body: { type: "object" as const, properties: { role: { type: "string" as const }, content: { type: "string" as const } }, required: ["content" as const], additionalProperties: false } } }, async (request, reply) => {

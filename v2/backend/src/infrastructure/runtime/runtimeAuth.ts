@@ -67,9 +67,11 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
     const path = toPath(request.url);
 
     if (config.authMode === "off") {
-      request.authRole = devRoleFromHeader(request);
-      request.authSub = devUserFromHeader(request);
-      request.authTenantId = tenantFromHeader(request);
+      request.authRole = devRoleFromHeader(request) === "viewer" && !request.headers["x-role"]
+        ? "owner"
+        : devRoleFromHeader(request);
+      request.authSub = devUserFromHeader(request) || "dev-user";
+      request.authTenantId = tenantFromHeader(request) || request.authSub;
       return;
     }
 

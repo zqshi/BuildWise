@@ -24,8 +24,8 @@ export function parseRecentSuggestedActions(messages: Array<{ role: string; cont
               .filter(Boolean)
           );
         }
-      } catch {
-        // ignore parse error
+      } catch (err) {
+        console.debug("[CoachReplyGuard] failed to parse action JSON from coach reply", err);
       }
     }
   }

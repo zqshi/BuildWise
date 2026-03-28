@@ -146,7 +146,8 @@ export function useWorkspaceLoaders({
   }, [setError, setStatus]);
 
   const loadProjects = useCallback(async () => {
-    setProjectsHydrated(false);
+    // 仅首次加载时标记未就绪，后续刷新静默进行，避免页面闪烁
+    setProjectsHydrated((prev) => (prev ? prev : false));
     try {
       const projectData = await fetchProjects();
       setProjects(projectData);

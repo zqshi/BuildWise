@@ -183,7 +183,6 @@ export function ProjectsWorkspace({
 }: ProjectsWorkspaceProps) {
   const hasProjects = projects.length > 0;
   const [projectSearch, setProjectSearch] = useState("");
-  const showWorkspaceHero = false;
   const showProjectsLoading = !projectsHydrated && !hasProjects;
   const filteredProjects = useMemo(() => {
     const keyword = projectSearch.trim().toLowerCase();
@@ -198,17 +197,6 @@ export function ProjectsWorkspace({
   const showProjectLoadError = !hasProjects && projectsHydrated && Boolean(error) && !backendUnavailable;
   return (
     <section className="projects-view">
-      {showWorkspaceHero ? (
-        <header className="hero-panel">
-          <div>
-            <p className="hero-kicker">项目工作台</p>
-            <h1>{currentProject?.name || "项目管理"}</h1>
-            <p className="hero-sub">
-              {currentProject ? `${currentProject.description || "暂无描述"}` : "请选择项目后开始迭代"}
-            </p>
-          </div>
-        </header>
-      ) : null}
       {showProjectsLoading ? (
         <ProjectsWorkspaceEmptyState mode="loading" onShowCreateProject={onShowCreateProject} />
       ) : showProjectLoadError ? (

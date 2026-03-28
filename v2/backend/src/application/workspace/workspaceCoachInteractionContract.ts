@@ -130,16 +130,30 @@ function loadCoachInteractionContract(): CoachInteractionContract {
 export function buildCoachContractContext(isFirstIteration: boolean) {
   const contract = loadCoachInteractionContract();
   const flow = isFirstIteration ? contract.softFlow.firstIteration : contract.softFlow.subsequentIteration;
-  return [
-    `contract.version=${contract.version}`,
-    `contract.principles=${contract.principles.join(" | ") || "-"}`,
-    `contract.softFlow=${flow.join(" -> ") || "-"}`,
-    `contract.autonomyHints=${contract.autonomyHints.join(" | ") || "-"}`,
-    `contract.fileDrivenFlow.enabled=${contract.fileDrivenFlowAdjustment.enabled ? "yes" : "no"}`,
-    `contract.fileDrivenFlow.expectations=${contract.fileDrivenFlowAdjustment.expectations.join(" | ") || "-"}`,
-    `contract.fileDrivenFlow.skillDecisionCriteria=${contract.fileDrivenFlowAdjustment.skillDecisionCriteria.join(" | ") || "-"}`,
-    `contract.hardConstraints=${contract.hardConstraints.join(" | ") || "-"}`,
-    `contract.expectedArtifacts=${contract.expectedArtifacts.join(" | ") || "-"}`,
-    buildOpenclawSkillsPackContext()
-  ].join("\n");
+  const sections: string[] = [];
+
+  sections.push(`当前引导阶段：${flow.join(" → ") || "无"}`);
+
+  if (contract.principles.length > 0) {
+    sections.push(`沟通原则：${contract.principles.join("；")}`);
+  }
+  if (contract.autonomyHints.length > 0) {
+    sections.push(`自主判断提示：${contract.autonomyHints.join("；")}`);
+  }
+  if (contract.fileDrivenFlowAdjustment.enabled) {
+    sections.push(`用户已上传材料，请基于材料内容推进对话。${contract.fileDrivenFlowAdjustment.expectations.join("；")}`);
+  }
+  if (contract.hardConstraints.length > 0) {
+    sections.push(`硬约束：${contract.hardConstraints.join("；")}`);
+  }
+  if (contract.expectedArtifacts.length > 0) {
+    sections.push(`本阶段预期交付物：${contract.expectedArtifacts.join("、")}`);
+  }
+
+  const skillsContext = buildOpenclawSkillsPackContext();
+  if (skillsContext) {
+    sections.push(skillsContext);
+  }
+
+  return sections.join("\n\n");
 }

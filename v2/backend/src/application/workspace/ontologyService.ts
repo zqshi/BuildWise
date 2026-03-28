@@ -72,10 +72,11 @@ function mergeOntologyTerms(
 
   for (const entry of entries) {
     if (termMap.has(entry.term)) {
-      // Update existing
+      // Update existing — preserve aliases from previous version
+      const prev = termMap.get(entry.term)!;
       termMap.set(entry.term, {
         term: entry.term,
-        aliases: [],
+        aliases: [...new Set([...(prev.aliases ?? []), ...entry.mappedEntities])],
         definition: entry.definition,
         evidence: entry.evidence,
       });
@@ -83,7 +84,7 @@ function mergeOntologyTerms(
     } else {
       termMap.set(entry.term, {
         term: entry.term,
-        aliases: [],
+        aliases: entry.mappedEntities.length > 0 ? [...entry.mappedEntities] : [],
         definition: entry.definition,
         evidence: entry.evidence,
       });

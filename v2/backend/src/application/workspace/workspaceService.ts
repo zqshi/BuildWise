@@ -270,7 +270,7 @@ export class WorkspaceService {
   // ── Iteration ──
   listIterations(projectId: number) { return this.iteration.listIterations(projectId); }
   createIteration(projectId: number, payload: CreateIterationInput) { return this.iteration.createIteration(projectId, payload); }
-  listMessages(iterationId: number) { return this.iteration.listMessages(iterationId); }
+  listMessages(iterationId: number, opts?: { limit?: number; offset?: number }) { return this.iteration.listMessages(iterationId, opts); }
   createMessage(iterationId: number, role: "system" | "assistant" | "user", content: string) {
     return this.iteration.createMessage(iterationId, role, content);
   }

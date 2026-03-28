@@ -10,16 +10,12 @@ import { useTestMatrixForm } from "../../hooks/useTestMatrixForm";
 import { useOpsTemplateForm } from "../../hooks/useOpsTemplateForm";
 import { useArtifactEditorState } from "../../hooks/useArtifactEditorState";
 import { useHtmlPreviewInteraction } from "../../hooks/useHtmlPreviewInteraction";
+import { useAnalysisReportDerived } from "../../hooks/useAnalysisReportDerived";
+import { useArtifactEditorActions } from "../../hooks/useArtifactEditorActions";
 import { IterationStatusStrip } from "./IterationStatusStrip";
-import { ChatMessageList, getMsgKind } from "./ChatMessageList";
+import { ChatMessageList } from "./ChatMessageList";
 import { UploadProgressBar } from "./UploadProgressBar";
 import { ChatComposer } from "./ChatComposer";
-import {
-  buildArtifactCommitSummary,
-  buildArtifactRevisionPrompt,
-  resolveArtifactActionErrorMessage,
-  shouldCloseDrawerAfterRevisionRequest,
-} from "./artifactEditorModel";
 // ArtifactImpactPanel reserved for future use
 import type {
   PrototypeElement,
@@ -208,50 +204,21 @@ export function IterationWorkspacePanel({
   }, {});
   const showInteractionEntry = true;
 
-  // ── derived report data ──
-  const diffLocations = analysisReport?.diffLocations ?? [];
-  const diffAdded = analysisReport?.versionDiff?.added ?? [];
-  const diffChanged = analysisReport?.versionDiff?.changed ?? [];
-  const diffRemoved = analysisReport?.versionDiff?.removed ?? [];
-  const hasBaselineComparison = Boolean(
-    analysisReport?.versionDiff?.baselineIterationName && analysisReport?.versionDiff?.baselineIterationName !== analysisReport?.iterationName
+  // ── derived report data (extracted to hook) ──
+  const {
+    diffLocations, diffAdded, diffChanged, diffRemoved,
+    hasBaselineComparison, showAdvancedReportSections,
+    lastUploadMessageId, canOpenAnalysisPanel,
+    materialRisks, materialSuggestions,
+    traceabilityMap, executableConstraints, versionDiffDetailed,
+    releaseReview, domainKnowledge, opsTriage, qualityArtifacts,
+    visiblePrioritizedFindings, clarificationQuestions,
+    generatedTestMatrix, matrixSummary,
+    reportPendingConfirmation, reportConfirmedAt, confirmedUnderstanding
+  } = useAnalysisReportDerived(
+    analysisReport, currentIteration, chatMessages,
+    isAnalyzingAttachment, testMatrixStatusMap, onlyHighValue
   );
-  const showAdvancedReportSections = Boolean(analysisReport);
-  const hasAnalysisEntryInChat = chatMessages.some((msg) => getMsgKind(msg) === "event-analysis");
-  const lastUploadMessageId = [...chatMessages].reverse().find((msg) => getMsgKind(msg) === "event-upload")?.id;
-  const canOpenAnalysisPanel = !isAnalyzingAttachment && (Boolean(analysisReport) || hasAnalysisEntryInChat);
-  const materialRisks = (analysisReport?.risks || []).filter((item) => !item.includes("暂无显式风险"));
-  const materialSuggestions = (analysisReport?.suggestions || []).filter(
-    (item) => !item.includes("当前澄清问题已收敛") && !item.includes("暂无结构化差异")
-  );
-  const traceabilityMap = analysisReport?.traceabilityMap;
-  const executableConstraints = analysisReport?.executableConstraints;
-  const versionDiffDetailed = analysisReport?.versionDiffDetailed;
-  const releaseReview = analysisReport?.releaseReview;
-  const domainKnowledge = analysisReport?.domainKnowledge;
-  const opsTriage = analysisReport?.opsTriage;
-  const qualityArtifacts = analysisReport?.qualityArtifacts;
-  const prioritizedFindings = analysisReport?.prioritizedFindings || [];
-  const visiblePrioritizedFindings = onlyHighValue
-    ? prioritizedFindings.filter((item) => item.priority === "P0" || item.priority === "P1")
-    : prioritizedFindings;
-  const clarificationQuestions = currentIteration?.changeControl?.clarificationQuestions ?? analysisReport?.clarificationQuestions ?? [];
-  const generatedTestMatrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
-  const matrixSummary = (() => {
-    const total = generatedTestMatrix.length;
-    const statuses = generatedTestMatrix.map((item) => testMatrixStatusMap[item.caseId] || item.executionStatus);
-    const passed = statuses.filter((status) => status === "passed").length;
-    const failed = statuses.filter((status) => status === "failed").length;
-    const blocked = statuses.filter((status) => status === "blocked").length;
-    const skipped = statuses.filter((status) => status === "skipped").length;
-    const executed = passed + failed + blocked + skipped;
-    const coverage = total === 0 ? 100 : Math.round((executed / total) * 100);
-    const passRate = executed === 0 ? (total === 0 ? 100 : 0) : Math.round((passed / executed) * 100);
-    return { total, executed, passed, failed, blocked, skipped, coverage, passRate };
-  })();
-  const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
-  const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
-  const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
 
   // ── Prototype mapping effect ──
   useEffect(() => {
@@ -355,7 +322,7 @@ export function IterationWorkspacePanel({
           }
         }
       },
-      "*"
+      "*" // srcdoc iframe has origin "null", targetOrigin must be "*"; security enforced by source field check on receive side
     );
     if (latest.artifactId) {
       void onSaveArtifactDraft(latest.artifactId, { content: latest.content, actor: "OpenClaw Agent" });
@@ -470,90 +437,31 @@ export function IterationWorkspacePanel({
     void sendInteractionInstruction(chatInput);
   };
 
-  const handleSaveArtifactEditor = async () => {
-    if (!selectedDrawerArtifact || !artifactEditorDirty || artifactEditorBusy) {
-      return;
-    }
-    setArtifactEditorBusy(true);
-    try {
-      await onSaveArtifactDraft(selectedDrawerArtifact.id, {
-        content: artifactEditorValue,
-        actor: "OpenClaw Agent"
-      });
-      setArtifactEditorDirty(false);
-      setChangeControlNotice("交付物正文已保存。");
-    } catch (error) {
-      setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物正文保存失败，请稍后重试。"));
-    } finally {
-      setArtifactEditorBusy(false);
-    }
-  };
-
-  const handleSubmitArtifactForReview = async () => {
-    if (!selectedDrawerArtifact || artifactEditorBusy) {
-      return;
-    }
-    setArtifactEditorBusy(true);
-    try {
-      if (artifactEditorDirty) {
-        await onSaveArtifactDraft(selectedDrawerArtifact.id, {
-          content: artifactEditorValue,
-          actor: "OpenClaw Agent"
-        });
-      }
-      await onCommitArtifact(selectedDrawerArtifact.id, {
-        actor: "OpenClaw Agent",
-        summary: buildArtifactCommitSummary(artifactEditorValue || selectedDrawerArtifact.summary || "", selectedDrawerArtifact.summary),
-        evidence: selectedDrawerArtifact.evidence,
-        source: selectedDrawerArtifact.source
-      });
-      setArtifactEditorDirty(false);
-      setArtifactEditorMode("view");
-      setChangeControlNotice("交付物已提交，等待你确认。");
-    } catch (error) {
-      setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物提交失败，请稍后重试。"));
-    } finally {
-      setArtifactEditorBusy(false);
-    }
-  };
-
-  const handleConfirmSelectedArtifact = async () => {
-    if (!selectedDrawerArtifact || artifactEditorBusy) {
-      return;
-    }
-    setArtifactEditorBusy(true);
-    try {
-      await onConfirmArtifact(selectedDrawerArtifact.id, {
-        actor: "项目负责人",
-        passed: true,
-        note: selectedDrawerArtifact.summary
-      });
-      setChangeControlNotice("交付物已确认通过。");
-    } catch (error) {
-      setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物确认失败，请稍后重试。"));
-    } finally {
-      setArtifactEditorBusy(false);
-    }
-  };
-
-  const handleRequestArtifactRevision = () => {
-    if (!selectedDrawerArtifact) {
-      return;
-    }
-    onChatInputChange(buildArtifactRevisionPrompt(selectedDrawerArtifact.title, chatInput));
-    if (shouldCloseDrawerAfterRevisionRequest()) {
-      onCloseAnalysisPanel();
-    } else {
-      setAnalysisDrawerArtifactId(selectedDrawerArtifact.id);
-      onOpenAnalysisPanel();
-    }
-    setArtifactEditorMode("view");
-    setChangeControlNotice("已带入对话输入框，可直接继续补充修改意见。");
-    requestAnimationFrame(() => {
-      chatComposerInputRef.current?.focus();
-      chatComposerInputRef.current?.setSelectionRange(chatComposerInputRef.current.value.length, chatComposerInputRef.current.value.length);
-    });
-  };
+  // ── Artifact editor actions (extracted to hook) ──
+  const {
+    handleSaveArtifactEditor,
+    handleSubmitArtifactForReview,
+    handleConfirmSelectedArtifact,
+    handleRequestArtifactRevision
+  } = useArtifactEditorActions({
+    selectedDrawerArtifact,
+    artifactEditorValue,
+    artifactEditorDirty,
+    artifactEditorBusy,
+    chatInput,
+    setArtifactEditorBusy,
+    setArtifactEditorDirty,
+    setArtifactEditorMode,
+    setChangeControlNotice,
+    setAnalysisDrawerArtifactId,
+    onSaveArtifactDraft,
+    onCommitArtifact,
+    onConfirmArtifact,
+    onOpenAnalysisPanel,
+    onCloseAnalysisPanel,
+    onChatInputChange,
+    chatComposerInputRef
+  });
 
   const openInteractionPanel = () => {
     onCloseAnalysisPanel();
@@ -614,10 +522,17 @@ export function IterationWorkspacePanel({
                 artifactItems={artifactItems}
                 canOpenAnalysisPanel={canOpenAnalysisPanel}
                 showInteractionEntry={showInteractionEntry}
+                analysisConfirmed={Boolean(reportConfirmedAt)}
                 lastUploadMessageId={lastUploadMessageId}
                 openAnalysisDrawer={openAnalysisDrawer}
                 openInteractionPanel={openInteractionPanel}
                 openArtifactPreviewByTitle={openArtifactPreviewByTitle}
+                onConfirmAnalysis={() => {
+                  void _onConfirmIterationAnalysis({
+                    accurate: true,
+                    decisionEvent: "understanding-accurate"
+                  });
+                }}
               />
             </div>
             <UploadProgressBar

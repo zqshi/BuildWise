@@ -49,8 +49,8 @@ export function loadAgentPromptTemplate(roleKey: string, fallback: AgentPromptTe
       if (parsed) {
         return parsed;
       }
-    } catch {
-      // continue with fallback candidates
+    } catch (err) {
+      console.warn("[AgentAssetRegistry] failed to load prompt template from", filePath, err);
     }
   }
   return fallback;
@@ -96,8 +96,8 @@ export function loadWorkflowTemplate(params: {
     try {
       const raw = JSON.parse(readFileSync(filePath, "utf-8")) as RawWorkflowTemplate;
       return toWorkflowTemplate(raw, fallback);
-    } catch {
-      // continue with next candidate
+    } catch (err) {
+      console.warn("[AgentAssetRegistry] failed to load workflow template from", filePath, err);
     }
   }
   return fallback;
@@ -117,8 +117,8 @@ export function loadDynamicWorkflowHint(scope: AgentScope): string {
       if (content) {
         return content;
       }
-    } catch {
-      // keep trying
+    } catch (err) {
+      console.warn("[AgentAssetRegistry] failed to load dynamic workflow hint from", filePath, err);
     }
   }
   return "";
@@ -139,7 +139,8 @@ export function loadAgentScopeAdapterHint(): string {
       ? data.capabilities.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 8).join("|")
       : "";
     return `AgentScope适配已启用(provider=${provider};capabilities=${capability || "default"})`;
-  } catch {
+  } catch (err) {
+    console.warn("[AgentAssetRegistry] failed to load agent scope adapter config", err);
     return "";
   }
 }
