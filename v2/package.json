@@ -30,7 +30,7 @@
     "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run check:skills && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
   },
   "dependencies": {
-    "@tiptap/react": "^3.20.1",
+    "@tiptap/react": "^3.22.0",
     "@tiptap/starter-kit": "^3.20.1",
     "markdown-it": "^14.1.1",
     "prismjs": "^1.30.0",
