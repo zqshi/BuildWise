@@ -1,20 +1,34 @@
 import { useState } from "react";
 
+type UploadFileEntry = {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  content?: string;
+  dataUrl?: string;
+};
+
 type UploadFileMeta = {
   kind: string;
   sourceType: "folder" | "single-file";
   folderName?: string;
   totalFiles: number;
-  files: Array<{
-    name: string;
-    path: string;
-    size: number;
-    type: string;
-  }>;
+  files: UploadFileEntry[];
 };
 
+export type { UploadFileEntry, UploadFileMeta };
+
 export function parseUploadMeta(content: string): UploadFileMeta | null {
-  const match = content.match(/<!-- upload:(.*?) -->/s);
+  const b64Match = content.match(/<!-- upload-b64:([\w+/=]+) -->/);
+  if (b64Match) {
+    try {
+      return JSON.parse(decodeURIComponent(escape(atob(b64Match[1])))) as UploadFileMeta;
+    } catch {
+      return null;
+    }
+  }
+  const match = content.match(/<!-- upload:(.*) -->/s);
   if (!match) return null;
   try {
     return JSON.parse(match[1]) as UploadFileMeta;
@@ -68,9 +82,91 @@ function resolveTypeLabel(name: string, type: string): string {
   return "文件";
 }
 
+export function hasPreviewableContent(file: UploadFileEntry): boolean {
+  return Boolean(file.content || file.dataUrl);
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function downloadSingleFile(file: UploadFileEntry) {
+  if (file.content) {
+    downloadBlob(new Blob([file.content], { type: file.type || "text/plain" }), file.name);
+  } else if (file.dataUrl) {
+    const arr = file.dataUrl.split(",");
+    const mime = arr[0].match(/:(.*?);/)?.[1] || file.type;
+    const bstr = atob(arr[1]);
+    const u8 = new Uint8Array(bstr.length);
+    for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+    downloadBlob(new Blob([u8], { type: mime }), file.name);
+  }
+}
+
+export async function downloadAllAsZip(folderName: string, files: UploadFileEntry[]) {
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  for (const f of files) {
+    if (f.content) {
+      zip.file(f.path || f.name, f.content);
+    } else if (f.dataUrl) {
+      const base64 = f.dataUrl.split(",")[1];
+      if (base64) zip.file(f.path || f.name, base64, { base64: true });
+    }
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  downloadBlob(blob, `${folderName || "files"}.zip`);
+}
+
 const MAX_VISIBLE_FILES = 8;
 
-export function UploadFileCard({ meta }: { meta: UploadFileMeta }) {
+function FileRow({
+  file,
+  onPreview,
+}: {
+  file: UploadFileEntry;
+  onPreview: (f: UploadFileEntry) => void;
+}) {
+  const icon = resolveFileIcon(file.name, file.type);
+  const size = formatFileSize(file.size);
+  const typeLabel = resolveTypeLabel(file.name, file.type);
+  const canPreview = hasPreviewableContent(file);
+
+  return (
+    <div className="upload-file-card-row">
+      <span className="upload-file-icon" aria-hidden="true">{icon}</span>
+      {canPreview ? (
+        <button
+          type="button"
+          className="upload-file-name upload-file-name-link"
+          onClick={() => onPreview(file)}
+          title="点击预览"
+        >
+          {file.name}
+        </button>
+      ) : (
+        <span className="upload-file-name" title={file.path}>{file.name}</span>
+      )}
+      {size ? <span className="upload-file-size">{size}</span> : null}
+      <span className="upload-file-chip">{typeLabel}</span>
+    </div>
+  );
+}
+
+export function UploadFileCard({
+  meta,
+  onPreviewFile,
+}: {
+  meta: UploadFileMeta;
+  onPreviewFile: (file: UploadFileEntry) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const isFolder = meta.sourceType === "folder";
   const visibleFiles = expanded ? meta.files : meta.files.slice(0, MAX_VISIBLE_FILES);
@@ -79,20 +175,28 @@ export function UploadFileCard({ meta }: { meta: UploadFileMeta }) {
     ? meta.totalFiles - meta.files.length
     : meta.files.length - MAX_VISIBLE_FILES;
 
+  const downloadableFiles = meta.files.filter((f) => f.content || f.dataUrl);
+
   if (!isFolder && meta.files.length === 1) {
     const file = meta.files[0];
-    const icon = resolveFileIcon(file.name, file.type);
-    const size = formatFileSize(file.size);
-    const typeLabel = resolveTypeLabel(file.name, file.type);
+    const canPreview = hasPreviewableContent(file);
     return (
       <div className="upload-file-card upload-file-card-single">
-        <div className="upload-file-card-row">
-          <span className="upload-file-icon" aria-hidden="true">{icon}</span>
-          <span className="upload-file-name">{file.name}</span>
-          {size ? <span className="upload-file-size">{size}</span> : null}
-          <span className="upload-file-chip">{typeLabel}</span>
+        <FileRow file={file} onPreview={onPreviewFile} />
+        <div className="upload-file-card-footer">
+          {canPreview ? (
+            <div className="upload-file-actions">
+              <button type="button" className="btn ghost mini" onClick={() => onPreviewFile(file)}>
+                预览
+              </button>
+              <button type="button" className="btn ghost mini" onClick={() => downloadSingleFile(file)}>
+                下载
+              </button>
+            </div>
+          ) : (
+            <span>文件已提交分析</span>
+          )}
         </div>
-        <div className="upload-file-card-footer">文件已提交分析</div>
       </div>
     );
   }
@@ -105,19 +209,9 @@ export function UploadFileCard({ meta }: { meta: UploadFileMeta }) {
         <span className="upload-file-count">{meta.totalFiles} 个文件</span>
       </div>
       <div className="upload-file-list">
-        {visibleFiles.map((file) => {
-          const icon = resolveFileIcon(file.name, file.type);
-          const size = formatFileSize(file.size);
-          const typeLabel = resolveTypeLabel(file.name, file.type);
-          return (
-            <div key={file.path} className="upload-file-card-row">
-              <span className="upload-file-icon" aria-hidden="true">{icon}</span>
-              <span className="upload-file-name" title={file.path}>{file.name}</span>
-              {size ? <span className="upload-file-size">{size}</span> : null}
-              <span className="upload-file-chip">{typeLabel}</span>
-            </div>
-          );
-        })}
+        {visibleFiles.map((file) => (
+          <FileRow key={file.path} file={file} onPreview={onPreviewFile} />
+        ))}
         {hasMore && !expanded ? (
           <button type="button" className="upload-file-expand-btn" onClick={() => setExpanded(true)}>
             展开全部（还有 {remainingCount} 个文件）
@@ -129,7 +223,21 @@ export function UploadFileCard({ meta }: { meta: UploadFileMeta }) {
           </button>
         ) : null}
       </div>
-      <div className="upload-file-card-footer">文件已提交分析</div>
+      <div className="upload-file-card-footer">
+        {downloadableFiles.length > 0 ? (
+          <div className="upload-file-actions">
+            <button
+              type="button"
+              className="btn ghost mini"
+              onClick={() => downloadAllAsZip(meta.folderName || "files", downloadableFiles)}
+            >
+              下载全部（{downloadableFiles.length} 个文件）
+            </button>
+          </div>
+        ) : (
+          <span>文件已提交分析</span>
+        )}
+      </div>
     </div>
   );
 }

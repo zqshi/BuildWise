@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import { nowIso } from "../../shared/utils";
 import type {
   Iteration,
   PolicyExecutionLogRecord,
@@ -47,15 +48,15 @@ function buildInitialOrchestrationStrategy(): ProjectPolicyRecord["strategy"] {
         stage: "agent-selected",
         skills: [
           "00-orchestrator-sop",
-          "01-ontology-mapping",
-          "02-impact-analysis",
-          "03-deliverable-governance",
-          "04-cross-iteration",
-          "05-exception-recovery",
-          "06-quality-release-gate",
-          "07-audit-trace",
-          "08-agentic-flow-contract",
-          "09-deliverable-content-contract"
+          "01-intake-requirements",
+          "02-analyze-materials",
+          "03-ontology-extraction",
+          "04-ontology-collision",
+          "05-clarify-scope",
+          "06-model-snapshot-publish",
+          "07-impact-analysis",
+          "08-lock-boundary",
+          "09-generate-prd"
         ]
       }
     ]
@@ -73,10 +74,6 @@ function composeStrategy(strategy?: Partial<ProjectPolicyRecord["strategy"]>): P
     exceptions: strategy?.exceptions && strategy.exceptions.length > 0 ? strategy.exceptions : initial.exceptions,
     skillsPlan: strategy?.skillsPlan && strategy.skillsPlan.length > 0 ? strategy.skillsPlan : initial.skillsPlan
   };
-}
-
-function nowIso() {
-  return new Date().toISOString();
 }
 
 function nextId(items: Array<{ id: number }>) {
@@ -210,7 +207,7 @@ export function upsertProjectWorkspaceBindingOp(
   const record: ProjectWorkspaceBindingRecord = {
     id: existing?.id || nextId(repo.listProjectWorkspaceBindings(input.projectId)),
     projectId: input.projectId,
-    openclawProfile: input.openclawProfile,
+    assistantProfile: input.assistantProfile,
     agentId: input.agentId,
     workspacePath: input.workspacePath,
     runtimeMode: input.runtimeMode,
@@ -485,10 +482,20 @@ export function mergePolicyDeltaOp(
 function hasArtifactReady(iteration: Iteration, artifactId: string): boolean {
   const items = iteration.changeControl?.artifactWorkflow?.items;
   if (!Array.isArray(items)) return false;
-  return items.some((item) => item.id === artifactId && (item.status === "ready" || item.status === "partial"));
+  return items.some((item) => item.id === artifactId && item.status === "ready");
 }
 
 function hasHumanConfirmationForStage(iteration: Iteration, stage: string): boolean {
+  // 对于 clarification 阶段，检查分析确认状态（changeControl.confirmedAt）
+  if (stage === "clarification") {
+    return !!(iteration.changeControl?.confirmedAt);
+  }
+  // 对于 scope 阶段，检查边界是否已锁定且有确认记录
+  if (stage === "scope") {
+    const boundary = iteration.changeControl?.boundary;
+    return !!(boundary?.requirementRefs?.length && boundary?.updatedAt);
+  }
+  // 其他阶段：检查该阶段的 artifact 是否有人工确认
   const items = iteration.changeControl?.artifactWorkflow?.items;
   if (!Array.isArray(items)) return false;
   return items

@@ -55,6 +55,7 @@ type ProjectsWorkspaceProps = {
   onShowCreateProject: () => void;
   onShowCreateIteration: () => void;
   onDeleteProject: (projectId: number) => Promise<void>;
+  onDeleteIteration: (iterationId: number) => Promise<void>;
   onUploadClick: () => void;
   onOpenAnalysisPanel: () => void;
   onCloseAnalysisPanel: () => void;
@@ -153,6 +154,7 @@ export function ProjectsWorkspace({
   onShowCreateProject,
   onShowCreateIteration,
   onDeleteProject,
+  onDeleteIteration,
   onUploadClick,
   onOpenAnalysisPanel,
   onCloseAnalysisPanel,
@@ -270,6 +272,7 @@ export function ProjectsWorkspace({
               backendUnavailable={backendUnavailable}
               onShowCreateIteration={onShowCreateIteration}
               onEnterIteration={onEnterIteration}
+              onDeleteIteration={onDeleteIteration}
               onDeleteProject={onDeleteProject}
             />
           </section>

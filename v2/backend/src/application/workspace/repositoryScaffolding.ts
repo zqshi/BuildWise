@@ -3,7 +3,7 @@ import { join, resolve, normalize } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { RepositoryLayoutNode } from "../../domain/workspace/types";
 
-export type ScaffoldRepositoryInput = {
+type ScaffoldRepositoryInput = {
   rootDir: string;
   organization: string;
   repositoryName: string;
@@ -14,7 +14,7 @@ export type ScaffoldRepositoryInput = {
   dryRun: boolean;
 };
 
-export type ScaffoldRepositoryResult = {
+type ScaffoldRepositoryResult = {
   repoPath: string;
   createdPaths: string[];
   gitInitialized: boolean;

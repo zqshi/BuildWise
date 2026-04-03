@@ -176,14 +176,17 @@ export function useDashboardInsights({
     const recentAvg = recent3.length > 0 ? sumCount(recent3) / recent3.length : 0;
     const previousAvg = previous3.length > 0 ? sumCount(previous3) / previous3.length : 0;
     const throughputDelta = previousAvg > 0 ? (recentAvg - previousAvg) / previousAvg : 0;
-    const healthPenalty = lowProgressRatio * 35 + (1 - completionRate) * 25 + (throughputDelta < -0.15 ? 20 : throughputDelta < 0 ? 10 : 0) + (serviceHealthy ? 0 : 20) + (inProgressRatio > 0.8 ? 8 : 0);
+    // Dampen ratio-based penalties when sample size is too small (< 3 iterations)
+    // to avoid alarming scores for projects that just started
+    const sampleDampen = scopeIterationCount < 3 ? 0.3 : 1;
+    const healthPenalty = lowProgressRatio * 35 * sampleDampen + (1 - completionRate) * 25 * sampleDampen + (throughputDelta < -0.15 ? 20 : throughputDelta < 0 ? 10 : 0) + (serviceHealthy ? 0 : 20) + (inProgressRatio > 0.8 && scopeInProgress >= 3 ? 8 : 0);
     const healthScore = clamp(Math.round(100 - healthPenalty), 0, 100);
     const healthLevel = healthScore >= 80 ? "健康" : healthScore >= 60 ? "预警" : "高风险";
 
     const insights: InsightItem[] = sortInsightsByLevel([
-      lowProgressRatio >= 0.45
-        ? { level: "risk", title: "前段积压偏高", finding: `低进度迭代占比 ${formatPercent(lowProgressRatio)}，需求被切小但关单速度不足。`, impact: "会持续推高上下文切换成本，拖慢中后段交付。" }
-        : { level: "good", title: "阶段推进结构可控", finding: `低进度迭代占比 ${formatPercent(lowProgressRatio)}，未出现明显“只开工不收敛”现象。`, impact: "可把治理重心放在质量门禁和复盘机制，而非盲目加人。" },
+      lowProgressRatio >= 0.45 && lowProgressCount >= 3
+        ? { level: "risk", title: "\u524d\u6bb5\u79ef\u538b\u504f\u9ad8", finding: `\u4f4e\u8fdb\u5ea6\u8fed\u4ee3\u5360\u6bd4 ${formatPercent(lowProgressRatio)}\uff0c\u9700\u6c42\u88ab\u5207\u5c0f\u4f46\u5173\u5355\u901f\u5ea6\u4e0d\u8db3\u3002`, impact: "\u4f1a\u6301\u7eed\u63a8\u9ad8\u4e0a\u4e0b\u6587\u5207\u6362\u6210\u672c\uff0c\u62d6\u6162\u4e2d\u540e\u6bb5\u4ea4\u4ed8\u3002" }
+        : { level: "good", title: "\u9636\u6bb5\u63a8\u8fdb\u7ed3\u6784\u53ef\u63a7", finding: `\u4f4e\u8fdb\u5ea6\u8fed\u4ee3\u5360\u6bd4 ${formatPercent(lowProgressRatio)}\uff0c\u672a\u51fa\u73b0\u660e\u663e\u201c\u53ea\u5f00\u5de5\u4e0d\u6536\u655b\u201d\u73b0\u8c61\u3002`, impact: "\u53ef\u628a\u6cbb\u7406\u91cd\u5fc3\u653e\u5728\u8d28\u91cf\u95e8\u7981\u548c\u590d\u76d8\u673a\u5236\uff0c\u800c\u975e\u76f2\u76ee\u52a0\u4eba\u3002" },
       trendPoints.length >= 4
         ? { level: throughputDelta < -0.15 ? "risk" : throughputDelta < 0 ? "watch" : "good", title: "交付吞吐趋势", finding: `近3个月迭代产出较前3个月${throughputDelta >= 0 ? "提升" : "下降"}${Math.abs(Math.round(throughputDelta * 100))}%。`, impact: throughputDelta < 0 ? "如果不做流程升级，后续版本节奏会继续下滑。" : "当前节奏可支撑更高密度版本发布。" }
         : { level: "watch", title: "趋势样本偏少", finding: "月度数据不足 4 个样本点，趋势判断可信度有限。", impact: "建议先补齐关键阶段数据，再做容量规划。" },
@@ -194,12 +197,12 @@ export function useDashboardInsights({
     }
 
     const recommendations: RecommendationItem[] = [];
-    if (lowProgressRatio >= 0.45) {
+    if (lowProgressRatio >= 0.45 && scopeInProgress >= 3) {
       recommendations.push({
         priority: "P0",
-        title: "建立 WIP 上限与关单门禁",
-        action: "按项目设置进行中迭代上限，超限后仅允许处理阻塞和收尾任务。",
-        upgrade: "从任务越多越忙升级为单位周期稳定关单率驱动。",
+        title: "控制并行迭代数量",
+        action: "当前有较多迭代进展缓慢。建议先集中精力完成进行中的迭代，再启动新的。",
+        upgrade: "少量聚焦比大量并行更高效。",
         scope: "project",
         scopeLabel: "项目维度"
       });
@@ -207,9 +210,9 @@ export function useDashboardInsights({
     if (throughputDelta < 0) {
       recommendations.push({
         priority: "P1",
-        title: "引入双周吞吐复盘",
-        action: "把吞吐下降拆到需求质量、评审时延、返工率三个维度，形成责任闭环。",
-        upgrade: "从被动看报表升级为原因-动作-结果的持续优化机制。",
+        title: "关注迭代完成速度下降",
+        action: "近期完成的迭代数量在下降。建议回顾是否有需求不清晰、评审时间过长或返工过多的情况。",
+        upgrade: "定期复盘有助于发现和解决瓶颈。",
         scope: "both",
         scopeLabel: "项目/跨项目"
       });
@@ -217,9 +220,9 @@ export function useDashboardInsights({
     if (!serviceHealthy) {
       recommendations.push({
         priority: "P0",
-        title: "设置发布前基础服务健康门",
-        action: "将服务状态检查纳入发布 Checklist，不通过时自动阻断发版。",
-        upgrade: "把运维稳定性从人工经验升级为系统门禁。",
+        title: "关注平台服务状态",
+        action: "当前平台基础服务存在异常，建议在发布前确认服务恢复正常。",
+        upgrade: "服务稳定是顺利发布的前提。",
         scope: "portfolio",
         scopeLabel: "跨项目维度"
       });
@@ -227,9 +230,9 @@ export function useDashboardInsights({
     if (recommendations.length === 0) {
       recommendations.push({
         priority: "P2",
-        title: "推进迭代后评估标准化",
-        action: "每个完成迭代产出复盘纪要，沉淀可复用模板与失败案例。",
-        upgrade: "提升组织学习效率，减少同类问题重复出现。",
+        title: "建立迭代复盘习惯",
+        action: "建议每次迭代完成后做一次简短回顾，记录做得好的和需要改进的。",
+        upgrade: "持续积累经验，减少同类问题重复出现。",
         scope: "both",
         scopeLabel: "项目/跨项目"
       });

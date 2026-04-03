@@ -63,14 +63,6 @@ export function computeProjectOverviewHealthScore(input: {
   return Math.max(0, Math.min(100, score));
 }
 
-export function toBusinessSummaryErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : "业务摘要生成失败";
-  if (/API error: 404\b/.test(message) || /Route not found/i.test(message)) {
-    return "后端尚未升级到支持模型摘要的版本，请重启后端服务";
-  }
-  return message;
-}
-
 export function normalizeInlineMarkdownText(value: string) {
   return value
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")

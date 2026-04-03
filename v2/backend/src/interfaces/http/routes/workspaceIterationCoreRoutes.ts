@@ -113,7 +113,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "content is required" };
     }
-    const messageRole = body?.role === "assistant" ? "assistant" : "user";
+    const messageRole = body?.role === "assistant" ? "assistant" : body?.role === "system" ? "system" : "user";
     const added = service.createMessage(iterationId, messageRole, content);
     if (!added) {
       reply.code(404);

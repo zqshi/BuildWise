@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { pickString } from "../../shared/utils";
-import { safeJsonParse } from "../workspace/workspaceServiceAttachmentUtils";
+import { safeJsonParse } from "../workspace/attachmentOps";
 import {
   deploymentTransitions,
   normalizeTemplateParameters,

@@ -23,7 +23,10 @@ export const getRoleAvatar = (role: IterationMessage["role"]): string =>
 /* ── message kind / theme ── */
 
 export const getMsgKind = (msg: IterationMessage): string => {
-  if (msg.role === "system" && (msg.content.startsWith("已上传附件") || msg.content.startsWith("已上传文件夹"))) {
+  if (msg.role === "system" && msg.content.startsWith("【变更影响】")) {
+    return "event-impact-alert";
+  }
+  if (msg.content.includes("<!-- upload:") || /^已上传(附件|文档|原型|文件夹)/.test(msg.content)) {
     return "event-upload";
   }
   if (
@@ -93,55 +96,6 @@ export const copyText = async (text: string): Promise<void> => {
 };
 
 /* ── guidance / deliverable ── */
-
-export const resolveGuidanceText = (content: string): string => {
-  if (content.startsWith("操作建议JSON:")) {
-    const raw = content.replace(/^操作建议JSON:/, "").trim();
-    try {
-      const parsed = JSON.parse(raw) as {
-        uploadRecommended?: boolean;
-        actions?: string[];
-        checklist?: string[];
-        prerequisites?: string[];
-      };
-      const parts: string[] = [];
-      if (parsed.uploadRecommended) {
-        parts.push("建议先上传本轮相关材料。");
-      }
-      const actions = Array.isArray(parsed.actions)
-        ? parsed.actions.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 3)
-        : [];
-      if (actions.length > 0) {
-        parts.push(`下一步可执行：${actions.join("；")}。`);
-      }
-      const checklist = Array.isArray(parsed.checklist)
-        ? parsed.checklist.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 2)
-        : [];
-      if (checklist.length > 0) {
-        parts.push(`优先确认：${checklist.join("；")}。`);
-      }
-      const prerequisites = Array.isArray(parsed.prerequisites)
-        ? parsed.prerequisites.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean).slice(0, 2)
-        : [];
-      if (prerequisites.length > 0) {
-        parts.push(`前置条件：${prerequisites.join("；")}。`);
-      }
-      return parts.length > 0 ? `继续推进建议：${parts.join("")}` : "继续推进建议：请在当前会话中明确下一步目标与边界。";
-    } catch {
-      return "继续推进建议：请在当前会话中明确下一步目标与边界。";
-    }
-  }
-  if (content.startsWith("操作建议：")) {
-    const items = content
-      .replace(/^操作建议：/, "")
-      .split("；")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .slice(0, 4);
-    return items.length > 0 ? `补充建议：${items.join("；")}。` : "补充建议：请继续在会话中确认下一步。";
-  }
-  return "";
-};
 
 export const resolveDeliverableCardData = (
   content: string,

@@ -3,9 +3,9 @@
  * 提供 In-Memory Repository 和 Mock AgentRunner，供全量测试复用
  */
 
-// ─── OpenclawGlobal In-Memory Repository ───
+// ─── GlobalAssistant In-Memory Repository ───
 
-export function createInMemoryOpenclawGlobalRepo() {
+export function createInMemoryGlobalAssistantRepo() {
   const store = {
     conversations: [],
     messages: [],
@@ -110,6 +110,15 @@ export function createInMemoryWorkspaceRepo() {
     updateIteration(iteration) {
       const idx = store.iterations.findIndex((i) => i.id === iteration.id);
       if (idx >= 0) store.iterations[idx] = iteration;
+    },
+    deleteIteration(iterationId) {
+      const idx = store.iterations.findIndex((i) => i.id === iterationId);
+      if (idx === -1) return false;
+      store.iterations.splice(idx, 1);
+      store.messages = store.messages.filter((m) => m.iterationId !== iterationId);
+      store.snapshots = store.snapshots.filter((s) => s.iterationId !== iterationId);
+      store.transitions = store.transitions.filter((t) => t.iterationId !== iterationId);
+      return true;
     },
     listSnapshots(iterationId) { return store.snapshots.filter((s) => s.iterationId === iterationId); },
     appendSnapshot(snapshot) { store.snapshots.push(snapshot); },
@@ -226,24 +235,31 @@ export function createMockAgentRunner(reply = "mock reply") {
   };
 }
 
-export function createMockAgentRunnerWithJson(json) {
-  return createMockAgentRunner(JSON.stringify(json));
+// ─── ContinuousModeling In-Memory Repository ───
+
+export function createInMemoryModelingRepo() {
+  const snapshots = [];
+  return {
+    _snapshots: snapshots,
+    listSnapshots(projectId) {
+      return snapshots.filter((s) => s.projectId === projectId);
+    },
+    getLatestPublishedSnapshot(projectId) {
+      const published = snapshots.filter((s) => s.projectId === projectId && s.status === "published");
+      return published.length > 0 ? published[published.length - 1] : null;
+    },
+    saveCandidateSnapshot(snapshot) {
+      snapshots.push(snapshot);
+    },
+    updateSnapshotStatus(snapshotId, status) {
+      const s = snapshots.find((item) => item.id === snapshotId);
+      if (s) { s.status = status; return true; }
+      return false;
+    },
+  };
 }
 
 // ─── 便捷数据构造 ───
-
-export function buildMinimalProject(overrides = {}) {
-  const now = new Date().toISOString();
-  return {
-    id: 1,
-    name: "测试项目",
-    description: "自动化测试用",
-    status: "active",
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
 
 export function buildMinimalIteration(projectId, overrides = {}) {
   const now = new Date().toISOString();

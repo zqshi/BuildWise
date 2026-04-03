@@ -6,7 +6,7 @@ const { registerRuntimeAuth } = await import("../dist/infrastructure/runtime/run
 const { registerSystemRoutes } = await import("../dist/interfaces/http/routes/systemRoutes.js");
 const { currentUserId, currentTenantId } = await import("../dist/interfaces/http/routes/workspaceRouteUtils.js");
 
-test("AUTH_MODE=off falls back to viewer when x-role is absent", async () => {
+test("AUTH_MODE=off falls back to owner when x-role is absent", async () => {
   const app = Fastify();
   registerRuntimeAuth(app, {
     authMode: "off",
@@ -17,7 +17,7 @@ test("AUTH_MODE=off falls back to viewer when x-role is absent", async () => {
 
   const response = await app.inject({ method: "GET", url: "/role" });
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().authRole, "viewer");
+  assert.equal(response.json().authRole, "owner");
 
   await app.close();
 });

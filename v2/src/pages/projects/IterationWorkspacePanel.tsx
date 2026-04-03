@@ -15,7 +15,13 @@ import { useArtifactEditorActions } from "../../hooks/useArtifactEditorActions";
 import { IterationStatusStrip } from "./IterationStatusStrip";
 import { ChatMessageList } from "./ChatMessageList";
 import { UploadProgressBar } from "./UploadProgressBar";
+import { LlmProcessingBar } from "./LlmProcessingBar";
 import { ChatComposer } from "./ChatComposer";
+import { ChangeImpactAlert } from "../../components/ChangeImpactAlert";
+import { detectIterationChangeImpact } from "../../app/workspaceApiAgentOps";
+import type { ChangeImpactResult } from "../../app/workspaceApiAgentOps";
+import { downloadSingleFile } from "./UploadFileCard";
+import type { UploadFileEntry } from "./UploadFileCard";
 // ArtifactImpactPanel reserved for future use
 import type {
   PrototypeElement,
@@ -107,6 +113,37 @@ export function IterationWorkspacePanel({
   const [dragOver, setDragOver] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
 
+  // Simulated progress for chat LLM processing
+  const [chatLlmPercent, setChatLlmPercent] = useState(0);
+  const isChatProcessing = chatSendStatus === "processing" || chatSendStatus === "processing-executing" || chatSendStatus === "processing-artifacts" || chatSendStatus === "processing-full-cycle";
+  // 交付物生成实时进度
+  const ccRaw = currentIteration?.changeControl as Record<string, unknown> | undefined;
+  const artifactGenDeclared = (ccRaw?.artifactGenerationArtifacts as string[] | undefined) ?? [];
+  const artifactGenCompleted = (ccRaw?.artifactGenerationCompletedArtifacts as string[] | undefined) ?? [];
+  const artifactGenInProgress = chatSendStatus === "processing-artifacts" && artifactGenDeclared.length > 0;
+  const artifactGenAllDone = artifactGenInProgress && artifactGenCompleted.length >= artifactGenDeclared.length;
+  useEffect(() => {
+    if (chatSendStatus === "sending" || chatSendStatus === "sent") {
+      setChatLlmPercent(10);
+      return;
+    }
+    if (isChatProcessing) {
+      const base = chatSendStatus === "processing-executing" ? 50
+        : chatSendStatus === "processing-artifacts"
+          ? (artifactGenDeclared.length > 0 && artifactGenCompleted.length > 0
+            ? Math.max(75, Math.round((artifactGenCompleted.length / artifactGenDeclared.length) * 95))
+            : 75)
+        : chatSendStatus === "processing-full-cycle" ? 30
+        : 15;
+      setChatLlmPercent(base);
+      const timer = setInterval(() => {
+        setChatLlmPercent((prev) => (prev < 88 ? prev + (90 - prev) * 0.04 : prev));
+      }, 600);
+      return () => clearInterval(timer);
+    }
+    setChatLlmPercent(0);
+  }, [chatSendStatus]);
+
   // Auto-scroll chat to bottom when messages change
   useEffect(() => {
     const el = chatBodyRef.current;
@@ -115,7 +152,36 @@ export function IterationWorkspacePanel({
     }
   }, [chatMessages]);
   const [showInteractionPanel, setShowInteractionPanel] = useState(false);
+  const [previewFile, setPreviewFile] = useState<UploadFileEntry | null>(null);
   const [interactionEditMode, setInteractionEditMode] = useState(false);
+  const [changeImpact, setChangeImpact] = useState<ChangeImpactResult | null>(null);
+
+  // 变更影响检测：用户输入时 debounce 调用
+  const changeImpactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!currentIteration || !chatInput.trim()) {
+      return;
+    }
+    if (changeImpactTimerRef.current) clearTimeout(changeImpactTimerRef.current);
+    changeImpactTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await detectIterationChangeImpact(currentIteration.id, chatInput.trim());
+        setChangeImpact(result);
+      } catch {
+        // 检测失败不阻塞用户操作
+      }
+    }, 800);
+    return () => {
+      if (changeImpactTimerRef.current) clearTimeout(changeImpactTimerRef.current);
+    };
+  }, [chatInput, currentIteration?.id]);
+
+  // 发送消息后清除变更影响警示
+  useEffect(() => {
+    if (chatSendStatus === "sending") {
+      setChangeImpact(null);
+    }
+  }, [chatSendStatus]);
 
   const {
     interactionInstruction, setInteractionInstruction,
@@ -202,19 +268,20 @@ export function IterationWorkspacePanel({
     acc[item.page][item.component].push(item);
     return acc;
   }, {});
-  const showInteractionEntry = true;
+  const showInteractionEntry = Boolean(uploadedFile?.hasPrototypeAssets);
 
   // ── derived report data (extracted to hook) ──
   const {
     diffLocations, diffAdded, diffChanged, diffRemoved,
     hasBaselineComparison, showAdvancedReportSections,
-    lastUploadMessageId, canOpenAnalysisPanel,
+    canOpenAnalysisPanel,
     materialRisks, materialSuggestions,
     traceabilityMap, executableConstraints, versionDiffDetailed,
     releaseReview, domainKnowledge, opsTriage, qualityArtifacts,
     visiblePrioritizedFindings, clarificationQuestions,
     generatedTestMatrix, matrixSummary,
-    reportPendingConfirmation, reportConfirmedAt, confirmedUnderstanding
+    reportPendingConfirmation, reportConfirmedAt, confirmedUnderstanding,
+    businessConfirmation, coachGuidance
   } = useAnalysisReportDerived(
     analysisReport, currentIteration, chatMessages,
     isAnalyzingAttachment, testMatrixStatusMap, onlyHighValue
@@ -279,12 +346,27 @@ export function IterationWorkspacePanel({
     artifactItems.find((item) => item.stage === stage) || artifactItems[0] || null;
 
   const openAnalysisDrawer = () => {
+    setShowInteractionPanel(false);
+    setPreviewFile(null);
     const preferred = findPreferredArtifactForStage(activeArtifactStage);
     setAnalysisDrawerArtifactId(preferred?.id || null);
     onOpenAnalysisPanel();
   };
 
+  const openFilePreview = (file: UploadFileEntry) => {
+    setShowInteractionPanel(false);
+    setPreviewFile(file);
+    onOpenAnalysisPanel();
+  };
+
+  const closeFilePreview = () => {
+    setPreviewFile(null);
+    onCloseAnalysisPanel();
+  };
+
   const openArtifactPreviewById = (artifactId: string) => {
+    setShowInteractionPanel(false);
+    setPreviewFile(null);
     setAnalysisDrawerArtifactId(artifactId);
     onOpenAnalysisPanel();
   };
@@ -325,7 +407,7 @@ export function IterationWorkspacePanel({
       "*" // srcdoc iframe has origin "null", targetOrigin must be "*"; security enforced by source field check on receive side
     );
     if (latest.artifactId) {
-      void onSaveArtifactDraft(latest.artifactId, { content: latest.content, actor: "OpenClaw Agent" });
+      void onSaveArtifactDraft(latest.artifactId, { content: latest.content, actor: "BuildWise Agent" });
     } else if (latest.path) {
       onPatchUploadedHtmlPreview?.(latest.path, latest.content);
     }
@@ -377,7 +459,7 @@ export function IterationWorkspacePanel({
         const nextContent = applyActionsToHtmlContent(htmlInteractionSource, selectedHtmlElement.selector, result);
         if (nextContent !== htmlInteractionSource) {
           if (htmlInteractionInDrawer && selectedDrawerArtifact) {
-            await onSaveArtifactDraft(selectedDrawerArtifact.id, { content: nextContent, actor: "OpenClaw Agent" });
+            await onSaveArtifactDraft(selectedDrawerArtifact.id, { content: nextContent, actor: "BuildWise Agent" });
           } else if (htmlInteractionPath) {
             onPatchUploadedHtmlPreview?.(htmlInteractionPath, nextContent);
           }
@@ -457,10 +539,17 @@ export function IterationWorkspacePanel({
     onSaveArtifactDraft,
     onCommitArtifact,
     onConfirmArtifact,
+    onConfirmAnalysis: () => _onConfirmIterationAnalysis({
+      accurate: true,
+      decisionEvent: "understanding-accurate",
+      force: true,
+      resolvedClarificationQuestions: Array.isArray(clarificationQuestions) ? clarificationQuestions : []
+    }),
     onOpenAnalysisPanel,
     onCloseAnalysisPanel,
     onChatInputChange,
-    chatComposerInputRef
+    chatComposerInputRef,
+    onTriggerCoachFollowUp: (message: string) => void onChatSend({ overrideText: message })
   });
 
   const openInteractionPanel = () => {
@@ -521,17 +610,33 @@ export function IterationWorkspacePanel({
                 chatMessages={chatMessages}
                 artifactItems={artifactItems}
                 canOpenAnalysisPanel={canOpenAnalysisPanel}
-                showInteractionEntry={showInteractionEntry}
                 analysisConfirmed={Boolean(reportConfirmedAt)}
-                lastUploadMessageId={lastUploadMessageId}
+                chatSendStatus={chatSendStatus}
                 openAnalysisDrawer={openAnalysisDrawer}
-                openInteractionPanel={openInteractionPanel}
                 openArtifactPreviewByTitle={openArtifactPreviewByTitle}
+                onPreviewFile={openFilePreview}
                 onConfirmAnalysis={() => {
-                  void _onConfirmIterationAnalysis({
-                    accurate: true,
-                    decisionEvent: "understanding-accurate"
+                  // Also confirm the analysis-report artifact so gateStatus stays in sync
+                  const confirmArtifactResult = onConfirmArtifact("analysis-report", {
+                    actor: "项目负责人",
+                    passed: true,
                   });
+                  const confirmArtifactPromise = confirmArtifactResult && typeof (confirmArtifactResult as Promise<void>).then === "function"
+                    ? (confirmArtifactResult as Promise<void>).catch((err: unknown) => {
+                        console.warn("[IterationWorkspacePanel] analysis-report artifact confirm failed (non-blocking)", err);
+                      })
+                    : Promise.resolve();
+                  const result = _onConfirmIterationAnalysis({
+                    accurate: true,
+                    decisionEvent: "understanding-accurate",
+                    force: true,
+                    resolvedClarificationQuestions: Array.isArray(clarificationQuestions) ? clarificationQuestions : []
+                  });
+                  if (result && typeof result.then === "function") {
+                    void Promise.all([result, confirmArtifactPromise]).then(() => {
+                      setChangeControlNotice("分析已确认。");
+                    });
+                  }
                 }}
               />
             </div>
@@ -540,6 +645,37 @@ export function IterationWorkspacePanel({
               lastUploadFailed={lastUploadFailed}
               onRetryUpload={onRetryUpload}
             />
+            {(chatSendStatus === "sending" || chatSendStatus === "sent" || isChatProcessing) && !isAnalyzingAttachment ? (
+              <LlmProcessingBar
+                label={
+                  chatSendStatus === "sending" || chatSendStatus === "sent" ? "正在发送消息"
+                  : chatSendStatus === "processing-executing" ? "AI 正在执行指令"
+                  : chatSendStatus === "processing-artifacts"
+                    ? (artifactGenAllDone ? "交付物生成完毕"
+                      : artifactGenInProgress ? `正在生成交付物（${artifactGenCompleted.length}/${artifactGenDeclared.length} 已完成）`
+                      : "AI 正在生成交付物")
+                  : chatSendStatus === "processing-full-cycle" ? "全流程执行中"
+                  : "AI 正在处理"
+                }
+                detail={
+                  chatSendStatus === "sending" || chatSendStatus === "sent" ? "正在连接 AI 服务..."
+                  : chatSendStatus === "processing-executing" ? "正在执行指令，请稍候..."
+                  : chatSendStatus === "processing-artifacts"
+                    ? (artifactGenAllDone
+                      ? "所有交付物已生成，内容已更新到右侧面板。"
+                      : artifactGenInProgress
+                        ? `正在逐个生成，已完成：${artifactGenCompleted.length > 0 ? artifactGenCompleted.join("、") : "暂无"}。`
+                        : "正在后台生成交付物内容，完成后会自动出现...")
+                  : chatSendStatus === "processing-full-cycle" ? "正在按流程依次执行分析、确认、改写、测试等环节..."
+                  : "正在等待大模型响应，请稍候..."
+                }
+                percent={Math.round(chatLlmPercent)}
+                stage="running"
+              />
+            ) : null}
+            {changeImpact?.hasImpact ? (
+              <ChangeImpactAlert impact={changeImpact} onDismiss={() => setChangeImpact(null)} />
+            ) : null}
             <ChatComposer
               currentIteration={currentIteration}
               chatInput={chatInput}
@@ -565,7 +701,40 @@ export function IterationWorkspacePanel({
         </div>
       ) : null}
 
-      {showAnalysisPanel ? (
+      {showAnalysisPanel && previewFile ? (
+        <>
+          <div className="analysis-drawer-mask open" onClick={closeFilePreview} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") closeFilePreview(); }} aria-label="关闭" />
+          <aside className="panel preview-panel context-panel artifact-preview-panel analysis-drawer open" style={{ width: `min(${artifactDrawerWidth}px, 100vw)` }}>
+            <article className="analysis-drawer-inner" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="artifact-drawer-resize-handle" onPointerDown={handleArtifactDrawerResizePointerDown} />
+              <div className="panel-head analysis-drawer-head">
+                <div>
+                  <h2>{previewFile.name}</h2>
+                  <div className="file-preview-meta">
+                    {previewFile.size > 0 ? <span className="upload-file-size">{previewFile.size < 1024 ? `${previewFile.size} B` : previewFile.size < 1048576 ? `${(previewFile.size / 1024).toFixed(1)} KB` : `${(previewFile.size / 1048576).toFixed(1)} MB`}</span> : null}
+                    <span className="upload-file-chip">{previewFile.type || "文件"}</span>
+                  </div>
+                </div>
+                <div className="chat-tools">
+                  {(previewFile.content || previewFile.dataUrl) ? (
+                    <button type="button" className="btn ghost mini" onClick={() => downloadSingleFile(previewFile)}>下载</button>
+                  ) : null}
+                  <button type="button" className="icon-btn" aria-label="关闭预览" onClick={closeFilePreview}>✕</button>
+                </div>
+              </div>
+              <div className="preview-scroll file-preview-body">
+                {previewFile.dataUrl?.startsWith("data:image/") ? (
+                  <img src={previewFile.dataUrl} alt={previewFile.name} className="file-preview-image" />
+                ) : previewFile.content ? (
+                  <pre className="file-preview-text">{previewFile.content}</pre>
+                ) : (
+                  <p className="file-preview-empty">该文件无法预览</p>
+                )}
+              </div>
+            </article>
+          </aside>
+        </>
+      ) : showAnalysisPanel ? (
         <AnalysisDrawerContent
           analysisReport={analysisReport}
           currentIteration={currentIteration}
@@ -594,6 +763,8 @@ export function IterationWorkspacePanel({
           matrixSummary={matrixSummary}
           onlyHighValue={onlyHighValue}
           visiblePrioritizedFindings={visiblePrioritizedFindings}
+          coachGuidance={coachGuidance}
+          businessConfirmation={businessConfirmation}
           materialRisks={materialRisks}
           materialSuggestions={materialSuggestions}
           showAdvancedReportSections={showAdvancedReportSections}
@@ -661,6 +832,7 @@ export function IterationWorkspacePanel({
           handleArtifactDrawerResizePointerDown={handleArtifactDrawerResizePointerDown}
           handleUndoHtmlPreview={handleUndoHtmlPreview}
           sendInteractionInstruction={sendInteractionInstruction}
+          showInteractionEntry={showInteractionEntry}
           openInteractionPanel={openInteractionPanel}
           reloadOpsTemplates={reloadOpsTemplates}
           buildOpsCommandTemplates={buildOpsCommandTemplates}

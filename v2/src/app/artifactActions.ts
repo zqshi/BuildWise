@@ -71,8 +71,15 @@ export const handleAppendArtifactToChat = async (
 ) => {
   if (!deps.currentIteration) return;
   await withBusyAction(deps, async () => {
-    const result = await appendIterationArtifactToChat(deps.currentIteration!.id, artifactId, payload);
-    deps.setChatMessages((prev) => [...prev, result.message]);
+    try {
+      const result = await appendIterationArtifactToChat(deps.currentIteration!.id, artifactId, payload);
+      if (result?.message) {
+        deps.setChatMessages((prev) => [...prev, result.message]);
+      }
+    } catch {
+      // 后端拒绝发布（内容未就绪）时静默处理，不视为错误
+      deps.setError("该交付物内容尚未生成，请等待分析完成后再发布到对话。");
+    }
   });
 };
 

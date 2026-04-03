@@ -20,6 +20,13 @@ export async function fetchProjectIterations(projectId: number) {
   return ensureArray<Iteration>(dataRaw);
 }
 
+export async function deleteIteration(projectId: number, iterationId: number) {
+  return fetchJSON<{ deleted?: boolean; message?: string; code?: string }>(
+    `${API_BASE}${API_PREFIX}/projects/${projectId}/iterations/${iterationId}`,
+    { method: "DELETE" }
+  );
+}
+
 export async function createIteration(
   projectId: number,
   payload: {

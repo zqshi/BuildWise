@@ -34,6 +34,21 @@
   flex-direction:column;
   align-items:flex-start
 }
+.findings-list {
+  gap:0
+}
+.findings-list .history-item-stack {
+  padding:8px 0;
+  border-bottom:1px solid var(--border-default);
+  gap:4px
+}
+.findings-list .history-item-stack:last-child {
+  border-bottom:none;
+  padding-bottom:0
+}
+.findings-list .history-item-stack:first-child {
+  padding-top:0
+}
 .agent-prompt-block {
   width:100%;
   margin:6px 0 0;

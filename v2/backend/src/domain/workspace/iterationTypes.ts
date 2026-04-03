@@ -171,6 +171,22 @@ export type AnalysisState = {
   lastReportQualityScore: number;
   lastReportQualitySummary: string;
   lastReportQualityUpdatedAt: string;
+  lastBusinessConfirmation: {
+    coreIntent: string;
+    boundarySummary: string;
+    functionalPoints: string[];
+    successCriteria: string[];
+    confirmationChecklist: string[];
+    versionDiffSummary: string;
+  };
+  lastMeaningfulFindings: string[];
+  lastPrioritizedFindings: Array<{ priority: string; content: string; reason: string }>;
+  lastDeepInsightsSummary: {
+    themes: string[];
+    gaps: string[];
+    rootCauses: string[];
+    decisionSuggestions: string[];
+  };
 };
 
 export type ClarificationState = {
@@ -256,6 +272,38 @@ export type ReleaseState = {
   artifactWorkflow: IterationArtifactWorkflow;
 };
 
+// ── Full-cycle checkpoint state machine ──
+
+export type FullCycleStepId =
+  | "analysis"
+  | "confirmation"
+  | "ux-guidance"
+  | "frontend-rewrite"
+  | "backend-rewrite"
+  | "merge-rewrite"
+  | "test-artifacts"
+  | "release-review"
+  | "delivery-package"
+  | "publish";
+
+export type FullCycleStepState = {
+  status: "pending" | "completed" | "failed" | "blocked";
+  note: string;
+  completedAt: string;
+  failedAt: string;
+  missingPreconditions: string[];
+  retryable: boolean;
+};
+
+export type FullCycleCheckpoint = {
+  startedAt: string;
+  lastUpdatedAt: string;
+  steps: Record<FullCycleStepId, FullCycleStepState>;
+  currentStep: FullCycleStepId | null;
+  resumable: boolean;
+  completedAt: string;
+};
+
 // ── Backward-compatible composite ──
 
 export type IterationChangeControl = AnalysisState &
@@ -264,7 +312,13 @@ export type IterationChangeControl = AnalysisState &
   TestingState &
   TraceabilityState &
   DomainKnowledgeState &
-  ReleaseState;
+  ReleaseState & {
+    fullCycleCheckpoint?: FullCycleCheckpoint;
+    lastCoachActivityAt?: string;
+    artifactGenerationStartedAt?: string;
+    artifactGenerationArtifacts?: string[];
+    artifactGenerationCompletedArtifacts?: string[];
+  };
 
 export type Iteration = {
   id: number;

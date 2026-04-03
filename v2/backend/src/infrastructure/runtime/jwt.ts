@@ -6,6 +6,7 @@ export type JwtPayload = {
   type: "access" | "refresh";
   iat: number;
   exp: number;
+  tenantId?: string;
 };
 
 const HEADER_B64 = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");

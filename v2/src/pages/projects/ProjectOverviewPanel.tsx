@@ -8,7 +8,7 @@ import { ProjectOverviewPanelDrawers } from "./ProjectOverviewPanelDrawers";
 import { useRepositoryConfig } from "./useRepositoryConfig";
 import { useProjectModelView } from "./useProjectModelView";
 import { usePolicyManagement } from "./usePolicyManagement";
-import { useOpenclawChat } from "./useOpenclawChat";
+import { useAssistantChat } from "./useAssistantChat";
 import { useGovernanceEntry } from "./useGovernanceEntry";
 
 type ProjectOverviewPanelProps = {
@@ -27,6 +27,7 @@ type ProjectOverviewPanelProps = {
   backendUnavailable?: boolean;
   onShowCreateIteration: () => void;
   onEnterIteration: (iterationId: number) => void;
+  onDeleteIteration: (iterationId: number) => Promise<void>;
   onDeleteProject: (projectId: number) => Promise<void>;
 };
 
@@ -47,6 +48,7 @@ export function ProjectOverviewPanel({
   backendUnavailable = false,
   onShowCreateIteration,
   onEnterIteration,
+  onDeleteIteration,
   onDeleteProject
 }: ProjectOverviewPanelProps) {
   const sortedIterations = useMemo(() => [...iterations].sort((a, b) => a.id - b.id), [iterations]);
@@ -59,7 +61,7 @@ export function ProjectOverviewPanel({
 
   // Drawer visibility states lifted here to break circular dependency between hooks
   const [showPolicyDrawer, setShowPolicyDrawer] = useState(false);
-  const [showOpenclawDrawer, setShowOpenclawDrawer] = useState(false);
+  const [showAssistantDrawer, setShowAssistantDrawer] = useState(false);
 
   // Hook 1: Repository config
   const repo = useRepositoryConfig(currentProject);
@@ -84,11 +86,11 @@ export function ProjectOverviewPanel({
     isAdmin,
     targetIterationId,
     showPolicyDrawer,
-    showOpenclawDrawer
+    showAssistantDrawer
   });
 
-  // Hook 4: OpenClaw chat (depends on loadPolicyData from policy hook)
-  const openclaw = useOpenclawChat({
+  // Hook 4: Assistant chat (depends on loadPolicyData from policy hook)
+  const assistant = useAssistantChat({
     currentProject,
     loadPolicyData: policy.loadPolicyData
   });
@@ -97,7 +99,7 @@ export function ProjectOverviewPanel({
   useGovernanceEntry({
     currentProjectId: currentProject?.id,
     setShowPolicyDrawer,
-    setShowOpenclawDrawer
+    setShowAssistantDrawer
   });
 
   const handleDeleteProject = async () => {
@@ -214,6 +216,17 @@ export function ProjectOverviewPanel({
                     <button type="button" className="btn ghost mini" onClick={() => onEnterIteration(item.id)}>
                       进入版本
                     </button>
+                    <button
+                      type="button"
+                      className="btn ghost mini"
+                      style={{ color: "var(--red-600, #dc2626)" }}
+                      onClick={async () => {
+                        const confirmed = window.confirm(`确认删除版本「${item.version || item.name}」？删除后不可恢复。`);
+                        if (confirmed) await onDeleteIteration(item.id);
+                      }}
+                    >
+                      删除
+                    </button>
                   </span>
                 </div>
               ))}
@@ -294,8 +307,8 @@ export function ProjectOverviewPanel({
       <ProjectOverviewPanelDrawers
         showPolicyDrawer={showPolicyDrawer}
         setShowPolicyDrawer={setShowPolicyDrawer}
-        showOpenclawDrawer={showOpenclawDrawer}
-        setShowOpenclawDrawer={setShowOpenclawDrawer}
+        showAssistantDrawer={showAssistantDrawer}
+        setShowAssistantDrawer={setShowAssistantDrawer}
         showRepoConfigDrawer={repo.showRepoConfigDrawer}
         setShowRepoConfigDrawer={repo.setShowRepoConfigDrawer}
         activePolicy={policy.activePolicy}
@@ -323,13 +336,13 @@ export function ProjectOverviewPanel({
         roleBindings={policy.roleBindings}
         handleRemoveRoleBinding={policy.handleRemoveRoleBinding}
         targetIterationId={targetIterationId}
-        openclawChatLines={openclaw.openclawChatLines}
-        openclawDialogMode={openclaw.openclawDialogMode}
-        setOpenclawDialogMode={openclaw.setOpenclawDialogMode}
-        openclawChatInput={openclaw.openclawChatInput}
-        setOpenclawChatInput={openclaw.setOpenclawChatInput}
-        openclawChatBusy={openclaw.openclawChatBusy}
-        handleOpenclawSend={openclaw.handleOpenclawSend}
+        assistantChatLines={assistant.assistantChatLines}
+        assistantDialogMode={assistant.assistantDialogMode}
+        setAssistantDialogMode={assistant.setAssistantDialogMode}
+        assistantChatInput={assistant.assistantChatInput}
+        setAssistantChatInput={assistant.setAssistantChatInput}
+        assistantChatBusy={assistant.assistantChatBusy}
+        handleAssistantSend={assistant.handleAssistantSend}
         policyLogs={policy.policyLogs}
         repoConfigStep={repo.repoConfigStep}
         setRepoConfigStep={repo.setRepoConfigStep}

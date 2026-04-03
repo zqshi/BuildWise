@@ -21,9 +21,7 @@ export type RuntimeConfig = {
   storageBackend: "json" | "sqlite";
   workspaceDbFile: string;
   dataFile: string;
-  openclawHome: string;
   homeDir: string;
-  openclawSkillsEnabled: boolean;
   allowSeedDataBootstrap: boolean;
 };
 
@@ -202,9 +200,7 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string }): 
     jwtAccessTtlSec: parsePositiveInt(env.JWT_ACCESS_TTL_SEC, 7200),
     jwtRefreshTtlSec: parsePositiveInt(env.JWT_REFRESH_TTL_SEC, 604800),
     dataFile,
-    openclawHome: env.OPENCLAW_HOME?.trim() || "",
     homeDir: env.HOME?.trim() || "",
-    openclawSkillsEnabled: parseBool(env.BUILDWISE_OPENCLAW_SKILLS_ENABLED, false),
     allowSeedDataBootstrap
   };
 }

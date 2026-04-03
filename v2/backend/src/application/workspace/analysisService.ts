@@ -10,22 +10,21 @@ import type {
 } from "../../domain/workspace/types";
 import type { AgentRunner } from "./agentRunner";
 import { analyzeAttachmentOp } from "./workspaceServiceAnalysisOps";
-import { buildAttachmentReportSections, getAttachmentReportSectionPage } from "./workspaceServiceAttachmentReportOps";
+import { buildAttachmentReportSections, getAttachmentReportSectionPage } from "./attachmentOps";
 import {
   createQueuedAnalysisJobOp,
   reconcileAnalysisJobsOp,
   triggerAnalysisQueueOp,
-  type AttachmentAnalysisJobRuntime
-} from "./workspaceServiceAnalysisQueueOps";
-import { runAttachmentAnalysisJobOp, runAttachmentAnalysisJobWithTimeoutOp } from "./workspaceServiceAnalysisRunnerOps";
-import {
+  type AttachmentAnalysisJobRuntime,
+  runAttachmentAnalysisJobOp,
+  runAttachmentAnalysisJobWithTimeoutOp,
   findPendingDuplicateJobOp,
   hasPendingDuplicateJobOp,
   isDuplicateAttachmentUploadOp,
   markFailedAnalysisOp,
   persistRetryableAnalysisInputOp,
   recordAttachmentInputFingerprintOp
-} from "./workspaceServiceAnalysisStateOps";
+} from "./analysisInputOps";
 import { readNonNegativeInt, readPositiveInt, readPositiveMs } from "./workspaceEnvParsers";
 import {
   buildAttachmentInputFingerprint,
@@ -33,7 +32,7 @@ import {
   parseAttachmentInputSnapshot,
   shortId,
   summarizeInput
-} from "./workspaceServiceAttachmentUtils";
+} from "./attachmentOps";
 import { defaultIterationChangeControl } from "./workspaceServiceCommon";
 import { DuplicateAttachmentUploadError } from "./workspaceErrors";
 

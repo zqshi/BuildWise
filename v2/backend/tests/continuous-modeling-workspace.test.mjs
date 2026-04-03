@@ -277,3 +277,126 @@ test("buildProjectModelView merges project knowledge and latest snapshot into on
   assert.ok(view.rules.some((item) => Array.isArray(item.linkedEntityIds)));
   assert.equal(view.reviewTasks.length, 1);
 });
+
+// ─── saveCandidate diff + publishSnapshot KB writeback ───
+
+import { createInMemoryWorkspaceRepo, createInMemoryModelingRepo } from "./helpers/mock-factories.mjs";
+
+function setupInMemory() {
+  const workspaceRepo = createInMemoryWorkspaceRepo();
+  const modelingRepo = createInMemoryModelingRepo();
+  const modelingService = new ContinuousModelingService(modelingRepo);
+  const service = new ContinuousModelingWorkspaceService(modelingService, workspaceRepo, modelingRepo);
+
+  workspaceRepo._store.projects.push({
+    id: 1, name: "测试项目", description: "", status: "active",
+    knowledgeBase: {
+      ontologyTerms: [{ term: "用户", aliases: [], definition: "平台用户", evidence: "v1" }],
+      stableRules: [{ rule: "密码至少8位", rationale: "安全", source: "v1" }],
+      componentInventory: [],
+      codeMap: [],
+      decisionLog: [],
+      knownRisks: [],
+      changePatterns: [],
+      updatedAt: "2026-01-01"
+    }
+  });
+  workspaceRepo._store.iterations.push({
+    id: 10, projectId: 1, name: "迭代1", status: "planning",
+    createdAt: "2026-01-01", updatedAt: "2026-01-01"
+  });
+
+  return { service, workspaceRepo, modelingRepo };
+}
+
+function buildTestInput(overrides = {}) {
+  return {
+    projectId: 1,
+    iterationId: 10,
+    baselineSnapshot: null,
+    businessInputs: ["用户注册"],
+    ontologyTerms: [
+      { canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] },
+      { canonicalTerm: "订单", aliases: [], technicalAliases: ["Order"], definition: "交易实体", evidence: ["v2"] }
+    ],
+    entities: [
+      { id: "e1", name: "User", businessName: "用户", fields: [{ name: "id", type: "string", required: true }] }
+    ],
+    relations: [],
+    rules: [
+      { id: "r1", name: "密码规则", statement: "密码至少8位", linkedEntityIds: ["e1"], linkedSurfaceIds: [], linkedApiIds: [] }
+    ],
+    ...overrides
+  };
+}
+
+test("saveCandidate returns diff summary against empty baseline", () => {
+  const { service } = setupInMemory();
+  const result = service.saveCandidate(buildTestInput());
+  assert.equal(result.ok, true);
+  assert.ok(result.diff);
+  assert.ok(result.diff.summary.length > 0);
+  assert.equal(result.diff.previousSnapshotId, null);
+  assert.equal(result.diff.addedTerms.length, 2);
+  assert.equal(result.diff.addedEntities.length, 1);
+  assert.equal(result.diff.addedRules.length, 1);
+});
+
+test("saveCandidate diff detects changes against published baseline", () => {
+  const { service } = setupInMemory();
+  const first = service.saveCandidate(buildTestInput());
+  assert.ok(first.ok);
+  service.publishSnapshot(first.data.snapshotId, 1);
+
+  const second = service.saveCandidate(buildTestInput({
+    ontologyTerms: [
+      { canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] },
+      { canonicalTerm: "订单", aliases: [], technicalAliases: ["Order"], definition: "交易实体", evidence: ["v2"] },
+      { canonicalTerm: "退款", aliases: [], technicalAliases: ["Refund"], definition: "退款操作", evidence: ["v3"] }
+    ]
+  }));
+  assert.ok(second.ok);
+  assert.ok(second.diff.previousSnapshotId);
+  assert.equal(second.diff.addedTerms.length, 1);
+  assert.ok(second.diff.addedTerms.includes("退款"));
+});
+
+test("publishSnapshot syncs snapshot data back to project KB", () => {
+  const { service, workspaceRepo } = setupInMemory();
+  const result = service.saveCandidate(buildTestInput({
+    ontologyTerms: [
+      { canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] },
+      { canonicalTerm: "订单", aliases: [], technicalAliases: ["Order"], definition: "交易实体", evidence: ["v2"] }
+    ],
+    entities: [
+      { id: "e1", name: "User", businessName: "用户", fields: [] },
+      { id: "e2", name: "Order", businessName: "订单", fields: [] }
+    ],
+    rules: [
+      { id: "r1", name: "密码规则", statement: "密码至少8位", linkedEntityIds: ["e1"], linkedSurfaceIds: [], linkedApiIds: [] },
+      { id: "r2", name: "订单规则", statement: "订单30分钟取消", linkedEntityIds: ["e2"], linkedSurfaceIds: [], linkedApiIds: [] }
+    ]
+  }));
+  assert.ok(result.ok);
+
+  const pubResult = service.publishSnapshot(result.data.snapshotId, 1);
+  assert.ok(pubResult.ok);
+
+  const project = workspaceRepo.findProject(1);
+  const kb = project.knowledgeBase;
+  assert.ok(kb.ontologyTerms.some(t => t.term === "订单"), "KB should include 订单");
+  assert.ok(kb.stableRules.some(r => r.rule === "订单30分钟取消"), "KB should include new rule");
+  assert.ok(kb.componentInventory.some(c => c.component === "Order"), "KB should include Order");
+});
+
+test("publishSnapshot does not duplicate existing KB entries", () => {
+  const { service, workspaceRepo } = setupInMemory();
+  const result = service.saveCandidate(buildTestInput());
+  assert.ok(result.ok);
+  service.publishSnapshot(result.data.snapshotId, 1);
+
+  const project = workspaceRepo.findProject(1);
+  const kb = project.knowledgeBase;
+  assert.equal(kb.ontologyTerms.filter(t => t.term === "用户").length, 1);
+  assert.equal(kb.stableRules.filter(r => r.rule === "密码至少8位").length, 1);
+});

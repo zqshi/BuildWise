@@ -1,7 +1,7 @@
 type OwnerType = "org" | "user";
 type Visibility = "private" | "public";
 
-export type ProvisionRepositoryInput = {
+type ProvisionRepositoryInput = {
   ownerType: OwnerType;
   organization: string;
   name: string;
@@ -12,7 +12,7 @@ export type ProvisionRepositoryInput = {
   githubToken: string;
 };
 
-export type ProvisionRepositoryResult = {
+type ProvisionRepositoryResult = {
   providerRepoId: string;
   htmlUrl: string;
   cloneUrl: string;

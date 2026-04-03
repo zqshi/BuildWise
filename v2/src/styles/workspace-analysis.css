@@ -126,6 +126,21 @@
   font-size:var(--text-xs);
   line-height:1.5;
 }
+.label-hint {
+  margin:6px 0 2px;
+  font-size:var(--text-2xs);
+  font-weight:var(--font-weight-semibold);
+  color:var(--text-secondary);
+  text-transform:uppercase;
+  letter-spacing:0.02em;
+}
+.report-quality-bar {
+  border-color:var(--border-strong);
+  background:var(--bg-surface);
+}
+.deliverable-section .label-hint {
+  margin:4px 0 0;
+}
 .analysis-report-scroll textarea {
   font-size:var(--text-xs);
   line-height:1.5;

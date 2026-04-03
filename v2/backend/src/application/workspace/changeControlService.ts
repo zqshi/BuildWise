@@ -12,11 +12,11 @@ import {
   updateClarificationDraftOp,
   updateIterationBoundaryOp,
   updateIterationTestMatrixExecutionOp
-} from "./workspaceServiceChangeControlOps";
+} from "./changeControlOps";
 import {
   bindIterationCodeLinkOp,
   getIterationCodeLinkOp
-} from "./workspaceServiceIterationFlowOps";
+} from "./iterationOps";
 
 export class ChangeControlService {
   private readonly repo: WorkspaceRepository;

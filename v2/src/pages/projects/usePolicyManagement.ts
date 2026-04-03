@@ -21,7 +21,7 @@ type UsePolicyManagementParams = {
   isAdmin: boolean;
   targetIterationId: number | null;
   showPolicyDrawer: boolean;
-  showOpenclawDrawer: boolean;
+  showAssistantDrawer: boolean;
 };
 
 export function usePolicyManagement({
@@ -29,7 +29,7 @@ export function usePolicyManagement({
   isAdmin,
   targetIterationId,
   showPolicyDrawer,
-  showOpenclawDrawer
+  showAssistantDrawer
 }: UsePolicyManagementParams) {
   const [activePolicy, setActivePolicy] = useState<ProjectPolicyPayload | null>(null);
   const [policyItems, setPolicyItems] = useState<ProjectPolicyPayload[]>([]);
@@ -39,8 +39,8 @@ export function usePolicyManagement({
   const [_policyNotice, setPolicyNotice] = useState("");
   const [bindingProfile, setBindingProfile] = useState("buildwise-local");
   const [bindingAgentId, setBindingAgentId] = useState("main");
-  const [bindingWorkspacePath, setBindingWorkspacePath] = useState("~/.openclaw/workspace-buildwise-local");
-  const [bindingRuntimeMode, setBindingRuntimeMode] = useState<"openclaw-native" | "bridge">("openclaw-native");
+  const [bindingWorkspacePath, setBindingWorkspacePath] = useState("~/.buildwise/workspace-local");
+  const [bindingRuntimeMode, setBindingRuntimeMode] = useState<"native" | "bridge">("native");
   const [newRoleUserId, setNewRoleUserId] = useState("user-1");
   const [newRoleValue, setNewRoleValue] = useState<"admin" | "member" | "viewer">("member");
 
@@ -114,13 +114,13 @@ export function usePolicyManagement({
     try {
       setPolicyBusy(true);
       await bindProjectWorkspace(currentProject.id, {
-        openclawProfile: bindingProfile.trim(),
+        assistantProfile: bindingProfile.trim(),
         agentId: bindingAgentId.trim() || "main",
         workspacePath: bindingWorkspacePath.trim(),
         runtimeMode: bindingRuntimeMode,
         locked: true
       });
-      setPolicyNotice("OpenClaw 工作区绑定已更新。");
+      setPolicyNotice("工作区绑定已更新。");
     } catch (error) {
       setPolicyNotice(error instanceof Error ? error.message : "绑定工作区失败");
     } finally {
@@ -178,9 +178,9 @@ export function usePolicyManagement({
 
   // Load policy data when drawers open
   useEffect(() => {
-    if (!showPolicyDrawer && !showOpenclawDrawer) return;
+    if (!showPolicyDrawer && !showAssistantDrawer) return;
     void loadPolicyData();
-  }, [showPolicyDrawer, showOpenclawDrawer, currentProject?.id, targetIterationId]);
+  }, [showPolicyDrawer, showAssistantDrawer, currentProject?.id, targetIterationId]);
 
   return {
     activePolicy,

@@ -114,10 +114,10 @@ export type ProjectPolicyRecord = {
 export type ProjectWorkspaceBindingRecord = {
   id: number;
   projectId: number;
-  openclawProfile: string;
+  assistantProfile: string;
   agentId: string;
   workspacePath: string;
-  runtimeMode: "openclaw-native" | "bridge";
+  runtimeMode: "native" | "bridge";
   locked: boolean;
   createdBy: string;
   createdAt: string;

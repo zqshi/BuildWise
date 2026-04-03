@@ -142,14 +142,12 @@ export function ChatComposer({
           aria-label="需求输入框"
           rows={2}
         />
-        <button type="button" className="btn primary" onClick={onComposedSend} disabled={!chatInput.trim()}>
+        <button type="button" className="btn primary" onClick={onComposedSend} disabled={!chatInput.trim() || (chatSendStatus !== "idle" && chatSendStatus !== "failed" && chatSendStatus !== "processing-artifacts")}>
           发送
         </button>
       </div>
-      {chatSendStatus === "sending" || chatSendStatus === "failed" ? (
-        <p className={`chat-send-status status-${chatSendStatus}`}>
-          {chatSendStatus === "sending" ? "发送中..." : "发送失败，请重试"}
-        </p>
+      {chatSendStatus === "failed" ? (
+        <p className="chat-send-status status-failed">发送失败，请重试</p>
       ) : null}
     </>
   );

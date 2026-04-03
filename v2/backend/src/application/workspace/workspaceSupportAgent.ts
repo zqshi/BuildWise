@@ -1,5 +1,6 @@
 import type { AgentScope, AttachmentAnalysisReport, Iteration, IterationAgentPlan, IterationAgentPrompt, IterationStatus } from "../../domain/workspace/types";
-import { loadAgentPromptTemplate, loadAgentScopeAdapterHint, loadDynamicWorkflowHint, loadWorkflowTemplate, type AgentPromptTemplate } from "./agentAssetRegistry";
+import { loadAgentPromptTemplate, loadWorkflowTemplate, type AgentPromptTemplate } from "./agentAssetRegistry";
+import { RISK_SENTINEL } from "../../domain/workspace/constants";
 
 export function inferCyclePhase(status: IterationStatus): AttachmentAnalysisReport["cyclePhase"] {
   switch (status) {
@@ -19,7 +20,7 @@ export function inferCyclePhase(status: IterationStatus): AttachmentAnalysisRepo
 }
 
 function suggestNextTransition(status: IterationStatus, risks: string[], diffCount: number): IterationStatus | null {
-  const hasRisk = risks.length > 0 && !risks.every((item) => item.includes("暂无显式风险"));
+  const hasRisk = risks.length > 0 && !risks.every((item) => item.includes(RISK_SENTINEL));
   if (status === "planned") {
     return "in-progress";
   }
@@ -117,7 +118,6 @@ export function buildIterationAgentPlan(params: {
   };
 }): IterationAgentPlan {
   const { iteration, previous, scope, diffLocations, risks, fileName, attachmentMeta, attachmentSignals } = params;
-  const strategy: IterationAgentPlan["strategy"] = "single-agent";
   const compactSingleFileContext = shouldUseCompactSingleFileAnalysis({ attachmentSignals });
   const recommendedTransition = suggestNextTransition(iteration.status, risks, diffLocations.length);
   const objective = `基于附件 ${fileName} 驱动迭代 ${iteration.name} 全周期闭环执行`;
@@ -157,8 +157,6 @@ export function buildIterationAgentPlan(params: {
     ? "本轮必须先执行信息完善：融合文档与原型信息，补全缺失约束后再进入任务拆解。"
     : "";
   const skillPackHint = "skillsRoot=v2/backend/skills/claude-arsenal/skills；运行策略=单编排Agent驱动技能链。";
-  const dynamicWorkflowHint = loadDynamicWorkflowHint(scope);
-  const agentScopeHint = loadAgentScopeAdapterHint();
   const contextBase = `项目迭代=${iteration.name}；当前状态=${iteration.status}；基线=${previous?.name ?? "无"}；差异=${diffDigest}；风险=${risks.join("；") || "无"}；验收标准=${acceptanceDigest}`;
   const contextParts = compactSingleFileContext
     ? [
@@ -169,8 +167,7 @@ export function buildIterationAgentPlan(params: {
         attachmentDigest,
         attachmentPreview,
         attachmentSignalHint,
-        "仅基于文本需求执行首轮闭环编排，避免展开与当前需求无关的原型/协作推断。",
-        dynamicWorkflowHint
+        "仅基于文本需求执行首轮闭环编排，避免展开与当前需求无关的原型/协作推断。"
       ]
     : [
         contextBase,
@@ -181,37 +178,23 @@ export function buildIterationAgentPlan(params: {
         attachmentPreview,
         attachmentSignalHint,
         infoCompletionHint,
-        skillPackHint,
-        dynamicWorkflowHint,
-        agentScopeHint
+        skillPackHint
       ];
   const contextWithControl = contextParts.filter(Boolean).join("；");
 
   const workflowTemplate = loadWorkflowTemplate({
     scope,
-    strategy,
     fallback: {
       name: "default-single-agent",
-      strategy,
-      executionLoop: [
-        "信息完善：对齐文档/原型并补全缺失上下文",
-        "解析附件并固化范围差异",
-        "输出待确认项并等待人工确认",
-        "按确认后的边界重排任务清单与责任人",
-        "执行开发与自测，记录阻塞",
-        "触发评审与验收，决定是否流转状态"
-      ],
       contextHint: "由项目管理Agent驱动阶段流转，专职Agent按职责完成交付。"
     }
   });
 
   const contextFinal = workflowTemplate.contextHint ? `${contextWithControl}；workflowHint=${workflowTemplate.contextHint}` : contextWithControl;
   return {
-    strategy,
     scope,
     objective,
     recommendedTransition,
-    executionLoop: workflowTemplate.executionLoop,
     prompts: [
       buildPrompt(
         compactSingleFileContext

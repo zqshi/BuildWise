@@ -142,6 +142,28 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     return this.core.findPreviousIteration(iteration);
   }
 
+  deleteIteration(iterationId: number): boolean {
+    const db = this.core.db;
+    db.exec("BEGIN IMMEDIATE TRANSACTION");
+    try {
+      const result = this.core.deleteIteration(iterationId);
+      // 对齐 JSON 版本：清理 JSON 集合中的关联数据
+      const iterations = this.core.readCollection<Iteration>("iterations");
+      this.core.writeCollection("iterations", iterations.filter((item) => item.id !== iterationId));
+      const snapshots = this.core.readCollection<{ iterationId: number }>("snapshots");
+      this.core.writeCollection("snapshots", snapshots.filter((s) => s.iterationId !== iterationId));
+      const transitions = this.core.readCollection<{ iterationId: number }>("transitions");
+      this.core.writeCollection("transitions", transitions.filter((t) => t.iterationId !== iterationId));
+      const logs = this.core.readCollection<{ iterationId: number }>("policyExecutionLogs");
+      this.core.writeCollection("policyExecutionLogs", logs.filter((l) => l.iterationId !== iterationId));
+      db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   createIteration(projectId: number, payload: CreateIterationInput) {
     const existing = this.core.listIterations(projectId);
     const version = nextThreePartVersion(existing, payload.versionType || "patch");

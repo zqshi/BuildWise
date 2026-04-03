@@ -60,7 +60,7 @@ function buildInitialWorkspaceStore(createdAt) {
   };
 }
 
-function buildInitialOpenclawGlobalStore(createdAt) {
+function buildInitialGlobalAssistantStore(createdAt) {
   return {
     conversations: [],
     messages: [],
@@ -83,7 +83,7 @@ function resetBusinessEnvironment() {
   }
 
   writeJson(resolve(backendDir, "continuous-modeling.runtime.json"), { snapshots: [] });
-  writeJson(resolve(backendDir, "openclaw-global.runtime.json"), buildInitialOpenclawGlobalStore(now));
+  writeJson(resolve(backendDir, "global-assistant.runtime.json"), buildInitialGlobalAssistantStore(now));
 
   const removedPaths = [];
   const removablePaths = [
@@ -110,7 +110,7 @@ function resetBusinessEnvironment() {
         resetAt: now,
         dataFiles: targetFiles,
         continuousModelingFile: resolve(backendDir, "continuous-modeling.runtime.json"),
-        openclawGlobalFile: resolve(backendDir, "openclaw-global.runtime.json"),
+        globalAssistantFile: resolve(backendDir, "global-assistant.runtime.json"),
         removedPaths,
         projectOverviewMockButtonRemoved: true
       },

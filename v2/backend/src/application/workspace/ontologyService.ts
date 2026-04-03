@@ -39,11 +39,44 @@ type BoundaryInput = {
   riskAreas?: Array<{ risk: string; mitigation: string; trigger: string }>;
 } | null;
 
+type AnalysisReportInput = {
+  businessConfirmation?: {
+    necessityAssessment?: {
+      mustDo?: string[];
+      shouldDo?: string[];
+      canDefer?: string[];
+      outOfScope?: string[];
+      rationale?: string;
+    };
+  };
+  domainKnowledge?: {
+    rules?: string[];
+    unknowns?: string[];
+  };
+  versionDiffDetailed?: {
+    summary?: string;
+    impactScope?: string[];
+    riskPoints?: string[];
+    added?: Array<{ dimension: string; item: string; impact: string; risk: string }>;
+    changed?: Array<{ dimension: string; item: string; impact: string; risk: string }>;
+    removed?: Array<{ dimension: string; item: string; impact: string; risk: string }>;
+  };
+  risks?: string[];
+  releaseReview?: {
+    rollback?: {
+      shouldRollback?: boolean;
+      reason?: string;
+      trigger?: string;
+      actions?: string[];
+    };
+  };
+} | null;
+
 type OntologyInput = {
   domainKnowledgeEntries: DomainKnowledgeEntry[];
   traceabilityMap: TraceabilityMap;
   boundary: BoundaryInput;
-  analysisReport: unknown;
+  analysisReport: AnalysisReportInput;
 };
 
 type OntologyUpdateResult = {
@@ -181,6 +214,113 @@ function extractStableRules(
   return { rules: Array.from(ruleMap.values()), newRules };
 }
 
+function extractDecisionLog(
+  existing: ProjectKnowledgeBase["decisionLog"],
+  report: AnalysisReportInput
+): ProjectKnowledgeBase["decisionLog"] {
+  const decisions = new Map<string, ProjectKnowledgeBase["decisionLog"][number]>();
+  for (const d of existing) {
+    decisions.set(d.decision, d);
+  }
+
+  const assessment = report?.businessConfirmation?.necessityAssessment;
+  if (!assessment) return existing;
+
+  const entries: Array<{ items: string[]; priority: string }> = [
+    { items: assessment.mustDo ?? [], priority: "mustDo" },
+    { items: assessment.shouldDo ?? [], priority: "shouldDo" },
+    { items: assessment.canDefer ?? [], priority: "canDefer" },
+  ];
+
+  for (const { items, priority } of entries) {
+    for (const item of items) {
+      if (!item || decisions.has(item)) continue;
+      decisions.set(item, {
+        decision: item,
+        status: "active",
+        rationale: `${priority} — ${assessment.rationale ?? ""}`.trim(),
+        iterationVersion: "",
+      });
+    }
+  }
+
+  return Array.from(decisions.values());
+}
+
+function extractChangePatterns(
+  existing: ProjectKnowledgeBase["changePatterns"],
+  report: AnalysisReportInput
+): ProjectKnowledgeBase["changePatterns"] {
+  const patterns = new Map<string, ProjectKnowledgeBase["changePatterns"][number]>();
+  for (const p of existing) {
+    patterns.set(p.pattern, p);
+  }
+
+  // 从 domainKnowledge.rules 提取变更模式
+  const rules = report?.domainKnowledge?.rules ?? [];
+  for (const rule of rules) {
+    if (!rule || patterns.has(rule)) continue;
+    patterns.set(rule, {
+      pattern: rule,
+      preferredFlow: rule,
+      avoid: "",
+    });
+  }
+
+  // 从 versionDiffDetailed 中提取 high-risk 变更为变更模式
+  const diff = report?.versionDiffDetailed;
+  if (diff) {
+    const allChanges = [
+      ...(diff.added ?? []),
+      ...(diff.changed ?? []),
+      ...(diff.removed ?? []),
+    ];
+    for (const change of allChanges) {
+      if (change.risk !== "high" && change.risk !== "medium") continue;
+      const key = `${change.dimension}:${change.item}`;
+      if (patterns.has(key)) continue;
+      patterns.set(key, {
+        pattern: `${change.item}（${change.dimension}）`,
+        preferredFlow: change.impact,
+        avoid: change.risk === "high" ? "直接变更，需先评审" : "",
+      });
+    }
+  }
+
+  return Array.from(patterns.values());
+}
+
+function extractReportRisks(
+  existing: ProjectKnowledgeBase["knownRisks"],
+  report: AnalysisReportInput
+): ProjectKnowledgeBase["knownRisks"] {
+  const risks = new Map<string, ProjectKnowledgeBase["knownRisks"][number]>();
+  for (const r of existing) {
+    risks.set(r.risk, r);
+  }
+
+  // 从 analysisReport.risks 提取
+  for (const risk of report?.risks ?? []) {
+    if (!risk || risks.has(risk)) continue;
+    risks.set(risk, { risk, mitigation: "", trigger: "" });
+  }
+
+  // 从 releaseReview.rollback 提取
+  const rollback = report?.releaseReview?.rollback;
+  if (rollback?.trigger) {
+    const key = `回滚触发: ${rollback.trigger}`;
+    if (!risks.has(key)) {
+      risks.set(key, {
+        risk: key,
+        mitigation: (rollback.actions ?? []).join("; "),
+        trigger: rollback.trigger,
+      });
+    }
+  }
+
+  return Array.from(risks.values());
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -211,14 +351,27 @@ export function extractKnowledgeBaseUpdateOp(
     ? extractKnownRisks(input.boundary)
     : existingKb.knownRisks;
 
+  // 合并 boundary risks 和 analysisReport risks
+  const mergedRisks = input.analysisReport
+    ? extractReportRisks(knownRisks, input.analysisReport)
+    : knownRisks;
+
+  const decisionLog = input.analysisReport
+    ? extractDecisionLog(existingKb.decisionLog, input.analysisReport)
+    : existingKb.decisionLog;
+
+  const changePatterns = input.analysisReport
+    ? extractChangePatterns(existingKb.changePatterns, input.analysisReport)
+    : existingKb.changePatterns;
+
   const updatedKb: ProjectKnowledgeBase = {
     ontologyTerms: terms,
     stableRules: rules,
     componentInventory,
     codeMap,
-    decisionLog: existingKb.decisionLog,
-    knownRisks,
-    changePatterns: existingKb.changePatterns,
+    decisionLog,
+    knownRisks: mergedRisks,
+    changePatterns,
     updatedAt: new Date().toISOString(),
   };
 

@@ -7,7 +7,7 @@
  * can produce coherent, chain-linked deliverables.
  */
 
-const ARTIFACT_UPSTREAM_DEPS: Record<string, string[]> = {
+export const ARTIFACT_UPSTREAM_DEPS: Record<string, string[]> = {
   "analysis-report": [],
   "product-requirements-doc": ["analysis-report"],
   "boundary-confirmation": ["analysis-report", "product-requirements-doc"],
@@ -30,7 +30,7 @@ const PER_DEP_MIN = 800;
 const PER_DEP_MAX = 4000;
 const SUMMARY_ONLY_THRESHOLD = 6;
 
-export type ArtifactExcerpt = {
+type ArtifactExcerpt = {
   artifactId: string;
   title: string;
   excerpt: string;

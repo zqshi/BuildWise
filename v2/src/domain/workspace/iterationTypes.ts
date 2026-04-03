@@ -4,7 +4,7 @@ export type IterationScope = {
   acceptanceCriteria: string[];
 };
 
-export type ContinuityMeta = {
+type ContinuityMeta = {
   inheritedFromIterationId: number | null;
   inheritedSummary: string;
   carriedGoals: string[];
@@ -12,7 +12,7 @@ export type ContinuityMeta = {
   carriedDecisions: string[];
 };
 
-export type VersionAssessment = {
+type VersionAssessment = {
   baselineIterationId: number | null;
   baselineIterationName: string;
   currentSummary: string;
@@ -22,7 +22,7 @@ export type VersionAssessment = {
   risks: string[];
 };
 
-export type IterationModule = {
+type IterationModule = {
   id: string;
   title: string;
   status: string;
@@ -253,6 +253,38 @@ export type ReleaseState = {
   artifactWorkflow: IterationArtifactWorkflow;
 };
 
+// ── Full-cycle checkpoint state machine ──
+
+export type FullCycleStepId =
+  | "analysis"
+  | "confirmation"
+  | "ux-guidance"
+  | "frontend-rewrite"
+  | "backend-rewrite"
+  | "merge-rewrite"
+  | "test-artifacts"
+  | "release-review"
+  | "delivery-package"
+  | "publish";
+
+export type FullCycleStepState = {
+  status: "pending" | "completed" | "failed" | "blocked";
+  note: string;
+  completedAt: string;
+  failedAt: string;
+  missingPreconditions: string[];
+  retryable: boolean;
+};
+
+export type FullCycleCheckpoint = {
+  startedAt: string;
+  lastUpdatedAt: string;
+  steps: Record<FullCycleStepId, FullCycleStepState>;
+  currentStep: FullCycleStepId | null;
+  resumable: boolean;
+  completedAt: string;
+};
+
 // ── Backward-compatible composite ──
 
 export type IterationChangeControl = AnalysisState &
@@ -261,7 +293,13 @@ export type IterationChangeControl = AnalysisState &
   TestingState &
   TraceabilityState &
   DomainKnowledgeState &
-  ReleaseState;
+  ReleaseState & {
+    fullCycleCheckpoint?: FullCycleCheckpoint;
+    lastCoachActivityAt?: string;
+    artifactGenerationStartedAt?: string;
+    artifactGenerationArtifacts?: string[];
+    artifactGenerationCompletedArtifacts?: string[];
+  };
 
 export type Iteration = {
   id: number;
@@ -350,7 +388,15 @@ export type IterationStateMachinePayload = {
 };
 
 export type ChatRole = "system" | "assistant" | "user";
-export type ChatSendStatus = "idle" | "sending" | "sent" | "failed";
+export type ChatSendStatus =
+  | "idle"
+  | "sending"
+  | "sent"
+  | "processing"
+  | "processing-executing"
+  | "processing-artifacts"
+  | "processing-full-cycle"
+  | "failed";
 
 export type IterationMessage = {
   id: number;
@@ -360,18 +406,3 @@ export type IterationMessage = {
   createdAt: string;
 };
 
-export type ProductionDeliveryLoopState =
-  | "need_prototype_alignment"
-  | "need_arch_alignment"
-  | "implementing"
-  | "repairing"
-  | "testing"
-  | "ready_for_release";
-
-export type ProductionDeliveryLoop = {
-  state: ProductionDeliveryLoopState;
-  blockedBy: string[];
-  repairActions: string[];
-  evidence: string[];
-  updatedAt: string;
-};

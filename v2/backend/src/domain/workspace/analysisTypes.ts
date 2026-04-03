@@ -3,13 +3,9 @@ import type { IterationStatus } from "./iterationTypes";
 export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
 export type AgentRole =
   | "orchestrator"
-  | "project-manager"
-  | "context-integrator"
-  | "prototype-analyst"
   | "ux-designer"
   | "solution-architect"
   | "requirements-analyst"
-  | "task-planner"
   | "frontend-developer"
   | "backend-developer"
   | "delivery-engineer"
@@ -29,11 +25,9 @@ export type IterationAgentPrompt = {
 };
 
 export type IterationAgentPlan = {
-  strategy: "single-agent";
   scope: AgentScope;
   objective: string;
   recommendedTransition: IterationStatus | null;
-  executionLoop: string[];
   prompts: IterationAgentPrompt[];
 };
 
@@ -456,7 +450,7 @@ export type IterationCoachChatResponse = {
   intent: "collect-attachment" | "clarify" | "confirm-boundary" | "plan" | "qa" | "release" | "full-cycle" | "general";
   reply: string;
   execution?: {
-    action: "none" | "rewrite" | "confirm-accurate" | "confirm-inaccurate" | "enter-clarify-mode" | "run-full-cycle";
+    action: "none" | "rewrite" | "confirm-accurate" | "confirm-inaccurate" | "enter-clarify-mode" | "run-full-cycle" | "capture-business-rule";
     instruction?: string;
     apply?: boolean;
   };
@@ -474,6 +468,7 @@ export type IterationCoachChatResponse = {
     continuations?: number;
     contentComplete?: boolean;
   };
+  declaredArtifacts?: string[];
 };
 
 export type IterationVisualEditAction = {
@@ -597,9 +592,8 @@ export type IterationFullCycleRunResponse = {
     blockers?: string[];
     data?: Record<string, unknown>;
   } | null;
-};
-
-export type IterationDeliveryPackageResult = {
+  checkpoint?: import("./iterationTypes").FullCycleCheckpoint;
+};export type IterationDeliveryPackageResult = {
   iterationId: number;
   dryRun: boolean;
   summary: string;

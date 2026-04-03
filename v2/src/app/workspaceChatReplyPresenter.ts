@@ -4,12 +4,15 @@ const INTERNAL_SKILL_LINE = /^\s*\[skills\]/i;
 // 容错：标准闭合、未闭合（LLM截断）、大小写
 const COACH_MARKER_RE = /<!--\s*coach:\s*\{[\s\S]*?\}\s*(?:-->|$)/i;
 const DELIVERABLE_READY_LINE = /(已输出|已生成|已整理|已形成).*(报告|文档|交付物|边界确认)/;
+// 系统内部技术诊断信息不应暴露给用户
+const INTERNAL_DIAGNOSTIC_RE = /(?:上下文降级|Excerpt length|unknown 信号|unknownSignal|degradeReason|promptContextLength|agentCount|chunkCount)/i;
 function normalizeLines(reply: string) {
   return extractArtifactDisplayContent(reply)
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !INTERNAL_SKILL_LINE.test(line));
+    .filter((line) => !INTERNAL_SKILL_LINE.test(line))
+    .filter((line) => !INTERNAL_DIAGNOSTIC_RE.test(line));
 }
 
 function isNaturalLanguageLine(line: string) {

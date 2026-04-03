@@ -1,6 +1,0 @@
-interface:
-  display_name: "Orchestrator SOP"
-  short_description: "Single-agent stage orchestration and gate control"
-  default_prompt: "Use $00-orchestrator-sop to route this iteration stage and enforce governance gates."
-policy:
-  allow_implicit_invocation: true

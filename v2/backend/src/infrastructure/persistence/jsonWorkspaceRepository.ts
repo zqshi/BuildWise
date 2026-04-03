@@ -258,6 +258,19 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
     );
   }
 
+  deleteIteration(iterationId: number): boolean {
+    const data = this.read();
+    const idx = data.iterations.findIndex((item) => item.id === iterationId);
+    if (idx === -1) return false;
+    data.iterations.splice(idx, 1);
+    data.messages = data.messages.filter((m) => m.iterationId !== iterationId);
+    data.snapshots = data.snapshots.filter((s) => s.iterationId !== iterationId);
+    data.transitions = data.transitions.filter((t) => t.iterationId !== iterationId);
+    data.policyExecutionLogs = data.policyExecutionLogs.filter((l) => l.iterationId !== iterationId);
+    this.write(data);
+    return true;
+  }
+
   createIteration(projectId: number, payload: CreateIterationInput) {
     const data = this.read();
     const existing = data.iterations.filter((item) => item.projectId === projectId);

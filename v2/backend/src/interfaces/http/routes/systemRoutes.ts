@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { buildPrometheusMetrics } from "../../../infrastructure/runtime/prometheusMetrics";
 import type { RuntimeSnapshot } from "../../../infrastructure/runtime/runtimeState";
+import { getLlmCallStats } from "../../../infrastructure/llm/agentRunnerFactory";
 
 type SystemRouteContext = {
   serviceName: string;
@@ -77,5 +78,15 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
       return { message: "permission denied" };
     }
     return context.getRuntime();
+  });
+
+  app.get("/api/v1/ops/llm-stats", async (request, reply) => {
+    if (request.authRole === "viewer") {
+      reply.code(403);
+      return { message: "permission denied" };
+    }
+    const query = request.query as { limit?: string } | null;
+    const limit = Math.min(Math.max(Number(query?.limit) || 50, 1), 200);
+    return getLlmCallStats(limit);
   });
 }

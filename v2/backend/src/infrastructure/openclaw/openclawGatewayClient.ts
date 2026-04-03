@@ -1,172 +1,377 @@
 /**
- * OpenClaw Gateway HTTP Client
+ * OpenClaw Gateway Client
  *
- * Connects to OpenClaw Gateway's OpenAI-compatible `/v1/chat/completions` endpoint.
- * Supports session persistence via `X-OpenClaw-Session-Key` header and
- * agent routing via `X-OpenClaw-Agent-Id` header.
+ * 封装 OpenClaw Gateway 的 HTTP 调用，提供稳定的 Agent 执行接口。
+ * 支持 Session 管理、Skill 调用、重试逻辑等。
  */
 
-export type OpenClawGatewayConfig = {
-  /** Gateway base URL, e.g. "http://127.0.0.1:18789" */
-  baseUrl: string;
-  /** Bearer token for authentication. Empty string = no auth. */
-  token: string;
-  /** Default agent ID. Defaults to "main". */
-  defaultAgentId: string;
-  /** Request timeout in milliseconds. Defaults to 120000. */
-  timeoutMs: number;
+import { createLogger } from "../runtime/logger";
+
+const log = createLogger("openclaw-gateway");
+
+// ---------------------------------------------------------------------------
+// 配置
+// ---------------------------------------------------------------------------
+
+export const OPENCLAW_CONFIG = {
+  gatewayUrl: process.env.OPENCLAW_GATEWAY_URL || "http://localhost:18789",
+  apiKey: process.env.OPENCLAW_API_KEY || "",
+  defaultTimeoutMs: parseInt(process.env.OPENCLAW_TIMEOUT_MS || "120000", 10),
+  defaultModel: process.env.OPENCLAW_DEFAULT_MODEL || "claude-sonnet-4-20250514"
+} as const;
+
+// ---------------------------------------------------------------------------
+// 类型定义
+// ---------------------------------------------------------------------------
+
+export type OpenClawSession = {
+  sessionId: string;
+  projectId?: number;
+  iterationId?: number;
+  createdAt: string;
+  lastActivityAt: string;
+  metadata: Record<string, unknown>;
 };
 
-export type GatewayChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+export type SkillExecutionRequest = {
+  skillId: string;
+  input: Record<string, unknown>;
+  sessionId: string;
+  timeoutMs?: number;
+  model?: string;
 };
 
-export type GatewayChatRequest = {
-  messages: GatewayChatMessage[];
-  /** OpenClaw agent ID to route to. Overrides config default. */
-  agentId?: string;
-  /** Session key for multi-turn persistence. Format: "agent:<agentId>:<namespace>" */
-  sessionKey?: string;
-  /** Whether to stream via SSE. Currently false — non-streaming only. */
-  stream?: false;
+export type SkillExecutionResponse = {
+  success: boolean;
+  result?: Record<string, unknown>;
+  error?: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+  executionTime: number;
+  sessionId: string;
 };
 
-export type GatewayChatResult = {
-  content: string;
-  model: string;
-  sessionKey: string;
-  finishReason?: string;
-  truncated?: boolean;
+export type AgentChatRequest = {
+  agentId: string;
+  message: string;
+  sessionId: string;
+  context?: Record<string, unknown>;
+  model?: string;
 };
 
-export class OpenClawGatewayClient {
-  private readonly config: OpenClawGatewayConfig;
+export type AgentChatResponse = {
+  success: boolean;
+  reply?: string;
+  structuredOutput?: Record<string, unknown>;
+  error?: {
+    code: string;
+    message: string;
+  };
+  sessionId: string;
+};
 
-  constructor(config: Partial<OpenClawGatewayConfig> & Pick<OpenClawGatewayConfig, "baseUrl">) {
-    this.config = {
-      baseUrl: config.baseUrl.replace(/\/+$/, ""),
-      token: config.token ?? "",
-      defaultAgentId: config.defaultAgentId ?? "main",
-      timeoutMs: config.timeoutMs ?? 120000
-    };
+// ---------------------------------------------------------------------------
+// 错误类型
+// ---------------------------------------------------------------------------
+
+export class OpenClawGatewayError extends Error {
+  readonly code: string;
+  readonly statusCode?: number;
+
+  constructor(message: string, code: string, statusCode?: number) {
+    super(message);
+    this.name = "OpenClawGatewayError";
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
+export function isOpenClawGatewayError(error: unknown): error is OpenClawGatewayError {
+  return error instanceof OpenClawGatewayError;
+}
+
+// ---------------------------------------------------------------------------
+// HTTP 客户端
+// ---------------------------------------------------------------------------
+
+class OpenClawHttpClient {
+  private readonly baseUrl: string;
+  private readonly apiKey: string;
+  private readonly defaultTimeout: number;
+
+  constructor(config: typeof OPENCLAW_CONFIG) {
+    this.baseUrl = config.gatewayUrl;
+    this.apiKey = config.apiKey;
+    this.defaultTimeout = config.defaultTimeoutMs;
   }
 
   /**
-   * Derive a deterministic session key for a project+iteration context.
-   * Maps to OpenClaw's session key format: `agent:<agentId>:project-<pid>-iteration-<iid>`
+   * 发送 POST 请求
    */
-  static deriveSessionKey(agentId: string, projectId: number, iterationId: number): string {
-    return `agent:${agentId}:project-${projectId}-iteration-${iterationId}`;
-  }
+  private async post<T>(
+    endpoint: string,
+    data: Record<string, unknown>,
+    options: {
+      timeoutMs?: number;
+      headers?: Record<string, string>;
+    } = {}
+  ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const timeoutMs = options.timeoutMs ?? this.defaultTimeout;
 
-  /**
-   * Derive a session key for project-level (non-iteration) conversations.
-   */
-  static deriveProjectSessionKey(agentId: string, projectId: number): string {
-    return `agent:${agentId}:project-${projectId}`;
-  }
-
-  /**
-   * Derive a session key for global (cross-project) conversations.
-   */
-  static deriveGlobalSessionKey(agentId: string, conversationId: string): string {
-    return `agent:${agentId}:global-${conversationId}`;
-  }
-
-  async chat(request: GatewayChatRequest): Promise<GatewayChatResult> {
-    const agentId = request.agentId || this.config.defaultAgentId;
-    const sessionKey = request.sessionKey || "";
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...options.headers
+    };
+
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-OpenClaw-Agent-Id": agentId
-      };
-      if (this.config.token) {
-        headers.Authorization = `Bearer ${this.config.token}`;
-      }
-      if (sessionKey) {
-        headers["X-OpenClaw-Session-Key"] = sessionKey;
-      }
-
-      const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
+      const response = await fetch(url, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          model: `openclaw/${agentId}`,
-          stream: false,
-          messages: request.messages
-        }),
+        body: JSON.stringify(data),
         signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(`openclaw_gateway_http_${response.status}${text ? `: ${text.slice(0, 200)}` : ""}`);
+        const errorData = await response.text().catch(() => "");
+        throw new OpenClawGatewayError(
+          `OpenClaw Gateway error: ${response.status} - ${errorData}`,
+          `HTTP_${response.status}`,
+          response.status
+        );
       }
 
-      const payload = (await response.json()) as {
-        model?: string;
-        choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
-      };
+      const result = await response.json() as T;
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
 
-      const content = payload.choices?.[0]?.message?.content?.trim();
-      if (!content) {
-        throw new Error("openclaw_gateway_empty_content");
+      if (error instanceof OpenClawGatewayError) {
+        throw error;
       }
 
-      const finishReason = payload.choices?.[0]?.finish_reason || undefined;
-      return {
-        content,
-        model: payload.model || `openclaw/${agentId}`,
-        sessionKey,
-        finishReason,
-        truncated: finishReason === "length"
-      };
-    } finally {
-      clearTimeout(timer);
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new OpenClawGatewayError(
+          `Request timeout after ${timeoutMs}ms`,
+          "TIMEOUT"
+        );
+      }
+
+      throw new OpenClawGatewayError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`,
+        "NETWORK_ERROR"
+      );
     }
   }
 
   /**
-   * Health check — attempts a minimal request to verify Gateway is reachable.
+   * 发送 GET 请求
    */
-  async probe(): Promise<{ reachable: boolean; error: string }> {
+  private async get<T>(
+    endpoint: string,
+    options: {
+      timeoutMs?: number;
+      headers?: Record<string, string>;
+    } = {}
+  ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const timeoutMs = options.timeoutMs ?? this.defaultTimeout;
+
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const headers: Record<string, string> = { ...options.headers };
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
+
     try {
-      const headers: Record<string, string> = {};
-      if (this.config.token) {
-        headers.Authorization = `Bearer ${this.config.token}`;
-      }
-      const res = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          ...headers,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "openclaw",
-          stream: false,
-          messages: [{ role: "user", content: "ping" }]
-        }),
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
         signal: controller.signal
       });
-      // Even a 4xx means the gateway is reachable
-      if (res.status < 500) {
-        return { reachable: true, error: "" };
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.text().catch(() => "");
+        throw new OpenClawGatewayError(
+          `OpenClaw Gateway error: ${response.status} - ${errorData}`,
+          `HTTP_${response.status}`,
+          response.status
+        );
       }
-      return { reachable: false, error: `http_${res.status}` };
+
+      const result = await response.json() as T;
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (error instanceof OpenClawGatewayError) {
+        throw error;
+      }
+
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new OpenClawGatewayError(
+          `Request timeout after ${timeoutMs}ms`,
+          "TIMEOUT"
+        );
+      }
+
+      throw new OpenClawGatewayError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`,
+        "NETWORK_ERROR"
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session 管理 API
+  // ---------------------------------------------------------------------------
+
+  async createSession(
+    projectId?: number,
+    iterationId?: number,
+    metadata?: Record<string, unknown>
+  ): Promise<OpenClawSession> {
+    return this.post<OpenClawSession>("/api/v1/sessions", {
+      projectId,
+      iterationId,
+      metadata: metadata || {}
+    });
+  }
+
+  async getSession(sessionId: string): Promise<OpenClawSession | null> {
+    try {
+      return await this.get<OpenClawSession>(`/api/v1/sessions/${sessionId}`);
+    } catch (error) {
+      if (isOpenClawGatewayError(error) && error.statusCode === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async updateSession(
+    sessionId: string,
+    updates: Partial<Pick<OpenClawSession, "metadata" | "lastActivityAt">>
+  ): Promise<void> {
+    await this.post<void>(`/api/v1/sessions/${sessionId}`, updates);
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.post<void>(`/api/v1/sessions/${sessionId}/delete`, {});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skill 执行 API
+  // ---------------------------------------------------------------------------
+
+  async executeSkill(request: SkillExecutionRequest): Promise<SkillExecutionResponse> {
+    log.info(`[gateway] Executing skill: ${request.skillId}`, {
+      sessionId: request.sessionId,
+      inputKeys: Object.keys(request.input).join(", ")
+    });
+
+    const response = await this.post<SkillExecutionResponse>("/api/v1/skills/execute", request);
+
+    log.info(`[gateway] Skill execution result: ${request.skillId}`, {
+      success: response.success,
+      executionTime: response.executionTime
+    });
+
+    return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Agent Chat API
+  // ---------------------------------------------------------------------------
+
+  async agentChat(request: AgentChatRequest): Promise<AgentChatResponse> {
+    log.info(`[gateway] Agent chat: ${request.agentId}`, {
+      sessionId: request.sessionId,
+      messageLength: request.message.length
+    });
+
+    const response = await this.post<AgentChatResponse>("/api/v1/agents/chat", request);
+
+    log.info(`[gateway] Agent chat result: ${request.agentId}`, {
+      success: response.success
+    });
+
+    return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 健康检查 API
+  // ---------------------------------------------------------------------------
+
+  async healthCheck(): Promise<{
+    status: "healthy" | "degraded" | "unhealthy";
+    gateway: string;
+    timestamp: string;
+  }> {
+    try {
+      return await this.get<{
+        status: "healthy" | "degraded" | "unhealthy";
+        gateway: string;
+        timestamp: string;
+      }>("/health", { timeoutMs: 5000 });
+    } catch (error) {
+      log.error("[gateway] Health check failed:", error);
+      return {
+        status: "unhealthy",
+        gateway: this.baseUrl,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  async probeGateway(): Promise<{
+    reachable: boolean;
+    version?: string;
+    error?: string;
+  }> {
+    try {
+      const result = await this.get<{
+        version: string;
+        status: string;
+      }>("/api/v1/status", { timeoutMs: 5000 });
+
+      return {
+        reachable: true,
+        version: result.version,
+        error: undefined
+      };
     } catch (error) {
       return {
         reachable: false,
-        error: error instanceof Error ? error.message : "probe_failed"
+        error: error instanceof Error ? error.message : String(error)
       };
-    } finally {
-      clearTimeout(timer);
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// 导出客户端实例
+// ---------------------------------------------------------------------------
+
+const client = new OpenClawHttpClient(OPENCLAW_CONFIG);
+
+export {
+  client,
+  OPENCLAW_CONFIG,
+  type OpenClawGatewayError
+};

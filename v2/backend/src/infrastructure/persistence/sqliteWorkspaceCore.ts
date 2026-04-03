@@ -10,6 +10,7 @@ import type {
   WorkspaceStore
 } from "../../domain/workspace/types";
 import { initialSchema } from "./migrations/001_initial_schema";
+import { fixOrphanTenant } from "./migrations/002_fix_orphan_tenant";
 import { runMigrations } from "./migrations/migrationRunner";
 
 export const seedStore: WorkspaceStore = {
@@ -98,7 +99,7 @@ export class SqliteWorkspaceCore {
         updated_at TEXT NOT NULL
       );
     `);
-    runMigrations(this.db, [initialSchema]);
+    runMigrations(this.db, [initialSchema, fixOrphanTenant]);
   }
 
   private initialStore(): WorkspaceStore {
@@ -344,6 +345,12 @@ export class SqliteWorkspaceCore {
         JSON.stringify(iteration),
         iteration.id
       );
+  }
+
+  deleteIteration(iterationId: number): boolean {
+    const result = this.db.prepare("DELETE FROM iterations WHERE id = ?").run(iterationId);
+    this.db.prepare("DELETE FROM messages WHERE iteration_id = ?").run(iterationId);
+    return (result as { changes: number }).changes > 0;
   }
 
   clearProjectCurrentIterations(projectId: number) {

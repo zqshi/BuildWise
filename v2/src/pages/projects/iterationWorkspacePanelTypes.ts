@@ -125,6 +125,7 @@ export type IterationWorkspacePanelProps = {
   onConfirmIterationAnalysis: (payload: {
     accurate: boolean;
     note?: string;
+    force?: boolean;
     decisionEvent?: "understanding-accurate" | "understanding-inaccurate";
     resolvedClarificationQuestions?: string[];
     boundary?: {

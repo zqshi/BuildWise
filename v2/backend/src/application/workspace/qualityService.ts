@@ -6,8 +6,8 @@ import type {
   IterationTestArtifactsGenerationResponse
 } from "../../domain/workspace/types";
 import type { AgentRunner } from "./agentRunner";
-import { executeVisualEditInstructionOp } from "./workspaceServiceVisualEditOps";
-import { rewriteCodeInBoundaryOp } from "./workspaceServiceCodeRewriteOps";
+import { executeVisualEditInstructionOp } from "./workspaceMiscOps";
+import { rewriteCodeInBoundaryOp } from "./workspaceMiscOps";
 import { buildIterationReleaseReviewOp, generateIterationDeliveryPackageOp, generateIterationTestArtifactsOp } from "./workspaceServiceQualityOps";
 
 export class QualityService {

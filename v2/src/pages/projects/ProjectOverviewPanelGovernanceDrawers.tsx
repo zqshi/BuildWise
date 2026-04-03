@@ -1,11 +1,11 @@
-import type { OpenclawDialogMode } from "../layout/openclawPromptComposer";
+import type { AssistantDialogMode } from "../layout/assistantPromptComposer";
 import type { ProjectOverviewGovernanceDrawersProps } from "./projectOverviewPanelDrawerTypes";
 
 export function ProjectOverviewPanelGovernanceDrawers({
   showPolicyDrawer,
   setShowPolicyDrawer,
-  showOpenclawDrawer,
-  setShowOpenclawDrawer,
+  showAssistantDrawer,
+  setShowAssistantDrawer,
   activePolicy,
   policyItems,
   isAdmin,
@@ -31,13 +31,13 @@ export function ProjectOverviewPanelGovernanceDrawers({
   roleBindings,
   handleRemoveRoleBinding,
   targetIterationId,
-  openclawChatLines,
-  openclawDialogMode,
-  setOpenclawDialogMode,
-  openclawChatInput,
-  setOpenclawChatInput,
-  openclawChatBusy,
-  handleOpenclawSend,
+  assistantChatLines,
+  assistantDialogMode,
+  setAssistantDialogMode,
+  assistantChatInput,
+  setAssistantChatInput,
+  assistantChatBusy,
+  handleAssistantSend,
   policyLogs
 }: ProjectOverviewGovernanceDrawersProps) {
   return (
@@ -66,13 +66,13 @@ export function ProjectOverviewPanelGovernanceDrawers({
 
             <div className="info-box">
               <h3>工作区绑定</h3>
-              <label><span>OpenClaw Profile</span><input value={bindingProfile} onChange={(e) => setBindingProfile(e.target.value)} /></label>
+              <label><span>Profile</span><input value={bindingProfile} onChange={(e) => setBindingProfile(e.target.value)} /></label>
               <label><span>Agent ID</span><input value={bindingAgentId} onChange={(e) => setBindingAgentId(e.target.value)} /></label>
               <label><span>Workspace Path</span><input value={bindingWorkspacePath} onChange={(e) => setBindingWorkspacePath(e.target.value)} /></label>
               <label>
                 <span>Runtime</span>
-                <select value={bindingRuntimeMode} onChange={(e) => setBindingRuntimeMode(e.target.value as "openclaw-native" | "bridge")}>
-                  <option value="openclaw-native">openclaw-native</option>
+                <select value={bindingRuntimeMode} onChange={(e) => setBindingRuntimeMode(e.target.value as "native" | "bridge")}>
+                  <option value="native">native</option>
                   <option value="bridge">bridge</option>
                 </select>
               </label>
@@ -107,12 +107,12 @@ export function ProjectOverviewPanelGovernanceDrawers({
         </article>
       </aside>
 
-      <div className={`analysis-drawer-mask ${showOpenclawDrawer ? "open" : ""}`} onClick={() => setShowOpenclawDrawer(false)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") setShowOpenclawDrawer(false); }} aria-label="关闭" aria-hidden={!showOpenclawDrawer} />
-      <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showOpenclawDrawer ? "open" : ""}`}>
+      <div className={`analysis-drawer-mask ${showAssistantDrawer ? "open" : ""}`} onClick={() => setShowAssistantDrawer(false)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Escape") setShowAssistantDrawer(false); }} aria-label="关闭" aria-hidden={!showAssistantDrawer} />
+      <aside className={`panel preview-panel context-panel artifact-preview-panel analysis-drawer ${showAssistantDrawer ? "open" : ""}`}>
         <article className="analysis-drawer-inner" onClick={(event) => event.stopPropagation()}>
           <div className="panel-head">
-            <h2>OpenClaw 对话主窗口</h2>
-            <div className="chat-tools"><button type="button" className="btn ghost mini" onClick={() => setShowOpenclawDrawer(false)}>关闭</button></div>
+            <h2>业务助手对话主窗口</h2>
+            <div className="chat-tools"><button type="button" className="btn ghost mini" onClick={() => setShowAssistantDrawer(false)}>关闭</button></div>
           </div>
           <div className="preview-scroll">
             <div className="info-box">
@@ -120,30 +120,30 @@ export function ProjectOverviewPanelGovernanceDrawers({
               <p>管理员可在此明确执行链路策略，再由迭代流程执行。</p>
             </div>
             <div className="info-box">
-              {openclawChatLines.length === 0 ? <p className="hint">暂无对话记录。</p> : (
+              {assistantChatLines.length === 0 ? <p className="hint">暂无对话记录。</p> : (
                 <ul className="history-list">
-                  {openclawChatLines.map((item, idx) => (
-                    <li key={`${item.at}-${idx}`} className="history-item"><strong>{item.role === "admin" ? "管理员" : "OpenClaw"}</strong><p>{item.content}</p></li>
+                  {assistantChatLines.map((item, idx) => (
+                    <li key={`${item.at}-${idx}`} className="history-item"><strong>{item.role === "admin" ? "管理员" : "业务助手"}</strong><p>{item.content}</p></li>
                   ))}
                 </ul>
               )}
               <div className="chat-tools">
                 <label className="hint">
                   对话模式
-                  <select value={openclawDialogMode} onChange={(e) => setOpenclawDialogMode(e.target.value as OpenclawDialogMode)}>
+                  <select value={assistantDialogMode} onChange={(e) => setAssistantDialogMode(e.target.value as AssistantDialogMode)}>
                     <option value="native">原生自然语言（推荐）</option>
                     <option value="orchestration">策略约束模式</option>
                   </select>
                 </label>
               </div>
-              <p className="hint">{openclawDialogMode === "native" ? "将按原生自然语言发送。" : "发送前将追加项目策略治理约束。"}</p>
+              <p className="hint">{assistantDialogMode === "native" ? "将按原生自然语言发送。" : "发送前将追加项目策略治理约束。"}</p>
               <div className="chat-tools">
                 <input
-                  value={openclawChatInput}
-                  onChange={(e) => setOpenclawChatInput(e.target.value)}
-                  placeholder={openclawDialogMode === "native" ? "输入你的问题（原生自然语言）" : "输入策略指令，例如：首版必须先确认Git分析报告"}
+                  value={assistantChatInput}
+                  onChange={(e) => setAssistantChatInput(e.target.value)}
+                  placeholder={assistantDialogMode === "native" ? "输入你的问题（原生自然语言）" : "输入策略指令，例如：首版必须先确认Git分析报告"}
                 />
-                <button type="button" className="btn ghost mini" onClick={() => void handleOpenclawSend()} disabled={!isAdmin || openclawChatBusy || !openclawChatInput.trim()}>{openclawChatBusy ? "发送中..." : "发送"}</button>
+                <button type="button" className="btn ghost mini" onClick={() => void handleAssistantSend()} disabled={!isAdmin || assistantChatBusy || !assistantChatInput.trim()}>{assistantChatBusy ? "发送中..." : "发送"}</button>
               </div>
             </div>
             <div className="info-box">

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Audit Trace"
-  short_description: "Record replayable evidence across full chain"
-  default_prompt: "Use $07-audit-trace to produce complete audit evidence and replay index."
-policy:
-  allow_implicit_invocation: true

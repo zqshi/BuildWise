@@ -3,13 +3,13 @@ import { useEffect } from "react";
 type UseGovernanceEntryParams = {
   currentProjectId: number | undefined;
   setShowPolicyDrawer: (show: boolean) => void;
-  setShowOpenclawDrawer: (show: boolean) => void;
+  setShowAssistantDrawer: (show: boolean) => void;
 };
 
 export function useGovernanceEntry({
   currentProjectId,
   setShowPolicyDrawer,
-  setShowOpenclawDrawer
+  setShowAssistantDrawer
 }: UseGovernanceEntryParams) {
   useEffect(() => {
     const consumeEntry = () => {
@@ -27,8 +27,8 @@ export function useGovernanceEntry({
         setShowPolicyDrawer(true);
         return;
       }
-      if (pendingEntry === "openclaw") {
-        setShowOpenclawDrawer(true);
+      if (pendingEntry === "assistant") {
+        setShowAssistantDrawer(true);
       }
     };
     consumeEntry();

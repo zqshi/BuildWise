@@ -92,14 +92,6 @@ export async function runContractGovernanceScenario(context, state) {
   });
   assert(invalidCustomRoleLegacy.res.status === 400, "legacy custom role endpoint should validate permissions");
 
-  const openclawStatus = await getJson("/api/governance/openclaw/status");
-  assert(typeof openclawStatus.integrated === "boolean", "openclaw status should expose integrated flag");
-  assert(typeof openclawStatus.reason === "string", "openclaw status should expose reason");
-  assert(typeof openclawStatus.openclawEntryExists === "boolean", "openclaw status should expose entry existence");
-  assert(typeof openclawStatus.openclawHomeWritable === "boolean", "openclaw status should expose writable state");
-  assert(typeof openclawStatus.authConfigured === "boolean", "openclaw status should expose auth state");
-  assert(typeof openclawStatus.authProfilePath === "string", "openclaw status should expose auth profile path");
-
   const globalPolicyDraft = await request("/api/governance/orchestration/policies", {
     method: "POST",
     headers: { "content-type": "application/json", "x-role": "owner", "x-user-id": "contract-owner" },

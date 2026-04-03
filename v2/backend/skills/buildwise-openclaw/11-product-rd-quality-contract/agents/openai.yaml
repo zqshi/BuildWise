@@ -1,6 +1,0 @@
-interface:
-  display_name: "Product R&D Quality Contract"
-  short_description: "Cross-stage quality gates for product delivery"
-  default_prompt: "Use $11-product-rd-quality-contract to evaluate stage handoff quality and block weak outputs."
-policy:
-  allow_implicit_invocation: true

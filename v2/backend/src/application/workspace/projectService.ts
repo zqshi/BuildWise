@@ -11,7 +11,7 @@ import {
   provisionProjectRepositoryOp,
   publishIterationToRemoteOp,
   scaffoldProjectRepositoryOp
-} from "./workspaceServiceProjectOps";
+} from "./projectOps";
 import { hasProject, listProjectsNormalized } from "./workspaceServiceCommon";
 import { getProjectAccessContext, getTenantAccessContext, listAccessibleTenants, listProjectsForUser } from "./workspaceTenantAccess";
 
