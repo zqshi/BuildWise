@@ -134,6 +134,148 @@ test("extracts codeMap from traceabilityMap", () => {
 
 // ─── 从 boundary 提取 knownRisks ───
 
+// ─── 从 analysisReport 提取 decisionLog ───
+
+test("extracts decisionLog from analysisReport.businessConfirmation.necessityAssessment", () => {
+  const existingKb = {
+    ontologyTerms: [],
+    stableRules: [],
+    componentInventory: [],
+    codeMap: [],
+    decisionLog: [],
+    knownRisks: [],
+    changePatterns: [],
+    updatedAt: "2026-01-01"
+  };
+  const result = extractKnowledgeBaseUpdateOp(existingKb, {
+    domainKnowledgeEntries: [],
+    traceabilityMap: null,
+    boundary: null,
+    analysisReport: {
+      businessConfirmation: {
+        necessityAssessment: {
+          mustDo: ["登录功能必须双因素认证"],
+          shouldDo: ["增加密码强度校验"],
+          canDefer: ["社交登录集成"],
+          outOfScope: ["企业SSO"],
+          rationale: "安全优先"
+        }
+      }
+    }
+  });
+  assert.equal(result.updatedKb.decisionLog.length, 3);
+  const mustDoEntry = result.updatedKb.decisionLog.find(d => d.decision === "登录功能必须双因素认证");
+  assert.ok(mustDoEntry);
+  assert.equal(mustDoEntry.status, "active");
+  assert.match(mustDoEntry.rationale, /mustDo/);
+});
+
+test("merges decisionLog with existing entries without duplicates", () => {
+  const existingKb = {
+    ontologyTerms: [],
+    stableRules: [],
+    componentInventory: [],
+    codeMap: [],
+    decisionLog: [{ decision: "登录功能必须双因素认证", status: "active", rationale: "旧版", iterationVersion: "v1" }],
+    knownRisks: [],
+    changePatterns: [],
+    updatedAt: "2026-01-01"
+  };
+  const result = extractKnowledgeBaseUpdateOp(existingKb, {
+    domainKnowledgeEntries: [],
+    traceabilityMap: null,
+    boundary: null,
+    analysisReport: {
+      businessConfirmation: {
+        necessityAssessment: {
+          mustDo: ["登录功能必须双因素认证", "新增审计日志"],
+          shouldDo: [],
+          canDefer: [],
+          outOfScope: [],
+          rationale: "安全优先"
+        }
+      }
+    }
+  });
+  // 已有的不重复，新增的追加
+  assert.equal(result.updatedKb.decisionLog.length, 2);
+});
+
+// ─── 从 analysisReport 提取 changePatterns ───
+
+test("extracts changePatterns from analysisReport.domainKnowledge.rules and versionDiffDetailed", () => {
+  const existingKb = {
+    ontologyTerms: [],
+    stableRules: [],
+    componentInventory: [],
+    codeMap: [],
+    decisionLog: [],
+    knownRisks: [],
+    changePatterns: [],
+    updatedAt: "2026-01-01"
+  };
+  const result = extractKnowledgeBaseUpdateOp(existingKb, {
+    domainKnowledgeEntries: [],
+    traceabilityMap: null,
+    boundary: null,
+    analysisReport: {
+      domainKnowledge: {
+        rules: ["先确认规则再改代码", "接口变更必须同步文档"],
+        unknowns: []
+      },
+      versionDiffDetailed: {
+        summary: "售后规则调整",
+        impactScope: ["退款模块"],
+        riskPoints: ["退款窗口放宽"],
+        added: [{ dimension: "接口", item: "退款查询API", impact: "新增查询能力", risk: "low" }],
+        changed: [{ dimension: "规则", item: "退款窗口", impact: "从7天改为15天", risk: "high" }],
+        removed: []
+      }
+    }
+  });
+  assert.ok(result.updatedKb.changePatterns.length > 0);
+  // 从 rules 提取
+  const rulePattern = result.updatedKb.changePatterns.find(p => p.pattern.includes("先确认规则"));
+  assert.ok(rulePattern);
+  // 从 versionDiffDetailed 的 high risk 变更提取
+  const diffPattern = result.updatedKb.changePatterns.find(p => p.pattern.includes("退款窗口"));
+  assert.ok(diffPattern);
+});
+
+test("extracts additional knownRisks from analysisReport.risks and releaseReview.rollback", () => {
+  const existingKb = {
+    ontologyTerms: [],
+    stableRules: [],
+    componentInventory: [],
+    codeMap: [],
+    decisionLog: [],
+    knownRisks: [],
+    changePatterns: [],
+    updatedAt: "2026-01-01"
+  };
+  const result = extractKnowledgeBaseUpdateOp(existingKb, {
+    domainKnowledgeEntries: [],
+    traceabilityMap: null,
+    boundary: null,
+    analysisReport: {
+      risks: ["并发写入导致数据不一致", "第三方API超时"],
+      releaseReview: {
+        rollback: {
+          shouldRollback: false,
+          reason: "回滚需确认数据迁移状态",
+          trigger: "核心指标下降5%",
+          actions: ["停止新请求", "切换数据源"]
+        }
+      }
+    }
+  });
+  assert.ok(result.updatedKb.knownRisks.length >= 2);
+  assert.ok(result.updatedKb.knownRisks.some(r => r.risk.includes("并发写入")));
+  assert.ok(result.updatedKb.knownRisks.some(r => r.risk.includes("第三方API")));
+});
+
+// ─── 从 boundary 提取 knownRisks ───
+
 test("extracts knownRisks from boundary riskAreas if present", () => {
   const existingKb = {
     ontologyTerms: [],

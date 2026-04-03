@@ -47,7 +47,11 @@ export function useArtifactEditorState(
   );
 
   const selectedArtifactAwaitingConfirmation = Boolean(
-    selectedDrawerArtifact && selectedDrawerArtifact.outputVersion > 0 && selectedDrawerArtifact.gateStatus !== "passed"
+    selectedDrawerArtifact &&
+    selectedDrawerArtifact.gateStatus !== "passed" &&
+    (selectedDrawerArtifact.id === "analysis-report" ||
+     selectedDrawerArtifact.outputVersion > 0 ||
+     (selectedDrawerArtifact.draft?.content || "").trim().length > 0)
   );
   const canEditSelectedTextArtifact = isEditableTextArtifact && selectedDrawerArtifact?.editCapability !== "none";
 

@@ -1,5 +1,5 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-import { listAuditLogsOp, listGovernancePermissionPointsOp, listGovernanceRolesOp } from "./workspaceServiceGovernanceOps";
+import { listAuditLogsOp, listGovernancePermissionPointsOp, listGovernanceRolesOp } from "./workspaceMiscOps";
 import { resolveRolePermissions, resolveWorkspaceRole } from "./governanceRoleResolver";
 import {
   activateGlobalOrchestrationPolicyOp,
@@ -157,10 +157,10 @@ export class GovernanceService {
 
   upsertProjectWorkspaceBinding(input: {
     projectId: number;
-    openclawProfile: string;
+    assistantProfile: string;
     agentId: string;
     workspacePath: string;
-    runtimeMode: "openclaw-native" | "bridge";
+    runtimeMode: "native" | "bridge";
     locked: boolean;
     createdBy: string;
   }) {

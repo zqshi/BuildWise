@@ -2,7 +2,7 @@ import type { Dispatch, FormEvent, SetStateAction } from "react";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";
 import type { Project } from "../domain/workspace/types";
 import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
-import { createIteration, createProject, deleteProject } from "./workspaceApi";
+import { createIteration, createProject, deleteProject, deleteIteration } from "./workspaceApi";
 import { splitLines } from "./workspaceHelpers";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 
@@ -190,11 +190,33 @@ export function useProjectActions({
     }
   };
 
+  const handleDeleteIteration = async (iterationId: number) => {
+    if (!currentProject) return;
+    try {
+      setBusy(true);
+      await deleteIteration(currentProject.id, iterationId);
+      await loadIterations(currentProject.id);
+      if (iterationId === currentProject.id) {
+        setCurrentIterationId(null);
+      }
+    } catch (err) {
+      const message = resolveErrorMessage(err);
+      if (message.includes("409") || message.includes("iteration_has_data")) {
+        alert("该版本已产生迭代数据，不可删除");
+      } else {
+        setError(message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return {
     handleCreateProject,
     handleCreateIteration,
     handleEnterIteration,
     handleSelectProject,
-    handleDeleteProject
+    handleDeleteProject,
+    handleDeleteIteration
   };
 }

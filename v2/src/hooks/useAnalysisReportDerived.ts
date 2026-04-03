@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { AttachmentAnalysisReport } from "../domain/workspace/types";
 import type { Iteration, IterationMessage } from "../domain/workspace/types";
 import { getMsgKind } from "../pages/projects/ChatMessageList";
+import { buildCoachGuidance } from "../app/coachGuidanceBuilder";
 
 export function useAnalysisReportDerived(
   analysisReport: AttachmentAnalysisReport | null,
@@ -55,6 +56,8 @@ export function useAnalysisReportDerived(
     const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
     const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
     const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
+    const businessConfirmation = analysisReport?.businessConfirmation ?? null;
+    const coachGuidance = analysisReport ? buildCoachGuidance(analysisReport, reportPendingConfirmation) : [];
 
     return {
       diffLocations, diffAdded, diffChanged, diffRemoved,
@@ -65,7 +68,8 @@ export function useAnalysisReportDerived(
       releaseReview, domainKnowledge, opsTriage, qualityArtifacts,
       visiblePrioritizedFindings, clarificationQuestions,
       generatedTestMatrix, matrixSummary,
-      reportPendingConfirmation, reportConfirmedAt, confirmedUnderstanding
+      reportPendingConfirmation, reportConfirmedAt, confirmedUnderstanding,
+      businessConfirmation, coachGuidance
     };
   }, [analysisReport, currentIteration, chatMessages, isAnalyzingAttachment, testMatrixStatusMap, onlyHighValue]);
 }

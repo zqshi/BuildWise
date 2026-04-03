@@ -1,51 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
+import { ensureIterationAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.post("/projects/:id/openclaw/chat", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      },
-      body: {
-        type: "object",
-        properties: {
-          message: { type: "string", minLength: 1 }
-        },
-        required: ["message"],
-        additionalProperties: false
-      }
-    }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "invalid project id" };
-    }
-    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
-    }
-    const body = request.body as { message?: string } | null;
-    const message = body?.message?.trim() || "";
-    if (!message) {
-      reply.code(400);
-      return { message: "message is required" };
-    }
-    try {
-      return await service.openclawDirectChat(projectId, message);
-    } catch (error) {
-      reply.code(500);
-      return { message: "Internal server error" };
-    }
-  });
-
   app.get("/iterations/:id/policy-log", {
     schema: {
       params: {

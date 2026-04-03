@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { parsePolicyIntentFromReply } = await import(
-  "../dist/application/openclawGlobal/policyIntentParser.js"
+  "../dist/application/globalAssistant/policyIntentParser.js"
 );
 
 // ─── 无策略变更 ───

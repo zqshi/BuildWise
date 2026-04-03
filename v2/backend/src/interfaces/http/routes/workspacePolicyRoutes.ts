@@ -212,13 +212,13 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       body: {
         type: "object",
         properties: {
-          openclawProfile: { type: "string" },
+          assistantProfile: { type: "string" },
           agentId: { type: "string" },
           workspacePath: { type: "string" },
-          runtimeMode: { type: "string", enum: ["openclaw-native", "bridge"] },
+          runtimeMode: { type: "string", enum: ["native", "bridge"] },
           locked: { type: "boolean" }
         },
-        required: ["openclawProfile", "workspacePath"],
+        required: ["assistantProfile", "workspacePath"],
         additionalProperties: false
       }
     }
@@ -234,24 +234,24 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as {
-      openclawProfile?: string;
+      assistantProfile?: string;
       agentId?: string;
       workspacePath?: string;
-      runtimeMode?: "openclaw-native" | "bridge";
+      runtimeMode?: "native" | "bridge";
       locked?: boolean;
     } | null;
-    if (!body?.openclawProfile?.trim() || !body?.workspacePath?.trim()) {
+    if (!body?.assistantProfile?.trim() || !body?.workspacePath?.trim()) {
       reply.code(400);
-      return { message: "openclawProfile and workspacePath are required" };
+      return { message: "assistantProfile and workspacePath are required" };
     }
     const actor = currentUserId(request);
     try {
       return service.upsertProjectWorkspaceBinding({
         projectId,
-        openclawProfile: body.openclawProfile.trim(),
+        assistantProfile: body.assistantProfile.trim(),
         agentId: body.agentId?.trim() || "main",
         workspacePath: body.workspacePath.trim(),
-        runtimeMode: body.runtimeMode === "bridge" ? "bridge" : "openclaw-native",
+        runtimeMode: body.runtimeMode === "bridge" ? "bridge" : "native",
         locked: body.locked !== false,
         createdBy: actor
       });

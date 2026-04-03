@@ -1,5 +1,5 @@
 import type { PolicyExecutionLogPayload, ProjectPolicyPayload, ProjectRoleBindingPayload } from "../../app/workspaceApi";
-import type { OpenclawDialogMode } from "../layout/openclawPromptComposer";
+import type { AssistantDialogMode } from "../layout/assistantPromptComposer";
 
 export type RepoHealthView = {
   remoteConfigured: boolean;
@@ -26,8 +26,8 @@ export type RepoMigrationPlanView = {
 export type ProjectOverviewGovernanceDrawersProps = {
   showPolicyDrawer: boolean;
   setShowPolicyDrawer: (value: boolean) => void;
-  showOpenclawDrawer: boolean;
-  setShowOpenclawDrawer: (value: boolean) => void;
+  showAssistantDrawer: boolean;
+  setShowAssistantDrawer: (value: boolean) => void;
   activePolicy: ProjectPolicyPayload | null;
   policyItems: ProjectPolicyPayload[];
   isAdmin: boolean;
@@ -42,8 +42,8 @@ export type ProjectOverviewGovernanceDrawersProps = {
   setBindingAgentId: (value: string) => void;
   bindingWorkspacePath: string;
   setBindingWorkspacePath: (value: string) => void;
-  bindingRuntimeMode: "openclaw-native" | "bridge";
-  setBindingRuntimeMode: (value: "openclaw-native" | "bridge") => void;
+  bindingRuntimeMode: "native" | "bridge";
+  setBindingRuntimeMode: (value: "native" | "bridge") => void;
   handleBindWorkspace: () => Promise<void>;
   newRoleUserId: string;
   setNewRoleUserId: (value: string) => void;
@@ -53,13 +53,13 @@ export type ProjectOverviewGovernanceDrawersProps = {
   roleBindings: ProjectRoleBindingPayload[];
   handleRemoveRoleBinding: (userId: string) => Promise<void>;
   targetIterationId: number | null;
-  openclawChatLines: Array<{ role: "admin" | "openclaw"; content: string; at: string }>;
-  openclawDialogMode: OpenclawDialogMode;
-  setOpenclawDialogMode: (value: OpenclawDialogMode) => void;
-  openclawChatInput: string;
-  setOpenclawChatInput: (value: string) => void;
-  openclawChatBusy: boolean;
-  handleOpenclawSend: () => Promise<void>;
+  assistantChatLines: Array<{ role: "admin" | "assistant"; content: string; at: string }>;
+  assistantDialogMode: AssistantDialogMode;
+  setAssistantDialogMode: (value: AssistantDialogMode) => void;
+  assistantChatInput: string;
+  setAssistantChatInput: (value: string) => void;
+  assistantChatBusy: boolean;
+  handleAssistantSend: () => Promise<void>;
   policyLogs: PolicyExecutionLogPayload[];
 };
 

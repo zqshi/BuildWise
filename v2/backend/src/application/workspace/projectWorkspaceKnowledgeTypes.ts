@@ -1,4 +1,4 @@
-export type ProjectKnowledgeShardType =
+type ProjectKnowledgeShardType =
   | "project-summary"
   | "business-ontology"
   | "technical-ontology"

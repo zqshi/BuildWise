@@ -17,8 +17,8 @@ import {
   listIterationsOp,
   listMessagesOp,
   locateIterationsByCodeRefOp
-} from "./workspaceServiceIterationFlowOps";
-import { recomputeAssessmentOp, restoreSnapshotOp, transitionIterationWithMetaOp } from "./workspaceServiceIterationAssessmentOps";
+} from "./iterationOps";
+import { recomputeAssessmentOp, restoreSnapshotOp, transitionIterationWithMetaOp } from "./iterationOps";
 import { writeAuditLog } from "./workspaceServiceCommon";
 
 export class IterationService {
@@ -82,6 +82,24 @@ export class IterationService {
 
   locateIterationsByCodeRef(projectId: number, ref: string) {
     return locateIterationsByCodeRefOp(this.repo, projectId, ref);
+  }
+
+  hasIterationData(iterationId: number): boolean {
+    const messages = this.repo.listMessages(iterationId);
+    if (messages.length > 0) return true;
+    const transitions = this.repo.listTransitions(iterationId);
+    return transitions.length > 0;
+  }
+
+  deleteIteration(iterationId: number): { deleted: boolean; reason?: string } {
+    const iteration = this.repo.findIteration(iterationId);
+    if (!iteration) return { deleted: false, reason: "not_found" };
+    if (this.hasIterationData(iterationId)) {
+      return { deleted: false, reason: "iteration_has_data" };
+    }
+    this.repo.deleteIteration(iterationId);
+    writeAuditLog(this.repo, "iteration_deleted", `iteration:${iterationId}`, `version=${iteration.version || iteration.name}`);
+    return { deleted: true };
   }
 
   updateIterationInteractionState(

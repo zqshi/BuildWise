@@ -83,11 +83,6 @@ describe("createAgentRunnerFromEnv", () => {
     assert.notEqual(runner, null);
   });
 
-  test("openclaw provider returns non-null runner (default gateway)", () => {
-    const runner = createAgentRunnerFromEnv({ LLM_PROVIDER: "openclaw" });
-    assert.notEqual(runner, null);
-  });
-
   test("returned runner has run and runWithHistory methods", () => {
     const runner = createAgentRunnerFromEnv({ LLM_API_BASE: "http://example.com/v1" });
     assert.equal(typeof runner.run, "function");
@@ -100,10 +95,6 @@ describe("createAgentRunnerFromEnv", () => {
 describe("resolveLlmProvider", () => {
   test("empty env defaults to openai-compatible", () => {
     assert.equal(resolveLlmProvider({}), "openai-compatible");
-  });
-
-  test("LLM_PROVIDER=openclaw returns openclaw", () => {
-    assert.equal(resolveLlmProvider({ LLM_PROVIDER: "openclaw" }), "openclaw");
   });
 
   test("LLM_PROVIDER=anthropic returns anthropic-compatible", () => {

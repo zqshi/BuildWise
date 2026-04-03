@@ -70,9 +70,9 @@ function createDefaultProjectRepository(project: Pick<Project, "id" | "name">): 
     id: `repo-${project.id}`,
     repoMode: "hybrid",
     provider: "github",
-    organization: "buildwise",
+    organization: "",
     name: repoName,
-    url: `https://github.com/buildwise/${repoName}`,
+    url: "",
     defaultBranch: "main",
     structureVersion: "v1",
     layout: defaultRepositoryLayout(),
@@ -373,6 +373,28 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
     lastReportQualityScore: Number.isFinite(control?.lastReportQualityScore) ? Number(control?.lastReportQualityScore) : 0,
     lastReportQualitySummary: typeof control?.lastReportQualitySummary === "string" ? control.lastReportQualitySummary : "",
     lastReportQualityUpdatedAt: typeof control?.lastReportQualityUpdatedAt === "string" ? control.lastReportQualityUpdatedAt : "",
+    lastBusinessConfirmation: {
+      coreIntent: typeof control?.lastBusinessConfirmation?.coreIntent === "string" ? control.lastBusinessConfirmation.coreIntent : "",
+      boundarySummary: typeof control?.lastBusinessConfirmation?.boundarySummary === "string" ? control.lastBusinessConfirmation.boundarySummary : "",
+      functionalPoints: Array.isArray(control?.lastBusinessConfirmation?.functionalPoints) ? control.lastBusinessConfirmation.functionalPoints : [],
+      successCriteria: Array.isArray(control?.lastBusinessConfirmation?.successCriteria) ? control.lastBusinessConfirmation.successCriteria : [],
+      confirmationChecklist: Array.isArray(control?.lastBusinessConfirmation?.confirmationChecklist) ? control.lastBusinessConfirmation.confirmationChecklist : [],
+      versionDiffSummary: typeof control?.lastBusinessConfirmation?.versionDiffSummary === "string" ? control.lastBusinessConfirmation.versionDiffSummary : "",
+    },
+    lastMeaningfulFindings: Array.isArray(control?.lastMeaningfulFindings) ? control.lastMeaningfulFindings : [],
+    lastPrioritizedFindings: Array.isArray(control?.lastPrioritizedFindings)
+      ? control.lastPrioritizedFindings.map((item: Record<string, unknown>) => ({
+          priority: typeof item?.priority === "string" ? item.priority : "",
+          content: typeof item?.content === "string" ? item.content : "",
+          reason: typeof item?.reason === "string" ? item.reason : "",
+        }))
+      : [],
+    lastDeepInsightsSummary: {
+      themes: Array.isArray(control?.lastDeepInsightsSummary?.themes) ? control.lastDeepInsightsSummary.themes : [],
+      gaps: Array.isArray(control?.lastDeepInsightsSummary?.gaps) ? control.lastDeepInsightsSummary.gaps : [],
+      rootCauses: Array.isArray(control?.lastDeepInsightsSummary?.rootCauses) ? control.lastDeepInsightsSummary.rootCauses : [],
+      decisionSuggestions: Array.isArray(control?.lastDeepInsightsSummary?.decisionSuggestions) ? control.lastDeepInsightsSummary.decisionSuggestions : [],
+    },
     artifactWorkflow: {
       activeStage: normalizeArtifactStage(control?.artifactWorkflow?.activeStage || defaultWorkflow.activeStage),
       updatedAt: typeof control?.artifactWorkflow?.updatedAt === "string" ? control.artifactWorkflow.updatedAt : "",
@@ -485,7 +507,8 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
             createdAt: typeof item?.createdAt === "string" ? item.createdAt : ""
           }))
           .filter((item) => item.id || item.functionalPoint)
-      : []
+      : [],
+    fullCycleCheckpoint: control?.fullCycleCheckpoint
   };
 }
 export function normalizeIteration(iteration: Iteration): Iteration {

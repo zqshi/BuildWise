@@ -6,6 +6,7 @@ export type ArtifactReferenceMessage = {
   summary: string;
   evidence: string[];
   prompt: string;
+  gateStatus?: "pending" | "passed" | "blocked";
 };
 
 export type IterationChatDisplayItem = {
@@ -15,8 +16,6 @@ export type IterationChatDisplayItem = {
   cardMessage: IterationMessage | null;
 };
 
-const IMPACT_ASSESSMENT_SIGNAL = /(影响评估|影响范围|受影响交付物|受影响页面|受影响模块|边界风险|代码边界|组件映射|需求映射)/;
-const IMPACT_CONFIRMATION_SIGNAL = /(请确认|待确认|请补充|确认或补充|需要我确认|关键边界)/;
 function normalizeText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -29,7 +28,7 @@ function buildArtifactReferenceSignature(message: ArtifactReferenceMessage) {
   });
 }
 
-export function hasEquivalentArtifactReferenceMessage(leftContent: string, rightContent: string) {
+function hasEquivalentArtifactReferenceMessage(leftContent: string, rightContent: string) {
   const left = parseArtifactReferenceMessage(leftContent);
   const right = parseArtifactReferenceMessage(rightContent);
   if (!left || !right) {
@@ -108,10 +107,17 @@ export function normalizeUserChatInput(content: string) {
   return `请基于交付物「${parsed.title}」继续与我确认需要调整的内容。`;
 }
 
+function isVisibleSystemMessage(msg: IterationMessage): boolean {
+  if (msg.role !== "system") return true;
+  if (msg.content.includes("<!-- upload:") || msg.content.includes("<!-- upload-b64:") || /^已上传(附件|文档|原型|文件夹)/.test(msg.content)) return true;
+  return false;
+}
+
 export function buildIterationChatDisplayItems(messages: IterationMessage[]) {
   const items: IterationChatDisplayItem[] = [];
   for (let index = 0; index < messages.length; index += 1) {
     const current = messages[index];
+    if (!isVisibleSystemMessage(current)) continue;
     const next = messages[index + 1];
     const currentCard = current.role === "assistant" || current.role === "system" ? parseArtifactReferenceMessage(current.content) : null;
     const nextCard = next && (next.role === "assistant" || next.role === "system") ? parseArtifactReferenceMessage(next.content) : null;
@@ -155,19 +161,6 @@ export function buildIterationChatDisplayItems(messages: IterationMessage[]) {
     });
   }
   return items;
-}
-
-export function hasAssistantImpactAssessment(messages: IterationMessage[]) {
-  return messages.some((message) => {
-    if (message.role !== "assistant") {
-      return false;
-    }
-    if (parseArtifactReferenceMessage(message.content)) {
-      return false;
-    }
-    const content = message.content.replace(/\s+/g, " ").trim();
-    return IMPACT_ASSESSMENT_SIGNAL.test(content) && IMPACT_CONFIRMATION_SIGNAL.test(content);
-  });
 }
 
 export type ChangeImpactMessage = {

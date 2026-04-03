@@ -16,9 +16,7 @@
     "preview": "vite preview",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:hygiene": "node scripts/check-repo-hygiene.mjs",
-    "check:skills": "npm --prefix backend run check:skills",
     "seed:agentic:flow": "node scripts/reset-and-seed-agentic-flow-mock.mjs",
-    "demo:openclaw:real": "node scripts/openclaw-real-llm-demo.mjs",
     "e2e:creative-generator:rc": "node scripts/run-creative-generator-rc-e2e.mjs",
     "reset:business-env": "node scripts/reset-business-environment.mjs",
     "clean:workspace": "bash scripts/clean-workspace.sh",
@@ -27,23 +25,24 @@
     "dev:stack:stop": "bash scripts/stop-dev-stack.sh",
     "install:all": "npm install && npm --prefix backend install",
     "build:all": "npm run build && npm --prefix backend run build",
-    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run check:skills && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
+    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
   },
   "dependencies": {
     "@tiptap/react": "^3.20.1",
     "@tiptap/starter-kit": "^3.20.1",
+    "dompurify": "^3.2.4",
+    "jszip": "^3.10.1",
     "markdown-it": "^14.1.1",
     "prismjs": "^1.30.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-simple-code-editor": "^0.14.1",
-    "dompurify": "^3.2.4"
+    "react-simple-code-editor": "^0.14.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
+    "@types/dompurify": "^3.2.0",
     "@types/markdown-it": "^14.1.2",
     "@types/prismjs": "^1.26.6",
-    "@types/dompurify": "^3.2.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.1",

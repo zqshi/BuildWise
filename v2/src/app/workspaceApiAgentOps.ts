@@ -27,12 +27,29 @@ type LlmPreflightStatus = {
   };
 };
 
+export type ChangeImpactResult = {
+  hasImpact: boolean;
+  affectedArtifacts: string[];
+  affectedTerms: string[];
+  affectedEntities: string[];
+  affectedRules: string[];
+  summary: string;
+};
+
 export async function coachIterationMessage(iterationId: number, message: string) {
   return fetchJSON<IterationCoachChatResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/agent-chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message })
   }, 180000);
+}
+
+export async function detectIterationChangeImpact(iterationId: number, userMessage: string) {
+  return fetchJSON<ChangeImpactResult>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/detect-change-impact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userMessage })
+  }, 15000);
 }
 
 export async function executeIterationVisualEdit(
@@ -247,7 +264,7 @@ async function ensureLlmReadyForAnalysis() {
   }
 }
 
-async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
+export async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
   return fetchJSON<AttachmentAnalysisJob>(
     `${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/${encodeURIComponent(jobId)}`,
     undefined,
@@ -255,7 +272,7 @@ async function fetchAttachmentAnalysisJob(iterationId: number, jobId: string) {
   );
 }
 
-async function waitForAttachmentAnalysisJob(
+export async function waitForAttachmentAnalysisJob(
   iterationId: number,
   jobId: string,
   options?: {
@@ -270,16 +287,19 @@ async function waitForAttachmentAnalysisJob(
   const pollIntervalMs = options?.pollIntervalMs ?? 2000;
   const queuedStallTimeoutMs = options?.queuedStallTimeoutMs ?? 3 * 60 * 1000;
   const runningStallTimeoutMs = options?.runningStallTimeoutMs ?? 25 * 60 * 1000;
-  const maxConsecutivePollErrors = 8;
+  const maxConsecutivePollErrors = 20;
+  const POLL_BACKOFF_DELAYS = [2000, 2000, 3000, 5000, 8000, 12000, 15000, 20000, 25000, 30000];
   const startedAt = Date.now();
   let lastProgressMarker = "";
   let lastProgressAt = startedAt;
   let consecutivePollErrors = 0;
+  let lastKnownJob: AttachmentAnalysisJob | null = null;
   while (Date.now() - startedAt < timeoutMs) {
     let job: AttachmentAnalysisJob;
     try {
       job = await fetchAttachmentAnalysisJob(iterationId, jobId);
       consecutivePollErrors = 0;
+      lastKnownJob = job;
     } catch (error) {
       consecutivePollErrors += 1;
       if (consecutivePollErrors >= maxConsecutivePollErrors) {
@@ -287,7 +307,15 @@ async function waitForAttachmentAnalysisJob(
           `analysis job polling failed: ${error instanceof Error ? error.message : "unknown_error"} (consecutive=${consecutivePollErrors})`
         );
       }
-      await new Promise<void>((resolve) => setTimeout(resolve, pollIntervalMs));
+      const backoff = POLL_BACKOFF_DELAYS[Math.min(consecutivePollErrors - 1, POLL_BACKOFF_DELAYS.length - 1)];
+      // 通知 UI 正在重连，保持 isAnalyzingAttachment 状态
+      if (lastKnownJob && options?.onJobUpdate) {
+        options.onJobUpdate({
+          ...lastKnownJob,
+          progress: { ...lastKnownJob.progress, stageHint: `poll-reconnect:attempt-${consecutivePollErrors}` }
+        });
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, backoff));
       continue;
     }
     const marker = [
@@ -475,12 +503,32 @@ export async function analyzeIterationAttachmentByChunkUpload(
   const folderName = options?.folderName?.trim() || "uploaded-folder";
   const chunkSizeBytes = 4 * 1024 * 1024;
   const manifest = await Promise.all(normalized.map((item) => toUploadManifestFile(item, chunkSizeBytes)));
+  const idempotencyKey = `upl-${iterationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const init = await initIterationAttachmentUpload(iterationId, {
     sourceType,
     folderName,
-    idempotencyKey: `upl-${iterationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    idempotencyKey,
     files: manifest
   });
+  // 持久化上传会话，用于断点续传
+  try {
+    localStorage.setItem(`buildwise:upload-session:${iterationId}`, JSON.stringify({
+      uploadId: init.uploadId,
+      idempotencyKey,
+      iterationId,
+      sourceType,
+      folderName,
+      files: manifest.map((m, idx) => ({
+        fileId: init.files[idx]?.fileId || "",
+        fileName: m.fileName,
+        path: m.path,
+        size: m.size,
+        sha256: m.sha256,
+        chunkCount: m.chunkCount
+      })),
+      createdAt: Date.now()
+    }));
+  } catch { /* localStorage 不可用，忽略 */ }
   for (let fileIndex = 0; fileIndex < normalized.length; fileIndex += 1) {
     const file = normalized[fileIndex];
     const fileMeta = init.files[fileIndex];
@@ -495,6 +543,8 @@ export async function analyzeIterationAttachmentByChunkUpload(
     }
   }
   await completeIterationAttachmentUpload(iterationId, init.uploadId);
+  // 上传完成，清除断点续传会话
+  try { localStorage.removeItem(`buildwise:upload-session:${iterationId}`); } catch { /* ignore */ }
   const createdJob = await submitAttachmentAnalysisJobByUpload(iterationId, init.uploadId, "v2");
   options?.onJobUpdate?.(createdJob);
   return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
@@ -521,6 +571,96 @@ export async function retryIterationAttachmentAnalysis(
           45000
         )
       : await retryLatestAttachmentAnalysisJob(iterationId);
+  options?.onJobUpdate?.(createdJob);
+  return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
+}
+
+/* ── 上传断点续传 ── */
+
+export type UploadSession = {
+  uploadId: string;
+  idempotencyKey: string;
+  iterationId: number;
+  sourceType: "single-file" | "folder";
+  folderName: string;
+  files: Array<{ fileId: string; fileName: string; path: string; size: number; sha256: string; chunkCount: number }>;
+  createdAt: number;
+};
+
+export type UploadStatusResponse = {
+  uploadId: string;
+  status: string;
+  files: Array<{ fileId: string; fileName: string; path: string; chunkCount: number; missingChunkIndexes: number[] }>;
+};
+
+export function getUploadSession(iterationId: number): UploadSession | null {
+  try {
+    const raw = localStorage.getItem(`buildwise:upload-session:${iterationId}`);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as UploadSession;
+    // 会话超过 2 小时视为过期
+    if (Date.now() - session.createdAt > 2 * 60 * 60 * 1000) {
+      localStorage.removeItem(`buildwise:upload-session:${iterationId}`);
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export function clearUploadSession(iterationId: number) {
+  try { localStorage.removeItem(`buildwise:upload-session:${iterationId}`); } catch { /* ignore */ }
+}
+
+export async function fetchUploadStatus(iterationId: number, uploadId: string): Promise<UploadStatusResponse> {
+  return fetchJSON<UploadStatusResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/uploads/${encodeURIComponent(uploadId)}/status`, undefined, 15000);
+}
+
+export async function resumeIterationAttachmentUpload(
+  iterationId: number,
+  session: UploadSession,
+  files: File[],
+  options?: {
+    onJobUpdate?: (job: AttachmentAnalysisJob) => void;
+  }
+) {
+  await ensureLlmReadyForAnalysis();
+  const chunkSizeBytes = 4 * 1024 * 1024;
+
+  // 查询后端当前状态，仅上传缺失块
+  const status = await fetchUploadStatus(iterationId, session.uploadId);
+
+  if (status.status === "uploaded") {
+    // 上传已完成但分析未开始，直接提交分析
+    const createdJob = await submitAttachmentAnalysisJobByUpload(iterationId, session.uploadId, "v2");
+    options?.onJobUpdate?.(createdJob);
+    clearUploadSession(iterationId);
+    return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
+  }
+
+  if (status.status === "failed") {
+    clearUploadSession(iterationId);
+    throw new Error("上传已失败，请重新上传。");
+  }
+
+  // 仅上传缺失的块
+  for (const fileStatus of status.files) {
+    if (fileStatus.missingChunkIndexes.length === 0) continue;
+    const fileIdx = files.findIndex((f) => f.name === fileStatus.fileName);
+    if (fileIdx < 0) continue;
+    const file = files[fileIdx];
+    for (const chunkIdx of fileStatus.missingChunkIndexes) {
+      const start = chunkIdx * chunkSizeBytes;
+      const end = Math.min(file.size, start + chunkSizeBytes);
+      const buf = await file.slice(start, end).arrayBuffer();
+      await uploadIterationAttachmentChunk(iterationId, session.uploadId, fileStatus.fileId, chunkIdx + 1, new Uint8Array(buf));
+    }
+  }
+
+  await completeIterationAttachmentUpload(iterationId, session.uploadId);
+  clearUploadSession(iterationId);
+  const createdJob = await submitAttachmentAnalysisJobByUpload(iterationId, session.uploadId, "v2");
   options?.onJobUpdate?.(createdJob);
   return waitForAttachmentAnalysisJob(iterationId, createdJob.jobId, { onJobUpdate: options?.onJobUpdate });
 }

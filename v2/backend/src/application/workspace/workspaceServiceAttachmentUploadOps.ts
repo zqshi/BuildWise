@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
@@ -11,7 +11,7 @@ import type {
   AttachmentIngestJob
 } from "../../domain/workspace/types";
 import { defaultIterationChangeControl } from "./workspaceServiceCommon";
-import { ensureDir, nowIso, sha256Hex, shortId } from "./workspaceServiceAttachmentUtils";
+import { ensureDir, nowIso, sha256Hex, shortId } from "./attachmentOps";
 
 export type UploadInitInput = {
   sourceType: "single-file" | "folder";
@@ -197,6 +197,48 @@ export function completeAttachmentUploadOp(
   return { upload, ingestJob };
 }
 
+/**
+ * 从磁盘 chunk 文件中重组上传文件的原始内容。
+ * chunk 按索引顺序存储在 attachmentChunkStorageDir/uploadId/fileId/chunkIndex.bin
+ */
+function reassembleUploadedFileContent(
+  chunkStorageDir: string,
+  uploadId: string,
+  fileId: string,
+  chunkCount: number
+): Buffer {
+  const dir = join(chunkStorageDir, uploadId, fileId);
+  const buffers: Buffer[] = [];
+  for (let idx = 0; idx < chunkCount; idx += 1) {
+    const path = join(dir, `${idx}.bin`);
+    if (existsSync(path)) {
+      buffers.push(readFileSync(path));
+    }
+  }
+  return Buffer.concat(buffers);
+}
+
+/** 判断文件名是否为可提取文本的格式 */
+function isTextLikeFile(fileName: string, mimeType: string): boolean {
+  const name = fileName.toLowerCase();
+  if (/\.(md|markdown|txt|csv|json|xml|yaml|yml|toml|ini|cfg|conf|log|sql|sh|bash|zsh|py|js|ts|tsx|jsx|html|htm|css|scss|less|vue|svelte|rb|go|rs|java|kt|c|cpp|h|hpp|cs|php|pl|ps1|bat|env|gitignore|editorconfig|eslintrc|prettierrc|dockerfile|makefile|cmakelists|gradle|properties|adoc|rst|tex|org)$/i.test(name)) {
+    return true;
+  }
+  return mimeType.startsWith("text/") || /json|xml|javascript|markdown/.test(mimeType);
+}
+
+/** 从文件 Buffer 中安全提取文本 excerpt */
+function extractTextExcerpt(content: Buffer, maxLength = 12000): string {
+  // 尝试 UTF-8 解码，如果失败则标记为二进制
+  const text = content.toString("utf-8");
+  // 检查是否包含过多的替换字符（无效 UTF-8 的标志）
+  const replacementCount = (text.match(/\ufffd/g) || []).length;
+  if (replacementCount > text.length * 0.1) {
+    return "";
+  }
+  return text.slice(0, maxLength).trim();
+}
+
 export function submitAttachmentAnalysisJobFromUploadOp(
   ctx: AttachmentUploadOpsContext,
   iterationId: number,
@@ -206,6 +248,14 @@ export function submitAttachmentAnalysisJobFromUploadOp(
   const upload = ctx.uploads.get(uploadId);
   if (!upload || upload.iterationId !== iterationId || upload.status !== "uploaded") {
     return null;
+  }
+  // 从 chunk 中提取每个文件的文本 excerpt
+  const fileExcerpts = new Map<string, string>();
+  for (const file of upload.files) {
+    if (isTextLikeFile(file.fileName, file.mimeType)) {
+      const raw = reassembleUploadedFileContent(ctx.attachmentChunkStorageDir, uploadId, file.fileId, file.chunkCount);
+      fileExcerpts.set(file.fileId, extractTextExcerpt(raw));
+    }
   }
   const input: AttachmentUploadInput = upload.sourceType === "folder"
     ? {
@@ -220,7 +270,7 @@ export function submitAttachmentAnalysisJobFromUploadOp(
           fileName: item.fileName,
           mimeType: item.mimeType,
           size: item.size,
-          excerpt: "",
+          excerpt: fileExcerpts.get(item.fileId) || "",
           imageDataUrl: ""
         })),
         excerptStrategy: "folder-batch"
@@ -229,7 +279,7 @@ export function submitAttachmentAnalysisJobFromUploadOp(
         fileName: upload.files[0]?.fileName || "uploaded-file",
         mimeType: upload.files[0]?.mimeType || "application/octet-stream",
         size: upload.files[0]?.size || 0,
-        excerpt: "",
+        excerpt: fileExcerpts.get(upload.files[0]?.fileId || "") || "",
         sourceType: "single-file"
       };
   const job = ctx.submitAttachmentAnalysisJob(iterationId, input);

@@ -49,5 +49,3 @@ export function IterationStatusStrip({
     </div>
   );
 }
-
-export { renderStatusLabel };

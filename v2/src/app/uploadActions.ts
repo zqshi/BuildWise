@@ -14,6 +14,7 @@ import {
   updateIterationInteractionState,
   createIterationMessage
 } from "./workspaceApi";
+import { getUploadSession, resumeIterationAttachmentUpload, clearUploadSession } from "./workspaceApiAgentOps";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import { type FileWithPath, getFilePath } from "../shared/fileTypes";
 
@@ -85,6 +86,12 @@ export const resolveUploadErrorMessage = (error: unknown) => {
   }
   if (raw.includes("API error: 503")) {
     return "附件分析失败：AI 服务未配置。请联系管理员先完成配置。";
+  }
+  if (raw.includes("API error: 404") && (raw.includes("job") || raw.includes("retry"))) {
+    return "附件分析重试失败：未找到可重试的分析任务。请重新上传文件。";
+  }
+  if (raw.includes("API error: 404")) {
+    return "附件分析失败：请求的资源不存在，请刷新页面后重试。";
   }
   if (raw.includes("API error: 409") || raw.includes("duplicate_upload")) {
     return "检测到重复上传：当前迭代已存在相同文档内容，请仅上传增量文档。";
@@ -216,11 +223,47 @@ export const isDocumentAsset = (file: File) => {
     type.includes("pdf") ||
     type.includes("word") ||
     type.includes("markdown") ||
+    type.includes("json") ||
+    type.includes("javascript") ||
+    type.includes("typescript") ||
+    type.includes("xml") ||
+    type.includes("yaml") ||
     name.endsWith(".md") ||
     name.endsWith(".txt") ||
     name.endsWith(".doc") ||
     name.endsWith(".docx") ||
-    name.endsWith(".pdf")
+    name.endsWith(".pdf") ||
+    name.endsWith(".js") ||
+    name.endsWith(".ts") ||
+    name.endsWith(".jsx") ||
+    name.endsWith(".tsx") ||
+    name.endsWith(".css") ||
+    name.endsWith(".scss") ||
+    name.endsWith(".less") ||
+    name.endsWith(".json") ||
+    name.endsWith(".yaml") ||
+    name.endsWith(".yml") ||
+    name.endsWith(".xml") ||
+    name.endsWith(".py") ||
+    name.endsWith(".java") ||
+    name.endsWith(".go") ||
+    name.endsWith(".rs") ||
+    name.endsWith(".rb") ||
+    name.endsWith(".sh") ||
+    name.endsWith(".sql") ||
+    name.endsWith(".csv") ||
+    name.endsWith(".vue") ||
+    name.endsWith(".svelte") ||
+    name.endsWith(".swift") ||
+    name.endsWith(".kt") ||
+    name.endsWith(".c") ||
+    name.endsWith(".cpp") ||
+    name.endsWith(".h") ||
+    name.endsWith(".proto") ||
+    name.endsWith(".toml") ||
+    name.endsWith(".ini") ||
+    name.endsWith(".env") ||
+    name.endsWith(".gitignore")
   );
 };
 
@@ -282,6 +325,11 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     iterationId: currentIteration.id,
     files: [...files]
   };
+  // Flag to cancel the deferred loadIterations if upload completes/fails before it fires.
+  // Without this, a fast-failing upload (e.g. 409 duplicate) finishes before the 800ms timer,
+  // causing isAnalyzingAttachment to be false when loadIterations runs, which bypasses the
+  // useEffect guard and wipes iteration state / navigates back to project panel.
+  let deferredRefreshActive = true;
   const hasFolderPath = files.some((item) => Boolean((item as FileWithPath).webkitRelativePath));
   const isBatch = hasFolderPath || files.length > 1;
   const folderName = resolveFolderName(files);
@@ -302,7 +350,10 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     .filter((item) => item.length > 0)
     .filter((item) => /prototype|wireframe|mockup|交互|原型|界面|figma|\.fig$|\.xd$|\.sketch$|\.html?$|\.png$|\.jpg$|\.jpeg$|\.svg$/i.test(item))
     .slice(0, 12);
-  const htmlPreviewCandidates = files.filter((item) => /\.html?$/i.test(item.name || "")).slice(0, 3);
+  const htmlPreviewCandidates = files.filter((item) => {
+    const name = (item.name || "").toLowerCase();
+    return /\.html?$/.test(name) || (/\.(md|markdown|txt|csv|json|xml|yaml|yml|toml|rst|adoc)$/i.test(name) && isDocumentAsset(item));
+  }).slice(0, 3);
   const htmlPreviews = (
     await Promise.all(
       htmlPreviewCandidates.map(async (item) => {
@@ -367,7 +418,14 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
       uploadKind,
       lastAttachmentName: isBatch ? `${folderName} (${files.length} files)` : files[0].name
     });
-    await deps.loadIterations(deps.currentProjectId ?? currentIteration.projectId);
+    // Defer loadIterations to refresh the iteration list with updated interactionState badge.
+    const refreshProjectId = deps.currentProjectId ?? currentIteration.projectId;
+    setTimeout(() => {
+      if (!deferredRefreshActive) return;
+      deps.loadIterations(refreshProjectId).catch((e) =>
+        console.warn("[Upload] deferred iteration refresh failed", e)
+      );
+    }, 800);
   } catch (err) {
     console.warn("[Upload] interaction state persistence failed, continuing upload flow", err);
   }
@@ -390,11 +448,31 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
       const displayText = isBatch
         ? `已上传${uploadLabel}：${folderName}（${files.length} 个文件）`
         : `已上传${uploadLabel}：${files[0].name}`;
-      const fileEntries = files.slice(0, 30).map((f) => ({
-        name: f.name,
-        path: getFilePath(f) || f.name,
-        size: f.size,
-        type: f.type || ""
+      const fileEntries = await Promise.all(files.slice(0, 30).map(async (f) => {
+        const entry: {
+          name: string; path: string; size: number; type: string;
+          content?: string; dataUrl?: string;
+        } = {
+          name: f.name,
+          path: getFilePath(f) || f.name,
+          size: f.size,
+          type: f.type || ""
+        };
+        try {
+          const isText = isDocumentAsset(f) && !f.name.toLowerCase().endsWith(".pdf")
+            && !f.name.toLowerCase().endsWith(".doc") && !f.name.toLowerCase().endsWith(".docx");
+          if (isText && f.size <= 200_000) {
+            entry.content = await f.text();
+          } else if (f.type.startsWith("image/") && f.size <= 500_000) {
+            entry.dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(f);
+            });
+          }
+        } catch { /* ignore read errors, keep metadata only */ }
+        return entry;
       }));
       const uploadMeta = JSON.stringify({
         kind: uploadKind,
@@ -403,10 +481,11 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
         totalFiles: files.length,
         files: fileEntries
       });
+      const encodedMeta = btoa(unescape(encodeURIComponent(uploadMeta)));
       await appendMessage(
         currentIteration.id,
         "system",
-        `${displayText}\n<!-- upload:${uploadMeta} -->`,
+        `${displayText}\n<!-- upload-b64:${encodedMeta} -->`,
         deps.setChatMessages
       );
     } catch (err) {
@@ -462,28 +541,9 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     await appendMessage(
       currentIteration.id,
       "assistant",
-      "附件已完成大模型分析，点击\u201C查看分析报告\u201D查看项目识别、产品识别与关键发现。",
+      "文档分析完成了，请先确认分析结论是否准确，确认后我会引导你补充需要澄清的信息。",
       deps.setChatMessages
     );
-    const clarificationQueue = (report.clarificationQuestions || []).map((item) => item.trim()).filter(Boolean);
-    if (clarificationQueue.length === 0) {
-      const qualityClarifications = [
-        ...(report.reportQuality?.missingItems || []).map((item) => `请补充并确认：${item}`),
-        ...(report.reportQuality?.actionRequired || []).map((item) => `请确认是否执行：${item}`)
-      ]
-        .map((item) => item.trim())
-        .filter(Boolean);
-      clarificationQueue.push(...qualityClarifications.slice(0, 3));
-    }
-    if (clarificationQueue.length > 0) {
-      const firstQuestion = clarificationQueue[0];
-      await appendMessage(
-        currentIteration.id,
-        "assistant",
-        `我先发起澄清：${firstQuestion}。请直接在 IM 对话中回复，我会像数字员工一样结合你的反馈持续追问、归纳并收敛边界与功能范围；当你认为理解一致时，回复“确认分析”即可完成最终确认。`,
-        deps.setChatMessages
-      );
-    }
     await deps.loadGovernance();
   } catch (err) {
     deps.setLastUploadFailed(true);
@@ -504,6 +564,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
       console.warn("[Upload] failed to post secondary message", err);
     }
   } finally {
+    deferredRefreshActive = false;
     deps.setIsAnalyzingAttachment(false);
   }
 };
@@ -575,6 +636,78 @@ export const handleRetryUpload = async (deps: UploadActionDeps) => {
     } catch (err) {
       console.warn("[Upload] failed to post secondary message", err);
     }
+  } finally {
+    deps.setIsAnalyzingAttachment(false);
+  }
+};
+
+/* ── handleResumeUpload（断点续传）─────────────────────────────────── */
+
+export const handleResumeUpload = async (event: ChangeEvent<HTMLInputElement>, deps: UploadActionDeps) => {
+  if (!deps.currentIteration) return;
+  const iteration = deps.currentIteration;
+  const session = getUploadSession(iteration.id);
+  if (!session) {
+    // 无会话可恢复，走普通上传流程
+    await handleUpload(event, deps);
+    return;
+  }
+
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+  event.target.value = "";
+
+  // 通过文件名匹配验证是否为同一批文件
+  const sessionFileNames = new Set(session.files.map((f) => f.fileName));
+  const selectedFileNames = new Set(files.map((f) => f.name));
+  const nameOverlap = [...sessionFileNames].filter((n) => selectedFileNames.has(n)).length;
+  if (nameOverlap < session.files.length * 0.5) {
+    // 文件差异太大，放弃续传
+    clearUploadSession(iteration.id);
+    await handleUpload(event, deps);
+    return;
+  }
+
+  try {
+    deps.setUploadToastMessage(null);
+    deps.setError(null);
+    deps.setIsAnalyzingAttachment(true);
+    deps.setUploadAnalysisProgress({
+      stage: "preparing",
+      label: "恢复上传中",
+      detail: "正在从断点继续上传...",
+      percent: 10
+    });
+    const report = await resumeIterationAttachmentUpload(iteration.id, session, files, {
+      onJobUpdate: (job) => deps.setUploadAnalysisProgress(toUploadProgress(job))
+    });
+    deps.setAnalysisReport(report);
+    deps.setLastUploadFailed(false);
+    deps.setShowAnalysisPanel(false);
+    deps.setUploadAnalysisProgress({
+      stage: "succeeded",
+      label: "大模型分析完成",
+      detail: "分析报告已生成，可点击\u201C查看分析报告\u201D。",
+      percent: 100
+    });
+    await appendMessage(
+      iteration.id,
+      "assistant",
+      "文档分析完成了，请先确认分析结论是否准确，确认后我会引导你补充需要澄清的信息。",
+      deps.setChatMessages
+    );
+    await deps.loadGovernance();
+  } catch (err) {
+    clearUploadSession(iteration.id);
+    deps.setLastUploadFailed(true);
+    const message = resolveUploadErrorMessage(err);
+    deps.setError(message);
+    deps.setUploadAnalysisProgress({
+      stage: "failed",
+      label: "上传恢复失败",
+      detail: message,
+      percent: 15
+    });
   } finally {
     deps.setIsAnalyzingAttachment(false);
   }

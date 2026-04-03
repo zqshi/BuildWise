@@ -90,6 +90,65 @@ test("builds BusinessRule with linkedEntityIds from mapped entities", () => {
   assert.ok(input.entities.some((e) => e.name === "Order"), "should have Order entity");
 });
 
+// ─── 从 KB.componentInventory 生成 BusinessEntity ───
+
+test("generates entities from KB componentInventory when traceabilityMap has no entities", () => {
+  const input = buildModelingInputFromAnalysis({
+    projectId: 1,
+    iterationId: 10,
+    knowledgeBase: {
+      ontologyTerms: [],
+      stableRules: [],
+      componentInventory: [
+        { component: "退款申请页", responsibility: "承接退款申请与校验", relatedRequirements: ["refund-window"], relatedCodePaths: ["src/refund/apply.tsx"] },
+        { component: "订单详情页", responsibility: "展示订单详情", relatedRequirements: ["order-detail"], relatedCodePaths: ["src/order/detail.tsx"] }
+      ],
+      codeMap: [],
+      decisionLog: [],
+      knownRisks: [],
+      changePatterns: [],
+      updatedAt: ""
+    },
+    domainKnowledgeEntries: [],
+    traceabilityMap: null
+  });
+
+  assert.ok(input.entities.length >= 2, `should have at least 2 entities from componentInventory, got ${input.entities.length}`);
+  assert.ok(input.entities.some(e => e.businessName.includes("退款申请页")));
+  assert.ok(input.entities.some(e => e.businessName.includes("订单详情页")));
+});
+
+test("merges entities from both traceabilityMap and componentInventory without duplicates", () => {
+  const input = buildModelingInputFromAnalysis({
+    projectId: 1,
+    iterationId: 10,
+    knowledgeBase: {
+      ontologyTerms: [],
+      stableRules: [],
+      componentInventory: [
+        { component: "Order", responsibility: "订单实体", relatedRequirements: [], relatedCodePaths: [] },
+        { component: "退款页", responsibility: "退款", relatedRequirements: [], relatedCodePaths: [] }
+      ],
+      codeMap: [],
+      decisionLog: [],
+      knownRisks: [],
+      changePatterns: [],
+      updatedAt: ""
+    },
+    domainKnowledgeEntries: [],
+    traceabilityMap: {
+      pages: [],
+      apis: [],
+      entities: [{ name: "Order", fields: ["id", "status"] }]
+    }
+  });
+
+  // Order 应该只出现一次（来自 traceabilityMap），退款页 作为额外 entity
+  const orderEntities = input.entities.filter(e => e.name === "Order");
+  assert.equal(orderEntities.length, 1, "Order should not be duplicated");
+  assert.ok(input.entities.length >= 2, "should have Order + 退款页");
+});
+
 test("returns empty arrays when no data available", () => {
   const input = buildModelingInputFromAnalysis({
     projectId: 1,

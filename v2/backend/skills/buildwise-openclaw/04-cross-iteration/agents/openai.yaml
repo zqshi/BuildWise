@@ -1,6 +1,0 @@
-interface:
-  display_name: "Cross Iteration"
-  short_description: "Govern inheritance and diffs across iterations"
-  default_prompt: "Use $04-cross-iteration to classify inherited, changed, and removed scope."
-policy:
-  allow_implicit_invocation: true

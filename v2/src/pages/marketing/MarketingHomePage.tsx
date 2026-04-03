@@ -48,7 +48,7 @@ export function MarketingHomePage({
           </a>
           <div className="marketing-nav-actions">
             <button type="button" className="btn primary" onClick={onSecondaryAction}>
-              {isAuthenticated ? "返回工作区" : "登录"}
+              登录
             </button>
           </div>
         </div>

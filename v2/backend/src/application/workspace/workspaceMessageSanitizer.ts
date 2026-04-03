@@ -1,4 +1,6 @@
-const ARTIFACT_REFERENCE_PREFIX = "【交付物引用】";
+import { MSG_PREFIX } from "../../domain/workspace/constants";
+
+const ARTIFACT_REFERENCE_PREFIX = MSG_PREFIX.ARTIFACT_REFERENCE;
 
 function parseArtifactReferenceContent(content: string) {
   const trimmed = content.trim();

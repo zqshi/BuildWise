@@ -201,10 +201,6 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     }
   }, removeCustomRoleHandler);
 
-  app.get("/governance/openclaw/status", async () => {
-    return service.probeOpenclawIntegration();
-  });
-
   app.get("/projects", async (request, reply) => {
     const userId = currentUserId(request);
     if (!userId) {
@@ -400,5 +396,40 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       return { message: "project not found" };
     }
     return created;
+  });
+
+  app.delete("/projects/:id/iterations/:iterationId", {
+    schema: {
+      params: {
+        type: "object",
+        properties: {
+          id: { type: "string", pattern: "^\\d+$" },
+          iterationId: { type: "string", pattern: "^\\d+$" }
+        },
+        required: ["id", "iterationId"]
+      }
+    }
+  }, async (request, reply) => {
+    const params = request.params as { id: string; iterationId: string };
+    const projectId = parsePositiveInt(params.id);
+    const iterationId = parsePositiveInt(params.iterationId);
+    if (projectId === null || iterationId === null) {
+      reply.code(400);
+      return { message: "invalid id" };
+    }
+    const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+    }
+    const result = service.deleteIteration(iterationId);
+    if (!result.deleted) {
+      if (result.reason === "not_found") {
+        reply.code(404);
+        return { message: "iteration not found" };
+      }
+      reply.code(409);
+      return { message: "该版本已产生迭代数据，不可删除", code: "iteration_has_data" };
+    }
+    return { deleted: true };
   });
 }

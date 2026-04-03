@@ -55,7 +55,7 @@ function unauthorized(reply: FastifyReply, message: string) {
 export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig) {
   const log = createLogger("auth");
   if (config.authMode === "off") {
-    log.warn("AUTH_MODE=off: authentication disabled, default role is viewer");
+    log.warn("AUTH_MODE=off: authentication disabled, default role is owner");
   }
 
   app.addHook("onRequest", async (request, reply) => {
@@ -71,7 +71,7 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
         ? "owner"
         : devRoleFromHeader(request);
       request.authSub = devUserFromHeader(request) || "dev-user";
-      request.authTenantId = tenantFromHeader(request) || request.authSub;
+      request.authTenantId = tenantFromHeader(request) || "";
       return;
     }
 
@@ -96,7 +96,13 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
         }
         request.authRole = payload.role;
         request.authSub = payload.sub;
-        request.authTenantId = tenantFromHeader(request);
+        // JWT payload 中的 tenantId 优先于 header，防止跨租户伪造
+        const jwtTenant = typeof payload.tenantId === "string" ? payload.tenantId : "";
+        const headerTenant = tenantFromHeader(request);
+        if (jwtTenant && headerTenant && jwtTenant !== headerTenant) {
+          log.warn(`Tenant mismatch: header=${headerTenant}, jwt=${jwtTenant} — using jwt`);
+        }
+        request.authTenantId = jwtTenant || headerTenant;
       } catch {
         return unauthorized(reply, "invalid or expired token");
       }

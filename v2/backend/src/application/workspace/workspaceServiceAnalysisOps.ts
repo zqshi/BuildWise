@@ -25,24 +25,25 @@ import {
   extractUxArtifacts,
   isLowSignalText
 } from "./workspaceAnalysisExtractors";
-import { buildClarificationQuestionsOp, mergeSynthesisResultsOp } from "./workspaceServiceAnalysisSynthesisOps";
+import { buildClarificationQuestionsOp, mergeSynthesisResultsOp } from "./analysisSynthesisOps";
 import { defaultIterationChangeControl, writeAuditLog } from "./workspaceServiceCommon";
-import { composeAttachmentExcerpt, resolveVisionPayloads } from "./workspaceServiceAnalysisInputOps";
+import { composeAttachmentExcerpt, resolveVisionPayloads } from "./analysisInputOps";
 import {
   synthesizeBusinessConfirmationOp,
   synthesizeGovernanceInsightsOp,
   synthesizeReleaseReviewOp,
-  synthesizeReportQualityGateOp
-} from "./workspaceServiceAnalysisGovernanceRunnerOps";
-import { synthesizeProjectProfileOp } from "./workspaceServiceAnalysisProjectProfileRunnerOps";
-import { CONTEXT_GUARDRAILS, SYNTHESIS_LLM_CONFIG, runAnalysisPrompt } from "./workspaceServiceAnalysisConfig";
+  synthesizeReportQualityGateOp,
+  synthesizeProjectProfileOp
+} from "./analysisRunnerOps";
+import { CONTEXT_GUARDRAILS, SYNTHESIS_LLM_CONFIG, runAnalysisPrompt } from "./analysisPromptTemplates";
+import { ensureArtifactWorkflow } from "./changeControlOps";
 import {
   synthesizeExecutionPolicyOp,
   synthesizeFolderSelectionOp,
   synthesizeDeepInsightsOp,
   executeAgentPlanOp,
   synthesizeAttachmentInsightsOp
-} from "./workspaceServiceAnalysisSynthesisTaskOps";
+} from "./analysisSynthesisOps";
 
 function applyLifecycleTransitionOp(
   transitionIteration: (
@@ -259,9 +260,9 @@ export async function analyzeAttachmentOp(
     }
   };
   repo.updateIteration(normalized);
-  writeAuditLog(repo, "attachment_analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
+  writeAuditLog(repo, "analysis.attachment-analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
   if (generatedTestMatrix.length > 0) {
-    writeAuditLog(repo, "iteration_test_matrix_generated", `iteration:${iterationId}`, `cases=${generatedTestMatrix.length}`);
+    writeAuditLog(repo, "analysis.test-matrix-generated", `iteration:${iterationId}`, `cases=${generatedTestMatrix.length}`);
   }
   markStage("synthesis:attachment-insights");
   const attachmentInsights = await synthesizeAttachmentInsightsOp(agentRunner, {
@@ -511,10 +512,39 @@ export async function analyzeAttachmentOp(
       mappedCodePaths: item.mappedTo.codePaths,
       evidence: item.evidence
     })),
-    domainKnowledgeUpdatedAt: generatedAt
+    domainKnowledgeUpdatedAt: generatedAt,
+    lastBusinessConfirmation: {
+      coreIntent: (businessConfirmationWithUx.coreIntent || "").slice(0, 2000),
+      boundarySummary: (businessConfirmationWithUx.boundarySummary || "").slice(0, 2000),
+      functionalPoints: (businessConfirmationWithUx.functionalPoints || []).slice(0, 20),
+      successCriteria: (businessConfirmationWithUx.successCriteria || []).slice(0, 10),
+      confirmationChecklist: (businessConfirmationWithUx.confirmationChecklist || []).slice(0, 15).map((c: unknown) =>
+        typeof c === "string" ? c : typeof c === "object" && c !== null && "item" in c ? String((c as Record<string, unknown>).item) : String(c)
+      ),
+      versionDiffSummary: (businessConfirmationWithUx.versionDiffSummary || "").slice(0, 2000)
+    },
+    lastMeaningfulFindings: resolvedMeaningfulFindings.slice(0, 15),
+    lastPrioritizedFindings: resolvedPrioritizedFindings.slice(0, 15).map((f) => ({
+      priority: f.priority,
+      content: f.content,
+      reason: f.reason
+    })),
+    lastDeepInsightsSummary: {
+      themes: (deepInsights?.crossFileInsights?.themes || []).slice(0, 10),
+      gaps: (deepInsights?.crossFileInsights?.gaps || []).slice(0, 10),
+      rootCauses: (deepInsights?.crossFileInsights?.rootCauses || []).slice(0, 8),
+      decisionSuggestions: (deepInsights?.crossFileInsights?.decisionSuggestions || []).slice(0, 8)
+    }
   };
   repo.updateIteration(normalized);
-  writeAuditLog(repo, "attachment_project_detection_synthesized", `iteration:${iterationId}`, `target=${input.fileName}`);
+  // 刷新 artifactWorkflow 使 draft.content 立即合成
+  const refreshedControl = normalized.changeControl ?? currentChangeControl;
+  normalized.changeControl = {
+    ...refreshedControl,
+    artifactWorkflow: ensureArtifactWorkflow(normalized, refreshedControl, generatedAt)
+  };
+  repo.updateIteration(normalized);
+  writeAuditLog(repo, "analysis.project-detection-synthesized", `iteration:${iterationId}`, `target=${input.fileName}`);
   const synthesisOutputs = [
     synthesis.synthesisOutput,
     ...batchSyntheses.map((item) => item.synthesisOutput)

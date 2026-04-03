@@ -159,7 +159,7 @@ test("syncProjectWorkspaceKnowledge materializes project workspace memory and sh
   repo._store.projectWorkspaceBindings.push({
     id: 1,
     projectId: 1,
-    openclawProfile: "buildwise-local",
+    assistantProfile: "buildwise-local",
     agentId: "main",
     workspacePath,
     runtimeMode: "bridge",
@@ -190,7 +190,7 @@ test("searchProjectWorkspaceKnowledge returns top matching shards from project w
   repo._store.projectWorkspaceBindings.push({
     id: 1,
     projectId: 1,
-    openclawProfile: "buildwise-local",
+    assistantProfile: "buildwise-local",
     agentId: "main",
     workspacePath,
     runtimeMode: "bridge",

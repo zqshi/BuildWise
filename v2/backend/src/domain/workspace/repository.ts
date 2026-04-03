@@ -41,6 +41,7 @@ export interface IterationRepository {
   findPreviousIteration(iteration: Iteration): Iteration | null;
   createIteration(projectId: number, payload: CreateIterationInput): Iteration;
   updateIteration(iteration: Iteration): void;
+  deleteIteration(iterationId: number): boolean;
   listSnapshots(iterationId: number): AssessmentSnapshot[];
   appendSnapshot(snapshot: AssessmentSnapshot): void;
   listTransitions(iterationId: number): IterationTransition[];

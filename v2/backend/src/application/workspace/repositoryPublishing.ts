@@ -5,7 +5,7 @@ import { join } from "node:path";
 type Visibility = "private" | "public";
 type OwnerType = "org" | "user";
 
-export type PublishIterationInput = {
+type PublishIterationInput = {
   repoPath: string;
   branch: string;
   baseBranch: string;
@@ -23,7 +23,7 @@ export type PublishIterationInput = {
   dryRun: boolean;
 };
 
-export type PublishIterationResult = {
+type PublishIterationResult = {
   commit: string;
   branch: string;
   pushed: boolean;

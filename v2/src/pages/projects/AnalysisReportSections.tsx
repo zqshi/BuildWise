@@ -1,4 +1,12 @@
 import type { AttachmentAnalysisReport, Iteration } from "./iterationWorkspacePanelTypes";
+import type { CoachGuidanceItem } from "../../app/coachGuidanceBuilder";
+
+const GUIDANCE_ICON: Record<CoachGuidanceItem["icon"], string> = {
+  alert: "\u26A0\uFE0F",
+  chat: "\uD83D\uDCAC",
+  check: "\u2705",
+  info: "\u2139\uFE0F"
+};
 
 export type AnalysisReportSectionsProps = {
   analysisReport: AttachmentAnalysisReport;
@@ -18,6 +26,8 @@ export type AnalysisReportSectionsProps = {
   releaseReview: AttachmentAnalysisReport["releaseReview"] | undefined;
   domainKnowledge: AttachmentAnalysisReport["domainKnowledge"] | undefined;
   qualityArtifacts: AttachmentAnalysisReport["qualityArtifacts"] | undefined;
+  businessConfirmation: AttachmentAnalysisReport["businessConfirmation"] | null;
+  coachGuidance: CoachGuidanceItem[];
   setOnlyHighValue: React.Dispatch<React.SetStateAction<boolean>>;
   onChatInputChange: (value: string) => void;
   onChatSend: (options?: { overrideText?: string }) => Promise<unknown>;
@@ -38,14 +48,25 @@ export function AnalysisReportSections({
   domainKnowledge,
   qualityArtifacts,
   versionDiffDetailed,
+  businessConfirmation,
+  coachGuidance,
   setOnlyHighValue,
   onChatInputChange,
   onChatSend,
 }: AnalysisReportSectionsProps) {
+  const bc = businessConfirmation;
+  const checklist = bc?.confirmationChecklist ?? [];
+  const sortedChecklist = [...checklist].sort((a, b) => {
+    const rank = (level: string) => (level === "高" ? 0 : level === "中" ? 1 : 2);
+    return rank(a.impactLevel) - rank(b.impactLevel);
+  });
+  const necessity = bc?.necessityAssessment;
+
   return (
     <>
+      {/* ── 1. 项目概要确认 ── */}
       <div className="info-box">
-        <h3>项目概要确认（避免理解偏差）</h3>
+        <h3>项目概要确认</h3>
         <div className={`report-confirmation-banner ${reportPendingConfirmation ? "pending" : "confirmed"}`}>
           {reportPendingConfirmation
             ? "状态：待你确认（当前为初始理解）"
@@ -54,28 +75,43 @@ export function AnalysisReportSections({
         <p>项目：{analysisReport.projectDetection?.projectName || analysisReport.iterationName}</p>
         <p>产品：{analysisReport.projectDetection?.productName || analysisReport.iterationName}</p>
         <p>项目类型：{analysisReport.projectDetection?.projectCategory || analysisReport.attachmentInsights.projectCategory}</p>
-        <p>初始理解：{analysisReport.understanding}</p>
-        {!reportPendingConfirmation ? (
-          <p>确认后理解：{confirmedUnderstanding || analysisReport.understanding}</p>
+        {bc?.coreIntent ? <p>核心意图：{bc.coreIntent}</p> : <p>初始理解：{analysisReport.understanding}</p>}
+        {!reportPendingConfirmation && confirmedUnderstanding ? (
+          <p>确认后理解：{confirmedUnderstanding}</p>
         ) : null}
-        <p className="hint">如以上定位存在偏差，请直接在 IM 输入"理解偏差：..."进行纠正，系统会按你的反馈继续收敛。</p>
+        <p className="hint">如以上定位存在偏差，请直接在对话中输入"理解偏差：..."进行纠正。</p>
       </div>
+
+      {/* ── 2. 确认清单（替代硬编码出发点确认）── */}
       <div className="info-box">
-        <h3>项目主要内容与特点</h3>
-        <p>项目主内容：{analysisReport.projectDetection?.projectName || analysisReport.iterationName}</p>
-        <p>产品主线：{analysisReport.projectDetection?.productName || analysisReport.iterationName}</p>
-        <p>附件特点：{analysisReport.attachmentInsights.artifactType || "未识别"}</p>
-        <p>关键特征：{(analysisReport.attachmentInsights.keyCharacteristics || []).join("；") || "暂无"}</p>
-        <p className="hint">分析时间：{new Date(analysisReport.analyzedAt).toLocaleString("zh-CN")}</p>
-      </div>
-      <div className="info-box">
-        <h3>出发点确认（请在 IM 回复）</h3>
-        <ul className="history-list">
-          <li className="history-item"><p>1. 本轮核心目标是否与当前理解一致？</p></li>
-          <li className="history-item"><p>2. 新增版本边界是否完整覆盖你要交付的内容？</p></li>
-          <li className="history-item"><p>3. 是否有关键约束/成功标准尚未纳入？</p></li>
-        </ul>
-        <p className="hint">直接在 IM 输入"确认一致"或"偏差点：..."即可，系统会基于你的反馈继续收敛。</p>
+        <h3>确认清单</h3>
+        {bc?.successCriteria && bc.successCriteria.length > 0 ? (
+          <>
+            <p className="hint">成功标准：</p>
+            <ul className="history-list">
+              {bc.successCriteria.map((item, index) => (
+                <li key={`sc-${index}`} className="history-item"><p>{item}</p></li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {sortedChecklist.length > 0 ? (
+          <ul className="history-list">
+            {sortedChecklist.map((item, index) => (
+              <li key={`ck-${index}`} className="history-item">
+                <strong>[{item.impactLevel}] {item.item}</strong>
+                <p className="hint">{item.rationale}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="history-list">
+            <li className="history-item"><p>1. 本轮核心目标是否与当前理解一致？</p></li>
+            <li className="history-item"><p>2. 新增版本边界是否完整覆盖你要交付的内容？</p></li>
+            <li className="history-item"><p>3. 是否有关键约束/成功标准尚未纳入？</p></li>
+          </ul>
+        )}
+        <p className="hint">直接在对话中输入"确认一致"或"偏差点：..."即可。</p>
         <div className="chat-tools">
           <button type="button" className="btn ghost mini" onClick={() => onChatSend({ overrideText: "确认一致" })}>
             发送：确认一致
@@ -85,55 +121,236 @@ export function AnalysisReportSections({
           </button>
         </div>
       </div>
-      <div className="info-box">
-        <h3>新增版本内容边界范围</h3>
-        <p>需求边界：{currentIteration?.changeControl?.boundary?.requirementRefs?.join("；") || "未明确（请在 IM 中继续澄清）"}</p>
-        <p>组件边界：{currentIteration?.changeControl?.boundary?.componentRefs?.join("；") || "未明确（请在 IM 中继续澄清）"}</p>
-        <p>代码边界：{currentIteration?.changeControl?.boundary?.codePaths?.join("；") || "未明确（请在 IM 中继续澄清）"}</p>
-        {currentIteration?.changeControl?.boundary?.note ? <p>边界说明：{currentIteration.changeControl.boundary.note}</p> : null}
-      </div>
-      {(analysisReport.meaningfulFindings?.length ?? 0) > 0 ? (
+
+      {/* ── 2.5 需要你补充的信息 ── */}
+      {(analysisReport.clarificationQuestions?.length || analysisReport.deepInsights?.crossFileInsights?.gaps?.length) ? (
         <div className="info-box">
-          <h3>关键发现</h3>
-          <ul className="history-list">
-            {(analysisReport.meaningfulFindings || []).map((item, index) => (
-              <li key={`${item}-${index}`} className="history-item">
-                <p>{item}</p>
+          <h3>需要你补充的信息</h3>
+          <p className="hint">以下内容影响后续分析准确度，请在对话中逐一回复。</p>
+          <ul className="history-list findings-list">
+            {(analysisReport.clarificationQuestions || []).map((q, index) => (
+              <li key={`cq-${index}`} className="history-item history-item-stack">
+                <p>{index + 1}. {q}</p>
+              </li>
+            ))}
+            {(analysisReport.deepInsights?.crossFileInsights?.gaps || []).map((g, index) => (
+              <li key={`gap-${index}`} className="history-item history-item-stack">
+                <p>{(analysisReport.clarificationQuestions?.length || 0) + index + 1}. {g}</p>
               </li>
             ))}
           </ul>
         </div>
       ) : null}
+
+      {/* ── 3. 必要性评估 ── */}
+      {necessity && (necessity.mustDo.length > 0 || necessity.shouldDo.length > 0 || necessity.canDefer.length > 0) ? (
+        <div className="info-box">
+          <h3>必要性评估</h3>
+          {necessity.mustDo.length > 0 ? (
+            <>
+              <p><strong>必须做</strong></p>
+              <ul className="history-list">
+                {necessity.mustDo.map((item, i) => <li key={`must-${i}`} className="history-item"><p>{item}</p></li>)}
+              </ul>
+            </>
+          ) : null}
+          {necessity.shouldDo.length > 0 ? (
+            <>
+              <p><strong>应该做</strong></p>
+              <ul className="history-list">
+                {necessity.shouldDo.map((item, i) => <li key={`should-${i}`} className="history-item"><p>{item}</p></li>)}
+              </ul>
+            </>
+          ) : null}
+          {necessity.canDefer.length > 0 ? (
+            <>
+              <p><strong>可延后</strong></p>
+              <ul className="history-list">
+                {necessity.canDefer.map((item, i) => <li key={`defer-${i}`} className="history-item"><p>{item}</p></li>)}
+              </ul>
+            </>
+          ) : null}
+          {necessity.outOfScope.length > 0 ? (
+            <>
+              <p><strong>不在本轮范围</strong></p>
+              <ul className="history-list">
+                {necessity.outOfScope.map((item, i) => <li key={`out-${i}`} className="history-item"><p>{item}</p></li>)}
+              </ul>
+            </>
+          ) : null}
+          {necessity.rationale ? <p className="hint">{necessity.rationale}</p> : null}
+        </div>
+      ) : null}
+
+      {/* ── 4. 功能要点 ── */}
+      {bc?.functionalPoints && bc.functionalPoints.length > 0 ? (
+        <div className="info-box">
+          <h3>功能要点</h3>
+          <ul className="history-list">
+            {bc.functionalPoints.map((item, index) => (
+              <li key={`fp-${index}`} className="history-item"><p>{item}</p></li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* ── 5. 版本内容边界 ── */}
+      <div className="info-box">
+        <h3>版本内容边界</h3>
+        <p>需求边界：{currentIteration?.changeControl?.boundary?.requirementRefs?.join("；") || "未明确（请在对话中继续澄清）"}</p>
+        <p>组件边界：{currentIteration?.changeControl?.boundary?.componentRefs?.join("；") || "未明确（请在对话中继续澄清）"}</p>
+        <p>代码边界：{currentIteration?.changeControl?.boundary?.codePaths?.join("；") || "未明确（请在对话中继续澄清）"}</p>
+        {currentIteration?.changeControl?.boundary?.note ? <p>边界说明：{currentIteration.changeControl.boundary.note}</p> : null}
+        {bc?.boundarySummary ? <p className="hint">{bc.boundarySummary}</p> : null}
+      </div>
+
+      {/* ── 6. 关键发现 ── */}
       {visiblePrioritizedFindings.length > 0 ? (
         <div className="info-box">
           <div className="panel-head">
-            <h3>优先级发现</h3>
+            <h3>关键发现</h3>
             <button type="button" className="btn ghost mini" onClick={() => setOnlyHighValue((prev) => !prev)}>
               {onlyHighValue ? "显示全部" : "仅看高价值"}
             </button>
           </div>
+          {visiblePrioritizedFindings.filter(f => f.priority === "P0").length > 0 ? (
+            <>
+              <p className="label-hint">需要立即关注</p>
+              <ul className="history-list findings-list">
+                {visiblePrioritizedFindings.filter(f => f.priority === "P0").map((item, index) => (
+                  <li key={`p0-${item.content}-${index}`} className="history-item history-item-stack">
+                    <strong>{item.content}</strong>
+                    {item.reason ? <p className="hint">{item.reason}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {visiblePrioritizedFindings.filter(f => f.priority === "P1").length > 0 ? (
+            <>
+              <p className="label-hint">建议本轮处理</p>
+              <ul className="history-list findings-list">
+                {visiblePrioritizedFindings.filter(f => f.priority === "P1").map((item, index) => (
+                  <li key={`p1-${item.content}-${index}`} className="history-item history-item-stack">
+                    <strong>{item.content}</strong>
+                    {item.reason ? <p className="hint">{item.reason}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {visiblePrioritizedFindings.filter(f => f.priority === "P2").length > 0 ? (
+            <>
+              <p className="label-hint">后续可优化</p>
+              <ul className="history-list findings-list">
+                {visiblePrioritizedFindings.filter(f => f.priority === "P2").map((item, index) => (
+                  <li key={`p2-${item.content}-${index}`} className="history-item history-item-stack">
+                    <strong>{item.content}</strong>
+                    {item.reason ? <p className="hint">{item.reason}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* ── 6.5 迭代方向建议 ── */}
+      {(analysisReport.nextActions?.length || analysisReport.suggestions?.length || analysisReport.risks?.length) ? (
+        <div className="info-box">
+          <h3>迭代方向建议</h3>
+          {analysisReport.nextActions?.length ? (
+            <ul className="history-list findings-list">
+              {analysisReport.nextActions.map((a, i) => (
+                <li key={`na-${i}`} className="history-item history-item-stack"><p>{a}</p></li>
+              ))}
+            </ul>
+          ) : null}
+          {analysisReport.risks?.length ? (
+            <>
+              <p className="label-hint">注意事项</p>
+              <ul className="history-list">
+                {analysisReport.risks.map((r, i) => (
+                  <li key={`risk-${i}`} className="history-item history-item-stack"><p>{r}</p></li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {analysisReport.suggestions?.length ? (
+            <>
+              <p className="label-hint">改进建议</p>
+              <ul className="history-list">
+                {analysisReport.suggestions.map((s, i) => (
+                  <li key={`sug-${i}`} className="history-item history-item-stack"><p>{s}</p></li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* ── 7. 教练引导（替代"建议确认动作"）── */}
+      {coachGuidance.length > 0 ? (
+        <div className="info-box">
+          <h3>教练引导</h3>
           <ul className="history-list">
-            {visiblePrioritizedFindings.map((item, index) => (
-              <li key={`${item.priority}-${item.content}-${index}`} className="history-item">
-                <strong>{item.priority}</strong>
-                <p>{item.content}</p>
-                <p className="hint">{item.reason}</p>
+            {coachGuidance.map((item, index) => (
+              <li key={`cg-${index}`} className="history-item">
+                <p>{GUIDANCE_ICON[item.icon]} {item.text}</p>
               </li>
             ))}
           </ul>
         </div>
       ) : null}
-      {(analysisReport.nextActions?.length ?? 0) > 0 ? (
+
+      {/* ── 8+ 高级段落（技术详情，默认折叠）── */}
+      {showAdvancedReportSections && analysisReport.fileStats ? (
         <div className="info-box">
-          <h3>建议确认动作</h3>
-          <ul className="history-list">
-            {(analysisReport.nextActions || []).map((item, index) => (
-              <li key={`${item}-${index}`} className="history-item">
-                <p>{item}</p>
+          <h3>分析范围</h3>
+          <p>
+            共 {analysisReport.fileStats.totalFiles} 个文件（文本 {analysisReport.fileStats.textFiles}，二进制 {analysisReport.fileStats.binaryFiles}）
+            {analysisReport.fileSelection ? `，纳入分析 ${analysisReport.fileSelection.includedFiles}/${analysisReport.fileSelection.consideredFiles}` : ""}
+            {analysisReport.fileSelection?.skippedNoiseFiles ? `，跳过噪声 ${analysisReport.fileSelection.skippedNoiseFiles}` : ""}
+          </p>
+          {analysisReport.deepInsights?.coverage ? (
+            <p className="hint">
+              深度覆盖率：{analysisReport.deepInsights.coverage.coveragePercent}%
+              （{analysisReport.deepInsights.coverage.analyzedFiles}/{analysisReport.deepInsights.coverage.consideredFiles}）
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {showAdvancedReportSections && analysisReport.deepInsights?.fileInsights?.length ? (
+        <div className="info-box">
+          <h3>逐文件洞察</h3>
+          <ul className="history-list findings-list">
+            {analysisReport.deepInsights.fileInsights.map((fi, index) => (
+              <li key={`fi-${fi.path}-${index}`} className="history-item history-item-stack">
+                <strong>{fi.fileName}{fi.status !== "analyzed" ? `（${fi.status}）` : ""}</strong>
+                <p>{fi.summary || fi.mainContent || "-"}</p>
+                {fi.iterationValue ? <p className="hint">迭代价值：{fi.iterationValue}</p> : null}
+                {fi.risks?.length ? <p className="hint">风险：{fi.risks.join("；")}</p> : null}
               </li>
             ))}
           </ul>
-          <p className="hint">请在 IM 中逐项确认或修正，系统会按你的反馈更新理解与边界。</p>
+        </div>
+      ) : null}
+      {showAdvancedReportSections && analysisReport.deepInsights?.crossFileInsights && (
+        analysisReport.deepInsights.crossFileInsights.themes?.length ||
+        analysisReport.deepInsights.crossFileInsights.conflicts?.length ||
+        analysisReport.deepInsights.crossFileInsights.recommendations?.length
+      ) ? (
+        <div className="info-box">
+          <h3>跨文件综合</h3>
+          {analysisReport.deepInsights.crossFileInsights.themes?.length ? (
+            <p>共性主题：{analysisReport.deepInsights.crossFileInsights.themes.join("；")}</p>
+          ) : null}
+          {analysisReport.deepInsights.crossFileInsights.conflicts?.length ? (
+            <p>冲突点：{analysisReport.deepInsights.crossFileInsights.conflicts.join("；")}</p>
+          ) : null}
+          {analysisReport.deepInsights.crossFileInsights.recommendations?.length ? (
+            <p>建议：{analysisReport.deepInsights.crossFileInsights.recommendations.join("；")}</p>
+          ) : null}
         </div>
       ) : null}
       {showAdvancedReportSections && qualityArtifacts ? (
@@ -242,6 +459,19 @@ export function AnalysisReportSections({
           ) : null}
           {(versionDiffDetailed.riskPoints?.length ?? 0) > 0 ? (
             <p className="hint">高风险点：{versionDiffDetailed.riskPoints.join("；")}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {showAdvancedReportSections && analysisReport.reportQuality ? (
+        <div className="info-box">
+          <h3>报告可靠度</h3>
+          <p>
+            质量评分：{analysisReport.reportQuality.score}/100
+            {analysisReport.reportQuality.publishable ? "（可发布）" : "（不建议直接发布）"}
+          </p>
+          {analysisReport.reportQuality.summary ? <p className="hint">{analysisReport.reportQuality.summary}</p> : null}
+          {analysisReport.reportQuality.missingItems?.length ? (
+            <p className="hint">缺失项：{analysisReport.reportQuality.missingItems.join("；")}</p>
           ) : null}
         </div>
       ) : null}

@@ -18,10 +18,10 @@ test("workspace binding rejects sharing the same workspace path across projects"
 
   const first = service.upsertProjectWorkspaceBinding({
     projectId: 1,
-    openclawProfile: "buildwise-local",
+    assistantProfile: "buildwise-local",
     agentId: "main",
     workspacePath: sharedPath,
-    runtimeMode: "openclaw-native",
+    runtimeMode: "native",
     locked: true,
     createdBy: "tester"
   });
@@ -32,10 +32,10 @@ test("workspace binding rejects sharing the same workspace path across projects"
     () =>
       service.upsertProjectWorkspaceBinding({
         projectId: 2,
-        openclawProfile: "buildwise-local",
+        assistantProfile: "buildwise-local",
         agentId: "main",
         workspacePath: sharedPath,
-        runtimeMode: "openclaw-native",
+        runtimeMode: "native",
         locked: true,
         createdBy: "tester"
       }),

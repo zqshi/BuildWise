@@ -14,15 +14,13 @@ export type ProjectPolicyPayload = {
   approvedAt: string;
 };
 
-export type GlobalOrchestrationPolicyPayload = ProjectPolicyPayload;
-
-export type ProjectWorkspaceBindingPayload = {
+type ProjectWorkspaceBindingPayload = {
   id: number;
   projectId: number;
-  openclawProfile: string;
+  assistantProfile: string;
   agentId: string;
   workspacePath: string;
-  runtimeMode: "openclaw-native" | "bridge";
+  runtimeMode: "native" | "bridge";
   locked: boolean;
   createdBy: string;
   createdAt: string;
@@ -53,34 +51,6 @@ export async function fetchProjectPolicies(projectId: number) {
   return fetchJSON<{ active: ProjectPolicyPayload | null; items: ProjectPolicyPayload[] }>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies`);
 }
 
-export async function fetchGlobalOrchestrationPolicies() {
-  return fetchJSON<{ active: GlobalOrchestrationPolicyPayload | null; items: GlobalOrchestrationPolicyPayload[] }>(
-    `${API_BASE}${API_PREFIX}/governance/orchestration/policies`
-  );
-}
-
-export async function createGlobalOrchestrationPolicyDraft(strategy?: Record<string, unknown>, role = "owner", userId?: string) {
-  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...withOptionalUserId(role, userId) },
-    body: JSON.stringify({ strategy: strategy || {} })
-  });
-}
-
-export async function activateGlobalOrchestrationPolicy(version: number, role = "owner", userId?: string) {
-  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies/${version}/activate`, {
-    method: "POST",
-    headers: withOptionalUserId(role, userId)
-  });
-}
-
-export async function restoreGlobalOrchestrationPolicyToInitialMode(role = "owner", userId?: string) {
-  return fetchJSON<GlobalOrchestrationPolicyPayload>(`${API_BASE}${API_PREFIX}/governance/orchestration/policies/restore-initial`, {
-    method: "POST",
-    headers: withOptionalUserId(role, userId)
-  });
-}
-
 export async function createProjectPolicyDraft(projectId: number, strategy?: Record<string, unknown>, role = "owner", userId?: string) {
   return fetchJSON<ProjectPolicyPayload>(`${API_BASE}${API_PREFIX}/projects/${projectId}/policies`, {
     method: "POST",
@@ -106,10 +76,10 @@ export async function restoreProjectPolicyToInitialMode(projectId: number, role 
 export async function bindProjectWorkspace(
   projectId: number,
   payload: {
-    openclawProfile: string;
+    assistantProfile: string;
     agentId?: string;
     workspacePath: string;
-    runtimeMode?: "openclaw-native" | "bridge";
+    runtimeMode?: "native" | "bridge";
     locked?: boolean;
   },
   role = "owner",

@@ -1,8 +1,8 @@
 /**
- * KnowledgeSyncService — 知识库 → OpenClaw 上下文同步
+ * KnowledgeSyncService — 知识库 → 业务助手上下文同步
  *
  * 将 ProjectKnowledgeBase 序列化为结构化文本，
- * 通过 system prompt 注入 OpenClaw Agent 的上下文。
+ * 通过 system prompt 注入业务助手 Agent 的上下文。
  */
 
 import type { ProjectKnowledgeBase } from "../../domain/workspace/projectTypes";

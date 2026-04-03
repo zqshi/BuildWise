@@ -97,6 +97,33 @@ function traceToEntities(
   }));
 }
 
+function componentInventoryToEntities(
+  componentInventory: BridgeInput["knowledgeBase"]["componentInventory"],
+  existingEntities: BusinessEntity[]
+): BusinessEntity[] {
+  const existingNames = new Set(existingEntities.map((e) => e.name));
+  const extra: BusinessEntity[] = [];
+  let idx = existingEntities.length;
+
+  for (const comp of componentInventory) {
+    if (existingNames.has(comp.component)) continue;
+    existingNames.add(comp.component);
+    idx++;
+    extra.push({
+      id: `entity-${idx}`,
+      name: comp.component,
+      businessName: comp.component,
+      fields: comp.relatedCodePaths.map((p) => ({
+        name: p,
+        type: "codePath",
+        required: false,
+      })),
+    });
+  }
+
+  return extra;
+}
+
 function kbRulesToBusinessRules(
   kbRules: ProjectKnowledgeBase["stableRules"],
   entries: DomainKnowledgeEntry[],
@@ -254,7 +281,12 @@ export function buildModelingInputFromAnalysis(
     input.domainKnowledgeEntries
   );
 
-  const entities = traceToEntities(input.traceabilityMap);
+  const traceEntities = traceToEntities(input.traceabilityMap);
+  const componentEntities = componentInventoryToEntities(
+    input.knowledgeBase.componentInventory,
+    traceEntities
+  );
+  const entities = [...traceEntities, ...componentEntities];
 
   const rules = kbRulesToBusinessRules(
     input.knowledgeBase.stableRules,

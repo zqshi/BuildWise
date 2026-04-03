@@ -14,6 +14,7 @@ import type { OpsTriageTemplate } from "./iterationWorkspacePanelTypes";
 import type { IterationGeneratedTestCase } from "../../domain/workspace/iterationTypes";
 import type { IterationArtifactWorkflowItem } from "../../domain/workspace/iterationTypes";
 import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
+import type { CoachGuidanceItem } from "../../app/coachGuidanceBuilder";
 import { ArtifactImpactPanel } from "./IterationChangeIntelligencePanel";
 import { ArtifactPreviewPanel } from "./ArtifactPreviewPanel";
 import { ArtifactReviewFooter } from "./ArtifactReviewFooter";
@@ -72,6 +73,10 @@ export type AnalysisDrawerContentProps = {
   /* ── prioritised findings ── */
   onlyHighValue: boolean;
   visiblePrioritizedFindings: Array<{ priority: string; content: string; reason: string }>;
+
+  /* ── coach guidance + business confirmation ── */
+  coachGuidance: CoachGuidanceItem[];
+  businessConfirmation: AttachmentAnalysisReport["businessConfirmation"] | null;
 
   /* ── risk / suggestions ── */
   materialRisks: string[];
@@ -194,6 +199,7 @@ export type AnalysisDrawerContentProps = {
   sendInteractionInstruction: (instruction: string) => Promise<void> | void;
 
   /* ── callbacks: interaction panel ── */
+  showInteractionEntry: boolean;
   openInteractionPanel: () => void;
 
   /* ── callbacks: ops templates ── */
@@ -230,6 +236,8 @@ export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: 
     matrixSummary,
     onlyHighValue,
     visiblePrioritizedFindings,
+    coachGuidance,
+    businessConfirmation,
     materialRisks,
     materialSuggestions,
     showAdvancedReportSections,
@@ -291,6 +299,7 @@ export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: 
     handleArtifactDrawerResizePointerDown,
     handleUndoHtmlPreview,
     sendInteractionInstruction,
+    showInteractionEntry,
     openInteractionPanel,
     reloadOpsTemplates,
     buildOpsCommandTemplates,
@@ -316,9 +325,11 @@ export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: 
               <h2>{selectedDrawerArtifact ? `${selectedDrawerArtifact.title}` : "分析报告抽屉"}</h2>
             </div>
             <div className="chat-tools">
-              <button type="button" className="visual-align-hidden-trigger" onClick={openInteractionPanel}>
-                交互界面
-              </button>
+              {showInteractionEntry ? (
+                <button type="button" className="visual-align-hidden-trigger" onClick={openInteractionPanel}>
+                  交互界面
+                </button>
+              ) : null}
               <button type="button" className="icon-btn" aria-label="关闭报告抽屉" onClick={onCloseAnalysisPanel}>
                 ✕
               </button>
@@ -351,6 +362,7 @@ export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: 
                   generatedTestMatrix={generatedTestMatrix}
                   currentIteration={currentIteration}
                   imagePrototypePreviews={imagePrototypePreviews}
+                  coachGuidance={coachGuidance}
                   artifactHtmlPreviewFrameRef={artifactHtmlPreviewFrameRef}
                   handleSaveArtifactEditor={handleSaveArtifactEditor}
                   handleSubmitArtifactForReview={handleSubmitArtifactForReview}
@@ -379,7 +391,7 @@ export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: 
                 <section className="analysis-fallback-section">
                   <h3>对话推进模式</h3>
                   <div className="info-box">
-                    <p>当前暂无结构化分析报告。请直接在聊天窗口继续描述目标、边界或阻断点，OpenClaw 会按对话上下文逐轮推进。</p>
+                    <p>当前暂无结构化分析报告。请直接在聊天窗口继续描述目标、边界或阻断点，业务助手会按对话上下文逐轮推进。</p>
                     <p className="hint">建议先上传最新需求/原型/代码变更材料，再继续对话以获得更准确推进结果。</p>
                   </div>
                 </section>
@@ -394,6 +406,8 @@ export const AnalysisDrawerContent = memo(function AnalysisDrawerContent(props: 
                   confirmedUnderstanding={confirmedUnderstanding}
                   onlyHighValue={onlyHighValue}
                   visiblePrioritizedFindings={visiblePrioritizedFindings}
+                  businessConfirmation={businessConfirmation}
+                  coachGuidance={coachGuidance}
                   materialRisks={materialRisks}
                   materialSuggestions={materialSuggestions}
                   showAdvancedReportSections={showAdvancedReportSections}

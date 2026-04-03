@@ -140,7 +140,7 @@ export function generateIterationTestArtifactsOp(
   } else {
     skippedFiles.push(...generatedFiles);
   }
-  writeAuditLog(repo, "iteration_test_artifacts_generated", `iteration:${iterationId}`, `files=${generatedFiles.length};dryRun=${dryRun ? "yes" : "no"}`);
+  writeAuditLog(repo, "testing.artifacts-generated", `iteration:${iterationId}`, `files=${generatedFiles.length};dryRun=${dryRun ? "yes" : "no"}`);
   return {
     iterationId,
     dryRun,

@@ -1099,10 +1099,10 @@ const data = {
     {
       id: 1,
       projectId: 1,
-      openclawProfile: "buildwise-local",
+      assistantProfile: "buildwise-local",
       agentId: "main",
       workspacePath: resolve(dirname(new URL(import.meta.url).pathname), ".."),
-      runtimeMode: "openclaw-native",
+      runtimeMode: "native",
       locked: false,
       createdBy: "system",
       createdAt: time.t0,

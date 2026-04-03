@@ -45,7 +45,7 @@ test("reset-business-environment restores workspace runtime files to initial sta
   const runtimeData = JSON.parse(readFileSync(resolve(backendDir, "data.runtime.json"), "utf-8")) as Record<string, any>;
   const seedData = JSON.parse(readFileSync(resolve(backendDir, "data.json"), "utf-8")) as Record<string, any>;
   const modelingData = JSON.parse(readFileSync(resolve(backendDir, "continuous-modeling.runtime.json"), "utf-8")) as Record<string, any>;
-  const openclawData = JSON.parse(readFileSync(resolve(backendDir, "openclaw-global.runtime.json"), "utf-8")) as Record<string, any>;
+  const assistantData = JSON.parse(readFileSync(resolve(backendDir, "global-assistant.runtime.json"), "utf-8")) as Record<string, any>;
 
   assert.equal(runtimeData.projects.length, 1);
   assert.equal(runtimeData.projects[0]?.name, "构想智造平台");
@@ -55,7 +55,7 @@ test("reset-business-environment restores workspace runtime files to initial sta
   assert.deepEqual(runtimeData.messages, []);
   assert.deepEqual(seedData.iterations, []);
   assert.deepEqual(modelingData.snapshots, []);
-  assert.deepEqual(openclawData.conversations, []);
+  assert.deepEqual(assistantData.conversations, []);
   assert.equal(existsSync(artifactsDir), false);
   assert.equal(existsSync(memoryDir), false);
 });

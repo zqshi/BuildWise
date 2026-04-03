@@ -9,16 +9,12 @@
  */
 import type { IterationStatus } from "./iterationTypes";
 
-export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
-export type AgentRole =
+type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
+type AgentRole =
   | "orchestrator"
-  | "project-manager"
-  | "context-integrator"
-  | "prototype-analyst"
   | "ux-designer"
   | "solution-architect"
   | "requirements-analyst"
-  | "task-planner"
   | "frontend-developer"
   | "backend-developer"
   | "delivery-engineer"
@@ -27,7 +23,7 @@ export type AgentRole =
   | "boundary-guardian"
   | "release-ops-advisor";
 
-export type IterationAgentPrompt = {
+type IterationAgentPrompt = {
   agentId: string;
   role: AgentRole;
   scope: AgentScope;
@@ -37,16 +33,14 @@ export type IterationAgentPrompt = {
   expectedOutput: string;
 };
 
-export type IterationAgentPlan = {
-  strategy: "single-agent";
+type IterationAgentPlan = {
   scope: AgentScope;
   objective: string;
   recommendedTransition: IterationStatus | null;
-  executionLoop: string[];
   prompts: IterationAgentPrompt[];
 };
 
-export type IterationAgentOutput = {
+type IterationAgentOutput = {
   agentId: string;
   role: IterationAgentPrompt["role"];
   status: "success" | "error";
@@ -55,13 +49,13 @@ export type IterationAgentOutput = {
   error?: string;
 };
 
-export type VisionPayload = {
+type VisionPayload = {
   path: string;
   mimeType: string;
   dataUrl: string;
 };
 
-export type IterationLifecycleAction = {
+type IterationLifecycleAction = {
   attempted: boolean;
   applied: boolean;
   fromStatus: IterationStatus;
@@ -327,7 +321,7 @@ export type AttachmentUploadInput = {
   autoTransition?: boolean;
 };
 
-export type AttachmentAnalysisJobStatus = "queued" | "running" | "succeeded" | "partial_succeeded" | "failed";
+type AttachmentAnalysisJobStatus = "queued" | "running" | "succeeded" | "partial_succeeded" | "failed";
 
 export type AttachmentAnalysisJob = {
   jobId: string;
@@ -373,62 +367,6 @@ export type AttachmentUploadManifestFile = {
   chunkCount: number;
 };
 
-export type AttachmentUploadChunkMeta = {
-  chunkIndex: number;
-  chunkSize: number;
-  chunkSha256: string;
-  storagePath: string;
-  receivedAt: string;
-};
-
-export type AttachmentUploadFileRecord = {
-  fileId: string;
-  uploadId: string;
-  path: string;
-  fileName: string;
-  mimeType: string;
-  size: number;
-  sha256: string;
-  chunkCount: number;
-  uploadedChunks: number;
-  status: "uploading" | "uploaded" | "failed";
-  chunkBitmap: boolean[];
-  chunks: AttachmentUploadChunkMeta[];
-  createdAt: string;
-  updatedAt: string;
-  errorCode: string;
-  errorMessage: string;
-};
-
-export type AttachmentUploadRecord = {
-  uploadId: string;
-  iterationId: number;
-  sourceType: "single-file" | "folder";
-  folderName: string;
-  idempotencyKey: string;
-  status: "uploading" | "uploaded" | "failed";
-  totalFiles: number;
-  totalBytes: number;
-  files: AttachmentUploadFileRecord[];
-  createdAt: string;
-  updatedAt: string;
-  errorCode: string;
-  errorMessage: string;
-};
-
-export type AttachmentIngestJob = {
-  ingestJobId: string;
-  uploadId: string;
-  status: "queued" | "running" | "completed" | "failed" | "partial";
-  totalFiles: number;
-  processedFiles: number;
-  createdAt: string;
-  startedAt: string;
-  finishedAt: string;
-  heartbeatAt: string;
-  errorCode: string;
-  errorMessage: string;
-};
 
 // ─── Frontend-only UI types (not shared with backend) ───────────────
 
@@ -450,18 +388,7 @@ export type AttachmentUploadCompleteResponse = {
   ingestJobId: string;
 };
 
-export type AttachmentReportSectionStatus = "ready" | "failed" | "empty";
-
-export type AttachmentReportSection = {
-  sectionId: string;
-  reportId: string;
-  sectionKey: "overview" | "projectDetection" | "findings" | "risks" | "traceability" | "appendix";
-  sectionOrder: number;
-  status: AttachmentReportSectionStatus;
-  itemCount: number;
-  updatedAt: string;
-  content: Record<string, unknown>;
-};
+type AttachmentReportSectionStatus = "ready" | "failed" | "empty";
 
 export type AttachmentReportIndex = {
   reportId: string;
@@ -525,7 +452,7 @@ export type IterationCoachChatResponse = {
   intent: "collect-attachment" | "clarify" | "confirm-boundary" | "plan" | "qa" | "release" | "full-cycle" | "general";
   reply: string;
   execution?: {
-    action: "none" | "rewrite" | "confirm-accurate" | "confirm-inaccurate" | "enter-clarify-mode" | "run-full-cycle";
+    action: "none" | "rewrite" | "confirm-accurate" | "confirm-inaccurate" | "enter-clarify-mode" | "run-full-cycle" | "capture-business-rule";
     instruction?: string;
     apply?: boolean;
   };
@@ -543,9 +470,9 @@ export type IterationCoachChatResponse = {
     continuations?: number;
     contentComplete?: boolean;
   };
+  declaredArtifacts?: string[];
 };
-
-export type IterationVisualEditAction = {
+type IterationVisualEditAction = {
   op: "set-text" | "set-style" | "toggle-visibility" | "resize";
   property?: string;
   value: string;
@@ -634,9 +561,10 @@ export type IterationFullCycleRunResponse = {
     blockers?: string[];
     data?: Record<string, unknown>;
   } | null;
+  checkpoint?: import("../workspace/iterationTypes").FullCycleCheckpoint;
 };
 
-export type IterationDeliveryPackageResult = {
+type IterationDeliveryPackageResult = {
   iterationId: number;
   dryRun: boolean;
   summary: string;

@@ -10,9 +10,43 @@ import {
   resolveModel,
   type LlmEnv
 } from "../../application/workspace/agentRunnerConfig";
-import { OpenClawAgentRunner } from "../openclaw/openclawAgentRunner";
-
 const log = createLogger("llm-run");
+
+// ── In-memory LLM call stats ring buffer ──
+
+type LlmCallRecord = {
+  ts: string;
+  model: string;
+  role: string;
+  agentId: string;
+  latencyMs: number;
+  status: "ok" | "error" | "retry";
+  error?: string;
+  truncated?: boolean;
+};
+
+const LLM_STATS_MAX = 200;
+const llmCallRecords: LlmCallRecord[] = [];
+
+function recordLlmCall(record: LlmCallRecord) {
+  llmCallRecords.push(record);
+  if (llmCallRecords.length > LLM_STATS_MAX) {
+    llmCallRecords.splice(0, llmCallRecords.length - LLM_STATS_MAX);
+  }
+}
+
+export function getLlmCallStats(limit = 50): {
+  records: LlmCallRecord[];
+  summary: { total: number; errors: number; retries: number; avgLatencyMs: number };
+} {
+  const records = llmCallRecords.slice(-limit);
+  const total = llmCallRecords.length;
+  const errors = llmCallRecords.filter((r) => r.status === "error").length;
+  const retries = llmCallRecords.filter((r) => r.status === "retry").length;
+  const latencies = llmCallRecords.filter((r) => r.latencyMs > 0).map((r) => r.latencyMs);
+  const avgLatencyMs = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
+  return { records, summary: { total, errors, retries, avgLatencyMs } };
+}
 
 /**
  * Retry a fetch-based LLM call once on transient failures (5xx, network error, timeout).
@@ -32,6 +66,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
       msg.includes("network");
     if (!isTransient) throw error;
     log.warn("llm-retry", { label, error: msg });
+    recordLlmCall({ ts: new Date().toISOString(), model: "", role: label, agentId: "", latencyMs: 0, status: "retry", error: msg });
     await new Promise((resolve) => setTimeout(resolve, 1500));
     return fn();
   }
@@ -91,7 +126,6 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const startedAt = Date.now();
-    const traceEnabled = ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.LLM_TRACE || "").trim() === "1";
     try {
       const imageDataUrls = Array.isArray(options?.imageDataUrls)
         ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
@@ -107,9 +141,7 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
               }))
             ];
       const modelToUse = options?.modelOverride?.trim() || this.model;
-      if (traceEnabled) {
-        log.info("start", { model: modelToUse, role: prompt.role, agentId: prompt.agentId });
-      }
+      log.info("start", { model: modelToUse, role: prompt.role, agentId: prompt.agentId });
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -141,9 +173,9 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
         throw new Error("llm_empty_content");
       }
       const finishReason = payload.choices?.[0]?.finish_reason || undefined;
-      if (traceEnabled) {
-        log.info("done", { model: payload.model || modelToUse, role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt });
-      }
+      const latencyMs = Date.now() - startedAt;
+      log.info("done", { model: payload.model || modelToUse, role: prompt.role, agentId: prompt.agentId, latencyMs });
+      recordLlmCall({ ts: new Date().toISOString(), model: payload.model || modelToUse, role: prompt.role, agentId: prompt.agentId, latencyMs, status: "ok", truncated: finishReason === "length" });
       return {
         content,
         model: payload.model || modelToUse,
@@ -151,10 +183,10 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
         truncated: finishReason === "length"
       };
     } catch (error) {
-      if (traceEnabled) {
-        const message = resolveErrorMessage(error);
-        log.info("fail", { role: prompt.role, agentId: prompt.agentId, latencyMs: Date.now() - startedAt, error: message });
-      }
+      const message = resolveErrorMessage(error);
+      const latencyMs = Date.now() - startedAt;
+      log.info("fail", { role: prompt.role, agentId: prompt.agentId, latencyMs, error: message });
+      recordLlmCall({ ts: new Date().toISOString(), model: options?.modelOverride || this.model, role: prompt.role, agentId: prompt.agentId, latencyMs, status: "error", error: message });
       throw error;
     } finally {
       clearTimeout(timer);
@@ -299,20 +331,6 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
 export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
   const provider = resolveLlmProvider(env);
 
-  if (provider === "openclaw") {
-    const gatewayUrl = (env.OPENCLAW_GATEWAY_URL || "http://127.0.0.1:18789").trim().replace(/\/+$/, "");
-    const gatewayToken = (env.OPENCLAW_GATEWAY_TOKEN || "").trim();
-    const agentId = (env.OPENCLAW_AGENT_ID || "main").trim();
-    const timeoutMsRaw = Number(env.LLM_REQUEST_TIMEOUT_MS);
-    const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 120000;
-    return new OpenClawAgentRunner({
-      baseUrl: gatewayUrl,
-      token: gatewayToken,
-      defaultAgentId: agentId,
-      timeoutMs
-    });
-  }
-
   const baseUrl = resolveBaseUrl(env);
   if (!baseUrl) {
     return null;
@@ -333,27 +351,9 @@ export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
   };
 }
 
-export async function probeLlmRuntimeStatus(env: LlmEnv, timeoutMs = 3000): Promise<LlmRuntimeStatus> {
+export async function probeLlmRuntimeStatus(env: LlmEnv, timeoutMs = 10000): Promise<LlmRuntimeStatus> {
   const provider = resolveLlmProvider(env);
   const checkedAt = new Date().toISOString();
-
-  if (provider === "openclaw") {
-    const gatewayUrl = (env.OPENCLAW_GATEWAY_URL || "http://127.0.0.1:18789").trim().replace(/\/+$/, "");
-    const runner = new OpenClawAgentRunner({
-      baseUrl: gatewayUrl,
-      token: (env.OPENCLAW_GATEWAY_TOKEN || "").trim(),
-      defaultAgentId: (env.OPENCLAW_AGENT_ID || "main").trim()
-    });
-    const probeResult = await runner.probe();
-    return {
-      configured: true,
-      reachable: probeResult.reachable,
-      baseUrl: gatewayUrl,
-      model: "openclaw",
-      checkedAt,
-      error: probeResult.error
-    };
-  }
 
   const baseUrl = resolveBaseUrl(env);
   const model = resolveModel(env);

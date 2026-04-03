@@ -80,6 +80,35 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     };
   });
 
+  app.get("/iterations/:id/uploads/:uploadId/status", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, uploadId: { type: "string" as const, minLength: 1 } }, required: ["id" as const, "uploadId" as const] } } }, async (request, reply) => {
+    const params = request.params as { id: string; uploadId: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
+    const upload = service.getAttachmentUpload(iterationId, params.uploadId);
+    if (!upload) {
+      reply.code(404);
+      return { message: "upload not found" };
+    }
+    return {
+      uploadId: upload.uploadId,
+      status: upload.status,
+      files: upload.files.map((item) => ({
+        fileId: item.fileId,
+        fileName: item.fileName,
+        path: item.path,
+        chunkCount: item.chunkCount,
+        missingChunkIndexes: item.chunkBitmap.map((ok, idx) => (!ok ? idx : -1)).filter((idx) => idx >= 0)
+      }))
+    };
+  });
+
   app.put("/iterations/:id/uploads/:uploadId/files/:fileId/chunks/:chunkIndex", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, uploadId: { type: "string" as const, minLength: 1 }, fileId: { type: "string" as const, minLength: 1 }, chunkIndex: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const, "uploadId" as const, "fileId" as const, "chunkIndex" as const] }, body: { type: "object" as const, properties: { dataBase64: { type: "string" as const } }, required: ["dataBase64" as const], additionalProperties: false } } }, async (request, reply) => {
     const role = currentRole(request.authRole);
     if (role === "viewer") {

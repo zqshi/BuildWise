@@ -36,7 +36,6 @@ import { AnalysisService } from "./analysisService";
 import { UploadService } from "./uploadService";
 import { CoachService } from "./coachService";
 import { QualityService } from "./qualityService";
-import { OpenclawService } from "./openclawService";
 import { FullCycleService } from "./fullCycleService";
 import {
   searchProjectWorkspaceKnowledge,
@@ -44,9 +43,6 @@ import {
   syncProjectWorkspaceKnowledge
 } from "./projectWorkspaceKnowledgeService";
 import { getIterationAccessContext } from "./workspaceTenantAccess";
-
-// backward-compat re-export
-export { DuplicateAttachmentUploadError } from "./workspaceErrors";
 
 export class WorkspaceService {
   private readonly repo: WorkspaceRepository;
@@ -59,7 +55,6 @@ export class WorkspaceService {
   readonly upload: UploadService;
   readonly coach: CoachService;
   readonly quality: QualityService;
-  readonly openclaw: OpenclawService;
   readonly fullCycle: FullCycleService;
 
   constructor(
@@ -81,9 +76,8 @@ export class WorkspaceService {
       agentRunner
     );
     this.upload = new UploadService(repo, this.analysis, agentRunner);
-    this.coach = new CoachService(repo, agentRunner);
+    this.coach = new CoachService(repo, agentRunner, modelingRepo);
     this.quality = new QualityService(repo, agentRunner, modelingRepo);
-    this.openclaw = new OpenclawService(repo, agentRunner);
     this.fullCycle = new FullCycleService(repo, {
       analyzeAttachment: (id, input) => this.analysis.analyzeAttachment(id, input),
       confirmIterationAnalysis: (id, input) => this.changeControl.confirmIterationAnalysis(id, input),
@@ -149,10 +143,10 @@ export class WorkspaceService {
   }
   upsertProjectWorkspaceBinding(input: {
     projectId: number;
-    openclawProfile: string;
+    assistantProfile: string;
     agentId: string;
     workspacePath: string;
-    runtimeMode: "openclaw-native" | "bridge";
+    runtimeMode: "native" | "bridge";
     locked: boolean;
     createdBy: string;
   }) {
@@ -270,6 +264,7 @@ export class WorkspaceService {
   // ── Iteration ──
   listIterations(projectId: number) { return this.iteration.listIterations(projectId); }
   createIteration(projectId: number, payload: CreateIterationInput) { return this.iteration.createIteration(projectId, payload); }
+  deleteIteration(iterationId: number) { return this.iteration.deleteIteration(iterationId); }
   listMessages(iterationId: number, opts?: { limit?: number; offset?: number }) { return this.iteration.listMessages(iterationId, opts); }
   createMessage(iterationId: number, role: "system" | "assistant" | "user", content: string) {
     return this.iteration.createMessage(iterationId, role, content);
@@ -414,6 +409,25 @@ export class WorkspaceService {
     return this.coach.coachIterationConversation(iterationId, message);
   }
 
+  detectIterationChangeImpact(iterationId: number, userMessage: string) {
+    const iteration = this.repo.findIteration(iterationId);
+    if (!iteration) return null;
+
+    const project = this.repo.findProject(iteration.projectId);
+    const snapshot = null; // 简化实现，不依赖 modelingRepo
+
+    const { detectChangeImpactFromMessage } = require("./changeImpactDetector");
+    return detectChangeImpactFromMessage(
+      userMessage,
+      iteration,
+      snapshot,
+      project?.knowledgeBase ?? {
+        ontologyTerms: [], stableRules: [], componentInventory: [], codeMap: [],
+        decisionLog: [], knownRisks: [], changePatterns: [], updatedAt: ''
+      }
+    );
+  }
+
   // ── Quality / Code ──
   executeVisualEditInstruction(
     iterationId: number,
@@ -458,10 +472,6 @@ export class WorkspaceService {
   ): Promise<IterationDeliveryPackageResult | null> {
     return this.quality.generateIterationDeliveryPackage(iterationId, input);
   }
-
-  // ── Openclaw ──
-  openclawDirectChat(projectId: number, message: string) { return this.openclaw.openclawDirectChat(projectId, message); }
-  probeOpenclawIntegration() { return this.openclaw.probeOpenclawIntegration(); }
 
   // ── Full Cycle ──
   async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput): Promise<IterationFullCycleRunResponse | null> {

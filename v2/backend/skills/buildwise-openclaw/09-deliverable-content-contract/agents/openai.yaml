@@ -1,6 +1,0 @@
-interface:
-  display_name: "Deliverable Content Contract"
-  short_description: "Enforce actionable content in stage deliverables"
-  default_prompt: "Use $09-deliverable-content-contract to verify deliverable completeness and reject placeholder content."
-policy:
-  allow_implicit_invocation: true

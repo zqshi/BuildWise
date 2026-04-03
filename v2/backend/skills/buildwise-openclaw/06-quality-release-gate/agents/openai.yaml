@@ -1,6 +1,0 @@
-interface:
-  display_name: "Quality Release Gate"
-  short_description: "Decide go, caution, or block release status"
-  default_prompt: "Use $06-quality-release-gate to produce release decision and rollback guidance."
-policy:
-  allow_implicit_invocation: true

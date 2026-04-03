@@ -126,7 +126,7 @@ export function buildDailySummaryDoc(project: Project, iterations: Iteration[], 
     `- 今日发布结论：${releaseDecisions}`,
     "",
     "## 汇总说明",
-    "该文档由 BuildWise 后端定时生成，用于为 OpenClaw 项目 workspace 提供稳定的每日记忆基线。",
+    "该文档由 BuildWise 后端定时生成，用于为项目 workspace 提供稳定的每日记忆基线。",
   ].join("\n");
 }
 

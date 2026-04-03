@@ -232,3 +232,11 @@
 .chat-send-status.status-failed {
   color:var(--text-danger);
 }
+.chat-send-status.status-processing {
+  color:var(--brand-600);
+  animation:pulse-processing 1.5s ease-in-out infinite;
+}
+@keyframes pulse-processing {
+  0%,100% { opacity:1 }
+  50% { opacity:0.5 }
+}

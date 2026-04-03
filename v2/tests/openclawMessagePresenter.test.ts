@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { presentOpenclawMessage } from "../src/pages/layout/openclawMessagePresenter.ts";
+import { presentAssistantMessage } from "../src/pages/layout/assistantMessagePresenter.ts";
 
-test("presentOpenclawMessage keeps plain text response unchanged", () => {
-  const presented = presentOpenclawMessage("同步重试成功，继续推进。");
+test("presentAssistantMessage keeps plain text response unchanged", () => {
+  const presented = presentAssistantMessage("同步重试成功，继续推进。");
   assert.equal(presented.kind, "plain");
   if (presented.kind === "plain") {
     assert.equal(presented.text, "同步重试成功，继续推进。");
   }
 });
 
-test("presentOpenclawMessage converts skill-contract json into structured message", () => {
+test("presentAssistantMessage converts skill-contract json into structured message", () => {
   const raw = JSON.stringify({
     status: "need_user_input",
     summary: "检测到同步异常，建议先修权限再重试。",
@@ -19,7 +19,7 @@ test("presentOpenclawMessage converts skill-contract json into structured messag
     risks: ["若继续失败，发布将被阻断。"],
     evidence: ["sync_status=permission_denied"]
   });
-  const presented = presentOpenclawMessage(raw);
+  const presented = presentAssistantMessage(raw);
   assert.equal(presented.kind, "structured");
   if (presented.kind === "structured") {
     assert.equal(presented.data.status, "need_user_input");
@@ -32,14 +32,14 @@ test("presentOpenclawMessage converts skill-contract json into structured messag
   }
 });
 
-test("presentOpenclawMessage parses flow route in main-window orchestration response", () => {
+test("presentAssistantMessage parses flow route in main-window orchestration response", () => {
   const raw = JSON.stringify({
     status: "success",
     summary: "已完成流程调整建议。",
     next_actions: ["更新全局编排规则", "同步项目策略模板"],
     flow_route: "skill-creator"
   });
-  const presented = presentOpenclawMessage(raw);
+  const presented = presentAssistantMessage(raw);
   assert.equal(presented.kind, "structured");
   if (presented.kind === "structured") {
     assert.equal(presented.data.flowRoute, "skill-creator");

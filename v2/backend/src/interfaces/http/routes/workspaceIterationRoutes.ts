@@ -5,6 +5,7 @@ import { registerWorkspaceIterationCoreRoutes } from "./workspaceIterationCoreRo
 import { registerWorkspaceIterationUploadRoutes } from "./workspaceIterationUploadRoutes";
 import { registerWorkspaceIterationAnalysisJobRoutes } from "./workspaceIterationAnalysisJobRoutes";
 import { registerWorkspaceIterationStateRoutes } from "./workspaceIterationStateRoutes";
+import { registerWorkspaceIterationImpactRoutes } from "./workspaceIterationImpactRoutes";
 
 export function registerWorkspaceIterationRoutes(app: FastifyInstance, service: WorkspaceService) {
   registerWorkspaceIterationCoreRoutes(app, service);
@@ -12,4 +13,5 @@ export function registerWorkspaceIterationRoutes(app: FastifyInstance, service: 
   registerWorkspaceIterationAnalysisJobRoutes(app, service);
   registerWorkspaceIterationStateRoutes(app, service);
   registerWorkspaceIterationChangeControlRoutes(app, service);
+  registerWorkspaceIterationImpactRoutes(app, service);
 }

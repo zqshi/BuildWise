@@ -1,7 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { buildOpenclawSkillsPackContext } from "./workspaceOpenclawSkillsBridge";
-// buildOpenclawSkillsPackContext now delegates to SkillRegistry internally
 
 type RawCoachInteractionContract = {
   version?: unknown;
@@ -20,7 +18,7 @@ type RawCoachInteractionContract = {
   expectedArtifacts?: unknown;
 };
 
-export type CoachInteractionContract = {
+type CoachInteractionContract = {
   version: string;
   principles: string[];
   softFlow: {
@@ -40,7 +38,7 @@ export type CoachInteractionContract = {
 const fallbackContract: CoachInteractionContract = {
   version: "fallback-1.0.0",
   principles: [
-    "Platform provides infrastructure; OpenClaw decides interaction progression.",
+    "Platform provides infrastructure; BuildWise decides interaction progression.",
     "Prefer natural-language negotiation over fixed questionnaires."
   ],
   softFlow: {
@@ -148,11 +146,6 @@ export function buildCoachContractContext(isFirstIteration: boolean) {
   }
   if (contract.expectedArtifacts.length > 0) {
     sections.push(`本阶段预期交付物：${contract.expectedArtifacts.join("、")}`);
-  }
-
-  const skillsContext = buildOpenclawSkillsPackContext();
-  if (skillsContext) {
-    sections.push(skillsContext);
   }
 
   return sections.join("\n\n");

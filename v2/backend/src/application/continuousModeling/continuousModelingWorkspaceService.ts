@@ -1,9 +1,132 @@
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
-import type { IterationModelingInput } from "../../domain/continuousModeling/types";
+import type { IterationModelingInput, ModelSnapshot } from "../../domain/continuousModeling/types";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
+import type { ProjectKnowledgeBase } from "../../domain/workspace/projectTypes";
 import type { ContinuousModelingService } from "./continuousModelingService";
 import { getIterationAccessContext, getProjectAccessContext } from "../workspace/workspaceTenantAccess";
 import { buildProjectModelView } from "./continuousModelingProjectView";
+
+// ---------------------------------------------------------------------------
+// Diff helpers
+// ---------------------------------------------------------------------------
+
+export type SnapshotDiffSummary = {
+  previousSnapshotId: string | null;
+  addedTerms: string[];
+  removedTerms: string[];
+  addedEntities: string[];
+  removedEntities: string[];
+  addedRules: string[];
+  removedRules: string[];
+  summary: string;
+};
+
+function diffSnapshots(
+  candidate: ModelSnapshot,
+  baseline: ModelSnapshot | null
+): SnapshotDiffSummary {
+  const prevTerms = new Set((baseline?.ontologyTerms ?? []).map((t) => t.canonicalTerm));
+  const curTerms = new Set(candidate.ontologyTerms.map((t) => t.canonicalTerm));
+  const addedTerms = candidate.ontologyTerms
+    .filter((t) => !prevTerms.has(t.canonicalTerm))
+    .map((t) => t.canonicalTerm);
+  const removedTerms = (baseline?.ontologyTerms ?? [])
+    .filter((t) => !curTerms.has(t.canonicalTerm))
+    .map((t) => t.canonicalTerm);
+
+  const prevEntities = new Set((baseline?.entities ?? []).map((e) => e.name));
+  const curEntities = new Set(candidate.entities.map((e) => e.name));
+  const addedEntities = candidate.entities
+    .filter((e) => !prevEntities.has(e.name))
+    .map((e) => e.name);
+  const removedEntities = (baseline?.entities ?? [])
+    .filter((e) => !curEntities.has(e.name))
+    .map((e) => e.name);
+
+  const prevRules = new Set((baseline?.rules ?? []).map((r) => r.statement));
+  const curRules = new Set(candidate.rules.map((r) => r.statement));
+  const addedRules = candidate.rules
+    .filter((r) => !prevRules.has(r.statement))
+    .map((r) => r.statement);
+  const removedRules = (baseline?.rules ?? [])
+    .filter((r) => !curRules.has(r.statement))
+    .map((r) => r.statement);
+
+  const parts: string[] = [];
+  if (addedTerms.length > 0) parts.push(`新增术语 ${addedTerms.length} 个`);
+  if (removedTerms.length > 0) parts.push(`移除术语 ${removedTerms.length} 个`);
+  if (addedEntities.length > 0) parts.push(`新增实体 ${addedEntities.length} 个`);
+  if (removedEntities.length > 0) parts.push(`移除实体 ${removedEntities.length} 个`);
+  if (addedRules.length > 0) parts.push(`新增规则 ${addedRules.length} 条`);
+  if (removedRules.length > 0) parts.push(`移除规则 ${removedRules.length} 条`);
+
+  return {
+    previousSnapshotId: baseline?.id ?? null,
+    addedTerms,
+    removedTerms,
+    addedEntities,
+    removedEntities,
+    addedRules,
+    removedRules,
+    summary: parts.length > 0 ? parts.join("，") : "无变更",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// KB writeback from snapshot
+// ---------------------------------------------------------------------------
+
+function snapshotToKbPatch(
+  snapshot: ModelSnapshot,
+  existingKb: ProjectKnowledgeBase
+): ProjectKnowledgeBase {
+  const termMap = new Map(existingKb.ontologyTerms.map((t) => [t.term, t]));
+  for (const st of snapshot.ontologyTerms) {
+    if (!termMap.has(st.canonicalTerm)) {
+      termMap.set(st.canonicalTerm, {
+        term: st.canonicalTerm,
+        aliases: [...st.aliases, ...st.technicalAliases],
+        definition: st.definition,
+        evidence: st.evidence.join("; "),
+      });
+    }
+  }
+
+  const ruleMap = new Map(existingKb.stableRules.map((r) => [r.rule, r]));
+  for (const sr of snapshot.rules) {
+    if (!ruleMap.has(sr.statement)) {
+      ruleMap.set(sr.statement, {
+        rule: sr.statement,
+        rationale: `from model snapshot ${snapshot.id}`,
+        source: "continuous-modeling",
+      });
+    }
+  }
+
+  const compMap = new Map(existingKb.componentInventory.map((c) => [c.component, c]));
+  for (const se of snapshot.entities) {
+    if (!compMap.has(se.name)) {
+      compMap.set(se.name, {
+        component: se.name,
+        responsibility: se.businessName,
+        relatedRequirements: [],
+        relatedCodePaths: [],
+      });
+    }
+  }
+
+  return {
+    ...existingKb,
+    ontologyTerms: Array.from(termMap.values()),
+    stableRules: Array.from(ruleMap.values()),
+    componentInventory: Array.from(compMap.values()),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
 
 export class ContinuousModelingWorkspaceService {
   constructor(
@@ -37,7 +160,13 @@ export class ContinuousModelingWorkspaceService {
     if (!planned.ok) {
       return planned;
     }
-    return { ok: true as const, data: this.modelingService.saveCandidate(planned.data) };
+    const saved = this.modelingService.saveCandidate(planned.data);
+
+    // Auto-generate diff summary against previous published snapshot
+    const baseline = this.modelingRepo.getLatestPublishedSnapshot(input.projectId);
+    const diff = diffSnapshots(planned.data.candidateSnapshot, baseline);
+
+    return { ok: true as const, data: saved, diff };
   }
 
   publishSnapshot(snapshotId: string, projectId: number) {
@@ -45,7 +174,28 @@ export class ContinuousModelingWorkspaceService {
     if (!project) {
       return { ok: false as const, reason: "project_not_found" };
     }
-    return this.modelingService.publishSnapshot(snapshotId, projectId);
+    const result = this.modelingService.publishSnapshot(snapshotId, projectId);
+    if (!result.ok) return result;
+
+    // Bi-directional KB sync: write snapshot data back to project KB
+    const snapshots = this.modelingRepo.listSnapshots(projectId);
+    const published = snapshots.find((s) => s.id === snapshotId);
+    if (published) {
+      const existingKb = project.knowledgeBase ?? {
+        ontologyTerms: [],
+        stableRules: [],
+        componentInventory: [],
+        codeMap: [],
+        decisionLog: [],
+        knownRisks: [],
+        changePatterns: [],
+        updatedAt: "",
+      };
+      const patchedKb = snapshotToKbPatch(published, existingKb);
+      this.workspaceRepo.updateProject({ ...project, knowledgeBase: patchedKb });
+    }
+
+    return result;
   }
 
   getProjectModelView(projectId: number, iterationId?: number) {

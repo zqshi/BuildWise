@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "principles": [
-    "Platform provides infrastructure; OpenClaw decides interaction progression.",
+    "Platform provides infrastructure; BuildWise decides interaction progression.",
     "Prefer natural-language negotiation over fixed questionnaires.",
     "One decisive step per round; avoid overloading user with parallel asks."
   ],

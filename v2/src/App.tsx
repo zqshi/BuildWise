@@ -1,6 +1,6 @@
 import { Suspense, lazy, useState } from "react";
 import { useAppController } from "./app/useAppController";
-import { resolveSidebarViewState } from "./app/openclawNavigation";
+import { resolveSidebarViewState } from "./app/assistantNavigation";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary";
 import { AppControllerContext } from "./contexts/AppControllerContext";
 import { NavigationProvider } from "./contexts/NavigationContext";
@@ -10,7 +10,7 @@ import { ChatProvider } from "./contexts/ChatContext";
 import { AnalysisProvider } from "./contexts/AnalysisContext";
 import { PlatformProvider } from "./contexts/PlatformContext";
 import { DockSidebar } from "./pages/layout/DockSidebar";
-import { OpenclawWorkspacePanel } from "./pages/layout/OpenclawWorkspacePanel";
+import { GlobalAssistantPanel } from "./pages/layout/GlobalAssistantPanel";
 import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
 import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
@@ -51,19 +51,19 @@ function AppInner() {
   const controller = useAppController();
   const backendOffline = controller.status?.status === "offline";
   const isMarketingRoute = controller.route === "marketing" || (!controller.isAuthenticated && controller.route !== "login");
-  const [showOpenclawWorkspace, setShowOpenclawWorkspace] = useState(false);
+  const [showAssistantWorkspace, setShowAssistantWorkspace] = useState(false);
   const openViewFromSidebar = (nextView: "dashboard" | "projects" | "permissions") => {
     const next = resolveSidebarViewState(nextView);
-    setShowOpenclawWorkspace(next.showOpenclawWorkspace);
+    setShowAssistantWorkspace(next.showAssistantWorkspace);
     controller.setActiveView(next.activeView);
   };
-  const jumpToGovernance = (entry: "policy" | "openclaw") => {
+  const jumpToGovernance = (entry: "policy" | "assistant") => {
     controller.setShowUserMenu(false);
     if (entry === "policy") {
       openViewFromSidebar("permissions");
       return;
     }
-    setShowOpenclawWorkspace(true);
+    setShowAssistantWorkspace(true);
   };
   if (isMarketingRoute) {
     return (
@@ -75,11 +75,7 @@ function AppInner() {
           window.location.hash = controller.isAuthenticated ? "/dashboard" : "/login";
         }}
         onSecondaryAction={() => {
-          if (controller.isAuthenticated) {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-            return;
-          }
-          window.location.hash = "/login";
+          window.location.hash = controller.isAuthenticated ? "/dashboard" : "/login";
         }}
       />
       </Suspense>
@@ -134,7 +130,7 @@ function AppInner() {
         onShowProjects={() => openViewFromSidebar("projects")}
         onToggleUserMenu={() => controller.setShowUserMenu((prev) => !prev)}
         onOpenPolicyManager={() => jumpToGovernance("policy")}
-        onOpenOpenclawDialog={() => jumpToGovernance("openclaw")}
+        onOpenAssistantDialog={() => jumpToGovernance("assistant")}
         onSwitchTenant={(tenantId) => {
           controller.switchTenant(tenantId);
           controller.setShowUserMenu(false);
@@ -159,13 +155,13 @@ function AppInner() {
           </section>
         ) : null}
         <ViewErrorBoundary
-          viewKey={`${showOpenclawWorkspace ? "openclaw" : controller.activeView}:${controller.currentProjectId ?? "none"}:${controller.currentIterationId ?? "none"}`}
-          viewLabel={showOpenclawWorkspace ? "OpenClaw 工作台" : controller.activeView === "dashboard" ? "仪表盘" : controller.activeView === "permissions" ? "权限设置" : "项目工作台"}
+          viewKey={`${showAssistantWorkspace ? "assistant" : controller.activeView}:${controller.currentProjectId ?? "none"}:${controller.currentIterationId ?? "none"}`}
+          viewLabel={showAssistantWorkspace ? "业务助手工作台" : controller.activeView === "dashboard" ? "仪表盘" : controller.activeView === "permissions" ? "权限设置" : "项目工作台"}
         >
-          {showOpenclawWorkspace ? (
-            <OpenclawWorkspacePanel
+          {showAssistantWorkspace ? (
+            <GlobalAssistantPanel
               isAdmin={controller.currentRole === "owner"}
-              onBack={() => setShowOpenclawWorkspace(false)}
+              onBack={() => setShowAssistantWorkspace(false)}
             />
           ) : controller.activeView === "dashboard" ? (
             <Suspense fallback={<div className="loading-spinner" />}>
@@ -220,6 +216,7 @@ function AppInner() {
               onShowCreateProject={() => { controller.setError(null); controller.setShowCreateProject(true); }}
               onShowCreateIteration={() => { controller.setError(null); controller.setShowCreateIteration(true); }}
               onDeleteProject={controller.handleDeleteProject}
+              onDeleteIteration={controller.handleDeleteIteration}
               onUploadClick={controller.handleUploadClick}
               onOpenAnalysisPanel={() => controller.setShowAnalysisPanel(true)}
               onCloseAnalysisPanel={() => controller.setShowAnalysisPanel(false)}

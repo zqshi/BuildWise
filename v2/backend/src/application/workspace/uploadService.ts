@@ -7,7 +7,7 @@ import type {
   AttachmentIngestJob
 } from "../../domain/workspace/types";
 import type { AnalysisService } from "./analysisService";
-import { ensureDir } from "./workspaceServiceAttachmentUtils";
+import { ensureDir } from "./attachmentOps";
 import {
   completeAttachmentUploadOp,
   getAttachmentUploadOp,

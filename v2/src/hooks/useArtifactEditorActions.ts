@@ -21,6 +21,8 @@ type ArtifactEditorActionsDeps = {
   onSaveArtifactDraft: (artifactId: string, payload: { content: string; media?: string[]; actor?: string }) => void | Promise<void>;
   onCommitArtifact: (artifactId: string, payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }) => void | Promise<void>;
   onConfirmArtifact: (artifactId: string, payload: { actor?: string; passed?: boolean; note?: string }) => void | Promise<void>;
+  onConfirmAnalysis?: () => void | Promise<void>;
+  onTriggerCoachFollowUp?: (message: string) => void | Promise<void>;
   onOpenAnalysisPanel: () => void;
   onCloseAnalysisPanel: () => void;
   onChatInputChange: (v: string) => void;
@@ -36,7 +38,7 @@ export function useArtifactEditorActions(deps: ArtifactEditorActionsDeps) {
     try {
       await deps.onSaveArtifactDraft(deps.selectedDrawerArtifact.id, {
         content: deps.artifactEditorValue,
-        actor: "OpenClaw Agent"
+        actor: "BuildWise Agent"
       });
       deps.setArtifactEditorDirty(false);
       deps.setChangeControlNotice("交付物正文已保存。");
@@ -56,11 +58,11 @@ export function useArtifactEditorActions(deps: ArtifactEditorActionsDeps) {
       if (deps.artifactEditorDirty) {
         await deps.onSaveArtifactDraft(deps.selectedDrawerArtifact.id, {
           content: deps.artifactEditorValue,
-          actor: "OpenClaw Agent"
+          actor: "BuildWise Agent"
         });
       }
       await deps.onCommitArtifact(deps.selectedDrawerArtifact.id, {
-        actor: "OpenClaw Agent",
+        actor: "BuildWise Agent",
         summary: buildArtifactCommitSummary(deps.artifactEditorValue || deps.selectedDrawerArtifact.summary || "", deps.selectedDrawerArtifact.summary),
       });
       deps.setArtifactEditorDirty(false);
@@ -79,14 +81,35 @@ export function useArtifactEditorActions(deps: ArtifactEditorActionsDeps) {
     }
     deps.setArtifactEditorBusy(true);
     try {
+      // Auto-commit draft content before confirming when outputVersion is 0
+      // (LLM generated draft but no explicit commit step happened)
+      if (
+        deps.selectedDrawerArtifact.outputVersion === 0 &&
+        (deps.selectedDrawerArtifact.draft?.content || "").trim().length > 0
+      ) {
+        await deps.onCommitArtifact(deps.selectedDrawerArtifact.id, {
+          actor: "BuildWise Agent",
+          summary: buildArtifactCommitSummary(
+            deps.selectedDrawerArtifact.draft?.content || deps.selectedDrawerArtifact.summary || "",
+            deps.selectedDrawerArtifact.summary
+          ),
+        });
+      }
       await deps.onConfirmArtifact(deps.selectedDrawerArtifact.id, {
         actor: "项目负责人",
         passed: true,
         note: deps.selectedDrawerArtifact.summary
       });
-      deps.setChangeControlNotice("交付物已确认通过。");
+      if (deps.selectedDrawerArtifact.id === "analysis-report" && deps.onConfirmAnalysis) {
+        await deps.onConfirmAnalysis();
+      } else if (deps.onTriggerCoachFollowUp) {
+        await deps.onTriggerCoachFollowUp(
+          `我已确认「${deps.selectedDrawerArtifact.title}」，请继续推进下一步。`
+        );
+      }
+      deps.setChangeControlNotice("分析已确认。");
     } catch (error) {
-      deps.setChangeControlNotice(resolveArtifactActionErrorMessage(error, "交付物确认失败，请稍后重试。"));
+      deps.setChangeControlNotice(resolveArtifactActionErrorMessage(error, "分析确认失败，请稍后重试。"));
     } finally {
       deps.setArtifactEditorBusy(false);
     }

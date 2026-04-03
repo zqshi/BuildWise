@@ -157,6 +157,22 @@ export function defaultIterationChangeControl(options?: { isFirstIteration?: boo
     lastReportQualityScore: 0,
     lastReportQualitySummary: "",
     lastReportQualityUpdatedAt: "",
+    lastBusinessConfirmation: {
+      coreIntent: "",
+      boundarySummary: "",
+      functionalPoints: [],
+      successCriteria: [],
+      confirmationChecklist: [],
+      versionDiffSummary: ""
+    },
+    lastMeaningfulFindings: [],
+    lastPrioritizedFindings: [],
+    lastDeepInsightsSummary: {
+      themes: [],
+      gaps: [],
+      rootCauses: [],
+      decisionSuggestions: []
+    },
     artifactWorkflow: defaultArtifactWorkflow,
     boundary: {
       requirementRefs: [],

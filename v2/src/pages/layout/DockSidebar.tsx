@@ -15,7 +15,7 @@ type DockSidebarProps = {
   onShowProjects: () => void;
   onToggleUserMenu: () => void;
   onOpenPolicyManager: () => void;
-  onOpenOpenclawDialog: () => void;
+  onOpenAssistantDialog: () => void;
   onSwitchTenant: (tenantId: string) => void;
   onLogout: () => void;
 };
@@ -33,7 +33,7 @@ export const DockSidebar = memo(function DockSidebar({
   onShowProjects,
   onToggleUserMenu,
   onOpenPolicyManager,
-  onOpenOpenclawDialog,
+  onOpenAssistantDialog,
   onSwitchTenant,
   onLogout
 }: DockSidebarProps) {
@@ -104,7 +104,7 @@ export const DockSidebar = memo(function DockSidebar({
                   <button type="button" className="dock-user-menu-item" onClick={onOpenPolicyManager}>
                     权限管理
                   </button>
-                  <button type="button" className="dock-user-menu-item" onClick={onOpenOpenclawDialog}>
+                  <button type="button" className="dock-user-menu-item" onClick={onOpenAssistantDialog}>
                     业务助手
                   </button>
                 </>

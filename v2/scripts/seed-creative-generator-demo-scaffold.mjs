@@ -457,10 +457,10 @@ function buildStore() {
       {
         id: 1,
         projectId: 1,
-        openclawProfile: "buildwise-local",
+        assistantProfile: "buildwise-local",
         agentId: "main",
         workspacePath: WORKSPACE_PATH,
-        runtimeMode: "openclaw-native",
+        runtimeMode: "native",
         locked: false,
         createdBy: "system",
         createdAt: NOW,

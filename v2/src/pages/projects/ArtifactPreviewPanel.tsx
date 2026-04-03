@@ -5,6 +5,7 @@ import type { AnalysisArtifactSection } from "./analysisArtifactPresenter";
 import type { AttachmentAnalysisReport } from "./iterationWorkspacePanelTypes";
 import type { UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { IterationGeneratedTestCase } from "../../domain/workspace/iterationTypes";
+import type { CoachGuidanceItem } from "../../app/coachGuidanceBuilder";
 import { stripRichTextToPlainText } from "./artifactEditorModel";
 
 const ArtifactTextEditor = lazy(async () => {
@@ -38,6 +39,7 @@ export type ArtifactPreviewPanelProps = {
   generatedTestMatrix: IterationGeneratedTestCase[];
   currentIteration: { changeControl?: { lastReleaseReviewDecision?: string; lastReleaseReviewReason?: string; qualityArtifacts?: { materializedFiles?: string[] } } } | null;
   imagePrototypePreviews: UploadedAttachmentMeta["imagePreviews"];
+  coachGuidance: CoachGuidanceItem[];
   artifactHtmlPreviewFrameRef: React.RefObject<HTMLIFrameElement>;
   handleSaveArtifactEditor: () => Promise<void>;
   handleSubmitArtifactForReview: () => Promise<void>;
@@ -64,7 +66,7 @@ export function ArtifactPreviewPanel({
   artifactEditorMode,
   artifactEditorSource,
   canEditSelectedTextArtifact,
-  analysisDraftSections,
+  analysisDraftSections: _analysisDraftSections,
   artifactDraftContent,
   selectedArtifactHtmlPreview,
   selectedHtmlPreview,
@@ -76,6 +78,7 @@ export function ArtifactPreviewPanel({
   generatedTestMatrix,
   currentIteration,
   imagePrototypePreviews,
+  coachGuidance,
   artifactHtmlPreviewFrameRef,
   handleSaveArtifactEditor,
   handleSubmitArtifactForReview,
@@ -139,41 +142,12 @@ export function ArtifactPreviewPanel({
     <Suspense fallback={<ArtifactEditorFallback />}>
       <div className="deliverable-preview-focus">
       {selectedArtifactKind === "analysis-report" ? (
-        artifactDraftContent.trim() ? (
-          <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} readOnly showTitle={false} />
-        ) : (
-          <div className="artifact-drawer-structured-content">
-            {analysisDraftSections.length > 0 ? (
-              <>
-                <div className="deliverable-kv-grid">
-                  {analysisDraftSections.slice(0, 4).map((section) => (
-                    <div key={`analysis-section-${section.title}`}>
-                      <span>{section.title}</span>
-                      <strong>{section.content || (section.bullets[0] ?? "-")}</strong>
-                    </div>
-                  ))}
-                </div>
-                {analysisDraftSections.slice(4).map((section, index) => (
-                  <section key={`analysis-draft-${section.title}-${index}`} className="deliverable-section">
-                    <h4>{section.title}</h4>
-                    {section.content ? <p style={{ whiteSpace: "pre-wrap" }}>{section.content}</p> : null}
-                    {section.bullets.length > 0 ? (
-                      <ul className="history-list">
-                        {section.bullets.map((item, bulletIndex) => (
-                          <li key={`${section.title}-${bulletIndex}`} className="history-item">
-                            <p>{item}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </section>
-                ))}
-              </>
-            ) : analysisReport ? (
-              <>
-                <div className="deliverable-kv-grid">
+        analysisReport ? (
+          <>
+            {/* ── 项目识别 ── */}
+            <div className="deliverable-kv-grid">
                   <div>
-                    <span>项目识别</span>
+                    <span>项目</span>
                     <strong>{analysisReport.projectDetection?.projectName || "-"}</strong>
                   </div>
                   <div>
@@ -181,7 +155,7 @@ export function ArtifactPreviewPanel({
                     <strong>{analysisReport.projectDetection?.productName || "-"}</strong>
                   </div>
                   <div>
-                    <span>项目类型</span>
+                    <span>类型</span>
                     <strong>{analysisReport.projectDetection?.projectCategory || "-"}</strong>
                   </div>
                   <div>
@@ -189,47 +163,134 @@ export function ArtifactPreviewPanel({
                     <strong>{analysisReport.analyzedAt ? new Date(analysisReport.analyzedAt).toLocaleString("zh-CN") : "-"}</strong>
                   </div>
                 </div>
+
+                {/* ── 理解摘要 ── */}
                 <section className="deliverable-section">
-                  <h4>理解摘要</h4>
+                  <h4>我的理解</h4>
                   <p>{analysisReport.understanding || selectedDrawerArtifact.summary || "-"}</p>
                 </section>
+
+                {/* ── 关键发现（按业务影响分组）── */}
+                {analysisReport.prioritizedFindings?.length ? (
+                  <section className="deliverable-section">
+                    <h4>关键发现</h4>
+                    {analysisReport.prioritizedFindings.filter(f => f.priority === "P0").length > 0 ? (
+                      <>
+                        <p className="label-hint">需要立即关注</p>
+                        <ul className="history-list findings-list">
+                          {analysisReport.prioritizedFindings.filter(f => f.priority === "P0").map((item, i) => (
+                            <li key={`p0-${i}`} className="history-item history-item-stack">
+                              <strong>{item.content}</strong>
+                              {item.reason ? <p className="hint">{item.reason}</p> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                    {analysisReport.prioritizedFindings.filter(f => f.priority === "P1").length > 0 ? (
+                      <>
+                        <p className="label-hint">建议本轮处理</p>
+                        <ul className="history-list findings-list">
+                          {analysisReport.prioritizedFindings.filter(f => f.priority === "P1").map((item, i) => (
+                            <li key={`p1-${i}`} className="history-item history-item-stack">
+                              <strong>{item.content}</strong>
+                              {item.reason ? <p className="hint">{item.reason}</p> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                    {analysisReport.prioritizedFindings.filter(f => f.priority === "P2").length > 0 ? (
+                      <>
+                        <p className="label-hint">后续可优化</p>
+                        <ul className="history-list findings-list">
+                          {analysisReport.prioritizedFindings.filter(f => f.priority === "P2").map((item, i) => (
+                            <li key={`p2-${i}`} className="history-item history-item-stack">
+                              <strong>{item.content}</strong>
+                              {item.reason ? <p className="hint">{item.reason}</p> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </section>
+                ) : null}
+
+                {/* ── 需要补充的信息 ── */}
+                {(analysisReport.clarificationQuestions?.length || analysisReport.deepInsights?.crossFileInsights?.gaps?.length) ? (
+                  <section className="deliverable-section">
+                    <h4>需要你补充的信息</h4>
+                    <ul className="history-list findings-list">
+                      {(analysisReport.clarificationQuestions || []).map((q, i) => (
+                        <li key={`cq-${i}`} className="history-item history-item-stack">
+                          <p>{q}</p>
+                        </li>
+                      ))}
+                      {(analysisReport.deepInsights?.crossFileInsights?.gaps || []).map((g, i) => (
+                        <li key={`gap-${i}`} className="history-item history-item-stack">
+                          <p>{g}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="hint">请在对话中逐一回复，以便进入下一步。</p>
+                  </section>
+                ) : null}
+
+                {/* ── 迭代方向建议 ── */}
+                {(analysisReport.nextActions?.length || analysisReport.suggestions?.length || analysisReport.risks?.length) ? (
+                  <section className="deliverable-section">
+                    <h4>迭代方向建议</h4>
+                    {analysisReport.nextActions?.length ? (
+                      <ul className="history-list findings-list">
+                        {analysisReport.nextActions.map((a, i) => (
+                          <li key={`na-${i}`} className="history-item history-item-stack"><p>{a}</p></li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {analysisReport.risks?.length ? (
+                      <>
+                        <p className="label-hint">注意事项</p>
+                        <ul className="history-list">
+                          {analysisReport.risks.map((r, i) => (
+                            <li key={`risk-${i}`} className="history-item history-item-stack"><p>{r}</p></li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </section>
+                ) : null}
+
+                {/* ── 教练引导 ── */}
                 <section className="deliverable-section">
-                  <h4>高优先级发现</h4>
-                  {analysisReport.prioritizedFindings?.length ? (
+                  <h4>教练引导</h4>
+                  {coachGuidance.length > 0 ? (
                     <ul className="history-list">
-                      {analysisReport.prioritizedFindings.slice(0, 6).map((item, index) => (
-                        <li key={`${item.priority}-${index}`} className="history-item">
-                          <strong>[{item.priority}] {item.content}</strong>
-                          <p className="hint">原因：{item.reason || "-"}</p>
+                      {coachGuidance.slice(0, 4).map((item, index) => (
+                        <li key={`cg-${index}`} className="history-item">
+                          <p>{item.text}</p>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="hint">暂无结构化发现。</p>
-                  )}
-                </section>
-                <section className="deliverable-section">
-                  <h4>下一步建议</h4>
-                  {analysisReport.nextActions?.length ? (
-                    <ul className="history-list">
-                      {analysisReport.nextActions.slice(0, 6).map((item, index) => (
-                        <li key={`next-${index}`} className="history-item">
-                          <p>{item}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="hint">暂无下一步建议。</p>
+                    <p className="hint">暂无教练引导。</p>
                   )}
                 </section>
               </>
+            ) : artifactDraftContent.trim() ? (
+              <ArtifactTextEditor
+                title={`分析报告 · v${selectedDrawerArtifact.outputVersion}`}
+                value={artifactDraftContent}
+                profile="generic"
+                readOnly
+                showTitle={false}
+                actions={null}
+              />
             ) : (
               <p className="hint">当前迭代暂无分析报告内容。</p>
-            )}
-          </div>
-        )
+            )
       ) : null}
       {selectedArtifactKind === "product-requirements-doc" ? (
+        artifactEditorValue.trim() ? (
         <ArtifactTextEditor
           title={`PRD · v${selectedDrawerArtifact.outputVersion}`}
           value={artifactEditorValue}
@@ -242,6 +303,9 @@ export function ArtifactPreviewPanel({
           }}
           actions={renderTextArtifactActions()}
         />
+        ) : (
+          <p className="hint">正在生成中，请稍候...</p>
+        )
       ) : null}
       {selectedArtifactKind === "html-prototype" ? (
         <div className="artifact-drawer-composer artifact-drawer-composer-prototype">
@@ -296,6 +360,7 @@ export function ArtifactPreviewPanel({
         </div>
       ) : null}
       {selectedArtifactKind === "design-spec" ? (
+        artifactEditorValue.trim() ? (
         <ArtifactTextEditor
           title={`设计规范 · ${selectedDrawerArtifact.stage}`}
           value={artifactEditorValue}
@@ -308,8 +373,12 @@ export function ArtifactPreviewPanel({
           }}
           actions={renderTextArtifactActions()}
         />
+        ) : (
+          <p className="hint">正在生成中，请稍候...</p>
+        )
       ) : null}
       {selectedArtifactKind === "technical-architecture" ? (
+        artifactEditorValue.trim() ? (
         <ArtifactTextEditor
           title={`技术架构 · ${selectedDrawerArtifact.stage}`}
           value={artifactEditorValue}
@@ -322,6 +391,9 @@ export function ArtifactPreviewPanel({
           }}
           actions={renderTextArtifactActions()}
         />
+        ) : (
+          <p className="hint">正在生成中，请稍候...</p>
+        )
       ) : null}
       {selectedArtifactKind === "code" ? (
         <ArtifactCodeViewer
@@ -384,6 +456,7 @@ export function ArtifactPreviewPanel({
         )
       ) : null}
       {selectedArtifactKind === "document" ? (
+        artifactEditorValue.trim() ? (
         <ArtifactTextEditor
           title={selectedDrawerArtifact.title}
           value={artifactEditorValue}
@@ -396,6 +469,9 @@ export function ArtifactPreviewPanel({
           }}
           actions={renderTextArtifactActions()}
         />
+        ) : (
+          <p className="hint">正在生成中，请稍候...</p>
+        )
       ) : null}
       </div>
     </Suspense>

@@ -5,7 +5,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { ContinuousModelingService } from "./application/continuousModeling/continuousModelingService";
 import { ContinuousModelingWorkspaceService } from "./application/continuousModeling/continuousModelingWorkspaceService";
-import { OpenclawGlobalService } from "./application/openclawGlobal/openclawGlobalService";
+import { GlobalAssistantService } from "./application/globalAssistant/globalAssistantService";
 import { PlatformService } from "./application/platform/platformService";
 import { createAgentRunnerFromEnv, probeLlmRuntimeStatus } from "./application/workspace/agentRunner";
 import { extractKnowledgeBaseUpdateOp } from "./application/workspace/ontologyService";
@@ -14,7 +14,7 @@ import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from 
 import { WorkspaceService } from "./application/workspace/workspaceService";
 import type { WorkspaceRepository } from "./domain/workspace/repository";
 import { JsonContinuousModelingRepository } from "./infrastructure/persistence/jsonContinuousModelingRepository";
-import { JsonOpenclawGlobalRepository } from "./infrastructure/persistence/jsonOpenclawGlobalRepository";
+import { JsonGlobalAssistantRepository } from "./infrastructure/persistence/jsonGlobalAssistantRepository";
 import { JsonWorkspaceRepository } from "./infrastructure/persistence/jsonWorkspaceRepository";
 import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevokedTokenStore";
 import { SqliteWorkspaceRepository } from "./infrastructure/persistence/sqliteWorkspaceRepository";
@@ -29,7 +29,7 @@ import { registerGracefulShutdown } from "./infrastructure/runtime/runtimeShutdo
 import { RuntimeState } from "./infrastructure/runtime/runtimeState";
 import { registerAuthRoutes } from "./interfaces/http/routes/authRoutes";
 import { registerContinuousModelingRoutes } from "./interfaces/http/routes/continuousModelingRoutes";
-import { registerOpenclawGlobalRoutes } from "./interfaces/http/routes/openclawGlobalRoutes";
+import { registerGlobalAssistantRoutes } from "./interfaces/http/routes/globalAssistantRoutes";
 import { registerPlatformRoutes } from "./interfaces/http/routes/platformRoutes";
 import { registerRepositoryTraceRoutes } from "./interfaces/http/routes/repositoryTraceRoutes";
 import { registerSystemRoutes } from "./interfaces/http/routes/systemRoutes";
@@ -181,8 +181,8 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   const platformService = new PlatformService(workspaceRepo);
   const continuousModelingService = new ContinuousModelingService(continuousModelingRepo);
   const continuousModelingWorkspaceService = new ContinuousModelingWorkspaceService(continuousModelingService, workspaceRepo, continuousModelingRepo);
-  const openclawGlobalRepo = new JsonOpenclawGlobalRepository(join(backendRoot, "openclaw-global.runtime.json"));
-  const openclawGlobalService = new OpenclawGlobalService(openclawGlobalRepo, agentRunner, workspaceRepo);
+  const globalAssistantRepo = new JsonGlobalAssistantRepository(join(backendRoot, "global-assistant.runtime.json"));
+  const globalAssistantService = new GlobalAssistantService(globalAssistantRepo, agentRunner, workspaceRepo);
 
   const emptyKb = (): { ontologyTerms: never[]; stableRules: never[]; componentInventory: never[]; codeMap: never[]; decisionLog: never[]; knownRisks: never[]; changePatterns: never[]; updatedAt: string } => ({
     ontologyTerms: [],
@@ -275,7 +275,7 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   app.register(
     async (v1) => {
       v1.register(async (authScope) => {
-        await authScope.register(rateLimit, { max: 10, timeWindow: 60_000 });
+        await authScope.register(rateLimit, { max: 30, timeWindow: 60_000 });
         registerAuthRoutes(authScope, workspaceService, config);
       });
 
@@ -283,7 +283,7 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
       await registerRepositoryTraceRoutes(v1, workspaceService);
       await registerContinuousModelingRoutes(v1, continuousModelingWorkspaceService);
       await registerPlatformRoutes(v1, platformService, workspaceService);
-      await registerOpenclawGlobalRoutes(v1, openclawGlobalService);
+      await registerGlobalAssistantRoutes(v1, globalAssistantService, workspaceRepo);
     },
     { prefix: "/api/v1" }
   );
