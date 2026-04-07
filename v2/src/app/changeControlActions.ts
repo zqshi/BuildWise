@@ -33,12 +33,13 @@ export const handleTransitionState = async (toStatus: IterationStatus, deps: Cha
   if (!deps.currentIteration) {
     return;
   }
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await transitionIterationState(deps.currentIteration!.id, { toStatus });
+    await transitionIterationState(iterationId, { toStatus });
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await deps.loadIterationDetail(iterationId);
     await deps.loadGovernance();
     deps.setStateMachine((prev) =>
       prev
@@ -55,9 +56,10 @@ export const handleUpdateClarificationDraft = async (resolvedQuestions: string[]
   if (!deps.currentIteration) {
     return;
   }
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await updateClarificationDraft(deps.currentIteration!.id, resolvedQuestions);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await updateClarificationDraft(iterationId, resolvedQuestions);
+    await deps.loadIterationDetail(iterationId);
     await deps.loadGovernance();
   });
 };
@@ -81,6 +83,7 @@ export const handleConfirmIterationAnalysis = async (
   if (!deps.currentIteration) {
     return;
   }
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
     // 确认前收集待澄清问题（确认后后端会清空 clarificationQuestions）
     const preConfirmQuestions: string[] = [];
@@ -103,13 +106,13 @@ export const handleConfirmIterationAnalysis = async (
       }
     }
 
-    await confirmIterationAnalysis(deps.currentIteration!.id, {
+    await confirmIterationAnalysis(iterationId, {
       ...payload,
       actor: deps.currentRole
     });
     if (payload.decisionEvent === "understanding-accurate") {
       const created = await createIterationMessage(
-        deps.currentIteration!.id,
+        iterationId,
         "system",
         `分析理解确认：理解准确。${payload.note?.trim() ? `备注：${payload.note.trim()}` : ""}`
       );
@@ -119,14 +122,14 @@ export const handleConfirmIterationAnalysis = async (
         const items = preConfirmQuestions.slice(0, 3);
         const listText = items.map((q, i) => `${i + 1}. ${q}`).join("\n");
         const guide = await createIterationMessage(
-          deps.currentIteration!.id,
+          iterationId,
           "assistant",
           `分析已确认。我在分析过程中发现有 ${items.length} 处信息需要你补充：\n\n${listText}\n\n你可以逐条回复，也可以一次性说明。如果某项暂时没有结论，告诉我"先跳过"就行。`
         );
         deps.setChatMessages((prev) => [...prev, guide]);
       } else {
         const guide = await createIterationMessage(
-          deps.currentIteration!.id,
+          iterationId,
           "assistant",
           "分析已确认，接下来可以继续推进。你可以直接说下一步想做什么，比如任务拆解、原型调整或技术方案。"
         );
@@ -134,13 +137,13 @@ export const handleConfirmIterationAnalysis = async (
       }
     } else if (payload.decisionEvent === "understanding-inaccurate") {
       const created = await createIterationMessage(
-        deps.currentIteration!.id,
+        iterationId,
         "system",
         `分析理解确认：理解不准确，已进入澄清流程。${payload.note?.trim() ? `备注：${payload.note.trim()}` : ""}`
       );
       deps.setChatMessages((prev) => [...prev, created]);
     }
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await deps.loadIterationDetail(iterationId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -160,9 +163,10 @@ export const handleUpdateIterationBoundary = async (
   if (!deps.currentIteration) {
     return;
   }
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await updateIterationBoundary(deps.currentIteration!.id, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await updateIterationBoundary(iterationId, payload);
+    await deps.loadIterationDetail(iterationId);
     await deps.loadGovernance();
   });
 };

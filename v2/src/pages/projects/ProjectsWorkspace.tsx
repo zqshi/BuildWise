@@ -113,8 +113,8 @@ type ProjectsWorkspaceProps = {
   onAppendArtifactToChat: (artifactId: string, payload?: { actor?: string; prompt?: string }) => Promise<void> | void;
   onTransitionArtifactStage: (payload: { toStage: IterationArtifactStage; actor?: string; note?: string }) => Promise<void> | void;
   onTransitionState: (toStatus: IterationStatus) => void;
-  onCreateDeployment: (environment: "staging" | "production") => Promise<void>;
-  onTransitionDeployment: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
+  onCreateDeployment?: (environment: "staging" | "production") => Promise<void>;
+  onTransitionDeployment?: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
   onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
 };
 

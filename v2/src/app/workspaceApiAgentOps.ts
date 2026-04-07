@@ -1,6 +1,7 @@
 import type {
   AttachmentUploadInput,
   AttachmentAnalysisJob,
+  AttachmentAnalysisReport,
   AttachmentUploadManifestFile,
   AttachmentUploadInitResponse,
   AttachmentUploadCompleteResponse,
@@ -12,7 +13,7 @@ import type {
   IterationVisualEditResponse,
   IterationCoachChatResponse
 } from "../domain/workspace/types";
-import { fetchJSON } from "../infrastructure/http/fetchJSON";
+import { fetchJSON, getRuntimeConfig } from "../infrastructure/http/fetchJSON";
 import { API_BASE, API_PREFIX, isApiNotFound } from "./workspaceApiCore";
 import { type FileWithPath, getFilePath } from "../shared/fileTypes";
 
@@ -37,11 +38,12 @@ export type ChangeImpactResult = {
 };
 
 export async function coachIterationMessage(iterationId: number, message: string) {
+  const config = getRuntimeConfig();
   return fetchJSON<IterationCoachChatResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/agent-chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message })
-  }, 180000);
+  }, config.coachChatTimeoutMs);
 }
 
 export async function detectIterationChangeImpact(iterationId: number, userMessage: string) {
@@ -107,7 +109,8 @@ async function readFileExcerpt(file: File, maxLength = 4000) {
   try {
     const content = await file.text();
     return content.slice(0, maxLength);
-  } catch {
+  } catch (err) {
+    console.debug("[workspaceApiAgentOps] 文件文本读取失败", err);
     return "";
   }
 }
@@ -147,7 +150,8 @@ async function digestFileSha256(file: File) {
     return Array.from(new Uint8Array(digest))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-  } catch {
+  } catch (err) {
+    console.debug("[workspaceApiAgentOps] 文件哈希计算失败", err);
     return "";
   }
 }
@@ -247,7 +251,7 @@ async function submitAttachmentAnalysisJob(iterationId: number, payload: Attachm
   }, 45000);
 }
 
-async function retryLatestAttachmentAnalysisJob(iterationId: number) {
+export async function retryLatestAttachmentAnalysisJob(iterationId: number) {
   return fetchJSON<AttachmentAnalysisJob>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/jobs/retry-latest`, {
     method: "POST"
   }, 45000);
@@ -272,6 +276,19 @@ export async function fetchAttachmentAnalysisJob(iterationId: number, jobId: str
   );
 }
 
+export async function fetchLatestAnalysisReport(iterationId: number): Promise<AttachmentAnalysisReport | null> {
+  try {
+    return await fetchJSON<AttachmentAnalysisReport>(
+      `${API_BASE}${API_PREFIX}/iterations/${iterationId}/analysis/latest-report`,
+      undefined,
+      30000
+    );
+  } catch (err) {
+    console.debug("[workspaceApiAgentOps] latest-report 获取失败", err);
+    return null;
+  }
+}
+
 export async function waitForAttachmentAnalysisJob(
   iterationId: number,
   jobId: string,
@@ -283,12 +300,13 @@ export async function waitForAttachmentAnalysisJob(
     onJobUpdate?: (job: AttachmentAnalysisJob) => void;
   }
 ) {
-  const timeoutMs = options?.timeoutMs ?? 30 * 60 * 1000;
-  const pollIntervalMs = options?.pollIntervalMs ?? 2000;
-  const queuedStallTimeoutMs = options?.queuedStallTimeoutMs ?? 3 * 60 * 1000;
-  const runningStallTimeoutMs = options?.runningStallTimeoutMs ?? 25 * 60 * 1000;
-  const maxConsecutivePollErrors = 20;
-  const POLL_BACKOFF_DELAYS = [2000, 2000, 3000, 5000, 8000, 12000, 15000, 20000, 25000, 30000];
+  const config = getRuntimeConfig();
+  const timeoutMs = options?.timeoutMs ?? config.analysisJobTimeoutMs;
+  const pollIntervalMs = options?.pollIntervalMs ?? config.pollIntervalMs;
+  const queuedStallTimeoutMs = options?.queuedStallTimeoutMs ?? config.analysisQueuedStallTimeoutMs;
+  const runningStallTimeoutMs = options?.runningStallTimeoutMs ?? config.analysisRunningStallTimeoutMs;
+  const maxConsecutivePollErrors = config.pollMaxConsecutiveErrors;
+  const POLL_BACKOFF_DELAYS = [config.pollBackoffInitialMs, 2000, 3000, 5000, 8000, 12000, 15000, 20000, 25000, config.pollMaxBackoffMs];
   const startedAt = Date.now();
   let lastProgressMarker = "";
   let lastProgressAt = startedAt;
@@ -598,8 +616,10 @@ export function getUploadSession(iterationId: number): UploadSession | null {
     const raw = localStorage.getItem(`buildwise:upload-session:${iterationId}`);
     if (!raw) return null;
     const session = JSON.parse(raw) as UploadSession;
-    // 会话超过 2 小时视为过期
-    if (Date.now() - session.createdAt > 2 * 60 * 60 * 1000) {
+    // 会话超过配置的时间（默认 2 小时）视为过期
+    const config = getRuntimeConfig();
+    const sessionMaxAge = config.sessionMaxAgeSeconds * 1000;
+    if (Date.now() - session.createdAt > sessionMaxAge) {
       localStorage.removeItem(`buildwise:upload-session:${iterationId}`);
       return null;
     }

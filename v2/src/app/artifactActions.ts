@@ -25,9 +25,10 @@ export const handleSaveArtifactDraft = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await saveIterationArtifactDraft(deps.currentIteration!.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await saveIterationArtifactDraft(iterationId, artifactId, payload);
+    await deps.loadIterationDetail(iterationId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -40,9 +41,10 @@ export const handleCommitArtifact = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await commitIterationArtifact(deps.currentIteration!.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await commitIterationArtifact(iterationId, artifactId, payload);
+    await deps.loadIterationDetail(iterationId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -55,9 +57,10 @@ export const handleConfirmArtifact = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await confirmIterationArtifact(deps.currentIteration!.id, artifactId, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await confirmIterationArtifact(iterationId, artifactId, payload);
+    await deps.loadIterationDetail(iterationId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
@@ -70,14 +73,14 @@ export const handleAppendArtifactToChat = async (
   payload?: { actor?: string; prompt?: string }
 ) => {
   if (!deps.currentIteration) return;
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
     try {
-      const result = await appendIterationArtifactToChat(deps.currentIteration!.id, artifactId, payload);
+      const result = await appendIterationArtifactToChat(iterationId, artifactId, payload);
       if (result?.message) {
         deps.setChatMessages((prev) => [...prev, result.message]);
       }
     } catch {
-      // 后端拒绝发布（内容未就绪）时静默处理，不视为错误
       deps.setError("该交付物内容尚未生成，请等待分析完成后再发布到对话。");
     }
   });
@@ -88,9 +91,10 @@ export const handleTransitionArtifactStage = async (
   deps: ArtifactActionDeps
 ) => {
   if (!deps.currentIteration) return;
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await transitionIterationArtifactStage(deps.currentIteration!.id, payload);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await transitionIterationArtifactStage(iterationId, payload);
+    await deps.loadIterationDetail(iterationId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }

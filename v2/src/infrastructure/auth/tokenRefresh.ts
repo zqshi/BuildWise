@@ -35,7 +35,8 @@ async function doRefresh(): Promise<boolean> {
     const data = (await res.json()) as { accessToken: string; expiresIn: number };
     saveTokens(data.accessToken, data.expiresIn);
     return true;
-  } catch {
+  } catch (err) {
+    console.warn("[tokenRefresh] refresh 请求失败", err);
     clearTokens();
     window.dispatchEvent(new CustomEvent("buildwise:auth-expired"));
     return false;

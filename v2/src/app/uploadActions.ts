@@ -369,7 +369,8 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
             path: path || item.name,
             content: cappedContent
           };
-        } catch {
+        } catch (err) {
+          console.debug("[uploadActions] 文件内容读取失败", item.name, err);
           return null;
         }
       })
@@ -471,7 +472,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
               reader.readAsDataURL(f);
             });
           }
-        } catch { /* ignore read errors, keep metadata only */ }
+        } catch (err) { console.debug("[uploadActions] 文件预览读取跳过", err); }
         return entry;
       }));
       const uploadMeta = JSON.stringify({

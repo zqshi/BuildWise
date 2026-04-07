@@ -12,6 +12,7 @@ import { useArtifactEditorState } from "../../hooks/useArtifactEditorState";
 import { useHtmlPreviewInteraction } from "../../hooks/useHtmlPreviewInteraction";
 import { useAnalysisReportDerived } from "../../hooks/useAnalysisReportDerived";
 import { useArtifactEditorActions } from "../../hooks/useArtifactEditorActions";
+import { useInteractionInstruction } from "./useInteractionInstruction";
 import { IterationStatusStrip } from "./IterationStatusStrip";
 import { ChatMessageList } from "./ChatMessageList";
 import { UploadProgressBar } from "./UploadProgressBar";
@@ -167,8 +168,8 @@ export function IterationWorkspacePanel({
       try {
         const result = await detectIterationChangeImpact(currentIteration.id, chatInput.trim());
         setChangeImpact(result);
-      } catch {
-        // 检测失败不阻塞用户操作
+      } catch (err) {
+        console.debug("[IterationWorkspacePanel] 变更影响检测失败", err);
       }
     }, 800);
     return () => {
@@ -383,137 +384,30 @@ export function IterationWorkspacePanel({
   const applyPrototypeInstruction = (instruction: string) =>
     applyPrototypeInstructionHook(instruction, selectedPrototypeElement, setPrototypeElements, setPrototypeLastPlan, setPrototypeHistory);
 
-  const handleUndoHtmlPreview = () => {
-    const latest = htmlPreviewHistory[0];
-    if (!latest) {
-      return;
-    }
-    const frameWindow = getActiveHtmlPreviewWindow(showAnalysisPanel, selectedArtifactKind);
-    if (!frameWindow) {
-      return;
-    }
-    frameWindow.postMessage(
-      {
-        source: "buildwise-visual-edit-host",
-        type: "restore-snapshot",
-        payload: {
-          selector: latest.selector,
-          snapshot: {
-            text: latest.text,
-            styles: latest.styles
-          }
-        }
-      },
-      "*" // srcdoc iframe has origin "null", targetOrigin must be "*"; security enforced by source field check on receive side
-    );
-    if (latest.artifactId) {
-      void onSaveArtifactDraft(latest.artifactId, { content: latest.content, actor: "BuildWise Agent" });
-    } else if (latest.path) {
-      onPatchUploadedHtmlPreview?.(latest.path, latest.content);
-    }
-    setHtmlPreviewHistory((prev) => prev.slice(1));
-  };
-
-  const sendInteractionInstruction = async (instruction: string) => {
-    const text = instruction.trim();
-    if (!text) {
-      return;
-    }
-    const htmlInteractionInDrawer = showAnalysisPanel && selectedArtifactKind === "html-prototype" && selectedDrawerArtifact;
-    const htmlInteractionEnabled = interactionEditMode && (showInteractionPanel || htmlInteractionInDrawer);
-    const htmlInteractionSource = htmlInteractionInDrawer ? selectedArtifactHtmlContent : selectedHtmlPreview?.content || "";
-    const htmlInteractionPath = htmlInteractionInDrawer ? "" : selectedHtmlPreview?.path || "";
-    if (htmlInteractionEnabled && /撤销|回退/.test(text) && htmlPreviewHistory.length > 0) {
-      handleUndoHtmlPreview();
-      await onChatSend({
-        overrideText: text,
-        prototypeTarget: selectedHtmlElement?.selector || "当前元素",
-        prototypeSummary: "已撤销上一步预览修改",
-        interactionContext: {
-          mode: "html",
-          target: selectedHtmlElement?.selector || "当前元素",
-          summary: "undo-last-step"
-        }
-      });
-      return;
-    }
-    if (htmlInteractionEnabled && htmlInteractionSource && selectedHtmlElement) {
-      const summary = `selector=${selectedHtmlElement.selector}; tag=${selectedHtmlElement.tag}; text=${selectedHtmlElement.text || "无"}; color=${selectedHtmlElement.styles.color}; bg=${selectedHtmlElement.styles.backgroundColor}; fontSize=${selectedHtmlElement.styles.fontSize}`;
-      const result = await onChatSend({
-        overrideText: text,
-        prototypeTarget: selectedHtmlElement.selector || selectedHtmlElement.tag,
-        prototypeSummary: summary,
-        interactionContext: {
-          mode: "html",
-          target: selectedHtmlElement.selector || selectedHtmlElement.tag,
-          summary,
-          html: {
-            selector: selectedHtmlElement.selector,
-            tag: selectedHtmlElement.tag,
-            text: selectedHtmlElement.text,
-            styles: selectedHtmlElement.styles
-          }
-        }
-      });
-      if (result?.actions?.length) {
-        const nextContent = applyActionsToHtmlContent(htmlInteractionSource, selectedHtmlElement.selector, result);
-        if (nextContent !== htmlInteractionSource) {
-          if (htmlInteractionInDrawer && selectedDrawerArtifact) {
-            await onSaveArtifactDraft(selectedDrawerArtifact.id, { content: nextContent, actor: "BuildWise Agent" });
-          } else if (htmlInteractionPath) {
-            onPatchUploadedHtmlPreview?.(htmlInteractionPath, nextContent);
-          }
-        }
-        setHtmlPreviewHistory((prev) => [
-          {
-            path: htmlInteractionPath,
-            artifactId: htmlInteractionInDrawer && selectedDrawerArtifact ? selectedDrawerArtifact.id : undefined,
-            content: htmlInteractionSource,
-            selector: selectedHtmlElement.selector,
-            text: selectedHtmlElement.text,
-            styles: {
-              color: selectedHtmlElement.styles.color,
-              backgroundColor: selectedHtmlElement.styles.backgroundColor,
-              fontSize: selectedHtmlElement.styles.fontSize,
-              fontWeight: selectedHtmlElement.styles.fontWeight
-            }
-          },
-          ...prev
-        ].slice(0, 20));
-        applyHtmlActionsToPreview(selectedHtmlElement.selector, result, showAnalysisPanel, selectedArtifactKind);
-      }
-      return;
-    }
-    if (showInteractionPanel && interactionEditMode && selectedImagePreview && (selectedImageRegion || selectedImagePoint)) {
-      const summary = `${imageSelectionSummary}; 文件=${selectedImagePreview.path}`;
-      await onChatSend({
-        overrideText: text,
-        prototypeTarget: `截图:${selectedImagePreview.name}`,
-        prototypeSummary: summary,
-        interactionContext: {
-          mode: "image",
-          target: `截图:${selectedImagePreview.name}`,
-          summary
-        }
-      });
-      return;
-    }
-    if (showInteractionPanel && selectedPrototypeElement) {
-      const result = applyPrototypeInstruction(text);
-      await onChatSend({
-        overrideText: text,
-        prototypeTarget: selectedPrototypeElement.label,
-        prototypeSummary: result.summary,
-        interactionContext: {
-          mode: "prototype",
-          target: selectedPrototypeElement.label,
-          summary: result.summary
-        }
-      });
-      return;
-    }
-    await onChatSend({ overrideText: text });
-  };
+  const { sendInteractionInstruction, handleUndoHtmlPreview } = useInteractionInstruction({
+    interactionEditMode,
+    showInteractionPanel,
+    showAnalysisPanel,
+    selectedArtifactKind,
+    selectedHtmlElement,
+    selectedHtmlPreview,
+    selectedDrawerArtifact,
+    selectedArtifactHtmlContent,
+    selectedPrototypeElement,
+    selectedImagePreview,
+    selectedImageRegion,
+    selectedImagePoint,
+    imageSelectionSummary,
+    htmlPreviewHistory,
+    setHtmlPreviewHistory,
+    applyActionsToHtmlContent,
+    applyHtmlActionsToPreview,
+    getActiveHtmlPreviewWindow,
+    applyPrototypeInstruction,
+    onChatSend,
+    onSaveArtifactDraft,
+    onPatchUploadedHtmlPreview
+  });
 
   const handleComposedSend = () => {
     void sendInteractionInstruction(chatInput);

@@ -28,7 +28,7 @@ function buildArtifactReferenceSignature(message: ArtifactReferenceMessage) {
   });
 }
 
-function hasEquivalentArtifactReferenceMessage(leftContent: string, rightContent: string) {
+export function hasEquivalentArtifactReferenceMessage(leftContent: string, rightContent: string) {
   const left = parseArtifactReferenceMessage(leftContent);
   const right = parseArtifactReferenceMessage(rightContent);
   if (!left || !right) {
@@ -108,8 +108,16 @@ export function normalizeUserChatInput(content: string) {
 }
 
 function isVisibleSystemMessage(msg: IterationMessage): boolean {
+  // 非 system 消息总是可见
   if (msg.role !== "system") return true;
+  // system 消息只有以下情况才显示：
+  // 1. 变更影响警示条（以【变更影响】开头）
+  // 2. 上传事件（包含 upload 标记或以"已上传"开头）
+  // 3. 错误/失败消息（以"附件分析失败"、"分析失败"、"任务执行超时"等开头）
+  // 其他 system 消息（如"已启动 X 个交付物"等内部状态）不显示
+  if (msg.content.startsWith("【变更影响】")) return true;
   if (msg.content.includes("<!-- upload:") || msg.content.includes("<!-- upload-b64:") || /^已上传(附件|文档|原型|文件夹)/.test(msg.content)) return true;
+  if (/^(附件分析失败|分析失败|任务执行超时|执行失败)/.test(msg.content)) return true;
   return false;
 }
 
@@ -177,4 +185,15 @@ export function parseChangeImpactMessage(content: string): ChangeImpactMessage |
   const items = itemsStr.split("·").map((s) => s.trim()).filter(Boolean);
   if (items.length === 0) return null;
   return { items, note };
+}
+
+type MessageLike = { role: string; content: string };
+
+export function hasAssistantImpactAssessment(messages: MessageLike[]): boolean {
+  return messages.some(
+    (msg) =>
+      msg.role === "assistant" &&
+      /影响评估/.test(msg.content) &&
+      /请确认/.test(msg.content)
+  );
 }

@@ -10,7 +10,6 @@ export * from "./workspaceApiIteration";
 export * from "./workspaceApiPlatform";
 export * from "./workspaceApiGovernance";
 export * from "./workspaceApiPolicy";
-export * from "./workspaceApiGlobalAssistant";
 export * from "./workspaceApiAuth";
 
 // Core project-level functions

@@ -136,6 +136,7 @@ export function useIterationActions({
     setChatSendStatus,
     setError,
     setChatMessages,
+    setShowAnalysisPanel,
     loadIterationDetail,
     loadIterations,
     loadGovernance

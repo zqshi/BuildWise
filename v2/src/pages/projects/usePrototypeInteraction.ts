@@ -115,7 +115,7 @@ export function usePrototypeInteraction(
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
-      // ignore
+      // releasePointerCapture 在 pointer 已释放时会抛异常，安全忽略
     }
   };
 

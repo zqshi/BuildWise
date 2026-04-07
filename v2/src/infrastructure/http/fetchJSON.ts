@@ -1,6 +1,75 @@
 import { getAccessToken } from "../auth/tokenStore";
 import { ensureFreshToken } from "../auth/tokenRefresh";
 
+type RuntimeConfig = {
+  apiRequestTimeoutMs: number;
+  coachChatTimeoutMs: number;
+  analysisJobTimeoutMs: number;
+  pollIntervalMs: number;
+  analysisQueuedStallTimeoutMs: number;
+  analysisRunningStallTimeoutMs: number;
+  pollMaxConsecutiveErrors: number;
+  pollBackoffInitialMs: number;
+  pollMaxBackoffMs: number;
+  sessionMaxAgeSeconds: number;
+};
+
+const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
+  apiRequestTimeoutMs: 30000,
+  coachChatTimeoutMs: 180000,
+  analysisJobTimeoutMs: 300000,
+  pollIntervalMs: 3000,
+  analysisQueuedStallTimeoutMs: 60000,
+  analysisRunningStallTimeoutMs: 300000,
+  pollMaxConsecutiveErrors: 5,
+  pollBackoffInitialMs: 1000,
+  pollMaxBackoffMs: 10000,
+  sessionMaxAgeSeconds: 7200,
+};
+
+function readEnvInt(key: string): number | undefined {
+  try {
+    const raw = (import.meta as { env?: Record<string, string> }).env?.[key];
+    if (raw == null || raw === "") return undefined;
+    const num = Number(raw);
+    return Number.isFinite(num) && num > 0 ? num : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+let _cachedConfig: RuntimeConfig | null = null;
+
+export function getRuntimeConfig(): RuntimeConfig {
+  if (_cachedConfig) return _cachedConfig;
+  const fromEnv: Partial<RuntimeConfig> = {
+    apiRequestTimeoutMs: readEnvInt("VITE_API_REQUEST_TIMEOUT_MS"),
+    coachChatTimeoutMs: readEnvInt("VITE_COACH_CHAT_TIMEOUT_MS"),
+    analysisJobTimeoutMs: readEnvInt("VITE_ANALYSIS_JOB_TIMEOUT_MS"),
+    pollIntervalMs: readEnvInt("VITE_POLL_INTERVAL_MS"),
+    analysisQueuedStallTimeoutMs: readEnvInt("VITE_ANALYSIS_QUEUED_STALL_TIMEOUT_MS"),
+    analysisRunningStallTimeoutMs: readEnvInt("VITE_ANALYSIS_RUNNING_STALL_TIMEOUT_MS"),
+    pollMaxConsecutiveErrors: readEnvInt("VITE_POLL_MAX_CONSECUTIVE_ERRORS"),
+    pollBackoffInitialMs: readEnvInt("VITE_POLL_BACKOFF_INITIAL_MS"),
+    pollMaxBackoffMs: readEnvInt("VITE_POLL_MAX_BACKOFF_MS"),
+    sessionMaxAgeSeconds: readEnvInt("VITE_SESSION_MAX_AGE_SECONDS"),
+  };
+  // 运行时全局覆盖（如有）优先于 Vite 环境变量
+  const fromGlobal = (globalThis as { buildwiseRuntimeConfig?: Partial<RuntimeConfig> }).buildwiseRuntimeConfig;
+  const merged: RuntimeConfig = { ...DEFAULT_RUNTIME_CONFIG };
+  for (const key of Object.keys(merged) as (keyof RuntimeConfig)[]) {
+    const globalVal = fromGlobal?.[key];
+    const envVal = fromEnv[key];
+    if (globalVal != null) {
+      merged[key] = globalVal;
+    } else if (envVal != null) {
+      merged[key] = envVal;
+    }
+  }
+  _cachedConfig = merged;
+  return merged;
+}
+
 function getAuthUserId() {
   try {
     return localStorage.getItem("buildwise:auth-phone") || "";
@@ -17,9 +86,11 @@ function getAuthTenantId() {
   }
 }
 
-export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs = 12000): Promise<T> {
+export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs?: number): Promise<T> {
+  // 如果没有提供超时，使用运行时配置
+  const effectiveTimeout = timeoutMs ?? getRuntimeConfig().apiRequestTimeoutMs;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), effectiveTimeout);
 
   // 如果有 token 且不是认证路由，确保 token 新鲜并注入 Bearer header
   const isAuthRoute = url.includes("/api/v1/auth/");
@@ -141,7 +212,8 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
       }
       // 重试后仍失败，走下面的通用错误处理
       res = retryRes;
-    } catch {
+    } catch (retryErr) {
+      console.warn("[fetchJSON] 429 重试失败", retryErr);
       clearTimeout(retryTimeout);
       throw new Error("API error: too many requests, retry failed");
     }

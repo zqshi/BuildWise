@@ -103,7 +103,8 @@ export function useDashboardInsights({
         projects.map(async (item) => {
           try {
             return [item.id, await fetchProjectIterations(item.id)] as const;
-          } catch {
+          } catch (err) {
+            console.debug("[Dashboard] 项目迭代加载失败", item.id, err);
             return [item.id, [] as Iteration[]] as const;
           }
         })

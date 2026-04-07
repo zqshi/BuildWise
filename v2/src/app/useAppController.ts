@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef } from "react";
 import type { UploadedAttachmentMeta } from "../domain/workspace/types";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import { useAuthController } from "./useAuthController";
-import { useCollaborationActions } from "./useCollaborationActions";
-import { useDeploymentActions } from "./useDeploymentActions";
 import { useDismissibleMenu } from "./useDismissibleMenu";
 import { useIterationActions } from "./useIterationActions";
 import { useIterationRecovery, analysisReportCacheKey, uploadedAttachmentCacheKey } from "./useIterationRecovery";
@@ -85,6 +83,11 @@ export function useAppController() {
       return;
     }
     const tenantKey = auth.currentTenantId || "";
+    // 避免初始加载时（从 null/undefined 变为空字符串）误触发重置
+    if (lastTenantRef.current === null && !tenantKey) {
+      lastTenantRef.current = tenantKey;
+      return;
+    }
     if (lastTenantRef.current === tenantKey) return;
     lastTenantRef.current = tenantKey;
     state.setProjects([]);
@@ -141,13 +144,20 @@ export function useAppController() {
 
   const platformOpsLoadedForRef = useRef<number | null>(null);
   const projectExistsInList = derived.currentProject !== null && derived.currentProject.id === state.currentProjectId;
+  const prevProjectIdRef = useRef<number | null>(state.currentProjectId);
 
   /* ── Project switch → load iterations + collaboration + platformOps ── */
   useEffect(() => {
+    const projectActuallyChanged = prevProjectIdRef.current !== state.currentProjectId;
+    prevProjectIdRef.current = state.currentProjectId;
+
     if (!state.currentProjectId) {
       state.setIterations([]);
       state.setCurrentIterationId(null);
-      state.setProjectPanelMode("project");
+      // 仅在项目 ID 真正变化时才重置面板模式，避免刷新数据时意外跳转
+      if (projectActuallyChanged) {
+        state.setProjectPanelMode("project");
+      }
       state.setVersionSnapshots([]);
       state.setProjectShares([]);
       state.setShareAccess(null);
@@ -341,31 +351,6 @@ export function useAppController() {
     loadIterationDetail: loaders.loadIterationDetail,
   });
 
-  const collaborationActions = useCollaborationActions({
-    currentProjectId: state.currentProjectId,
-    currentIteration: derived.currentIteration,
-    currentRole: state.currentRole,
-    iterations: state.iterations,
-    loadCollaboration: loaders.loadCollaboration,
-    loadGovernance: loaders.loadGovernance,
-    loadPlatformOps: loaders.loadPlatformOps,
-    loadIterationDetail: loaders.loadIterationDetail,
-    loadIterations: loaders.loadIterations,
-    setShareAccess: state.setShareAccess,
-    setLatestTemplateRun: state.setLatestTemplateRun,
-  });
-
-  const deploymentActions = useDeploymentActions({
-    currentProjectId: state.currentProjectId,
-    currentIteration: derived.currentIteration,
-    currentRole: state.currentRole,
-    iterations: state.iterations,
-    opsMetrics: state.opsMetrics,
-    setError: state.setError,
-    loadPlatformOps: loaders.loadPlatformOps,
-    loadGovernance: loaders.loadGovernance,
-  });
-
   const handleLogout = () => {
     state.setShowUserMenu(false);
     auth.logout();
@@ -389,8 +374,6 @@ export function useAppController() {
     handleLogout,
     switchTenant: auth.switchTenant,
     loadPlatformOps: handleRefreshPlatformOps,
-    ...collaborationActions,
-    ...deploymentActions,
     ...projectActions,
     ...iterationActions
   };
