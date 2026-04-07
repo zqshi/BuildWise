@@ -1,6 +1,4 @@
-import { MSG_PREFIX } from "../../domain/workspace/constants";
-
-const ARTIFACT_REFERENCE_PREFIX = MSG_PREFIX.ARTIFACT_REFERENCE;
+const ARTIFACT_REFERENCE_PREFIX = "【交付物引用】";
 
 function parseArtifactReferenceContent(content: string) {
   const trimmed = content.trim();
@@ -19,10 +17,48 @@ function parseArtifactReferenceContent(content: string) {
   return { title, prompt };
 }
 
+// ---------------------------------------------------------------------------
+// 技术字段过滤：去除 system/assistant 消息中的内部字段路径和 JSON 片段
+// ---------------------------------------------------------------------------
+
+/** 匹配 key=value 格式的内部字段路径，如 deep.cross.rootCauses=xxx */
+const FIELD_PATH_PATTERN = /\b(?:deep|necessity|iteration|evidenceRefs|coreIntent|successCriteria|prioritizedFindings|clarificationQuestions|sourceType)\b[.\w]*=[^\n]*/g;
+
+/** 匹配独立的 JSON 块 */
+const JSON_BLOCK_PATTERN = /\{[^{}]*"(?:publishable|score|missingItems|actionRequired)"[^{}]*\}/g;
+
+/** 匹配被 ```json 包裹的代码块 */
+const CODE_BLOCK_PATTERN = /```json[\s\S]*?```/g;
+
+/** 匹配内部审计标记如 <!-- coach:{...} --> */
+const INTERNAL_TAG_PATTERN = /<!--\s*coach:\{[\s\S]*?\}\s*-->/g;
+
+function stripTechnicalContent(text: string): string {
+  return text
+    .replace(CODE_BLOCK_PATTERN, "")
+    .replace(JSON_BLOCK_PATTERN, "")
+    .replace(FIELD_PATH_PATTERN, "")
+    .replace(INTERNAL_TAG_PATTERN, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * 清洗 system/assistant 消息中的技术内容，供教练对话上下文注入使用。
+ * 移除内部字段路径（deep.cross.xxx=）、JSON 结构、代码块、审计标记。
+ */
+export function sanitizeForCoachContext(content: string): string {
+  return stripTechnicalContent(content);
+}
+
+// ---------------------------------------------------------------------------
+// 用户消息标准化（交付物引用处理）
+// ---------------------------------------------------------------------------
+
 export function normalizeIterationMessageContent(role: "system" | "assistant" | "user", content: string) {
   const trimmed = content.trim();
-  if (role !== "user") {
-    return trimmed;
+  if (role === "system" || role === "assistant") {
+    return stripTechnicalContent(trimmed);
   }
   const parsed = parseArtifactReferenceContent(trimmed);
   if (!parsed) {

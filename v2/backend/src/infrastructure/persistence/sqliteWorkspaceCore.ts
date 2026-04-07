@@ -11,6 +11,7 @@ import type {
 } from "../../domain/workspace/types";
 import { initialSchema } from "./migrations/001_initial_schema";
 import { fixOrphanTenant } from "./migrations/002_fix_orphan_tenant";
+import { analysisPipelinePersistence } from "./migrations/003_analysis_pipeline_persistence";
 import { runMigrations } from "./migrations/migrationRunner";
 
 export const seedStore: WorkspaceStore = {
@@ -99,7 +100,7 @@ export class SqliteWorkspaceCore {
         updated_at TEXT NOT NULL
       );
     `);
-    runMigrations(this.db, [initialSchema, fixOrphanTenant]);
+    runMigrations(this.db, [initialSchema, fixOrphanTenant, analysisPipelinePersistence]);
   }
 
   private initialStore(): WorkspaceStore {

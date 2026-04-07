@@ -373,6 +373,9 @@ export class WorkspaceService {
   retryAttachmentAnalysisJob(iterationId: number, options?: { jobId?: string; scope?: "job" | "batch" }): AttachmentAnalysisJob | null {
     return this.analysis.retryAttachmentAnalysisJob(iterationId, options);
   }
+  getLatestCompletedAnalysisReport(iterationId: number): AttachmentAnalysisReport | null {
+    return this.analysis.getLatestCompletedAnalysisReport(iterationId);
+  }
   getAttachmentAnalysisJob(iterationId: number, jobId: string): AttachmentAnalysisJob | null {
     return this.analysis.getAttachmentAnalysisJob(iterationId, jobId);
   }

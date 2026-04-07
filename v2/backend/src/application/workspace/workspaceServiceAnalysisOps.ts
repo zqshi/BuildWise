@@ -7,6 +7,8 @@ import type {
   IterationStatus,
   IterationTransitionSource,
 } from "../../domain/workspace/types";
+import { extractKnowledgeBaseUpdateOp } from "./ontologyService";
+import { createLogger as createOntologyLogger } from "../../infrastructure/runtime/logger";
 import {
   buildDiffLocations,
   buildIterationAgentPlan,
@@ -544,6 +546,94 @@ export async function analyzeAttachmentOp(
     artifactWorkflow: ensureArtifactWorkflow(normalized, refreshedControl, generatedAt)
   };
   repo.updateIteration(normalized);
+
+  // ── 本体提取：分析完成后自动更新 ProjectKnowledgeBase ──
+  const ontologyLog = createOntologyLogger("ontology-pipeline");
+  try {
+    const domainKnowledgeEntries = (normalized.changeControl?.domainKnowledgeEntries ?? []).map(e => ({
+      term: e.term,
+      definition: e.definition,
+      mappedPages: e.mappedPages,
+      mappedApis: e.mappedApis,
+      mappedEntities: e.mappedEntities,
+      mappedCodePaths: e.mappedCodePaths,
+      evidence: e.evidence
+    }));
+
+    if (domainKnowledgeEntries.length > 0) {
+      const freshProject = repo.findProject(iteration.projectId);
+      if (freshProject) {
+        const existingKb = freshProject.knowledgeBase ?? {
+          ontologyTerms: [],
+          stableRules: [],
+          componentInventory: [],
+          codeMap: [],
+          decisionLog: [],
+          knownRisks: [],
+          changePatterns: [],
+          updatedAt: ""
+        };
+
+        const ontologyInput = {
+          domainKnowledgeEntries,
+          traceabilityMap: traceabilityMap
+            ? {
+                pages: traceabilityMap.requirementToComponent.map(r => ({
+                  name: r.requirement,
+                  path: r.requirement,
+                  components: r.components
+                })),
+                apis: traceabilityMap.componentToCode.map(c => ({
+                  path: c.component,
+                  method: "GET",
+                  description: c.component
+                })),
+                entities: domainKnowledgeEntries
+                  .filter(e => e.mappedEntities.length > 0)
+                  .map(e => ({ name: e.term, fields: e.mappedEntities }))
+              }
+            : null,
+          boundary: resolvedBoundaryForReport
+            ? {
+                codePaths: resolvedBoundaryForReport.codePaths ?? [],
+                requirementRefs: resolvedBoundaryForReport.requirementRefs ?? []
+              }
+            : null,
+          analysisReport: {
+            businessConfirmation: businessConfirmationWithUx,
+            domainKnowledge,
+            versionDiffDetailed,
+            risks: versionDiffDetailed.riskPoints ?? [],
+            releaseReview: { rollback: releaseReview.rollback }
+          }
+        };
+
+        const ontologyResult = extractKnowledgeBaseUpdateOp(existingKb, ontologyInput);
+        freshProject.knowledgeBase = ontologyResult.updatedKb;
+        repo.updateProject(freshProject);
+
+        ontologyLog.info("ontology pipeline completed", {
+          newTerms: ontologyResult.newTerms.length,
+          updatedTerms: ontologyResult.updatedTerms.length,
+          newRules: ontologyResult.newRules.length,
+          newComponents: ontologyResult.newComponents.length
+        });
+
+        writeAuditLog(
+          repo,
+          "ontology.kb-updated",
+          `project:${iteration.projectId}`,
+          `terms=${ontologyResult.newTerms.length}+${ontologyResult.updatedTerms.length};rules=${ontologyResult.newRules.length};components=${ontologyResult.newComponents.length}`
+        );
+      }
+    }
+  } catch (ontologyError) {
+    // 本体提取失败不应阻断分析流程
+    ontologyLog.error("ontology pipeline failed (non-blocking)", {
+      error: ontologyError instanceof Error ? ontologyError.message : String(ontologyError)
+    });
+  }
+
   writeAuditLog(repo, "analysis.project-detection-synthesized", `iteration:${iterationId}`, `target=${input.fileName}`);
   const synthesisOutputs = [
     synthesis.synthesisOutput,

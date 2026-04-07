@@ -5,7 +5,6 @@
  * 支持指数退避、最大重试次数、补偿策略等。
  */
 
-import type { AgentRunResult } from "../../domain/shared/agentRunner";
 import type { IterationAgentPrompt } from "../../domain/workspace/types";
 import type { ValidationResult } from "./artifactValidator";
 import { generateRetryPrompt, validateArtifactDraft } from "./artifactValidator";
@@ -294,7 +293,7 @@ class CompensationManager {
         log.info(`[compensation] Executed: ${action.type}`);
       } catch (error) {
         failed++;
-        log.error(`[compensation] Failed: ${action.type}`, error);
+        log.error(`[compensation] Failed: ${action.type}`, error as Record<string, unknown>);
       }
     }
 
@@ -324,36 +323,50 @@ class CompensationManager {
 const retryExecutor = new RetryExecutor();
 const compensationManager = new CompensationManager();
 
+/**
+ * 带重试的 LLM 调用
+ */
+async function executeWithRetry<T>(
+  operation: () => Promise<T>,
+  config?: RetryConfig,
+  context?: string
+): Promise<RetryResult<T>> {
+  return retryExecutor.executeWithRetry(operation, config, context);
+}
+
+/**
+ * 带验证的交付物生成
+ */
+async function generateArtifactWithValidation(
+  artifactId: string,
+  basePrompt: IterationAgentPrompt,
+  agentRunner: any,
+  maxAttempts?: number
+): Promise<RetryResult<string>> {
+  return retryExecutor.generateArtifactWithValidation(artifactId, basePrompt, agentRunner, maxAttempts);
+}
+
+function addCompensation(id: string, action: CompensationAction): void {
+  compensationManager.addCompensation(id, action);
+}
+
+function executePendingCompensations(): Promise<{ executed: number; failed: number }> {
+  return compensationManager.executePendingCompensations();
+}
+
+function getPendingCompensations(): CompensationAction[] {
+  return compensationManager.getPendingCompensations();
+}
+
+function clearCompensation(id: string): void {
+  compensationManager.clearCompensation(id);
+}
+
 export {
   retryExecutor,
   compensationManager,
-
-  /**
-   * 带重试的 LLM 调用
-   */
-  async function executeWithRetry<T>(
-    operation: () => Promise<T>,
-    config?: RetryConfig,
-    context?: string
-  ): Promise<RetryResult<T>> {
-    return retryExecutor.executeWithRetry(operation, config, context);
-  },
-
-  /**
-   * 带验证的交付物生成
-   */
-  async function generateArtifactWithValidation(
-    artifactId: string,
-    basePrompt: IterationAgentPrompt,
-    agentRunner: any,
-    maxAttempts?: number
-  ): Promise<RetryResult<string>> {
-    return retryExecutor.generateArtifactWithValidation(artifactId, basePrompt, agentRunner, maxAttempts);
-  },
-
-  /**
-   * 补偿操作管理
-   */
+  executeWithRetry,
+  generateArtifactWithValidation,
   addCompensation,
   executePendingCompensations,
   getPendingCompensations,

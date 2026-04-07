@@ -161,6 +161,25 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     return created;
   });
 
+  app.get("/iterations/:id/analysis/latest-report", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const] } } }, async (request, reply) => {
+    const params = request.params as { id: string };
+    const iterationId = parsePositiveInt(params.id);
+    if (iterationId === null) {
+      reply.code(400);
+      return { message: "invalid iteration id" };
+    }
+    const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+    if (!access) {
+      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+    }
+    const report = service.getLatestCompletedAnalysisReport(iterationId);
+    if (!report) {
+      reply.code(404);
+      return { message: "no completed analysis report found" };
+    }
+    return report;
+  });
+
   app.get("/iterations/:id/analysis/jobs/:jobId", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, jobId: { type: "string" as const, minLength: 1 } }, required: ["id" as const, "jobId" as const] } } }, async (request, reply) => {
     const params = request.params as { id: string; jobId: string };
     const iterationId = parsePositiveInt(params.id);

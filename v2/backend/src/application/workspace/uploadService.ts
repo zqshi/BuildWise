@@ -32,6 +32,35 @@ export class UploadService {
     const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
     this.attachmentChunkStorageDir = (processEnv.ATTACHMENT_CHUNK_STORAGE_DIR || join(process.cwd(), ".runtime", "attachment-chunks")).trim();
     ensureDir(this.attachmentChunkStorageDir);
+    this.restoreFromDb();
+  }
+
+  private restoreFromDb() {
+    try {
+      for (const project of this.repo.listProjects()) {
+        for (const iter of this.repo.listIterations(project.id)) {
+          for (const upload of (this.repo.listUploads?.(iter.id) ?? [])) {
+            if (!this.uploads.has(upload.uploadId)) {
+              this.uploads.set(upload.uploadId, upload);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[UploadService] Failed to restore uploads from DB", err);
+    }
+  }
+
+  private persistUpload(upload: AttachmentUploadRecord) {
+    try { this.repo.saveUpload?.(upload); } catch (err) {
+      console.error("[UploadService] Failed to persist upload", upload.uploadId, err);
+    }
+  }
+
+  private persistIngestJob(job: AttachmentIngestJob) {
+    try { this.repo.saveIngestJob?.(job); } catch (err) {
+      console.error("[UploadService] Failed to persist ingest job", job.ingestJobId, err);
+    }
   }
 
   private get uploadOpsContext() {
@@ -47,7 +76,9 @@ export class UploadService {
   }
 
   initAttachmentUpload(iterationId: number, input: UploadInitInput): AttachmentUploadRecord | null {
-    return initAttachmentUploadOp(this.uploadOpsContext, iterationId, input);
+    const result = initAttachmentUploadOp(this.uploadOpsContext, iterationId, input);
+    if (result) this.persistUpload(result);
+    return result;
   }
 
   getAttachmentUpload(iterationId: number, uploadId: string): AttachmentUploadRecord | null {
@@ -55,11 +86,21 @@ export class UploadService {
   }
 
   putAttachmentUploadChunk(iterationId: number, uploadId: string, fileId: string, chunkIndex: number, chunk: Uint8Array): boolean {
-    return putAttachmentUploadChunkOp(this.uploadOpsContext, iterationId, uploadId, fileId, chunkIndex, chunk);
+    const ok = putAttachmentUploadChunkOp(this.uploadOpsContext, iterationId, uploadId, fileId, chunkIndex, chunk);
+    if (ok) {
+      const upload = this.uploads.get(uploadId);
+      if (upload) this.persistUpload(upload);
+    }
+    return ok;
   }
 
   completeAttachmentUpload(iterationId: number, uploadId: string): { upload: AttachmentUploadRecord; ingestJob: AttachmentIngestJob } | null {
-    return completeAttachmentUploadOp(this.uploadOpsContext, iterationId, uploadId);
+    const result = completeAttachmentUploadOp(this.uploadOpsContext, iterationId, uploadId);
+    if (result) {
+      this.persistUpload(result.upload);
+      this.persistIngestJob(result.ingestJob);
+    }
+    return result;
   }
 
   submitAttachmentAnalysisJobFromUpload(iterationId: number, uploadId: string, schemaVersion = "v2"): AttachmentAnalysisJob | null {

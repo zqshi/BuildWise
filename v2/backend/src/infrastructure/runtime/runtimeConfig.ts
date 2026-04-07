@@ -18,7 +18,7 @@ export type RuntimeConfig = {
   authPublicPathPrefixes: string[];
   llmRequired: boolean;
   dependencyRequired: boolean;
-  storageBackend: "json" | "sqlite";
+  storageBackend: "sqlite";
   workspaceDbFile: string;
   dataFile: string;
   homeDir: string;
@@ -108,8 +108,11 @@ function parsePathPrefixes(value: string | undefined, fallback: string[]): strin
     .filter(Boolean);
 }
 
-function parseStorageBackend(value: string | undefined): "json" | "sqlite" {
-  return value?.trim().toLowerCase() === "sqlite" ? "sqlite" : "json";
+function parseStorageBackend(value: string | undefined): "sqlite" {
+  if (value?.trim().toLowerCase() === "json") {
+    // JSON storage is deprecated; ignore and use SQLite
+  }
+  return "sqlite";
 }
 
 function parseBool(value: string | undefined, fallback = false) {
@@ -166,10 +169,6 @@ export function loadRuntimeConfig(env: EnvMap, defaults: { dataFile: string }): 
     if (secret.length < 32) {
       throw new Error("JWT_SECRET must be at least 32 characters when AUTH_MODE=jwt");
     }
-  }
-
-  if (nodeEnv === "production" && storageBackend === "json") {
-    throw new Error("STORAGE_BACKEND=json is not allowed in production; use STORAGE_BACKEND=sqlite");
   }
 
   const allowSeedDataBootstrap = parseBool(env.ALLOW_SEED_DATA_BOOTSTRAP, nodeEnv !== "production");
