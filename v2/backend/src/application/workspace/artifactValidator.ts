@@ -5,7 +5,7 @@
  * 支持重试逻辑和错误修复建议。
  */
 
-import { getArtifactSchema, type TestCase, type TestMatrixArtifact } from "../../domain/workspace/artifactSchemas";
+import { getArtifactSchema, type TestCase } from "../../domain/workspace/artifactSchemas";
 import { createLogger } from "../../infrastructure/runtime/logger";
 
 const log = createLogger("artifact-validator");
@@ -94,7 +94,7 @@ class SchemaValidator {
           return false;
         }
         if (schema.maxLength && data.length > schema.maxLength) {
-          warnings.push({
+          errors.push({
             field: path,
             message: `String too long, maximum ${schema.maxLength} chars`,
             severity: "warning",
@@ -213,12 +213,12 @@ class SchemaValidator {
       const fieldPath = path ? `${path}.${key}` : key;
 
       if (value !== undefined && value !== null) {
-        this.validate(propSchema, value, fieldPath, errors, warnings);
+        this.validateNode(propSchema, value, fieldPath, errors, warnings);
       }
     }
   }
 
-  private validate(schema: any, data: any, path: string, errors: ValidationError[], warnings: ValidationError[]): void {
+  private validateNode(schema: any, data: any, path: string, errors: ValidationError[], warnings: ValidationError[]): void {
     this.validateType(schema, data, path, errors);
     this.validateRequired(schema, data, path, errors);
     this.validateProperties(schema, data, path, errors, warnings);
@@ -255,12 +255,12 @@ export function validateArtifactDraft(
     const result = validator.validate(schema, data);
 
     if (!result.valid) {
-      log.warn(`Artifact validation failed for ${artifactId}:`, result.errors);
+      log.warn(`Artifact validation failed for ${artifactId}:`, { errorCount: result.errors.length });
     }
 
     return result;
   } catch (error) {
-    log.warn(`Failed to parse artifact content for ${artifactId}:`, error);
+    log.warn(`Failed to parse artifact content for ${artifactId}:`, { error: error instanceof Error ? error.message : String(error) });
     return {
       valid: false,
       errors: [{
@@ -353,7 +353,7 @@ export function extractTestCases(content: string): { valid: boolean; cases: Test
 export function generateRetryPrompt(
   artifactId: string,
   errors: ValidationError[],
-  originalContent: string
+  _originalContent: string
 ): string {
   const errorSummary = errors.map(e => `- ${e.field}: ${e.message}`).join("\n");
   const suggestedFixes = errors

@@ -5,7 +5,6 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { ContinuousModelingService } from "./application/continuousModeling/continuousModelingService";
 import { ContinuousModelingWorkspaceService } from "./application/continuousModeling/continuousModelingWorkspaceService";
-import { GlobalAssistantService } from "./application/globalAssistant/globalAssistantService";
 import { PlatformService } from "./application/platform/platformService";
 import { createAgentRunnerFromEnv, probeLlmRuntimeStatus } from "./application/workspace/agentRunner";
 import { extractKnowledgeBaseUpdateOp } from "./application/workspace/ontologyService";
@@ -14,8 +13,6 @@ import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from 
 import { WorkspaceService } from "./application/workspace/workspaceService";
 import type { WorkspaceRepository } from "./domain/workspace/repository";
 import { JsonContinuousModelingRepository } from "./infrastructure/persistence/jsonContinuousModelingRepository";
-import { JsonGlobalAssistantRepository } from "./infrastructure/persistence/jsonGlobalAssistantRepository";
-import { JsonWorkspaceRepository } from "./infrastructure/persistence/jsonWorkspaceRepository";
 import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevokedTokenStore";
 import { SqliteWorkspaceRepository } from "./infrastructure/persistence/sqliteWorkspaceRepository";
 import { setRevokedTokenStore } from "./infrastructure/runtime/jwt";
@@ -29,7 +26,6 @@ import { registerGracefulShutdown } from "./infrastructure/runtime/runtimeShutdo
 import { RuntimeState } from "./infrastructure/runtime/runtimeState";
 import { registerAuthRoutes } from "./interfaces/http/routes/authRoutes";
 import { registerContinuousModelingRoutes } from "./interfaces/http/routes/continuousModelingRoutes";
-import { registerGlobalAssistantRoutes } from "./interfaces/http/routes/globalAssistantRoutes";
 import { registerPlatformRoutes } from "./interfaces/http/routes/platformRoutes";
 import { registerRepositoryTraceRoutes } from "./interfaces/http/routes/repositoryTraceRoutes";
 import { registerSystemRoutes } from "./interfaces/http/routes/systemRoutes";
@@ -147,17 +143,10 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   const dependencyStatus = await probeRuntimeDependencies(config);
   runtime.setDependencyStatus(dependencyStatus);
   log.info("dependency probe completed", { storage: dependencyStatus.storage.healthy, required: config.dependencyRequired });
-  const workspaceRepo =
-    config.storageBackend === "sqlite"
-      ? new SqliteWorkspaceRepository(config.workspaceDbFile, config.dataFile, {
-          bootstrapMode: config.allowSeedDataBootstrap ? "seed" : "empty"
-        })
-      : new JsonWorkspaceRepository(config.dataFile, {
-          bootstrapMode: config.allowSeedDataBootstrap ? "seed" : "empty"
-        });
-  if (config.storageBackend === "sqlite" && workspaceRepo instanceof SqliteWorkspaceRepository) {
-    setRevokedTokenStore(new SqliteRevokedTokenStore(workspaceRepo.getDb()));
-  }
+  const workspaceRepo = new SqliteWorkspaceRepository(config.workspaceDbFile, config.dataFile, {
+    bootstrapMode: config.allowSeedDataBootstrap ? "seed" : "empty"
+  });
+  setRevokedTokenStore(new SqliteRevokedTokenStore(workspaceRepo.getDb()));
   const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
   const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo);
 
@@ -181,8 +170,6 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   const platformService = new PlatformService(workspaceRepo);
   const continuousModelingService = new ContinuousModelingService(continuousModelingRepo);
   const continuousModelingWorkspaceService = new ContinuousModelingWorkspaceService(continuousModelingService, workspaceRepo, continuousModelingRepo);
-  const globalAssistantRepo = new JsonGlobalAssistantRepository(join(backendRoot, "global-assistant.runtime.json"));
-  const globalAssistantService = new GlobalAssistantService(globalAssistantRepo, agentRunner, workspaceRepo);
 
   const emptyKb = (): { ontologyTerms: never[]; stableRules: never[]; componentInventory: never[]; codeMap: never[]; decisionLog: never[]; knownRisks: never[]; changePatterns: never[]; updatedAt: string } => ({
     ontologyTerms: [],
@@ -283,7 +270,6 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
       await registerRepositoryTraceRoutes(v1, workspaceService);
       await registerContinuousModelingRoutes(v1, continuousModelingWorkspaceService);
       await registerPlatformRoutes(v1, platformService, workspaceService);
-      await registerGlobalAssistantRoutes(v1, globalAssistantService, workspaceRepo);
     },
     { prefix: "/api/v1" }
   );

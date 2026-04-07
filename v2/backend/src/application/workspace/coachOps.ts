@@ -1,103 +1,120 @@
 /**
  * Coach Ops — 教练操作
  *
- * 基于 OpenClaw Gateway 提供稳定的迭代对话和交付物生成能力。
- * 集成 Skill 执行、验证、重试等机制。
+ * 基于直接 LLM 调用提供迭代对话能力。
+ * 使用注入的 AgentRunner（来自 infrastructure/llm/agentRunnerFactory）。
  */
 
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-import type { Iteration, IterationCoachChatResponse, IterationChangeControl } from "../../domain/workspace/types";
+import type { Iteration, IterationCoachChatResponse, Project } from "../../domain/workspace/types";
+import type { ProjectKnowledgeBase } from "../../domain/workspace/projectTypes";
 import type { AgentRunner } from "./agentRunner";
-import type { AgentId } from "./agentRunnerFactoryGateway";
-import { createOpenClawGatewayRunner } from "./agentRunnerFactoryGateway";
-import { executor as skillExecutor, type SkillId } from "./skillExecutor";
-import type { TestMatrixArtifact, BoundaryArtifact, PRDArtifact } from "../../domain/workspace/artifactSchemas";
-import { validateArtifactDraft, extractTestCases } from "./artifactValidator";
 import { createLogger } from "../../infrastructure/runtime/logger";
 
 const log = createLogger("coach-ops");
 
 // ---------------------------------------------------------------------------
-// 类型定义
+// System Prompt 构建
 // ---------------------------------------------------------------------------
 
-type CoachContext = {
-  iteration: Iteration;
-  project: any;
-  previousIteration: Iteration | null;
-  knowledgeBase: any;
-  ontologyTerms: string[];
-  businessRules: string[];
-  recentMessages: Array<{ role: string; content: string }>;
-};
-
-// ---------------------------------------------------------------------------
-// 上下文构建器
-// ---------------------------------------------------------------------------
-
-function buildCoachContext(
+function buildCoachSystemPrompt(
+  project: Project,
   iteration: Iteration,
-  project: any,
   previousIteration: Iteration | null,
-  knowledgeBase: any
-): CoachContext {
-  const ontologyTerms = knowledgeBase?.ontologyTerms?.map((t: any) => t.term) || [];
-  const businessRules = knowledgeBase?.stableRules?.map((r: any) => r.rule) || [];
+  knowledgeBase: ProjectKnowledgeBase | undefined
+): string {
+  const ontologyTerms = knowledgeBase?.ontologyTerms?.map(t => `${t.term}: ${t.definition}`) ?? [];
+  const businessRules = knowledgeBase?.stableRules?.map(r => r.rule) ?? [];
+  const knownRisks = knowledgeBase?.knownRisks?.map(r => r.risk) ?? [];
 
-  return {
-    iteration,
-    project,
-    previousIteration,
-    knowledgeBase,
-    ontologyTerms,
-    businessRules,
-    recentMessages: []
-  };
+  const scopeSection = iteration.scope
+    ? `## 当前迭代范围
+- 包含：${iteration.scope.inScope.join("、") || "未定义"}
+- 排除：${iteration.scope.outOfScope.join("、") || "未定义"}
+- 验收标准：${iteration.scope.acceptanceCriteria.join("、") || "未定义"}`
+    : "";
+
+  const ontologySection = ontologyTerms.length > 0
+    ? `## 领域术语（本体）
+${ontologyTerms.slice(0, 20).join("\n")}`
+    : "";
+
+  const rulesSection = businessRules.length > 0
+    ? `## 已知业务规则
+${businessRules.slice(0, 15).join("\n")}`
+    : "";
+
+  const risksSection = knownRisks.length > 0
+    ? `## 已知风险
+${knownRisks.slice(0, 10).join("\n")}`
+    : "";
+
+  const continuitySection = previousIteration
+    ? `## 上一迭代
+- 名称：${previousIteration.name}
+- 状态：${previousIteration.status}
+- 摘要：${previousIteration.aiSummary || "无"}`
+    : "";
+
+  return `你是 BuildWise 迭代教练，负责引导用户从模糊需求推进到可交付成果。
+
+## 项目信息
+- 项目：${project.name}
+- 描述：${project.description}
+
+## 当前迭代
+- 名称：${iteration.name}
+- 状态：${iteration.status}
+- 目标：${iteration.goals.join("、") || "未定义"}
+
+${scopeSection}
+
+${continuitySection}
+
+${ontologySection}
+
+${rulesSection}
+
+${risksSection}
+
+## 你的职责
+1. 理解用户意图，引导需求澄清
+2. 当用户上传材料后，协助分析和确认
+3. 在边界确认阶段，帮助锁定变更范围
+4. 在开发阶段，协助代码审查和技术决策
+5. 在测试阶段，协助验收和质量评审
+6. 在发布阶段，协助发布评审和风险评估
+
+## 回复要求
+- 使用自然语言对话，不要机械僵硬
+- 每次回复聚焦一个主题，不要信息轰炸
+- 如果用户意图不清楚，主动追问
+- 基于已有的领域术语和业务规则回复，保持一致性`.trim();
 }
 
 // ---------------------------------------------------------------------------
-// 交付物生成器（基于 Skill）
+// Intent 推断
 // ---------------------------------------------------------------------------
 
-async function generateArtifactViaSkill(
-  artifactId: string,
-  skillId: SkillId,
-  context: CoachContext,
-  input: Record<string, unknown>
-): Promise<{ success: boolean; content?: string; error?: string }> {
-  log.info(`[coach-ops] Generating ${artifactId} using skill ${skillId}`);
+type CoachIntent = IterationCoachChatResponse["intent"];
 
-  const projectId = context.iteration.projectId;
-  const iterationId = context.iteration.id;
+function inferIntent(message: string, iterationStatus: string): CoachIntent {
+  const lower = message.toLowerCase();
 
-  try {
-    // 使用 Skill 执行器
-    const result = await skillExecutor.executeSkillWithValidation(
-      artifactId,
-      skillId,
-      input,
-      projectId,
-      iterationId,
-      3 // 最多重试 3 次
-    );
+  if (/上传|文件|材料|附件|文档/.test(lower)) return "collect-attachment";
+  if (/澄清|确认|疑问|不清楚|什么意思/.test(lower)) return "clarify";
+  if (/边界|范围|scope|变更/.test(lower)) return "confirm-boundary";
+  if (/计划|规划|方案|设计/.test(lower)) return "plan";
+  if (/测试|验收|质量|qa/.test(lower)) return "qa";
+  if (/发布|上线|release|部署/.test(lower)) return "release";
+  if (/全流程|full.?cycle|一键/.test(lower)) return "full-cycle";
 
-    if (result.success && result.result) {
-      log.info(`[coach-ops] Generated ${artifactId} successfully`, {
-        attempts: result.attempts
-      });
-      return { success: true, content: JSON.stringify(result.result) };
-    } else {
-      const errorMsg = result.error || "Generation failed after all attempts";
-      log.error(`[coach-ops] Failed to generate ${artifactId}: ${errorMsg}`);
-      return { success: false, error: errorMsg };
-    }
-  } catch (error) {
-    log.error(`[coach-ops] Exception generating ${artifactId}:`, error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
-  }
+  // 根据迭代状态推断默认意图
+  if (iterationStatus === "planned") return "collect-attachment";
+  if (iterationStatus === "in-progress") return "plan";
+  if (iterationStatus === "review") return "qa";
+
+  return "general";
 }
 
 // ---------------------------------------------------------------------------
@@ -109,144 +126,96 @@ export async function coachIterationConversationOp(
   agentRunner: AgentRunner | null,
   iterationId: number,
   message: string,
-  modelingRepo: any | null = null
+  _modelingRepo: unknown = null
 ): Promise<IterationCoachChatResponse | null> {
-  // 获取迭代信息
   const iteration = repo.findIteration(iterationId);
-  if (!iteration) {
-    return null;
-  }
+  if (!iteration) return null;
 
-  const projectId = iteration.projectId;
-  const project = repo.findProject(projectId);
-  if (!project) {
-    return null;
+  const project = repo.findProject(iteration.projectId);
+  if (!project) return null;
+
+  // LLM 不可用时降级
+  if (!agentRunner) {
+    log.warn("[coach-ops] AgentRunner unavailable, returning degraded response");
+    return {
+      iterationId,
+      intent: inferIntent(message, iteration.status),
+      reply: "AI 助手当前不可用（LLM 未配置或不可达），请检查 LLM_API_BASE 和 LLM_API_KEY 环境变量。",
+      execution: { action: "none", instruction: "", apply: false },
+      guidance: { uploadRecommended: false, suggestedUploadTypes: [], suggestedActions: ["检查 LLM 配置"], clarificationChecklist: [] },
+      llm: { used: false, model: "", degraded: true, reason: "agent_runner_unavailable" }
+    };
   }
 
   // 获取前一次迭代
-  const iterations = repo.listIterations(projectId);
+  const iterations = repo.listIterations(iteration.projectId);
   const currentIndex = iterations.findIndex(it => it.id === iterationId);
   const previousIteration = currentIndex > 0 ? iterations[currentIndex - 1] : null;
 
-  // 构建上下文
-  const context = buildCoachContext(iteration, project, previousIteration, project.knowledgeBase);
+  // 构建 system prompt
+  const systemPrompt = buildCoachSystemPrompt(project, iteration, previousIteration, project.knowledgeBase);
 
-  // 获取最近的对话消息
+  // 获取近期消息（作为对话历史），过滤掉 system 角色（Anthropic API 不接受）
   const allMessages = repo.listMessages(iterationId);
-  const recentMessages = allMessages.slice(-8).map(m => ({
-    role: m.role,
-    content: m.content.substring(0, 500) // 限制长度
-  }));
+  const recentMessages = allMessages
+    .filter(m => m.role === "user" || m.role === "assistant")
+    .slice(-10)
+    .map(m => ({
+      role: m.role as "user" | "assistant",
+      content: m.content.length > 800 ? m.content.substring(0, 800) + "..." : m.content
+    }));
 
-  // 尝试使用 OpenClaw Gateway
-  const gatewayRunner = createOpenClawGatewayRunner();
+  // 加入当前消息
+  const conversationMessages = [
+    ...recentMessages,
+    { role: "user" as const, content: message }
+  ];
 
-  if (gatewayRunner) {
-    return await coachWithGateway(
-      gatewayRunner,
-      repo,
-      iteration,
-      context,
-      message,
-      recentMessages,
-      projectId
-    );
-  }
-
-  // 降级到旧的实现（如果有）
-  log.warn("[coach-ops] Gateway unavailable, would use legacy implementation");
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// 基于 Gateway 的 Coach 实现
-// ---------------------------------------------------------------------------
-
-async function coachWithGateway(
-  gatewayRunner: any,
-  repo: WorkspaceRepository,
-  iteration: Iteration,
-  context: CoachContext,
-  message: string,
-  recentMessages: any[],
-  projectId: number
-): Promise<IterationCoachChatResponse> {
   const startTime = Date.now();
 
   try {
-    // 构建 Agent Chat 请求
-    const request = {
-      agentId: "iteration-coach",
-      message,
-      sessionId: `${projectId}-${iteration.id}`,
-      context: {
-        iterationId: iteration.id,
-        iterationName: iteration.name,
-        iterationStatus: iteration.status,
-        scope: iteration.scope,
-        ontologyTerms: context.ontologyTerms,
-        businessRules: context.businessRules,
-        recentMessages: recentMessages
-      }
-    };
-
-    // 执行 Agent Chat
-    const response = await gatewayRunner.agentChat(request);
-
-    if (!response.success) {
-      return {
-        iterationId: iteration.id,
-        intent: "general",
-        reply: `抱歉，AI 助手暂时不可用：${response.error || "未知错误"}`,
-        execution: { action: "none", instruction: "", apply: false },
-        guidance: { uploadRecommended: false, suggestedActions: ["请稍后重试"], clarificationChecklist: [] },
-        llm: { used: false, model: "", degraded: true, reason: response.error || "agent_unavailable" }
-      };
-    }
+    const result = await agentRunner.runWithHistory(systemPrompt, conversationMessages);
 
     const executionTimeMs = Date.now() - startTime;
-    log.info(`[coach-ops] Coach chat completed`, { executionTimeMs });
+    log.info("[coach-ops] Coach chat completed", {
+      executionTimeMs,
+      model: result.model,
+      replyLength: result.content.length,
+      truncated: result.truncated
+    });
 
-    // 简化响应处理（不进行复杂的解析）
-    const reply = response.reply || "我已收到您的消息，正在处理...";
+    const intent = inferIntent(message, iteration.status);
 
     return {
-      iterationId: iteration.id,
-      intent: "general",
-      reply,
+      iterationId,
+      intent,
+      reply: result.content,
       execution: { action: "none", instruction: "", apply: false },
-      guidance: { uploadRecommended: false, suggestedActions: [], clarificationChecklist: [] },
+      guidance: {
+        uploadRecommended: intent === "collect-attachment",
+        suggestedUploadTypes: [],
+        suggestedActions: [],
+        clarificationChecklist: []
+      },
       llm: {
         used: true,
-        model: response.structuredOutput?.model || "openclaw-model",
-        degraded: false,
-        reason: ""
+        model: result.model || "",
+        degraded: !!result.truncated,
+        reason: result.truncated ? "response_truncated" : ""
       }
     };
   } catch (error) {
-    log.error("[coach-ops] Coach chat threw exception:", error);
+    const executionTimeMs = Date.now() - startTime;
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    log.error("[coach-ops] Coach chat failed", { executionTimeMs, error: errorMsg });
 
     return {
-      iterationId: iteration.id,
+      iterationId,
       intent: "general",
-      reply: `处理过程中发生错误：${error instanceof Error ? error.message : String(error)}`,
+      reply: `处理过程中发生错误：${errorMsg}`,
       execution: { action: "none", instruction: "", apply: false },
-      guidance: { uploadRecommended: false, suggestedActions: [], clarificationChecklist: [] },
-      llm: {
-        used: false,
-        model: "",
-        degraded: true,
-        reason: error instanceof Error ? error.message : String(error)
-      }
+      guidance: { uploadRecommended: false, suggestedUploadTypes: [], suggestedActions: [], clarificationChecklist: [] },
+      llm: { used: false, model: "", degraded: true, reason: errorMsg }
     };
   }
 }
-
-// ---------------------------------------------------------------------------
-// 导出
-// ---------------------------------------------------------------------------
-
-export {
-  generateArtifactViaSkill,
-  type SkillId
-};

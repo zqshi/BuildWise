@@ -91,6 +91,72 @@ export class AnalysisService {
     this.analysisJobTimeoutMs = readPositiveMs(processEnv.ANALYSIS_JOB_TIMEOUT_MS, 25 * 60 * 1000);
     this.analysisQueuedStallTimeoutMs = readPositiveMs(processEnv.ANALYSIS_JOB_QUEUED_STALL_TIMEOUT_MS, 10 * 60 * 1000);
     this.transitionIteration = transitionIteration;
+    this.restoreFromDb();
+  }
+
+  private restoreFromDb() {
+    try {
+      const allJobs = this.repo.listAnalysisJobs
+        ? (() => {
+            const jobs: Array<AttachmentAnalysisJobRuntime> = [];
+            for (const project of this.repo.listProjects()) {
+              for (const iter of this.repo.listIterations(project.id)) {
+                for (const row of this.repo.listAnalysisJobs(iter.id)) {
+                  jobs.push({
+                    ...row,
+                    input: (row.input ?? {}) as AttachmentUploadInput,
+                    inputFingerprint: row.inputFingerprint ?? ""
+                  } as AttachmentAnalysisJobRuntime);
+                }
+              }
+            }
+            return jobs;
+          })()
+        : [];
+      for (const job of allJobs) {
+        if (!this.analysisJobs.has(job.jobId)) {
+          this.analysisJobs.set(job.jobId, job);
+        }
+        const reportIndex = this.repo.findReportIndexByJob?.(job.jobId);
+        if (reportIndex && !this.reportIndexesByJobId.has(job.jobId)) {
+          this.reportIndexesByJobId.set(job.jobId, reportIndex);
+          const sections = this.repo.listReportSections?.(reportIndex.reportId) ?? [];
+          if (sections.length > 0 && !this.reportSectionsByReportId.has(reportIndex.reportId)) {
+            this.reportSectionsByReportId.set(reportIndex.reportId, sections);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[AnalysisService] Failed to restore from DB, starting fresh", err);
+    }
+  }
+
+  private persistJob(job: AttachmentAnalysisJobRuntime) {
+    try {
+      this.repo.saveAnalysisJob?.({
+        ...job,
+        input: job.input,
+        inputFingerprint: job.inputFingerprint
+      });
+    } catch (err) {
+      console.error("[AnalysisService] Failed to persist job", job.jobId, err);
+    }
+  }
+
+  private persistReportIndex(report: AttachmentReportIndex) {
+    try {
+      this.repo.saveReportIndex?.(report);
+    } catch (err) {
+      console.error("[AnalysisService] Failed to persist report index", report.reportId, err);
+    }
+  }
+
+  private persistReportSections(sections: AttachmentReportSection[]) {
+    try {
+      this.repo.saveReportSections?.(sections);
+    } catch (err) {
+      console.error("[AnalysisService] Failed to persist report sections", err);
+    }
   }
 
   analyzeAttachment(iterationId: number, input: AttachmentUploadInput): Promise<AttachmentAnalysisReport | null> {
@@ -217,6 +283,18 @@ export class AnalysisService {
     };
   }
 
+  getLatestCompletedAnalysisReport(iterationId: number): AttachmentAnalysisReport | null {
+    this.reconcileAnalysisJobs();
+    let latest: AttachmentAnalysisJobRuntime | null = null;
+    for (const job of this.analysisJobs.values()) {
+      if (job.iterationId !== iterationId || job.status !== "succeeded" || !job.result) continue;
+      if (!latest || job.finishedAt > latest.finishedAt) {
+        latest = job;
+      }
+    }
+    return latest?.result ?? null;
+  }
+
   findAttachmentReportIterationId(reportId: string) {
     for (const report of this.reportIndexesByJobId.values()) {
       if (report.reportId === reportId) {
@@ -245,6 +323,7 @@ export class AnalysisService {
       inputSummary: summary
     });
     this.analysisJobs.set(jobId, runtimeJob);
+    this.persistJob(runtimeJob);
     this.analysisQueue.push(jobId);
     const iteration = this.repo.findIteration(iterationId);
     if (iteration) {
@@ -282,13 +361,15 @@ export class AnalysisService {
   }
 
   private async runAttachmentAnalysisJobWithTimeout(jobId: string) {
-    return runAttachmentAnalysisJobWithTimeoutOp({
+    await runAttachmentAnalysisJobWithTimeoutOp({
       analysisJobs: this.analysisJobs,
       jobId,
       analysisJobTimeoutMs: this.analysisJobTimeoutMs,
       runAttachmentAnalysisJob: (targetJobId) => this.runAttachmentAnalysisJob(targetJobId),
       onMarkFailed: (iterationId, input, errorMessage, at) => markFailedAnalysisOp(this.repo, iterationId, input, errorMessage, at)
     });
+    const job = this.analysisJobs.get(jobId);
+    if (job) this.persistJob(job);
   }
 
   private async runAttachmentAnalysisJob(jobId: string) {
@@ -316,7 +397,17 @@ export class AnalysisService {
           now: nowIso(),
           newSectionId: () => shortId("sec")
         }),
-      onAnalysisCompleted: (iterationId, report) => this.fireAnalysisCompleted(iterationId, report)
+      onAnalysisCompleted: (iterationId, report) => {
+        this.fireAnalysisCompleted(iterationId, report);
+        const job = this.analysisJobs.get(jobId);
+        if (job) this.persistJob(job);
+        const reportIndex = this.reportIndexesByJobId.get(jobId);
+        if (reportIndex) {
+          this.persistReportIndex(reportIndex);
+          const sections = this.reportSectionsByReportId.get(reportIndex.reportId);
+          if (sections) this.persistReportSections(sections);
+        }
+      }
     });
   }
 

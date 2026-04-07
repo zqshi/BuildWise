@@ -620,4 +620,26 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       this.write(data);
     }
   }
+
+  // ── AnalysisPipelineRepository (in-memory stubs for JSON repo) ──
+
+  private readonly _analysisJobs = new Map<string, Record<string, unknown>>();
+  private readonly _reportIndexes = new Map<string, Record<string, unknown>>();
+  private readonly _reportSections = new Map<string, Record<string, unknown>[]>();
+  private readonly _uploads = new Map<string, Record<string, unknown>>();
+  private readonly _ingestJobs = new Map<string, Record<string, unknown>>();
+
+  saveAnalysisJob(job: Record<string, unknown>) { this._analysisJobs.set(String(job.jobId), job); }
+  findAnalysisJob(jobId: string) { return (this._analysisJobs.get(jobId) as ReturnType<WorkspaceRepository["findAnalysisJob"]>) ?? null; }
+  listAnalysisJobs(iterationId: number) { return [...this._analysisJobs.values()].filter((j) => j.iterationId === iterationId) as ReturnType<WorkspaceRepository["listAnalysisJobs"]>; }
+  saveReportIndex(report: Record<string, unknown>) { this._reportIndexes.set(String(report.reportId), report); }
+  findReportIndex(reportId: string) { return (this._reportIndexes.get(reportId) as ReturnType<WorkspaceRepository["findReportIndex"]>) ?? null; }
+  findReportIndexByJob(jobId: string) { for (const r of this._reportIndexes.values()) { if (r.analysisJobId === jobId) return r as ReturnType<WorkspaceRepository["findReportIndexByJob"]>; } return null; }
+  saveReportSections(sections: Record<string, unknown>[]) { for (const s of sections) { const rid = String(s.reportId); const arr = this._reportSections.get(rid) ?? []; arr.push(s); this._reportSections.set(rid, arr); } }
+  listReportSections(reportId: string) { return (this._reportSections.get(reportId) ?? []) as ReturnType<WorkspaceRepository["listReportSections"]>; }
+  saveUpload(upload: Record<string, unknown>) { this._uploads.set(String(upload.uploadId), upload); }
+  findUpload(uploadId: string) { return (this._uploads.get(uploadId) as ReturnType<WorkspaceRepository["findUpload"]>) ?? null; }
+  listUploads(iterationId: number) { return [...this._uploads.values()].filter((u) => u.iterationId === iterationId) as ReturnType<WorkspaceRepository["listUploads"]>; }
+  saveIngestJob(job: Record<string, unknown>) { this._ingestJobs.set(String(job.ingestJobId), job); }
+  findIngestJob(ingestJobId: string) { return (this._ingestJobs.get(ingestJobId) as ReturnType<WorkspaceRepository["findIngestJob"]>) ?? null; }
 }

@@ -19,6 +19,13 @@ import type {
   VersionSnapshot,
   WorkspaceStore
 } from "./types";
+import type {
+  AttachmentAnalysisJob,
+  AttachmentReportIndex,
+  AttachmentReportSection,
+  AttachmentUploadRecord,
+  AttachmentIngestJob
+} from "./analysisTypes";
 
 // ── Sub-interfaces (ISP) ──
 
@@ -92,6 +99,22 @@ export interface CollaborationRepository {
   upsertProjectWorkspaceBinding(record: ProjectWorkspaceBindingRecord): ProjectWorkspaceBindingRecord;
 }
 
+export interface AnalysisPipelineRepository {
+  saveAnalysisJob(job: AttachmentAnalysisJob & { input?: unknown; inputFingerprint?: string }): void;
+  findAnalysisJob(jobId: string): (AttachmentAnalysisJob & { input?: unknown; inputFingerprint?: string }) | null;
+  listAnalysisJobs(iterationId: number): Array<AttachmentAnalysisJob & { input?: unknown; inputFingerprint?: string }>;
+  saveReportIndex(report: AttachmentReportIndex): void;
+  findReportIndex(reportId: string): AttachmentReportIndex | null;
+  findReportIndexByJob(jobId: string): AttachmentReportIndex | null;
+  saveReportSections(sections: AttachmentReportSection[]): void;
+  listReportSections(reportId: string): AttachmentReportSection[];
+  saveUpload(upload: AttachmentUploadRecord): void;
+  findUpload(uploadId: string): AttachmentUploadRecord | null;
+  listUploads(iterationId: number): AttachmentUploadRecord[];
+  saveIngestJob(job: AttachmentIngestJob): void;
+  findIngestJob(ingestJobId: string): AttachmentIngestJob | null;
+}
+
 // ── Backward-compatible composite ──
 
 export interface WorkspaceRepository
@@ -100,4 +123,5 @@ export interface WorkspaceRepository
     IterationRepository,
     MessageRepository,
     GovernanceRepository,
-    CollaborationRepository {}
+    CollaborationRepository,
+    AnalysisPipelineRepository {}
