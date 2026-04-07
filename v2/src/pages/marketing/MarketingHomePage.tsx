@@ -15,7 +15,6 @@ type MarketingHomePageProps = {
 };
 
 export function MarketingHomePage({
-  isAuthenticated,
   onSecondaryAction
 }: MarketingHomePageProps) {
   const [scrolled, setScrolled] = useState(false);

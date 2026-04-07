@@ -90,7 +90,7 @@ type UseWorkspaceLoadersParams = {
 };
 
 export function useWorkspaceLoaders({
-  currentProjectId,
+  currentProjectId: _currentProjectId,
   setStatus,
   setError,
   setProjects,
@@ -152,18 +152,22 @@ export function useWorkspaceLoaders({
       const projectData = await fetchProjects();
       setProjects(projectData);
       if (projectData.length === 0) {
-        setCurrentProjectId(null);
+        // 只有当当前没有选中项目时才重置，避免临时 API 错误导致用户在迭代页面被踢出
+        setCurrentProjectId((prev) => (prev === null ? null : prev));
         return projectData;
       }
-      const hasCurrentProject = projectData.some((item) => item.id === currentProjectId);
-      if (!currentProjectId || !hasCurrentProject) {
-        setCurrentProjectId(projectData[0].id);
-      }
+      // 使用函数形式避免 stale closure：仅在当前值无效时才切换
+      setCurrentProjectId((prev) => {
+        if (prev !== null && projectData.some((item) => item.id === prev)) {
+          return prev; // 当前选中项仍存在，不变
+        }
+        return projectData[0].id;
+      });
       return projectData;
     } finally {
       setProjectsHydrated(true);
     }
-  }, [currentProjectId, setCurrentProjectId, setProjects, setProjectsHydrated]);
+  }, [setCurrentProjectId, setProjects, setProjectsHydrated]);
 
   const loadIterations = useCallback(async (projectId: number) => {
     const data = await fetchProjectIterations(projectId);

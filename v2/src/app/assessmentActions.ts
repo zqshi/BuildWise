@@ -17,9 +17,10 @@ export const handleRecomputeAssessment = async (deps: AssessmentActionDeps) => {
   if (!deps.currentIteration) {
     return;
   }
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await recomputeAssessment(deps.currentIteration!.id);
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await recomputeAssessment(iterationId);
+    await deps.loadIterationDetail(iterationId);
     await deps.loadGovernance();
   });
 };
@@ -28,12 +29,13 @@ export const handleRestoreSnapshot = async (snapshotId: number, deps: Assessment
   if (!deps.currentIteration) {
     return;
   }
+  const iterationId = deps.currentIteration.id;
   await withBusyAction(deps, async () => {
-    await restoreAssessment(deps.currentIteration!.id, snapshotId);
+    await restoreAssessment(iterationId, snapshotId);
     if (deps.currentProjectId) {
       await deps.loadIterations(deps.currentProjectId);
     }
-    await deps.loadIterationDetail(deps.currentIteration!.id);
+    await deps.loadIterationDetail(iterationId);
     await deps.loadGovernance();
   });
 };

@@ -19,11 +19,8 @@ import {
 
 export function useAuthController() {
   const [route, setRoute] = useState<AppRoute>(() => resolveAppRoute(window.location.hash));
-  // Only check the persistent auth flag — the in-memory access token will be
-  // restored via refresh cookie in the useEffect below.
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem("buildwise:auth") === "logged_in"
-  );
+  // 每次应用启动均要求重新登录，不从 localStorage 恢复会话
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginPhone, setLoginPhone] = useState("");
   const [loginCode, setLoginCode] = useState("");
   const [loginTouched, setLoginTouched] = useState<{ phone: boolean; code: boolean }>({

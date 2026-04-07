@@ -107,7 +107,8 @@ export function useHtmlPreviewInteraction(
         }
       }
       return doc.documentElement.outerHTML;
-    } catch {
+    } catch (err) {
+      console.debug("[useHtmlPreviewInteraction] HTML 编辑失败，返回原始内容", err);
       return source;
     }
   };

@@ -15,6 +15,7 @@ import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
 import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
 import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
 
+
 const MarketingHomePage = lazy(() => import("./pages/marketing/MarketingHomePage").then((m) => ({ default: m.MarketingHomePage })));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
 const DashboardView = lazy(() => import("./pages/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
@@ -244,8 +245,6 @@ function AppInner() {
               onAppendArtifactToChat={controller.handleAppendArtifactToChat}
               onTransitionArtifactStage={controller.handleTransitionArtifactStage}
               onTransitionState={controller.handleTransitionState}
-              onCreateDeployment={controller.handleCreateDeployment}
-              onTransitionDeployment={controller.handleTransitionDeployment}
               onPatchUploadedHtmlPreview={(path, content) => {
                 controller.setUploadedFile((prev) => {
                   if (!prev) {
