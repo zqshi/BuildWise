@@ -23,7 +23,12 @@ import { normalizeIteration } from "./workspaceSupport";
 import { normalizeIterationMessageContent, sanitizeForCoachContext } from "./workspaceMessageSanitizer";
 import { evaluateCurrentStageGate, evaluateStageExitConditions, getNextStage } from "./stageGateEvaluator";
 import { getStageAgent, STAGE_LABELS } from "./stageAgents";
-import { transitionIterationArtifactStageOp } from "./workspaceServiceChangeControlArtifactOps";
+import {
+  saveIterationArtifactDraftOp,
+  transitionIterationArtifactStageOp
+} from "./workspaceServiceChangeControlArtifactOps";
+import { synthesizeArtifactDraftContent } from "./artifactDraftSynthesizer";
+import { defaultIterationChangeControl } from "./workspaceServiceCommon";
 import { buildKnowledgeSyncContext } from "./knowledgeSyncService";
 import { dedupeActions, parseRecentSuggestedActions } from "./workspaceCoachReplyGuard";
 import { pickString } from "../../shared/utils";
@@ -322,19 +327,37 @@ export async function orchestrateCoachMessage(params: {
   const modelIntent = pickString(parsed?.intent);
   const finalIntent = validIntentSet.has(modelIntent) ? modelIntent : "general";
 
-  // 5. 发布 Agent 声明的交付物
+  // 5. 发布 Agent 声明的交付物（先合成 draft，有实质内容才发布）
   const workflow = normalized.changeControl?.artifactWorkflow;
+  const insufficientArtifacts: string[] = [];
   if (declaredArtifacts.length > 0 && workflow) {
+    const cc = normalized.changeControl ?? defaultIterationChangeControl();
     for (const artifactId of declaredArtifacts) {
       const item = workflow.items.find((i) => i.id === artifactId);
-      if (item) {
+      if (!item) continue;
+
+      // 尝试合成 draft
+      const existingDraft = (item.draft?.content ?? "").trim();
+      let draftContent = existingDraft;
+      if (draftContent.length < 30) {
+        draftContent = synthesizeArtifactDraftContent(artifactId, normalized, cc);
+      }
+
+      if (draftContent.trim().length >= 30) {
+        // 持久化 draft 并发布卡片
+        saveIterationArtifactDraftOp(repo, iterationId, artifactId, {
+          content: draftContent,
+          actor: "orchestrator"
+        });
         publishArtifactReferenceMessage(repo, iterationId, {
           title: item.title,
           summary: item.summary || item.description,
           evidence: item.evidence || [],
-          draftContent: item.draft?.content || "",
+          draftContent,
           prompt: `请围绕交付物「${item.title}」继续确认。`
         });
+      } else {
+        insufficientArtifacts.push(item.title);
       }
     }
   }
@@ -360,10 +383,15 @@ export async function orchestrateCoachMessage(params: {
     }
   }
 
+  // 7. 组装 insufficiency 提示（Agent 声明了交付物但数据不足以合成）
+  const insufficiencyNote = insufficientArtifacts.length > 0
+    ? `\n\n目前信息还不够生成${insufficientArtifacts.join("、")}，需要你先补充材料或确认关键信息。`
+    : "";
+
   const response: IterationCoachChatResponse = {
     iterationId,
     intent: finalIntent as IterationCoachChatResponse["intent"],
-    reply: reply + stageAdvanceNote,
+    reply: reply + stageAdvanceNote + insufficiencyNote,
     execution: {
       action: executionAction as NonNullable<IterationCoachChatResponse["execution"]>["action"],
       instruction: pickString(executionRaw.instruction),
