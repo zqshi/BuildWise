@@ -230,6 +230,8 @@ export async function synthesizeReleaseReviewOp(
       p0FindingCount: number;
       unknownSignalCount: number;
       boundaryCoverage: number;
+      ontologyTermCount?: number;
+      ontologyRuleCount?: number;
     };
   },
   deps: {
@@ -251,7 +253,7 @@ export async function synthesizeReleaseReviewOp(
       "你是发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。decision 只能是 go/caution/block。",
     userPrompt: [
       `iteration=${params.iterationName}`,
-      `qualitySignals=testCaseCount:${params.qualitySignals.testCaseCount};p0:${params.qualitySignals.p0FindingCount};unknown:${params.qualitySignals.unknownSignalCount};boundaryCoverage:${params.qualitySignals.boundaryCoverage}`,
+      `qualitySignals=testCaseCount:${params.qualitySignals.testCaseCount};p0:${params.qualitySignals.p0FindingCount};unknown:${params.qualitySignals.unknownSignalCount};boundaryCoverage:${params.qualitySignals.boundaryCoverage};ontologyTerms:${params.qualitySignals.ontologyTermCount ?? 0};ontologyRules:${params.qualitySignals.ontologyRuleCount ?? 0}`,
       `prioritizedFindings=${params.prioritizedFindings.map((item) => `${item.priority}:${item.content}`).join(" | ") || "-"}`,
       `candidateBlockers=${params.blockers.join(" | ") || "-"}`,
       `candidateReleaseGates=${params.releaseGates.join(" | ") || "-"}`,

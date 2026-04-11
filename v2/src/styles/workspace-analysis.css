@@ -62,7 +62,7 @@
   animation:none;
 }
 .analysis-drawer.open { transform:translateX(0); opacity:1; pointer-events:auto }
-.analysis-drawer-inner { height:100%; min-height:0; display:grid; grid-template-rows:auto 1fr auto }
+.analysis-drawer-inner { height:100%; min-height:0; display:grid; grid-template-rows:auto 1fr auto; grid-row:1/-1 }
 .analysis-drawer-head {
   background:var(--bg-slate-50) !important;
 }

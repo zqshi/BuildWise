@@ -543,7 +543,8 @@ export async function coachIterationConversationOp(
       "confirm-accurate",
       "confirm-inaccurate",
       "enter-clarify-mode",
-      "run-full-cycle"
+      "run-full-cycle",
+      "capture-business-rule"
     ]);
     const executionAction: NonNullable<IterationCoachChatResponse["execution"]>["action"] = validActionSet.has(
       actionRaw as NonNullable<IterationCoachChatResponse["execution"]>["action"]
@@ -627,6 +628,7 @@ export async function coachIterationConversationOp(
               title: item.title,
               summary: item.summary || item.description,
               evidence: item.evidence || [],
+              draftContent: item.draft?.content || "",
               prompt: `请围绕交付物「${item.title}」继续与用户确认，不要直接跨阶段推进。`
             });
           }

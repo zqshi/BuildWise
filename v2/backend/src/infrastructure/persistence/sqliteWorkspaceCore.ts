@@ -42,7 +42,9 @@ export const seedStore: WorkspaceStore = {
   projectRoleBindings: [],
   tenantMemberBindings: [],
   platformRoleBindings: [],
-  governanceCustomRoles: []
+  governanceCustomRoles: [],
+  uploads: [],
+  ingestJobs: []
 };
 
 export const collectionKeys: Array<keyof WorkspaceStore> = [
@@ -63,7 +65,9 @@ export const collectionKeys: Array<keyof WorkspaceStore> = [
   "projectRoleBindings",
   "tenantMemberBindings",
   "platformRoleBindings",
-  "governanceCustomRoles"
+  "governanceCustomRoles",
+  "uploads",
+  "ingestJobs"
 ];
 
 export function toArray<T>(value: unknown): T[] {
@@ -123,7 +127,9 @@ export class SqliteWorkspaceCore {
           projectRoleBindings: [],
           tenantMemberBindings: [],
           platformRoleBindings: [],
-          governanceCustomRoles: []
+          governanceCustomRoles: [],
+          uploads: [],
+          ingestJobs: []
         }
       : seedStore;
   }
@@ -223,7 +229,9 @@ export class SqliteWorkspaceCore {
       projectRoleBindings: toArray(parsed.projectRoleBindings),
       tenantMemberBindings: toArray(parsed.tenantMemberBindings),
       platformRoleBindings: toArray(parsed.platformRoleBindings),
-      governanceCustomRoles: toArray(parsed.governanceCustomRoles)
+      governanceCustomRoles: toArray(parsed.governanceCustomRoles),
+      uploads: toArray(parsed.uploads),
+      ingestJobs: toArray(parsed.ingestJobs)
     };
   }
 

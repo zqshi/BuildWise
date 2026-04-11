@@ -29,7 +29,11 @@ async function doRefresh(): Promise<boolean> {
     });
     if (!res.ok) {
       clearTokens();
-      window.dispatchEvent(new CustomEvent("buildwise:auth-expired"));
+      // 仅在服务端明确拒绝（401/403）时触发 auth-expired
+      // 其他错误（502/503/网络波动）不应踢出用户，让 fetchJSON 的 401 处理器决定
+      if (res.status === 401 || res.status === 403) {
+        window.dispatchEvent(new CustomEvent("buildwise:auth-expired"));
+      }
       return false;
     }
     const data = (await res.json()) as { accessToken: string; expiresIn: number };
@@ -37,8 +41,8 @@ async function doRefresh(): Promise<boolean> {
     return true;
   } catch (err) {
     console.warn("[tokenRefresh] refresh 请求失败", err);
-    clearTokens();
-    window.dispatchEvent(new CustomEvent("buildwise:auth-expired"));
+    // 网络错误不清除 token，也不触发 auth-expired
+    // 保留当前 token 尝试继续请求，由 fetchJSON 的 401 处理器最终决定
     return false;
   }
 }

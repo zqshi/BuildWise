@@ -337,18 +337,7 @@ export function useAppController() {
 
   /* ── Extracted hooks ── */
   useIterationRecovery({
-    currentIteration: derived.currentIteration,
-    currentIterationId: state.currentIterationId,
-    chatMessages: state.chatMessages,
-    chatSendStatus: state.chatSendStatus,
-    analysisReport: state.analysisReport,
-    uploadedFile: state.uploadedFile,
-    setChatSendStatus: state.setChatSendStatus,
-    setIsAnalyzingAttachment: state.setIsAnalyzingAttachment,
-    setUploadAnalysisProgress: state.setUploadAnalysisProgress,
-    setUploadToastMessage: state.setUploadToastMessage,
-    setLastUploadFailed: iterationActions.setLastUploadFailed,
-    loadIterationDetail: loaders.loadIterationDetail,
+    currentIterationId: state.currentIterationId
   });
 
   const handleLogout = () => {

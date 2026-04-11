@@ -116,6 +116,7 @@ export function buildIterationAgentPlan(params: {
     hasDocumentEvidence: boolean;
     totalFiles: number;
   };
+  knowledgeBaseSummary?: string;
 }): IterationAgentPlan {
   const { iteration, previous, scope, diffLocations, risks, fileName, attachmentMeta, attachmentSignals } = params;
   const compactSingleFileContext = shouldUseCompactSingleFileAnalysis({ attachmentSignals });
@@ -157,6 +158,9 @@ export function buildIterationAgentPlan(params: {
     ? "本轮必须先执行信息完善：融合文档与原型信息，补全缺失约束后再进入任务拆解。"
     : "";
   const skillPackHint = "skillsRoot=v2/backend/skills/claude-arsenal/skills；运行策略=单编排Agent驱动技能链。";
+  const ontologyHint = params.knowledgeBaseSummary
+    ? `ontologyContext=${params.knowledgeBaseSummary.slice(0, 2000)}`
+    : "";
   const contextBase = `项目迭代=${iteration.name}；当前状态=${iteration.status}；基线=${previous?.name ?? "无"}；差异=${diffDigest}；风险=${risks.join("；") || "无"}；验收标准=${acceptanceDigest}`;
   const contextParts = compactSingleFileContext
     ? [
@@ -167,6 +171,7 @@ export function buildIterationAgentPlan(params: {
         attachmentDigest,
         attachmentPreview,
         attachmentSignalHint,
+        ontologyHint,
         "仅基于文本需求执行首轮闭环编排，避免展开与当前需求无关的原型/协作推断。"
       ]
     : [
@@ -178,7 +183,8 @@ export function buildIterationAgentPlan(params: {
         attachmentPreview,
         attachmentSignalHint,
         infoCompletionHint,
-        skillPackHint
+        skillPackHint,
+        ontologyHint
       ];
   const contextWithControl = contextParts.filter(Boolean).join("；");
 

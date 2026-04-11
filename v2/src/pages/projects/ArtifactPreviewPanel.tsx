@@ -141,6 +141,19 @@ export function ArtifactPreviewPanel({
   return (
     <Suspense fallback={<ArtifactEditorFallback />}>
       <div className="deliverable-preview-focus">
+      {selectedDrawerArtifact?.stale && (
+        <div style={{
+          padding: "6px 12px",
+          background: "#fff8e6",
+          border: "1px solid #f0d060",
+          borderRadius: 4,
+          fontSize: 12,
+          color: "#8a6d00",
+          marginBottom: 8
+        }}>
+          上游交付物已更新，此内容可能需要重新生成。
+        </div>
+      )}
       {selectedArtifactKind === "analysis-report" ? (
         analysisReport ? (
           <>

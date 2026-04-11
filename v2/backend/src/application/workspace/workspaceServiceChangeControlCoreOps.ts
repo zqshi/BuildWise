@@ -202,9 +202,29 @@ export function confirmIterationAnalysisOp(
       // 构建 OntologyInput — 从 changeControl 中提取可用的 traceability/boundary 数据
       const boundary = normalized.changeControl.boundary;
       const riskAreas = (normalized.changeControl as Record<string, unknown>).knownRisks;
+      const traceabilitySnapshot = normalized.changeControl.traceabilitySnapshot;
+      const traceabilityMap = traceabilitySnapshot
+        ? {
+            pages: (boundary?.requirementRefs || []).map((req) => ({
+              name: req,
+              path: req,
+              components: boundary?.componentRefs || []
+            })),
+            apis: domainEntries
+              .filter((e) => e.mappedApis.length > 0)
+              .map((e) => ({
+                path: e.mappedApis[0] || e.term,
+                method: "GET",
+                description: e.term
+              })),
+            entities: domainEntries
+              .filter((e) => e.mappedEntities.length > 0)
+              .map((e) => ({ name: e.term, fields: e.mappedEntities }))
+          }
+        : null;
       const ontologyResult = extractKnowledgeBaseUpdateOp(kb, {
         domainKnowledgeEntries: domainEntries,
-        traceabilityMap: null,
+        traceabilityMap,
         boundary: {
           codePaths: boundary?.codePaths || [],
           requirementRefs: boundary?.requirementRefs || [],
@@ -234,6 +254,7 @@ export function confirmIterationAnalysisOp(
           title: artifact.title,
           summary: artifact.summary || artifact.description,
           evidence: artifact.evidence,
+          draftContent: artifact.draft?.content || "",
           prompt: `请围绕交付物「${artifact.title}」继续与用户确认，不要直接跨阶段推进。`
         });
       }

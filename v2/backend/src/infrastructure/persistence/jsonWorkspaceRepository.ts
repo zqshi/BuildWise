@@ -4,6 +4,8 @@ const log = createLogger("workspace-repo");
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type {
   AssessmentSnapshot,
+  AttachmentIngestJob,
+  AttachmentUploadRecord,
   AuditLog,
   CreateIterationInput,
   DeploymentRecord,
@@ -25,7 +27,6 @@ import type {
   WorkspaceStore
 } from "../../domain/workspace/types";
 import { nextThreePartVersion } from "../../domain/workspace/versioning";
-import { toRepoSlug } from "../../domain/workspace/repositoryNaming";
 
 const seedStore: WorkspaceStore = {
   projects: [
@@ -55,7 +56,9 @@ const seedStore: WorkspaceStore = {
   projectRoleBindings: [],
   tenantMemberBindings: [],
   platformRoleBindings: [],
-  governanceCustomRoles: []
+  governanceCustomRoles: [],
+  uploads: [],
+  ingestJobs: []
 };
 
 const emptyStore: WorkspaceStore = {
@@ -76,7 +79,9 @@ const emptyStore: WorkspaceStore = {
   projectRoleBindings: [],
   tenantMemberBindings: [],
   platformRoleBindings: [],
-  governanceCustomRoles: []
+  governanceCustomRoles: [],
+  uploads: [],
+  ingestJobs: []
 };
 
 function toArray<T>(value: unknown): T[] {
@@ -109,6 +114,7 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   constructor(dataFile: string, options?: { bootstrapMode?: "seed" | "empty" }) {
     this.dataFile = dataFile;
     this.bootstrapMode = options?.bootstrapMode === "empty" ? "empty" : "seed";
+    this.hydrateUploadsFromStore();
   }
 
   private initialStore() {
@@ -149,7 +155,9 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       projectRoleBindings: toArray<ProjectRoleBindingRecord>(parsed.projectRoleBindings),
       tenantMemberBindings: toArray<TenantMemberBindingRecord>(parsed.tenantMemberBindings),
       platformRoleBindings: toArray<PlatformRoleBindingRecord>(parsed.platformRoleBindings),
-      governanceCustomRoles: toArray<GovernanceCustomRoleRecord>(parsed.governanceCustomRoles)
+      governanceCustomRoles: toArray<GovernanceCustomRoleRecord>(parsed.governanceCustomRoles),
+      uploads: toArray<AttachmentUploadRecord>(parsed.uploads),
+      ingestJobs: toArray<AttachmentIngestJob>(parsed.ingestJobs)
     };
   }
 
@@ -182,7 +190,6 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">) {
     const data = this.read();
     const id = this.nextId(data.projects);
-    const repoName = toRepoSlug(input.name, `project-${id}`);
     const now = new Date().toISOString();
     const created: Project = {
       id,
@@ -194,23 +201,14 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
       lastUpdated: now.slice(0, 10),
       repository: {
         id: `repo-${id}`,
-        repoMode: "hybrid",
-        provider: "github",
-        organization: "buildwise",
-        name: repoName,
-        url: `https://github.com/buildwise/${repoName}`,
+        repoMode: "none",
+        provider: "",
+        organization: "",
+        name: "",
+        url: "",
         defaultBranch: "main",
         structureVersion: "v1",
-        layout: [
-          { path: "apps/web", purpose: "前端应用", required: true },
-          { path: "apps/api", purpose: "后端服务", required: true },
-          { path: "packages/domain", purpose: "领域模型与用例", required: true },
-          { path: "packages/shared", purpose: "跨端共享模块", required: false },
-          { path: "docs", purpose: "PRD/ADR/迭代记录", required: true },
-          { path: "tests", purpose: "集成与契约测试", required: true },
-          { path: "infra", purpose: "部署与环境脚本", required: true },
-          { path: ".github/workflows", purpose: "CI/CD 流水线", required: true }
-        ],
+        layout: [],
         remote: {
           status: "unprovisioned",
           visibility: "private",
@@ -637,9 +635,49 @@ export class JsonWorkspaceRepository implements WorkspaceRepository {
   findReportIndexByJob(jobId: string) { for (const r of this._reportIndexes.values()) { if (r.analysisJobId === jobId) return r as ReturnType<WorkspaceRepository["findReportIndexByJob"]>; } return null; }
   saveReportSections(sections: Record<string, unknown>[]) { for (const s of sections) { const rid = String(s.reportId); const arr = this._reportSections.get(rid) ?? []; arr.push(s); this._reportSections.set(rid, arr); } }
   listReportSections(reportId: string) { return (this._reportSections.get(reportId) ?? []) as ReturnType<WorkspaceRepository["listReportSections"]>; }
-  saveUpload(upload: Record<string, unknown>) { this._uploads.set(String(upload.uploadId), upload); }
+  saveUpload(upload: Record<string, unknown>) {
+    this._uploads.set(String(upload.uploadId), upload);
+    this.flushUploads();
+  }
   findUpload(uploadId: string) { return (this._uploads.get(uploadId) as ReturnType<WorkspaceRepository["findUpload"]>) ?? null; }
   listUploads(iterationId: number) { return [...this._uploads.values()].filter((u) => u.iterationId === iterationId) as ReturnType<WorkspaceRepository["listUploads"]>; }
-  saveIngestJob(job: Record<string, unknown>) { this._ingestJobs.set(String(job.ingestJobId), job); }
+  saveIngestJob(job: Record<string, unknown>) {
+    this._ingestJobs.set(String(job.ingestJobId), job);
+    this.flushIngestJobs();
+  }
   findIngestJob(ingestJobId: string) { return (this._ingestJobs.get(ingestJobId) as ReturnType<WorkspaceRepository["findIngestJob"]>) ?? null; }
+
+  private flushUploads() {
+    try {
+      const data = this.read();
+      data.uploads = [...this._uploads.values()] as unknown as AttachmentUploadRecord[];
+      this.write(data);
+    } catch (err) {
+      log.error("failed to flush uploads to disk", { error: String(err) });
+    }
+  }
+
+  private flushIngestJobs() {
+    try {
+      const data = this.read();
+      data.ingestJobs = [...this._ingestJobs.values()] as unknown as AttachmentIngestJob[];
+      this.write(data);
+    } catch (err) {
+      log.error("failed to flush ingestJobs to disk", { error: String(err) });
+    }
+  }
+
+  hydrateUploadsFromStore() {
+    const data = this.read();
+    for (const upload of data.uploads) {
+      if (!this._uploads.has(upload.uploadId)) {
+        this._uploads.set(upload.uploadId, upload as unknown as Record<string, unknown>);
+      }
+    }
+    for (const job of data.ingestJobs) {
+      if (!this._ingestJobs.has(job.ingestJobId)) {
+        this._ingestJobs.set(job.ingestJobId, job as unknown as Record<string, unknown>);
+      }
+    }
+  }
 }

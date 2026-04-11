@@ -13,7 +13,7 @@ export async function bootstrapProjectRepository(
     name?: string;
     url: string;
     defaultBranch?: string;
-    repoMode?: "external_git" | "managed_local" | "hybrid";
+    repoMode?: "external_git" | "managed_local" | "hybrid" | "none";
     requireRemoteForProduction?: boolean;
     requireRemoteForStaging?: boolean;
   }
@@ -40,7 +40,7 @@ export async function validateProjectRepositoryRemote(projectId: number, payload
 export async function fetchProjectRepositoryStatus(projectId: number) {
   return fetchJSON<{
     projectId: number;
-    repoMode: "external_git" | "managed_local" | "hybrid";
+    repoMode: "external_git" | "managed_local" | "hybrid" | "none";
     governance: {
       requireRemoteForProduction: boolean;
       requireRemoteForStaging: boolean;
@@ -60,7 +60,7 @@ export async function fetchProjectRepositoryStatus(projectId: number) {
 export async function fetchProjectRepositoryMigrationPlan(projectId: number) {
   return fetchJSON<{
     projectId: number;
-    currentMode: "external_git" | "managed_local" | "hybrid";
+    currentMode: "external_git" | "managed_local" | "hybrid" | "none";
     targetMode: "hybrid" | "external_git";
     blockers: string[];
     nextAction: string;
@@ -77,7 +77,7 @@ export async function fetchProjectRepositoryMigrationPlan(projectId: number) {
 export async function configureProjectRepositoryMode(
   projectId: number,
   payload: {
-    repoMode?: "external_git" | "managed_local" | "hybrid";
+    repoMode?: "external_git" | "managed_local" | "hybrid" | "none";
     requireRemoteForProduction?: boolean;
     requireRemoteForStaging?: boolean;
   }

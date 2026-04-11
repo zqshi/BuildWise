@@ -163,7 +163,21 @@ export function defaultIterationChangeControl(options?: { isFirstIteration?: boo
       functionalPoints: [],
       successCriteria: [],
       confirmationChecklist: [],
-      versionDiffSummary: ""
+      versionDiffSummary: "",
+      necessityAssessment: {
+        mustDo: [],
+        shouldDo: [],
+        canDefer: [],
+        outOfScope: [],
+        rationale: ""
+      },
+      interactionInsights: {
+        primaryFlow: [],
+        keyInteractions: [],
+        exceptionPaths: [],
+        usabilityRisks: []
+      },
+      diffNarratives: []
     },
     lastMeaningfulFindings: [],
     lastPrioritizedFindings: [],
