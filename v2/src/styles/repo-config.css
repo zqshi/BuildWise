@@ -1,27 +1,33 @@
 .repo-stepper {
-  display:grid;
-  grid-template-columns:repeat(3, minmax(0,1fr));
-  gap:8px;
+  display:flex;
+  align-items:center;
+  gap:0;
+  padding:0 0 12px;
+  border-bottom:1px solid var(--border-default);
+  margin-bottom:12px;
 }
 .repo-step-item {
-  border:1px solid var(--border-default);
-  border-radius:var(--radius-sm);
-  background:var(--bg-canvas);
-  padding:8px;
-  display:grid;
-  gap:4px;
-  text-align:left;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border-radius:999px;
+  background:transparent;
+  cursor:default;
+  white-space:nowrap;
 }
 .repo-step-item span {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:22px;
-  height:22px;
+  width:20px;
+  height:20px;
   border-radius:999px;
   background:var(--bg-control);
   font-size:var(--text-xs);
   font-weight:var(--font-weight-semibold);
+  color:var(--text-secondary);
+  flex-shrink:0;
 }
 .repo-step-item em {
   font-style:normal;
@@ -29,12 +35,28 @@
   color:var(--text-secondary);
 }
 .repo-step-item.active {
-  border-color:var(--brand-500);
   background:var(--brand-50);
+}
+.repo-step-item.active span {
+  background:var(--brand-500);
+  color:#fff;
+}
+.repo-step-item.active em {
+  color:var(--text-primary);
+  font-weight:var(--font-weight-medium);
 }
 .repo-step-item.done span {
   background:color-mix(in srgb,var(--success-500) 16%, var(--bg-surface));
   color:var(--success-600);
+}
+.repo-step-item.done em {
+  color:var(--success-600);
+}
+.repo-step-divider {
+  width:16px;
+  height:1px;
+  background:var(--border-default);
+  flex-shrink:0;
 }
 .repo-url-card {
   border:1px solid var(--border-default);

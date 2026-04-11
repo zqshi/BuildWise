@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { ProjectOverviewRepositoryDrawerProps } from "./projectOverviewPanelDrawerTypes";
 
 export function ProjectOverviewPanelRepositoryDrawer({
@@ -39,10 +40,10 @@ export function ProjectOverviewPanelRepositoryDrawer({
           </div>
           <div className="preview-scroll">
             <div className="repo-stepper">
-              {[1, 2, 3].map((step) => (
-                <div key={step} className={`repo-step-item ${repoConfigStep === step ? "active" : ""} ${repoConfigStep > step ? "done" : ""}`}>
-                  <span>{step}</span><em>{step === 1 ? "填写仓库地址" : step === 2 ? "设置发布规则" : "确认并连接"}</em>
-                </div>
+              {[1, 2, 3].map((step, idx) => (
+                <Fragment key={step}>{idx > 0 ? <div className="repo-step-divider" /> : null}<div className={`repo-step-item ${repoConfigStep === step ? "active" : ""} ${repoConfigStep > step ? "done" : ""}`}>
+                  <span>{step}</span><em>{step === 1 ? "仓库地址" : step === 2 ? "发布规则" : "确认连接"}</em>
+                </div></Fragment>
               ))}
             </div>
 
