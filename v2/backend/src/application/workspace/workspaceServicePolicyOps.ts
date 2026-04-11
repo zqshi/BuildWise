@@ -8,6 +8,7 @@ import type {
   TenantMemberBindingRecord,
   ProjectWorkspaceBindingRecord
 } from "../../domain/workspace/types";
+import { artifactStageOrder } from "./workspaceServiceChangeControlArtifactWorkflow";
 
 export const GLOBAL_ORCHESTRATION_SCOPE_PROJECT_ID = 0;
 
@@ -516,6 +517,24 @@ export function evaluatePolicyGateForCoachOp(
 } {
   // Stage 从结构化状态读取，不从消息关键词猜测
   const stage = iteration.changeControl?.artifactWorkflow?.activeStage || "clarification";
+
+  // ── stale artifact 阻断：当前阶段或更早阶段有 stale 的 artifact 时阻断 ──
+  const workflowItems = iteration.changeControl?.artifactWorkflow?.items ?? [];
+  const currentStageIndex = artifactStageOrder.indexOf(stage as typeof artifactStageOrder[number]);
+  const staleInCurrentOrEarlier = workflowItems.filter((item) => {
+    if (!item.stale) return false;
+    const itemStageIndex = artifactStageOrder.indexOf(item.stage);
+    return itemStageIndex >= 0 && itemStageIndex <= currentStageIndex;
+  });
+  if (staleInCurrentOrEarlier.length > 0) {
+    const staleNames = staleInCurrentOrEarlier.map((i) => `「${i.title}」`).join("、");
+    return {
+      blocked: true,
+      stage,
+      reason: `有 ${staleInCurrentOrEarlier.length} 个交付物因上游变更已过时需要更新：${staleNames}`,
+      requiredActions: staleInCurrentOrEarlier.map((i) => `请先更新${i.title}`)
+    };
+  }
 
   if (!activePolicy) {
     return { blocked: false, stage, reason: "", requiredActions: [] };
