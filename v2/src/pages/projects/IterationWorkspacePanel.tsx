@@ -33,6 +33,42 @@ import {
   instrumentHtmlPreview
 } from "./iterationWorkspacePanelUtils";
 
+/** Resolve a local resource path against sibling files (handles ./prefix, folder/file, bare name) */
+function findSiblingByRef(ref: string, siblings: UploadFileEntry[]): UploadFileEntry | undefined {
+  const normalized = ref.replace(/^\.\//, "");
+  return siblings.find((f) => {
+    const p = (f.path || f.name).replace(/^\.\//, "");
+    return p === normalized || p.endsWith(`/${normalized}`) || f.name === normalized;
+  });
+}
+
+/** Inline local <script src> and <link href> references from sibling uploaded files */
+function inlineHtmlResources(html: string, siblings: UploadFileEntry[]): string {
+  if (siblings.length === 0) return html;
+  // Inline <script src="local.js"> → <script>...content...</script>
+  let result = html.replace(
+    /<script\s+[^>]*src=["']([^"']+)["'][^>]*><\/script>/gi,
+    (original, src: string) => {
+      if (/^https?:\/\//i.test(src)) return original;
+      const sibling = findSiblingByRef(src, siblings);
+      if (sibling?.content) return `<script>${sibling.content}<\/script>`;
+      return original;
+    }
+  );
+  // Inline <link rel="stylesheet" href="local.css"> → <style>...content...</style>
+  result = result.replace(
+    /<link\s+[^>]*href=["']([^"']+)["'][^>]*\/?>/gi,
+    (original, href: string) => {
+      if (/^https?:\/\//i.test(href)) return original;
+      if (!/rel=["']stylesheet["']/i.test(original)) return original;
+      const sibling = findSiblingByRef(href, siblings);
+      if (sibling?.content) return `<style>${sibling.content}</style>`;
+      return original;
+    }
+  );
+  return result;
+}
+
 export function IterationWorkspacePanel({
   currentIteration,
   error,
@@ -154,6 +190,7 @@ export function IterationWorkspacePanel({
   }, [chatMessages]);
   const [showInteractionPanel, setShowInteractionPanel] = useState(false);
   const [previewFile, setPreviewFile] = useState<UploadFileEntry | null>(null);
+  const [previewSiblingFiles, setPreviewSiblingFiles] = useState<UploadFileEntry[]>([]);
   const [interactionEditMode, setInteractionEditMode] = useState(false);
   const [changeImpact, setChangeImpact] = useState<ChangeImpactResult | null>(null);
 
@@ -354,14 +391,16 @@ export function IterationWorkspacePanel({
     onOpenAnalysisPanel();
   };
 
-  const openFilePreview = (file: UploadFileEntry) => {
+  const openFilePreview = (file: UploadFileEntry, siblings?: UploadFileEntry[]) => {
     setShowInteractionPanel(false);
     setPreviewFile(file);
+    setPreviewSiblingFiles(siblings || []);
     onOpenAnalysisPanel();
   };
 
   const closeFilePreview = () => {
     setPreviewFile(null);
+    setPreviewSiblingFiles([]);
     onCloseAnalysisPanel();
   };
 
@@ -616,9 +655,16 @@ export function IterationWorkspacePanel({
                   <button type="button" className="icon-btn" aria-label="关闭预览" onClick={closeFilePreview}>✕</button>
                 </div>
               </div>
-              <div className="preview-scroll file-preview-body">
+              <div className={`preview-scroll file-preview-body${/\.html?$/i.test(previewFile.name) && previewFile.content ? " file-preview-body-iframe" : ""}`}>
                 {previewFile.dataUrl?.startsWith("data:image/") ? (
                   <img src={previewFile.dataUrl} alt={previewFile.name} className="file-preview-image" />
+                ) : /\.html?$/i.test(previewFile.name) && previewFile.content ? (
+                  <iframe
+                    title={previewFile.name}
+                    className="file-preview-iframe"
+                    sandbox="allow-scripts"
+                    srcDoc={inlineHtmlResources(previewFile.content, previewSiblingFiles)}
+                  />
                 ) : previewFile.content ? (
                   <pre className="file-preview-text">{previewFile.content}</pre>
                 ) : (

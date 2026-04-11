@@ -11,8 +11,8 @@ export type RepositoryLayoutNode = {
 
 export type ProjectRepository = {
   id: string;
-  repoMode: "external_git" | "managed_local" | "hybrid";
-  provider: "github" | "gitlab" | "gitea" | "bitbucket" | "custom";
+  repoMode: "external_git" | "managed_local" | "hybrid" | "none";
+  provider: "github" | "gitlab" | "gitea" | "bitbucket" | "custom" | "";
   organization: string;
   name: string;
   url: string;

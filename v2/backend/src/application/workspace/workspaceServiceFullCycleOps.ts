@@ -154,6 +154,10 @@ const STEP_PRECONDITIONS: Record<FullCycleStepId, StepPrecondition[]> = {
     {
       check: (_it, cp) => cp.steps["release-review"].status === "completed",
       description: "发布评审尚未完成"
+    },
+    {
+      check: (it) => it.changeControl?.lastReleaseReviewDecision !== "block",
+      description: "发布评审结论为阻塞，不允许生成交付包"
     }
   ],
   "publish": [

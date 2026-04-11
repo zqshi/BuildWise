@@ -17,6 +17,7 @@ import {
 import { getUploadSession, resumeIterationAttachmentUpload, clearUploadSession } from "./workspaceApiAgentOps";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import { type FileWithPath, getFilePath } from "../shared/fileTypes";
+import { uploadedAttachmentCacheKey, analysisReportCacheKey } from "./useIterationRecovery";
 
 /* ── pure helpers (no deps) ──────────────────────────────────────────── */
 
@@ -414,6 +415,22 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     imagePreviews
   });
   try {
+    localStorage.setItem(
+      uploadedAttachmentCacheKey(currentIteration.id),
+      JSON.stringify({
+        name: isBatch ? `${folderName} (${files.length} files)` : files[0].name,
+        iterationId: currentIteration.id,
+        uploadFingerprint,
+        hasDocumentAssets,
+        hasPrototypeAssets,
+        uploadKind,
+        prototypeItems,
+        htmlPreviews: htmlPreviews.map((p) => ({ name: p.name, path: p.path, content: p.content.slice(0, 50_000) })),
+        imagePreviews: imagePreviews.map((p) => ({ name: p.name, path: p.path, dataUrl: p.dataUrl.slice(0, 200_000) }))
+      })
+    );
+  } catch { /* localStorage quota exceeded — non-critical */ }
+  try {
     await updateIterationInteractionState(currentIteration.id, {
       hasPrototypeAssets,
       uploadKind,
@@ -495,6 +512,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
     if (hasPrototypeAssets && !hasDocumentAssets) {
       deps.setLastUploadFailed(false);
       deps.setAnalysisReport(null);
+      try { localStorage.removeItem(analysisReportCacheKey(currentIteration.id)); } catch { /* noop */ }
       deps.setShowAnalysisPanel(false);
       deps.setUploadAnalysisProgress({
         stage: "succeeded",
@@ -527,6 +545,7 @@ export const uploadFiles = async (files: File[], deps: UploadActionDeps) => {
           onJobUpdate: (job) => deps.setUploadAnalysisProgress(toUploadProgress(job))
         });
     deps.setAnalysisReport(report);
+    try { localStorage.setItem(analysisReportCacheKey(currentIteration.id), JSON.stringify(report)); } catch { /* quota */ }
     deps.setLastUploadFailed(false);
     deps.setShowAnalysisPanel(false);
     deps.setUploadAnalysisProgress((prev) =>
@@ -600,6 +619,7 @@ export const handleRetryUpload = async (deps: UploadActionDeps) => {
       onJobUpdate: (job) => deps.setUploadAnalysisProgress(toUploadProgress(job))
     });
     deps.setAnalysisReport(report);
+    try { localStorage.setItem(analysisReportCacheKey(currentIteration.id), JSON.stringify(report)); } catch { /* quota */ }
     deps.setLastUploadFailed(false);
     deps.setShowAnalysisPanel(false);
     deps.setUploadAnalysisProgress((prev) =>
@@ -683,6 +703,7 @@ export const handleResumeUpload = async (event: ChangeEvent<HTMLInputElement>, d
       onJobUpdate: (job) => deps.setUploadAnalysisProgress(toUploadProgress(job))
     });
     deps.setAnalysisReport(report);
+    try { localStorage.setItem(analysisReportCacheKey(iteration.id), JSON.stringify(report)); } catch { /* quota */ }
     deps.setLastUploadFailed(false);
     deps.setShowAnalysisPanel(false);
     deps.setUploadAnalysisProgress({

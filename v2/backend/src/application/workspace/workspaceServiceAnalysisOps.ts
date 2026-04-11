@@ -8,6 +8,7 @@ import type {
   IterationTransitionSource,
 } from "../../domain/workspace/types";
 import { extractKnowledgeBaseUpdateOp } from "./ontologyService";
+import { buildKnowledgeSyncContext } from "./knowledgeSyncService";
 import { createLogger as createOntologyLogger } from "../../infrastructure/runtime/logger";
 import {
   buildDiffLocations,
@@ -148,6 +149,8 @@ export async function analyzeAttachmentOp(
         /\.(md|mdx|txt|doc|docx|pdf|ppt|pptx|xlsx|csv|json|yml|yaml)$/i.test(path)
       );
     });
+  const projectForKb = repo.findProject(normalized.projectId);
+  const kbSummary = buildKnowledgeSyncContext(projectForKb?.knowledgeBase ?? null, { maxChars: 2000 });
   const finalAgentPlan = buildIterationAgentPlan({
     iteration: normalized,
     previous: previous ? normalizeIteration(previous) : null,
@@ -161,7 +164,8 @@ export async function analyzeAttachmentOp(
       hasPrototypeEvidence,
       hasDocumentEvidence,
       totalFiles
-    }
+    },
+    knowledgeBaseSummary: kbSummary || undefined
   });
   const skipAgentPlanExecution = shouldUseCompactSingleFileAnalysis({
     attachmentSignals: {
@@ -438,7 +442,9 @@ export async function analyzeAttachmentOp(
         testCaseCount: generatedTestMatrix.length,
         p0FindingCount: resolvedPrioritizedFindings.filter((item) => item.priority === "P0").length,
         unknownSignalCount,
-        boundaryCoverage: traceabilityMap.coverageScore
+        boundaryCoverage: traceabilityMap.coverageScore,
+        ontologyTermCount: domainKnowledge?.terms?.length ?? 0,
+        ontologyRuleCount: domainKnowledge?.rules?.length ?? 0
       }
     },
     { runAnalysisPrompt }
@@ -523,7 +529,21 @@ export async function analyzeAttachmentOp(
       confirmationChecklist: (businessConfirmationWithUx.confirmationChecklist || []).slice(0, 15).map((c: unknown) =>
         typeof c === "string" ? c : typeof c === "object" && c !== null && "item" in c ? String((c as Record<string, unknown>).item) : String(c)
       ),
-      versionDiffSummary: (businessConfirmationWithUx.versionDiffSummary || "").slice(0, 2000)
+      versionDiffSummary: (businessConfirmationWithUx.versionDiffSummary || "").slice(0, 2000),
+      necessityAssessment: {
+        mustDo: (businessConfirmationWithUx.necessityAssessment?.mustDo || []).slice(0, 12),
+        shouldDo: (businessConfirmationWithUx.necessityAssessment?.shouldDo || []).slice(0, 12),
+        canDefer: (businessConfirmationWithUx.necessityAssessment?.canDefer || []).slice(0, 12),
+        outOfScope: (businessConfirmationWithUx.necessityAssessment?.outOfScope || []).slice(0, 12),
+        rationale: (businessConfirmationWithUx.necessityAssessment?.rationale || "").slice(0, 2000),
+      },
+      interactionInsights: {
+        primaryFlow: (businessConfirmationWithUx.interactionInsights?.primaryFlow || []).slice(0, 12),
+        keyInteractions: (businessConfirmationWithUx.interactionInsights?.keyInteractions || []).slice(0, 14),
+        exceptionPaths: (businessConfirmationWithUx.interactionInsights?.exceptionPaths || []).slice(0, 12),
+        usabilityRisks: (businessConfirmationWithUx.interactionInsights?.usabilityRisks || []).slice(0, 12),
+      },
+      diffNarratives: (businessConfirmationWithUx.diffNarratives || []).slice(0, 18),
     },
     lastMeaningfulFindings: resolvedMeaningfulFindings.slice(0, 15),
     lastPrioritizedFindings: resolvedPrioritizedFindings.slice(0, 15).map((f) => ({

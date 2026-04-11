@@ -52,17 +52,21 @@ export async function handleConfirmAccurate(
   } catch (confirmErr) {
     const errMsg = resolveCoachErrorMessage(confirmErr);
     if (errMsg.includes("409") || errMsg.includes("clarification") || errMsg.includes("unresolved")) {
+      const questions = currentIteration.changeControl?.clarificationQuestions ?? [];
+      const questionList = questions.length > 0
+        ? questions.map((q, i) => `${i + 1}. ${q}`).join("\n")
+        : "（暂无具体问题列表，请补充更多信息后重试）";
       await createMessage(
         iterationId,
         "assistant",
-        "还有几个待澄清的问题需要先确认。我帮你逐个过一下，你看着回复就行。",
+        `还有 ${questions.length} 个待澄清的问题需要先确认：\n\n${questionList}\n\n请逐个回复以上问题，全部确认后我会继续推进。`,
         deps.setChatMessages
       );
       return;
     }
     throw confirmErr;
   }
-  await createMessage(iterationId, "assistant", "分析确认完成了。接下来可以继续推进任务拆解、测试或者发布，你想先做哪块？", deps.setChatMessages);
+  await createMessage(iterationId, "assistant", "分析确认完成了。接下来你可以：\n• 输入「开始拆解任务」生成本迭代执行清单\n• 输入「审阅技术架构文档」查看技术方案\n• 或者直接告诉我你想先推进哪块。", deps.setChatMessages);
   await deps.loadIterationDetail(iterationId);
   if (deps.currentProjectId) await deps.loadIterations(deps.currentProjectId);
   await deps.loadGovernance();

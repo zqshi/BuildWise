@@ -22,7 +22,7 @@ export type RepoHealthState = {
 } | null;
 
 export type RepoMigrationPlanState = {
-  currentMode: "external_git" | "managed_local" | "hybrid";
+  currentMode: "external_git" | "managed_local" | "hybrid" | "none";
   targetMode: "hybrid" | "external_git";
   blockers: string[];
   nextAction: string;

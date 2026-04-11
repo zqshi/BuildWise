@@ -1,5 +1,6 @@
 import type { Iteration, IterationMessage, IterationScope, IterationStatus, IterationTransition, AssessmentSnapshot, VersionAssessment } from "./iterationTypes";
 import type { Project } from "./projectTypes";
+import type { AttachmentUploadRecord, AttachmentIngestJob } from "./analysisTypes";
 
 export type GovernanceRole = {
   id: "owner" | "pm" | "developer" | "qa" | "viewer";
@@ -192,4 +193,6 @@ export type WorkspaceStore = {
   tenantMemberBindings: TenantMemberBindingRecord[];
   platformRoleBindings: PlatformRoleBindingRecord[];
   governanceCustomRoles: GovernanceCustomRoleRecord[];
+  uploads: AttachmentUploadRecord[];
+  ingestJobs: AttachmentIngestJob[];
 };

@@ -172,7 +172,7 @@ export const InteractionDrawerContent = memo(function InteractionDrawerContent({
                     ref={htmlPreviewFrameRef}
                     title={`html-preview-${selectedHtmlPreview.name}`}
                     className="interaction-html-preview"
-                    sandbox="allow-scripts allow-forms allow-modals allow-popups"
+                    sandbox="allow-scripts allow-forms allow-modals"
                     srcDoc={instrumentedHtmlPreview}
                   />
                   {interactionEditMode ? (

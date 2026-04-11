@@ -120,7 +120,7 @@ export function normalizeProject(project: Project): Project {
     repository: {
       ...repo,
       repoMode:
-        repo.repoMode === "external_git" || repo.repoMode === "managed_local" || repo.repoMode === "hybrid" ? repo.repoMode : "hybrid",
+        repo.repoMode === "external_git" || repo.repoMode === "managed_local" || repo.repoMode === "hybrid" || repo.repoMode === "none" ? repo.repoMode : "none",
       remote: repo.remote ?? {
         status: "unprovisioned",
         visibility: "private",
@@ -380,6 +380,20 @@ function normalizeChangeControl(control: IterationChangeControl | undefined): It
       successCriteria: Array.isArray(control?.lastBusinessConfirmation?.successCriteria) ? control.lastBusinessConfirmation.successCriteria : [],
       confirmationChecklist: Array.isArray(control?.lastBusinessConfirmation?.confirmationChecklist) ? control.lastBusinessConfirmation.confirmationChecklist : [],
       versionDiffSummary: typeof control?.lastBusinessConfirmation?.versionDiffSummary === "string" ? control.lastBusinessConfirmation.versionDiffSummary : "",
+      necessityAssessment: {
+        mustDo: Array.isArray(control?.lastBusinessConfirmation?.necessityAssessment?.mustDo) ? control.lastBusinessConfirmation.necessityAssessment.mustDo : [],
+        shouldDo: Array.isArray(control?.lastBusinessConfirmation?.necessityAssessment?.shouldDo) ? control.lastBusinessConfirmation.necessityAssessment.shouldDo : [],
+        canDefer: Array.isArray(control?.lastBusinessConfirmation?.necessityAssessment?.canDefer) ? control.lastBusinessConfirmation.necessityAssessment.canDefer : [],
+        outOfScope: Array.isArray(control?.lastBusinessConfirmation?.necessityAssessment?.outOfScope) ? control.lastBusinessConfirmation.necessityAssessment.outOfScope : [],
+        rationale: typeof control?.lastBusinessConfirmation?.necessityAssessment?.rationale === "string" ? control.lastBusinessConfirmation.necessityAssessment.rationale : "",
+      },
+      interactionInsights: {
+        primaryFlow: Array.isArray(control?.lastBusinessConfirmation?.interactionInsights?.primaryFlow) ? control.lastBusinessConfirmation.interactionInsights.primaryFlow : [],
+        keyInteractions: Array.isArray(control?.lastBusinessConfirmation?.interactionInsights?.keyInteractions) ? control.lastBusinessConfirmation.interactionInsights.keyInteractions : [],
+        exceptionPaths: Array.isArray(control?.lastBusinessConfirmation?.interactionInsights?.exceptionPaths) ? control.lastBusinessConfirmation.interactionInsights.exceptionPaths : [],
+        usabilityRisks: Array.isArray(control?.lastBusinessConfirmation?.interactionInsights?.usabilityRisks) ? control.lastBusinessConfirmation.interactionInsights.usabilityRisks : [],
+      },
+      diffNarratives: Array.isArray(control?.lastBusinessConfirmation?.diffNarratives) ? control.lastBusinessConfirmation.diffNarratives : [],
     },
     lastMeaningfulFindings: Array.isArray(control?.lastMeaningfulFindings) ? control.lastMeaningfulFindings : [],
     lastPrioritizedFindings: Array.isArray(control?.lastPrioritizedFindings)

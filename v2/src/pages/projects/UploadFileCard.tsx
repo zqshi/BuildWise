@@ -165,7 +165,7 @@ export function UploadFileCard({
   onPreviewFile,
 }: {
   meta: UploadFileMeta;
-  onPreviewFile: (file: UploadFileEntry) => void;
+  onPreviewFile: (file: UploadFileEntry, siblings?: UploadFileEntry[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isFolder = meta.sourceType === "folder";
@@ -176,17 +176,18 @@ export function UploadFileCard({
     : meta.files.length - MAX_VISIBLE_FILES;
 
   const downloadableFiles = meta.files.filter((f) => f.content || f.dataUrl);
+  const handlePreview = (file: UploadFileEntry) => onPreviewFile(file, meta.files);
 
   if (!isFolder && meta.files.length === 1) {
     const file = meta.files[0];
     const canPreview = hasPreviewableContent(file);
     return (
       <div className="upload-file-card upload-file-card-single">
-        <FileRow file={file} onPreview={onPreviewFile} />
+        <FileRow file={file} onPreview={handlePreview} />
         <div className="upload-file-card-footer">
           {canPreview ? (
             <div className="upload-file-actions">
-              <button type="button" className="btn ghost mini" onClick={() => onPreviewFile(file)}>
+              <button type="button" className="btn ghost mini" onClick={() => handlePreview(file)}>
                 预览
               </button>
               <button type="button" className="btn ghost mini" onClick={() => downloadSingleFile(file)}>
@@ -210,7 +211,7 @@ export function UploadFileCard({
       </div>
       <div className="upload-file-list">
         {visibleFiles.map((file) => (
-          <FileRow key={file.path} file={file} onPreview={onPreviewFile} />
+          <FileRow key={file.path} file={file} onPreview={handlePreview} />
         ))}
         {hasMore && !expanded ? (
           <button type="button" className="upload-file-expand-btn" onClick={() => setExpanded(true)}>
@@ -231,8 +232,13 @@ export function UploadFileCard({
               className="btn ghost mini"
               onClick={() => downloadAllAsZip(meta.folderName || "files", downloadableFiles)}
             >
-              下载全部（{downloadableFiles.length} 个文件）
+              下载全部（{meta.totalFiles} 个文件）
             </button>
+            {downloadableFiles.length < meta.totalFiles ? (
+              <span className="upload-file-hint">
+                其中 {meta.totalFiles - downloadableFiles.length} 个二进制文件无法预览下载
+              </span>
+            ) : null}
           </div>
         ) : (
           <span>文件已提交分析</span>

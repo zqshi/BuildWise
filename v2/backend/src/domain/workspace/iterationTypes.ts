@@ -178,6 +178,20 @@ export type AnalysisState = {
     successCriteria: string[];
     confirmationChecklist: string[];
     versionDiffSummary: string;
+    necessityAssessment: {
+      mustDo: string[];
+      shouldDo: string[];
+      canDefer: string[];
+      outOfScope: string[];
+      rationale: string;
+    };
+    interactionInsights: {
+      primaryFlow: string[];
+      keyInteractions: string[];
+      exceptionPaths: string[];
+      usabilityRisks: string[];
+    };
+    diffNarratives: string[];
   };
   lastMeaningfulFindings: string[];
   lastPrioritizedFindings: Array<{ priority: string; content: string; reason: string }>;

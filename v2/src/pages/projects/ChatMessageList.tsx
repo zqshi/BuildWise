@@ -37,7 +37,7 @@ export type ChatMessageListProps = {
   chatSendStatus?: ChatSendStatus;
   openAnalysisDrawer: () => void;
   openArtifactPreviewByTitle: (title: string) => void;
-  onPreviewFile: (file: UploadFileEntry) => void;
+  onPreviewFile: (file: UploadFileEntry, siblings?: UploadFileEntry[]) => void;
   onConfirmAnalysis: () => void;
 };
 
@@ -60,19 +60,7 @@ const getMsgKind = (msg: IterationMessage) => {
   return "";
 };
 
-const getMsgTheme = (msg: IterationMessage) => {
-  const content = msg.content.toLowerCase();
-  if (content.includes("风险") || content.includes("阻塞")) {
-    return "theme-risk";
-  }
-  if (content.includes("完成") || content.includes("通过") || content.includes("success")) {
-    return "theme-success";
-  }
-  if (content.includes("分析") || content.includes("差异") || content.includes("附件")) {
-    return "theme-analysis";
-  }
-  return "theme-default";
-};
+const getMsgTheme = (_msg: IterationMessage) => "";
 
 const formatTime = (value: string) =>
   new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -83,29 +71,27 @@ const resolveDeliverableCardData = (content: string, artifactItems: IterationArt
     return null;
   }
   const matchedArtifact = artifactItems.find((item) => item.title === deliverable.title);
-  // ── 空交付物过滤：匹配到的 artifact 没有实质 draft 内容则不渲染卡片 ──
-  if (matchedArtifact) {
-    const draftLen = (matchedArtifact.draft?.content || "").trim().length;
-    if (draftLen < 30) return null;
-    const gateStatus = matchedArtifact.gateStatus;
-    const matchedKind = resolveArtifactPreviewKind(matchedArtifact.id);
-    if (matchedKind !== "analysis-report") {
-      return {
-        ...deliverable,
-        gateStatus,
-        summary: compactArtifactCardSummary(matchedArtifact.summary || deliverable.summary, deliverable.summary),
-        evidence: deliverable.evidence.length > 0 ? deliverable.evidence : matchedArtifact.evidence || []
-      };
-    }
-    const preview = buildAnalysisArtifactPreview(matchedArtifact.draft?.content || "");
+  // 未匹配到 artifact 或 artifact 无实质内容时不渲染卡片
+  if (!matchedArtifact) return null;
+  const draftLen = (matchedArtifact.draft?.content || "").trim().length;
+  if (draftLen < 30) return null;
+  const gateStatus = matchedArtifact.gateStatus;
+  const matchedKind = resolveArtifactPreviewKind(matchedArtifact.id);
+  if (matchedKind !== "analysis-report") {
     return {
       ...deliverable,
       gateStatus,
-      summary: compactArtifactCardSummary(preview.summary || matchedArtifact.summary || deliverable.summary, deliverable.summary),
-      evidence: preview.evidence.length > 0 ? preview.evidence : deliverable.evidence
+      summary: compactArtifactCardSummary(matchedArtifact.summary || deliverable.summary, deliverable.summary),
+      evidence: deliverable.evidence.length > 0 ? deliverable.evidence : matchedArtifact.evidence || []
     };
   }
-  return deliverable;
+  const preview = buildAnalysisArtifactPreview(matchedArtifact.draft?.content || "");
+  return {
+    ...deliverable,
+    gateStatus,
+    summary: compactArtifactCardSummary(preview.summary || matchedArtifact.summary || deliverable.summary, deliverable.summary),
+    evidence: preview.evidence.length > 0 ? preview.evidence : deliverable.evidence
+  };
 };
 
 export function ChatMessageList({

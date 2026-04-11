@@ -18,8 +18,33 @@ import { handleRewrite } from "./chatActionRewrite";
 import { handleConfirmAccurate, handleConfirmInaccurate } from "./chatActionConfirm";
 import { handleReportRequest } from "./chatActionReportRequest";
 import { handlePrototype } from "./chatActionPrototype";
+import { buildCoachFollowupMessage } from "./coachConversationGuide";
 
 /* ── pure helper ─────────────────────────────────────────────────────── */
+
+const buildIdleHint = (
+  iteration: Iteration,
+  analysisReport: AttachmentAnalysisReport | null
+): string | null => {
+  const cc = iteration.changeControl as Record<string, unknown> | undefined;
+  const questions = (cc?.clarificationQuestions ?? []) as string[];
+  const confirmed = Boolean(cc?.analysisConfirmed);
+  const pendingConfirmation = Boolean(cc?.pendingHumanConfirmation);
+
+  if (!analysisReport) {
+    return "你可以上传需求文档或原型，我来帮你做分析。也可以直接描述你的需求，我来引导你一步步推进。";
+  }
+  if (questions.length > 0 && !confirmed) {
+    return `还有 ${questions.length} 个澄清问题待确认，请逐个回复或输入「全部确认」。`;
+  }
+  if (pendingConfirmation && !confirmed) {
+    return "分析报告已就绪，请确认分析结论是否准确。输入「确认」或「不准确」来继续。";
+  }
+  if (confirmed) {
+    return "分析已确认，你可以输入「开始拆解任务」来生成本迭代执行清单，或者告诉我你想先推进哪块。";
+  }
+  return null;
+};
 
 export const resolveCoachErrorMessage = (error: unknown) => {
   const raw = resolveErrorMessage(error);
@@ -138,13 +163,18 @@ export const handleSend = async (
     deps.setChatSendStatus("processing-executing");
     if (deps.currentIteration?.id !== currentIteration.id) return null;
 
-    // ── coach 文字回复 ──
+    // ── coach 文字回复 + guidance 合并 ──
     const presentedReply = presentCoachReply(coach.reply);
-    if (presentedReply) {
-      const truncationWarning = coach.llm?.contentComplete === false
-        ? "\n\n\u26A0\uFE0F 以上内容可能不完整，AI 输出被截断。如需完整内容，请发送\u201C请继续\u201D。"
-        : "";
-      await createMessage(currentIteration.id, "assistant", presentedReply + truncationWarning, deps.setChatMessages);
+    const truncationWarning = coach.llm?.contentComplete === false
+      ? "\u26A0\uFE0F 以上内容可能不完整，AI 输出被截断。如需完整内容，请发送\u201C请继续\u201D。"
+      : "";
+    const guidanceFollowup = buildCoachFollowupMessage({
+      intent: coach.intent ?? "general",
+      guidance: coach.guidance ?? { uploadRecommended: false, suggestedUploadTypes: [], suggestedActions: [], clarificationChecklist: [] }
+    });
+    const mergedReply = [presentedReply, truncationWarning, guidanceFollowup].filter(Boolean).join("\n\n");
+    if (mergedReply) {
+      await createMessage(currentIteration.id, "assistant", mergedReply, deps.setChatMessages);
     }
 
     // ── execution action 分发 ──
@@ -168,6 +198,16 @@ export const handleSend = async (
 
     if (executionAction === "enter-clarify-mode") {
       await createMessage(currentIteration.id, "assistant", "好，进入澄清模式了。接下来我会集中确认几个关键问题，一个一个来。", deps.setChatMessages);
+      await deps.loadIterationDetail(currentIteration.id);
+    }
+
+    if (executionAction === "capture-business-rule") {
+      await createMessage(
+        currentIteration.id, "assistant",
+        "好的，这条业务规则已记录。我会在后续分析中体现它，并同步到项目知识库。",
+        deps.setChatMessages
+      );
+      await deps.loadIterationDetail(currentIteration.id);
     }
 
     if (executionAction === "run-full-cycle" || coach.intent === "full-cycle") {
@@ -181,6 +221,14 @@ export const handleSend = async (
       await handleReportRequest(deps, currentIteration.id, deps.setChatMessages);
     } else {
       await deps.loadIterationDetail(currentIteration.id);
+    }
+
+    // ── 兜底引导：当 coach 没有触发任何动作时提示用户下一步 ──
+    if ((!executionAction || executionAction === "none") && !guidanceFollowup && !isReportRequest) {
+      const hint = buildIdleHint(currentIteration, deps.analysisReport);
+      if (hint) {
+        await createMessage(currentIteration.id, "assistant", hint, deps.setChatMessages);
+      }
     }
 
     return null;
