@@ -19,6 +19,7 @@ function synthesizeAnalysisReport(iteration: Iteration, cc: ChangeControl): stri
   const continuity = iteration.continuity;
   const biz = cc.lastBusinessConfirmation;
   const sections: string[] = [];
+  const appendix: string[] = [];
 
   // 继承上下文
   if (continuity?.inheritedFromIterationId) {
@@ -30,36 +31,56 @@ function synthesizeAnalysisReport(iteration: Iteration, cc: ChangeControl): stri
     ));
   }
 
-  // 核心意图（来自 LLM 分析）
+  // ── 核心章节（空数据时输出说明而非跳过） ──
+
   if (biz?.coreIntent) {
     sections.push(joinLines("## 核心意图", biz.coreIntent));
+  } else {
+    sections.push(joinLines("## 核心意图", "> 分析未能识别核心业务意图。可能原因：上传材料以代码为主，缺少需求描述文档。建议在对话中补充业务目标。"));
   }
 
-  // 边界摘要
   if (biz?.boundarySummary) {
     sections.push(joinLines("## 边界摘要", biz.boundarySummary));
+  } else {
+    sections.push(joinLines("## 边界摘要", "> 边界信息待补充。请通过「确认边界」操作明确本迭代的需求范围、受影响组件和代码路径。"));
+  }
+
+  if (biz?.functionalPoints?.length) {
+    sections.push(sectionBlock("功能要点", biz.functionalPoints));
+  } else {
+    sections.push(joinLines("## 功能要点", "> 未提取到功能要点。请确认上传材料中包含功能描述，或在对话中逐条说明本迭代要实现的功能。"));
   }
 
   // 必要性评估
   const na = biz?.necessityAssessment;
-  if (na) {
-    const naLines: string[] = [];
-    if (na.mustDo?.length) naLines.push(`必须完成：${na.mustDo.join("、")}`);
-    if (na.shouldDo?.length) naLines.push(`建议纳入：${na.shouldDo.join("、")}`);
-    if (na.canDefer?.length) naLines.push(`可延期：${na.canDefer.join("、")}`);
-    if (na.outOfScope?.length) naLines.push(`超出范围：${na.outOfScope.join("、")}`);
-    if (na.rationale) naLines.push(`判断依据：${na.rationale}`);
-    if (naLines.length > 0) sections.push(joinLines("## 必要性评估", ...naLines));
-  }
-
-  // 功能要点
-  if (biz?.functionalPoints?.length) {
-    sections.push(sectionBlock("功能要点", biz.functionalPoints));
+  const naLines: string[] = [];
+  if (na?.mustDo?.length) naLines.push(`必须完成：${na.mustDo.join("、")}`);
+  if (na?.shouldDo?.length) naLines.push(`建议纳入：${na.shouldDo.join("、")}`);
+  if (na?.canDefer?.length) naLines.push(`可延期：${na.canDefer.join("、")}`);
+  if (na?.outOfScope?.length) naLines.push(`超出范围：${na.outOfScope.join("、")}`);
+  if (na?.rationale) naLines.push(`判断依据：${na.rationale}`);
+  if (naLines.length > 0) {
+    sections.push(joinLines("## 必要性评估", ...naLines));
+  } else {
+    sections.push(joinLines("## 必要性评估", "> 未能评估必要性。请确认哪些功能必须在本迭代完成、哪些可以延期。"));
   }
 
   // 成功标准
   if (biz?.successCriteria?.length) {
     sections.push(sectionBlock("成功标准", biz.successCriteria));
+  }
+
+  // ── 洞察章节 ──
+
+  // 交互洞察
+  const reportIi = biz?.interactionInsights;
+  if (reportIi) {
+    const iiLines: string[] = [];
+    if (reportIi.primaryFlow?.length) iiLines.push(...reportIi.primaryFlow.map((f) => `[主流程] ${f}`));
+    if (reportIi.keyInteractions?.length) iiLines.push(...reportIi.keyInteractions.map((k) => `[关键交互] ${k}`));
+    if (reportIi.exceptionPaths?.length) iiLines.push(...reportIi.exceptionPaths.map((e) => `[异常路径] ${e}`));
+    if (reportIi.usabilityRisks?.length) iiLines.push(...reportIi.usabilityRisks.map((r) => `[可用性风险] ${r}`));
+    if (iiLines.length > 0) sections.push(sectionBlock("交互洞察", iiLines));
   }
 
   // 关键发现详情
@@ -101,26 +122,33 @@ function synthesizeAnalysisReport(iteration: Iteration, cc: ChangeControl): stri
     if (deepLines.length > 0) sections.push(joinLines("## 深度洞察", ...deepLines));
   }
 
-  // 澄清问题
+  // ── 行动建议（汇总所有待办） ──
+  const actionItems: string[] = [];
   const questions = cc.clarificationQuestions;
   if (Array.isArray(questions) && questions.length > 0) {
-    sections.push(`## 待澄清问题\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`);
+    actionItems.push(...questions.map((q) => `[待澄清] ${q}`));
   }
-
-  // 待确认事项
+  if (Array.isArray(prioritized)) {
+    const p0Items = prioritized.filter((i) => i.priority === "P0");
+    actionItems.push(...p0Items.map((i) => `[阻断项] ${i.content}`));
+  }
+  const actionRequired = cc.lastReportQualityScore !== undefined
+    ? (cc as Record<string, unknown>)["lastReportActionRequired"] as string[] | undefined
+    : undefined;
+  if (Array.isArray(actionRequired)) {
+    actionItems.push(...actionRequired.filter(Boolean).map((a) => `[需补充] ${a}`));
+  }
   if (biz?.confirmationChecklist?.length) {
-    sections.push(sectionBlock("待确认事项", biz.confirmationChecklist));
+    actionItems.push(...biz.confirmationChecklist.slice(0, 5).map((c) => `[待确认] ${c}`));
+  }
+  if (actionItems.length > 0) {
+    sections.push(sectionBlock("行动建议", actionItems));
   }
 
-  // 交互洞察
-  const reportIi = biz?.interactionInsights;
-  if (reportIi) {
-    const iiLines: string[] = [];
-    if (reportIi.primaryFlow?.length) iiLines.push(`主流程：${reportIi.primaryFlow.join("、")}`);
-    if (reportIi.keyInteractions?.length) iiLines.push(`关键交互：${reportIi.keyInteractions.join("、")}`);
-    if (reportIi.exceptionPaths?.length) iiLines.push(`异常路径：${reportIi.exceptionPaths.join("、")}`);
-    if (reportIi.usabilityRisks?.length) iiLines.push(`可用性风险：${reportIi.usabilityRisks.join("、")}`);
-    if (iiLines.length > 0) sections.push(joinLines("## 交互洞察", ...iiLines));
+  // 风险与建议
+  const risks = assessment?.risks;
+  if (Array.isArray(risks) && risks.length > 0) {
+    sections.push(sectionBlock("已识别风险", risks));
   }
 
   // 版本差异摘要
@@ -139,58 +167,87 @@ function synthesizeAnalysisReport(iteration: Iteration, cc: ChangeControl): stri
     sections.push(sectionBlock("变更叙述", biz.diffNarratives));
   }
 
-  // 分析质量
+  // ── 附录：分析元数据（与正文分离） ──
   if (cc.lastReportQualitySummary) {
-    sections.push(joinLines(
-      `## 分析质量`,
+    appendix.push(joinLines(
+      `### 分析质量`,
       `评分：${cc.lastReportQualityScore ?? "-"}`,
       cc.lastReportQualitySummary,
       cc.lastReportPublishable === false ? "状态：报告尚未达到可发布标准" : ""
     ));
   }
-
-  // 追溯覆盖
   if (cc.traceabilitySnapshot?.requirementCoverage !== undefined) {
     const ts = cc.traceabilitySnapshot;
-    sections.push(joinLines(
-      `## 追溯覆盖`,
+    appendix.push(joinLines(
+      `### 追溯覆盖`,
       `需求覆盖率：${ts.requirementCoverage}%`,
       `映射置信度：${ts.mappingConfidence || "-"}`,
       ts.unmappedRequirements?.length ? `未映射需求：${ts.unmappedRequirements.join("、")}` : ""
     ));
   }
 
-  // 风险与建议
-  const risks = assessment?.risks;
-  if (Array.isArray(risks) && risks.length > 0) {
-    sections.push(sectionBlock("已识别风险", risks));
-  }
-
   if (sections.length === 0) return "";
   const header = continuity?.inheritedFromIterationId ? "# 继承差异分析报告" : "# 首版需求分析报告";
-  return `${header}\n\n${sections.join("\n\n")}`;
+  const body = `${header}\n\n${sections.join("\n\n")}`;
+  if (appendix.length === 0) return body;
+  return `${body}\n\n---\n\n## 附录：分析元数据\n\n${appendix.join("\n\n")}`;
 }
 
 function synthesizeBoundary(cc: ChangeControl): string {
   const b = cc.boundary;
-  if (!b) return "";
-  const sections: string[] = [];
-  sections.push("# 变更边界确认");
-  if (b.requirementRefs.length > 0) sections.push(sectionBlock("需求映射", b.requirementRefs));
-  if (b.componentRefs.length > 0) sections.push(sectionBlock("受影响组件", b.componentRefs));
-  if (b.codePaths.length > 0) sections.push(sectionBlock("代码路径", b.codePaths));
-  if (b.note) sections.push(`## 备注\n${b.note}`);
-  const ec = cc.executableConstraints;
-  if (ec) {
-    if (ec.acceptanceChecks?.length > 0) sections.push(sectionBlock("验收检查项", ec.acceptanceChecks));
+  const sections: string[] = ["# 变更边界确认"];
+
+  // 业务边界说明
+  const biz = cc.lastBusinessConfirmation;
+  if (biz?.boundarySummary) {
+    sections.push(joinLines("## 业务边界说明", biz.boundarySummary));
   }
-  const boundaryNa = cc.lastBusinessConfirmation?.necessityAssessment;
+
+  // 需求映射
+  if (b?.requirementRefs?.length) {
+    sections.push(sectionBlock("需求映射", b.requirementRefs));
+  }
+  // 受影响组件
+  if (b?.componentRefs?.length) {
+    sections.push(sectionBlock("受影响组件", b.componentRefs));
+  }
+  // 代码路径
+  if (b?.codePaths?.length) {
+    sections.push(sectionBlock("代码路径", b.codePaths));
+  }
+  if (b?.note) {
+    sections.push(joinLines("## 备注", b.note));
+  }
+
+  // 验收检查项
+  const ec = cc.executableConstraints;
+  if (ec?.acceptanceChecks?.length) {
+    sections.push(sectionBlock("验收检查项", ec.acceptanceChecks));
+  }
+
+  // 必要性依据 + 明确排除项
+  const boundaryNa = biz?.necessityAssessment;
   if (boundaryNa?.rationale) {
     sections.push(joinLines("## 必要性依据", boundaryNa.rationale));
   }
   if (boundaryNa?.outOfScope?.length) {
     sections.push(sectionBlock("明确排除项", boundaryNa.outOfScope));
   }
+
+  // 边界完整度提示
+  const filled = [
+    (b?.requirementRefs?.length ?? 0) > 0,
+    (b?.componentRefs?.length ?? 0) > 0,
+    (b?.codePaths?.length ?? 0) > 0
+  ].filter(Boolean).length;
+  if (filled < 2) {
+    const missing: string[] = [];
+    if (!(b?.requirementRefs?.length)) missing.push("需求映射");
+    if (!(b?.componentRefs?.length)) missing.push("受影响组件");
+    if (!(b?.codePaths?.length)) missing.push("代码路径");
+    sections.push(joinLines("## 待补充", `> 边界确认尚未完整，缺少：${missing.join("、")}。建议补充后再进入下一阶段。`));
+  }
+
   return sections.length > 1 ? sections.join("\n\n") : "";
 }
 
@@ -253,30 +310,80 @@ function synthesizeReleaseReview(cc: ChangeControl): string {
     sections.push(sectionBlock("阻塞项", cc.lastReleaseReviewBlockers));
   }
 
+  // 建议行动
+  const actions: string[] = [];
+  if (cc.lastReleaseReviewDecision === "block") {
+    actions.push("解决所有阻塞项后重新触发发布评审");
+    if (Array.isArray(cc.lastReleaseReviewBlockers)) {
+      actions.push(...cc.lastReleaseReviewBlockers.map((b) => `修复：${b}`));
+    }
+  } else if (cc.lastReleaseReviewDecision === "caution") {
+    actions.push("建议人工复核后再决定是否发布");
+    if (cc.lastOpsRollbackSuggested) actions.push("准备回滚方案");
+  } else {
+    actions.push("可执行发布流程");
+  }
+  if (actions.length > 0) {
+    sections.push(sectionBlock("建议行动", actions));
+  }
+
+  // 发布门禁清单
+  const gateItems: string[] = [];
+  const matrix = cc.generatedTestMatrix || [];
+  const totalTests = matrix.length;
+  const passedTests = matrix.filter((tc) => tc.executionStatus === "passed").length;
+  if (totalTests > 0) {
+    gateItems.push(passedTests === totalTests ? `测试全部通过（${totalTests}/${totalTests}）` : `测试通过 ${passedTests}/${totalTests}，存在未通过用例`);
+  }
+  if (cc.confirmedAt) gateItems.push(`分析报告已确认（${cc.confirmedAt.slice(0, 10)}）`);
+  const boundaryFilled = (cc.boundary?.componentRefs?.length ?? 0) + (cc.boundary?.codePaths?.length ?? 0);
+  if (boundaryFilled > 0) gateItems.push(`变更边界已确认（${boundaryFilled} 项）`);
+  if (gateItems.length > 0) {
+    sections.push(sectionBlock("发布门禁检查", gateItems));
+  }
+
   // 回滚建议
   if (cc.lastOpsRollbackSuggested) {
-    sections.push(joinLines("## 回滚建议", "建议回滚：是"));
+    sections.push(joinLines("## 回滚建议", "建议准备回滚方案，确保发布后出现问题时可快速恢复。"));
   }
 
   return sections.join("\n\n");
 }
 
-function synthesizeAcceptanceChecklist(cc: ChangeControl): string {
+function synthesizeAcceptanceChecklist(iteration: Iteration, cc: ChangeControl): string {
   const checklist = cc.qualityArtifacts?.acceptanceChecklist;
-  if (!Array.isArray(checklist) || checklist.length === 0) return "";
-  const sections: string[] = ["# 验收清单"];
-
-  // 验收项
-  sections.push(`## 验收检查项\n${checklist.map((item) => `- [ ] ${item}`).join("\n")}`);
-
-  // 补充：可执行约束中的验收检查
   const ecChecks = cc.executableConstraints?.acceptanceChecks;
-  if (Array.isArray(ecChecks) && ecChecks.length > 0) {
-    const extra = ecChecks.filter((item) => !checklist.includes(item));
-    if (extra.length > 0) {
-      sections.push(sectionBlock("自动生成检查项", extra));
+  const scopeChecks = iteration.scope?.acceptanceCriteria;
+
+  const allItems: Array<{ text: string; source: string }> = [];
+  const seen = new Set<string>();
+
+  // 来源标注：scope → qualityArtifacts → executableConstraints
+  if (Array.isArray(scopeChecks)) {
+    for (const item of scopeChecks) {
+      const t = item.trim();
+      if (t && !seen.has(t)) { seen.add(t); allItems.push({ text: t, source: "需求范围" }); }
     }
   }
+  if (Array.isArray(checklist)) {
+    for (const item of checklist) {
+      const t = item.trim();
+      if (t && !seen.has(t)) { seen.add(t); allItems.push({ text: t, source: "质量评审" }); }
+    }
+  }
+  if (Array.isArray(ecChecks)) {
+    for (const item of ecChecks) {
+      const t = item.trim();
+      if (t && !seen.has(t)) { seen.add(t); allItems.push({ text: t, source: "自动生成" }); }
+    }
+  }
+
+  if (allItems.length === 0) return "";
+  const sections: string[] = ["# 验收清单"];
+
+  sections.push(joinLines("## 概览", `共 ${allItems.length} 项验收检查，来源分布：需求范围 ${allItems.filter((i) => i.source === "需求范围").length} 项、质量评审 ${allItems.filter((i) => i.source === "质量评审").length} 项、自动生成 ${allItems.filter((i) => i.source === "自动生成").length} 项`));
+
+  sections.push(`## 验收检查项\n${allItems.map((item) => `- [ ] ${item.text}（${item.source}）`).join("\n")}`);
 
   return sections.join("\n\n");
 }
@@ -285,16 +392,36 @@ function synthesizeDeliveryPackage(iteration: Iteration, cc: ChangeControl): str
   const files = cc.qualityArtifacts?.materializedFiles;
   if (!Array.isArray(files) || files.length === 0) return "";
   const sections: string[] = ["# 交付归档"];
+  const biz = cc.lastBusinessConfirmation;
 
-  // 基本信息
-  sections.push(joinLines(
-    "## 迭代信息",
-    `迭代名称：${iteration.name}`,
-    `状态：${iteration.status}`
-  ));
+  // 迭代成果摘要
+  const summaryLines: string[] = [`迭代名称：${iteration.name}`, `状态：${iteration.status}`];
+  if (biz?.coreIntent) summaryLines.push(`核心意图：${biz.coreIntent}`);
+  const workflowItems = cc.artifactWorkflow?.items || [];
+  const readyCount = workflowItems.filter((i) => i.status === "ready").length;
+  const totalCount = workflowItems.length;
+  if (totalCount > 0) summaryLines.push(`交付物完成度：${readyCount}/${totalCount}`);
+  if (cc.lastReportQualityScore !== undefined) summaryLines.push(`质量评分：${cc.lastReportQualityScore}`);
+  sections.push(joinLines("## 迭代成果", ...summaryLines));
 
   // 归档文件清单
   sections.push(sectionBlock("归档文件", files));
+
+  // 关键交付成果
+  const keyDeliverables: string[] = [];
+  if (cc.confirmedAt) keyDeliverables.push(`分析报告已确认（${cc.confirmedAt.slice(0, 10)}）`);
+  const matrix = cc.generatedTestMatrix || [];
+  if (matrix.length > 0) {
+    const passed = matrix.filter((tc) => tc.executionStatus === "passed").length;
+    keyDeliverables.push(`测试用例 ${matrix.length} 个，通过 ${passed} 个`);
+  }
+  if (cc.lastReleaseReviewDecision) {
+    const label = cc.lastReleaseReviewDecision === "go" ? "允许发布" : cc.lastReleaseReviewDecision === "caution" ? "谨慎发布" : "阻塞发布";
+    keyDeliverables.push(`发布评审：${label}`);
+  }
+  if (keyDeliverables.length > 0) {
+    sections.push(sectionBlock("关键交付成果", keyDeliverables));
+  }
 
   // 继承上下文
   const continuity = iteration.continuity;
@@ -396,86 +523,162 @@ function synthesizeProductRequirementsDoc(iteration: Iteration, cc: ChangeContro
   return sections.length > 1 ? sections.join("\n\n") : "";
 }
 
-function synthesizePrototypePreview(iteration: Iteration): string {
+function synthesizePrototypePreview(iteration: Iteration, cc: ChangeControl): string {
   const state = iteration.interactionState;
-  if (!state?.hasPrototypeAssets) return "";
-  return joinLines(
-    "# 原型与交互",
-    `上传类型：${state.uploadKind}`,
-    state.lastAttachmentName ? `最近附件：${state.lastAttachmentName}` : "",
-    "原型内容通过 HTML 预览渲染，请在交互面板中查看。"
-  );
+  const sections: string[] = ["# 原型与交互"];
+
+  if (state?.hasPrototypeAssets) {
+    const infoLines: string[] = [];
+    if (state.uploadKind) infoLines.push(`上传类型：${state.uploadKind}`);
+    if (state.lastAttachmentName) infoLines.push(`最近附件：${state.lastAttachmentName}`);
+    infoLines.push("原型内容通过 HTML 预览渲染，请在交互面板中查看。");
+    sections.push(joinLines("## 原型资产", ...infoLines));
+  } else {
+    sections.push(joinLines("## 原型资产", "> 未检测到原型附件。如需交互验证，请上传 HTML 原型文件或截图。"));
+  }
+
+  // 原型验证焦点
+  const ii = cc.lastBusinessConfirmation?.interactionInsights;
+  const focusItems: string[] = [];
+  if (ii?.primaryFlow?.length) focusItems.push(...ii.primaryFlow.map((f) => `[主流程验证] ${f}`));
+  if (ii?.exceptionPaths?.length) focusItems.push(...ii.exceptionPaths.map((e) => `[异常路径验证] ${e}`));
+  if (ii?.usabilityRisks?.length) focusItems.push(...ii.usabilityRisks.map((r) => `[可用性风险] ${r}`));
+  const ux = cc.uxArtifacts;
+  if (ux?.uiStates?.length) focusItems.push(...ux.uiStates.slice(0, 4).map((s) => `[界面状态] ${s}`));
+  if (ux?.interactionFlows?.length) focusItems.push(...ux.interactionFlows.slice(0, 4).map((f) => `[交互流程] ${f}`));
+  if (focusItems.length > 0) {
+    sections.push(sectionBlock("原型验证焦点", focusItems.slice(0, 12)));
+  }
+
+  return sections.length > 1 ? sections.join("\n\n") : "";
 }
 
 function synthesizeDesignSpec(cc: ChangeControl): string {
   const ux = cc.uxArtifacts;
-  if (!ux) return "";
+  const ii = cc.lastBusinessConfirmation?.interactionInsights;
+  const fp = cc.lastBusinessConfirmation?.functionalPoints;
   const sections: string[] = ["# 设计规范"];
-  if (ux.informationArchitecture?.length > 0) {
-    sections.push(sectionBlock("信息架构", ux.informationArchitecture));
+
+  // 信息架构
+  if (ux?.informationArchitecture?.length) {
+    sections.push(sectionBlock("信息架构", ux.informationArchitecture.map((item, i) => `${i + 1}. ${item}`)));
   }
-  if (ux.interactionFlows?.length > 0) {
-    sections.push(sectionBlock("交互流程", ux.interactionFlows));
+
+  // 交互流程（合并 ux + interactionInsights，标注场景类型）
+  const flowItems: string[] = [];
+  if (ux?.interactionFlows?.length) flowItems.push(...ux.interactionFlows.map((f) => `[流程] ${f}`));
+  if (ii?.primaryFlow?.length) flowItems.push(...ii.primaryFlow.map((f) => `[主流程] ${f}`));
+  if (ii?.exceptionPaths?.length) flowItems.push(...ii.exceptionPaths.map((e) => `[异常路径] ${e}`));
+  if (flowItems.length > 0) {
+    sections.push(sectionBlock("交互流程", flowItems));
   }
-  if (ux.uiStates?.length > 0) {
+
+  // 界面状态
+  if (ux?.uiStates?.length) {
     sections.push(sectionBlock("界面状态", ux.uiStates));
   }
-  if (ux.uxConstraints?.length > 0) {
+
+  // 设计约束
+  if (ux?.uxConstraints?.length) {
     sections.push(sectionBlock("设计约束", ux.uxConstraints));
   }
-  // 交互洞察补充（来自 LLM 分析）
-  const designIi = cc.lastBusinessConfirmation?.interactionInsights;
-  if (designIi) {
-    const iiLines: string[] = [];
-    if (designIi.usabilityRisks?.length) iiLines.push(...designIi.usabilityRisks.map((item) => `[可用性风险] ${item}`));
-    if (designIi.exceptionPaths?.length) iiLines.push(...designIi.exceptionPaths.map((item) => `[异常路径] ${item}`));
-    if (iiLines.length > 0) {
-      sections.push(sectionBlock("风险与异常路径", iiLines));
-    }
+
+  // 风险与异常路径
+  const riskItems: string[] = [];
+  if (ii?.usabilityRisks?.length) riskItems.push(...ii.usabilityRisks.map((item) => `[可用性风险] ${item}`));
+  if (ii?.keyInteractions?.length) riskItems.push(...ii.keyInteractions.map((item) => `[关键交互] ${item}`));
+  if (riskItems.length > 0) {
+    sections.push(sectionBlock("风险与关键交互", riskItems));
   }
-  return sections.length > 1 ? sections.join("\n\n") : "";
+
+  // 功能覆盖对照
+  if (fp?.length) {
+    sections.push(sectionBlock("需覆盖的功能要点", fp.slice(0, 10)));
+  }
+
+  if (sections.length <= 1) {
+    sections.push(joinLines("> 交互设计数据待生成。请先完成需求分析，或通过 UX 规格生成获取设计规范。"));
+  }
+  return sections.join("\n\n");
 }
 
 function synthesizeTechnicalArchitecture(cc: ChangeControl): string {
   const boundary = cc.boundary;
   const ec = cc.executableConstraints;
-  if (!boundary) return "";
+  const deep = cc.lastDeepInsightsSummary;
+  const prioritized = cc.lastPrioritizedFindings;
+  const domainEntries = cc.domainKnowledgeEntries;
   const sections: string[] = ["# 技术架构"];
-  if (boundary.componentRefs.length > 0) {
+
+  // 受影响模块
+  if (boundary?.componentRefs?.length) {
     sections.push(sectionBlock("受影响模块", boundary.componentRefs));
   }
-  if (boundary.codePaths.length > 0) {
+  // 代码路径
+  if (boundary?.codePaths?.length) {
     sections.push(sectionBlock("代码路径", boundary.codePaths));
   }
+  // 组件/路径白名单补充
   if (ec?.componentWhitelist?.length) {
-    const extra = ec.componentWhitelist.filter((c) => !boundary.componentRefs.includes(c));
-    if (extra.length > 0) {
-      sections.push(sectionBlock("组件白名单（补充）", extra));
-    }
+    const extra = ec.componentWhitelist.filter((c) => !boundary?.componentRefs?.includes(c));
+    if (extra.length > 0) sections.push(sectionBlock("组件白名单（补充）", extra));
   }
   if (ec?.codePathWhitelist?.length) {
-    const extra = ec.codePathWhitelist.filter((p) => !boundary.codePaths.includes(p));
-    if (extra.length > 0) {
-      sections.push(sectionBlock("代码路径白名单（补充）", extra));
-    }
+    const extra = ec.codePathWhitelist.filter((p) => !boundary?.codePaths?.includes(p));
+    if (extra.length > 0) sections.push(sectionBlock("代码路径白名单（补充）", extra));
   }
+
+  // 技术决策建议
+  if (deep?.decisionSuggestions?.length) {
+    sections.push(sectionBlock("技术决策建议", deep.decisionSuggestions));
+  }
+
+  // 技术风险
+  const riskItems: string[] = [];
+  if (deep?.rootCauses?.length) riskItems.push(...deep.rootCauses.map((r) => `[根因] ${r}`));
+  if (Array.isArray(prioritized)) {
+    const techRisks = prioritized.filter((i) => i.priority === "P0" || i.priority === "P1");
+    riskItems.push(...techRisks.map((i) => `[${i.priority}] ${i.content}`));
+  }
+  if (riskItems.length > 0) sections.push(sectionBlock("技术风险", riskItems.slice(0, 10)));
+
+  // 模块依赖关系
+  if (Array.isArray(domainEntries)) {
+    const depItems = domainEntries
+      .filter((e) => e.mappedCodePaths?.length > 0)
+      .slice(0, 10)
+      .map((e) => `**${e.term}** → ${e.mappedCodePaths.join("、")}`);
+    if (depItems.length > 0) sections.push(sectionBlock("模块依赖映射", depItems));
+  }
+
+  // 技术验收检查
   if (ec?.acceptanceChecks?.length) {
     sections.push(sectionBlock("技术验收检查", ec.acceptanceChecks));
   }
-  return sections.length > 1 ? sections.join("\n\n") : "";
+
+  if (sections.length <= 1) {
+    sections.push(joinLines("> 技术架构数据待生成。请先完成需求分析和边界确认。"));
+  }
+  return sections.join("\n\n");
 }
 
 function synthesizeApiSpecification(cc: ChangeControl): string {
   const entries = cc.domainKnowledgeEntries;
   if (!Array.isArray(entries)) return "";
   const apiEntries = entries.filter((e) => e.mappedApis?.length > 0);
-  if (apiEntries.length === 0) return "";
+  if (apiEntries.length === 0) {
+    return joinLines("# 接口设计", "> 领域知识中未提取到接口映射。请先完成需求分析，确保上传材料中包含接口相关描述。");
+  }
   const sections: string[] = ["# 接口设计"];
 
-  const apiLines = apiEntries.slice(0, 20).map(
-    (entry) => `**${entry.term}** → ${entry.mappedApis.join("、")}`
-  );
-  sections.push(sectionBlock("领域术语与接口映射", apiLines));
+  for (const entry of apiEntries.slice(0, 15)) {
+    const lines: string[] = [`### ${entry.term}`];
+    if (entry.definition) lines.push(entry.definition);
+    lines.push(`接口：${entry.mappedApis.join("、")}`);
+    if (entry.mappedPages?.length) lines.push(`关联页面：${entry.mappedPages.join("、")}`);
+    if (entry.evidence) lines.push(`证据来源：${entry.evidence}`);
+    sections.push(lines.join("\n"));
+  }
 
   return sections.join("\n\n");
 }
@@ -484,13 +687,20 @@ function synthesizeDatabaseDesign(cc: ChangeControl): string {
   const entries = cc.domainKnowledgeEntries;
   if (!Array.isArray(entries)) return "";
   const entityEntries = entries.filter((e) => e.mappedEntities?.length > 0);
-  if (entityEntries.length === 0) return "";
+  if (entityEntries.length === 0) {
+    return joinLines("# 数据模型设计", "> 领域知识中未提取到实体映射。请先完成需求分析，确保上传材料中包含数据模型相关描述。");
+  }
   const sections: string[] = ["# 数据模型设计"];
 
-  const entityLines = entityEntries.slice(0, 20).map(
-    (entry) => `**${entry.term}** → 实体字段：${entry.mappedEntities.join("、")}`
-  );
-  sections.push(sectionBlock("领域术语与实体映射", entityLines));
+  for (const entry of entityEntries.slice(0, 15)) {
+    const lines: string[] = [`### ${entry.term}`];
+    if (entry.definition) lines.push(entry.definition);
+    lines.push(`实体字段：${entry.mappedEntities.join("、")}`);
+    if (entry.mappedCodePaths?.length) lines.push(`关联代码路径：${entry.mappedCodePaths.join("、")}`);
+    if (entry.mappedApis?.length) lines.push(`关联接口：${entry.mappedApis.join("、")}`);
+    if (entry.evidence) lines.push(`证据来源：${entry.evidence}`);
+    sections.push(lines.join("\n"));
+  }
 
   return sections.join("\n\n");
 }
@@ -529,6 +739,7 @@ function synthesizeDeploymentPlan(cc: ChangeControl): string {
   const ec = cc.executableConstraints;
   const qa = cc.qualityArtifacts;
   const decision = cc.lastReleaseReviewDecision;
+  const biz = cc.lastBusinessConfirmation;
 
   const hasScope = (boundary?.componentRefs?.length ?? 0) > 0 || (boundary?.codePaths?.length ?? 0) > 0;
   const allChecks = Array.from(new Set([
@@ -540,13 +751,21 @@ function synthesizeDeploymentPlan(cc: ChangeControl): string {
   if (!decision && !hasScope && !hasChecklist) return "";
   const sections: string[] = ["# 部署方案"];
 
+  // 部署背景
+  if (biz?.coreIntent) {
+    sections.push(joinLines("## 部署背景", biz.coreIntent));
+  }
+
   // 发布前提（一行引用，不重复 release-review 详情）
   if (decision) {
     const label = decision === "go" ? "允许发布" : decision === "caution" ? "谨慎发布" : "阻塞发布";
     sections.push(joinLines("## 发布前提", `发布评审结论：${label}`));
+    if (decision === "block") {
+      sections.push(joinLines("> 当前评审为阻塞状态，建议解决阻塞项后再执行部署。"));
+    }
   }
 
-  // 部署范围
+  // 部署范围（带业务关联）
   if (hasScope) {
     const scopeLines: string[] = [];
     if (boundary.componentRefs.length > 0) {
@@ -556,6 +775,11 @@ function synthesizeDeploymentPlan(cc: ChangeControl): string {
       scopeLines.push(...boundary.codePaths.slice(0, 12).map((p) => `[路径] ${p}`));
     }
     sections.push(sectionBlock("部署范围", scopeLines));
+
+    // 关联功能要点
+    if (biz?.functionalPoints?.length) {
+      sections.push(sectionBlock("关联功能要点", biz.functionalPoints.slice(0, 6)));
+    }
   }
 
   // 部署前检查清单
@@ -616,7 +840,7 @@ export function synthesizeArtifactDraftContent(
       content = synthesizeBoundary(cc);
       break;
     case "prototype-preview":
-      content = synthesizePrototypePreview(iteration);
+      content = synthesizePrototypePreview(iteration, cc);
       break;
     case "design-spec":
       content = synthesizeDesignSpec(cc);
@@ -640,7 +864,7 @@ export function synthesizeArtifactDraftContent(
       content = synthesizeTestMatrix(cc);
       break;
     case "acceptance-checklist":
-      content = synthesizeAcceptanceChecklist(cc);
+      content = synthesizeAcceptanceChecklist(iteration, cc);
       break;
     case "release-review":
       content = synthesizeReleaseReview(cc);
