@@ -114,13 +114,21 @@ export function confirmIterationAnalysisOp(
       }
     };
   }
-  if (resolution.unresolvedQuestions.length > 0) {
+  if (resolution.unresolvedQuestions.length > 0 && !input.force) {
     return {
       ok: false as const,
       reason: "clarification_questions_unresolved",
       unresolvedQuestions: resolution.unresolvedQuestions
     };
   }
+  // force=true 时将所有未解决问题视为已解决，避免写入不一致的 resolution
+  const effectiveResolution = input.force && resolution.unresolvedQuestions.length > 0
+    ? {
+        resolvedQuestions: [...resolution.resolvedQuestions, ...resolution.unresolvedQuestions],
+        unresolvedQuestions: [] as string[],
+        updatedAt: resolution.updatedAt
+      }
+    : resolution;
 
   const boundary = input.boundary;
   normalized.changeControl = {
@@ -129,7 +137,7 @@ export function confirmIterationAnalysisOp(
     clarificationQuestions: [],
     clarificationDraftResolvedQuestions: [],
     clarificationDraftUpdatedAt: now,
-    lastClarificationResolution: resolution,
+    lastClarificationResolution: effectiveResolution,
     lastClarificationNote: note,
     confirmedAt: now,
     confirmedBy: input.actor?.trim() || "human",
