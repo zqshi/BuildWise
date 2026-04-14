@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateRepositoryRemoteUrl } from "../backend/src/application/workspace/workspaceServiceProjectRepoHealthOps.ts";
+import { validateRepositoryRemoteUrl } from "../backend/src/application/workspace/project/repoHealthOps.ts";
 
 test("validateRepositoryRemoteUrl rejects malformed git addresses before probing", () => {
   const result = validateRepositoryRemoteUrl({ url: "not-a-git-url" });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeIterationMessageContent } from "../backend/src/application/workspace/workspaceMessageSanitizer.ts";
+import { normalizeIterationMessageContent } from "../backend/src/application/workspace/coach/messageSanitizer.ts";
 
 test("normalizeIterationMessageContent rewrites user artifact references into plain prompts", () => {
   const normalized = normalizeIterationMessageContent(

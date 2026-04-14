@@ -4,7 +4,7 @@ import {
   inferWorkspaceRoleFromPermissions,
   resolveRolePermissions,
   resolveWorkspaceRole
-} from "../backend/src/application/workspace/governanceRoleResolver.ts";
+} from "../backend/src/application/workspace/governance/roleResolver.ts";
 import type { GovernanceRole } from "../backend/src/domain/workspace/types.ts";
 import type { GovernanceCustomRoleRecord } from "../backend/src/domain/workspace/collaborationTypes.ts";
 
