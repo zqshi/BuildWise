@@ -1,6 +1,6 @@
 import { randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import type { RuntimeConfig } from "../../../infrastructure/runtime/runtimeConfig";
 import { createTokenPair, verifyJwt, isTokenRevoked, revokeToken } from "../../../infrastructure/runtime/jwt";
 import { createLogger } from "../../../infrastructure/runtime/logger";
@@ -78,7 +78,7 @@ function buildAuthSessionPayload(
   fallbackWorkspaceRole: "owner" | "pm" | "developer" | "qa" | "viewer",
   requestedTenantId = ""
 ) {
-  const tenants = service.listAccessibleTenants(userId);
+  const tenants = service.project.listAccessibleTenants(userId);
   const resolvedTenantId =
     (requestedTenantId && tenants.some((item) => item.tenantId === requestedTenantId) ? requestedTenantId : "") ||
     tenants[0]?.tenantId ||
@@ -191,12 +191,12 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       return { message: "invalid or expired code" };
     }
     smsCodeStore.delete(phone);
-    const binding = service.listPlatformRoleBindings().find((item) => item.userId === phone);
+    const binding = service.governance.listPlatformRoleBindings().find((item) => item.userId === phone);
     if (!binding) {
       reply.code(403);
       return { message: "phone is not registered in platform members" };
     }
-    const workspaceRole = service.resolveWorkspaceRole(binding.role);
+    const workspaceRole = service.governance.resolveWorkspaceRole(binding.role);
 
     // JWT 模式：签发 token 对
     if (config.authMode === "jwt") {
@@ -221,12 +221,12 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       reply.code(401);
       return { message: "authentication required" };
     }
-    const binding = service.listPlatformRoleBindings().find((item) => item.userId === userId);
+    const binding = service.governance.listPlatformRoleBindings().find((item) => item.userId === userId);
     if (!binding) {
       reply.code(403);
       return { message: "user is not registered in platform members" };
     }
-    const workspaceRole = service.resolveWorkspaceRole(binding.role);
+    const workspaceRole = service.governance.resolveWorkspaceRole(binding.role);
     return buildAuthSessionPayload(service, userId, binding.role, workspaceRole, currentTenantId(request));
   });
 
@@ -264,7 +264,7 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
       return { message: "invalid token type" };
     }
     // 重新查 platformRoleBindings 确认用户仍然存在
-    const binding = service.listPlatformRoleBindings().find((item) => item.userId === payload.sub);
+    const binding = service.governance.listPlatformRoleBindings().find((item) => item.userId === payload.sub);
     if (!binding) {
       clearRefreshTokenCookie(reply);
       reply.code(403);
@@ -272,7 +272,7 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     }
     // Revoke the old refresh token (rotation)
     revokeToken(refreshToken, payload.exp);
-    const latestRole = service.resolveWorkspaceRole(binding.role);
+    const latestRole = service.governance.resolveWorkspaceRole(binding.role);
     const tokens = createTokenPair(payload.sub, latestRole, config.jwtSecret, config.jwtAccessTtlSec, config.jwtRefreshTtlSec);
     log.info("jwt refreshed", { sub: `${payload.sub.slice(0, 3)}****${payload.sub.slice(7)}`, role: latestRole });
     const isSecure = config.nodeEnv === "production" || request.protocol === "https" || request.headers["x-forwarded-proto"] === "https";

@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import type { PlatformService } from "../../../application/platform/platformService";
 import { hasPermission } from "../../../application/platform/platformSupport";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 function ensurePermission(authRole: string | undefined, permission: string, workspaceService: WorkspaceService) {
   const role = currentRole(authRole);
-  const grantedPermissions = workspaceService.resolveRolePermissions(role);
+  const grantedPermissions = workspaceService.governance.resolveRolePermissions(role);
   if (!hasPermission(role, permission, grantedPermissions)) {
     return { ok: false as const, role };
   }

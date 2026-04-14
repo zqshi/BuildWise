@@ -1,16 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, currentTenantId, currentUserId, ensureProjectAccess, isAdmin, isValidPhone, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
   const validVersionTypes = new Set(["major", "minor", "patch"]);
 
   app.get("/governance/roles", async () => {
-    return service.listGovernanceRoles();
+    return service.governance.listGovernanceRoles();
   });
 
   app.get("/governance/permission-points", async () => {
-    return service.listGovernancePermissionPoints();
+    return service.governance.listGovernancePermissionPoints();
   });
 
   app.get("/governance/audit-logs", {
@@ -34,7 +34,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "invalid limit" };
     }
-    return service.listAuditLogs(Math.min(200, Math.floor(limit)));
+    return service.governance.listAuditLogs(Math.min(200, Math.floor(limit)));
   });
 
   app.get("/governance/platform-role-bindings", async (request, reply) => {
@@ -43,7 +43,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(403);
       return { message: "permission denied" };
     }
-    return service.listPlatformRoleBindings();
+    return service.governance.listPlatformRoleBindings();
   });
 
   app.post("/governance/platform-role-bindings", {
@@ -75,14 +75,14 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "userId must be 11-digit mainland phone" };
     }
-    const builtinRoles = new Set<string>(service.listGovernanceRoles().map((item) => item.id));
-    const customRoles = new Set<string>(service.listGovernanceCustomRoles().map((item) => item.roleKey));
+    const builtinRoles = new Set<string>(service.governance.listGovernanceRoles().map((item) => item.id));
+    const customRoles = new Set<string>(service.governance.listGovernanceCustomRoles().map((item) => item.roleKey));
     const legacyRoles = new Set<string>(["admin", "member", "viewer"]);
     if (!builtinRoles.has(roleKey) && !customRoles.has(roleKey) && !legacyRoles.has(roleKey)) {
       reply.code(400);
       return { message: `unknown role: ${roleKey}` };
     }
-    return service.upsertPlatformRoleBinding({ userId, role: roleKey });
+    return service.governance.upsertPlatformRoleBinding({ userId, role: roleKey });
   });
 
   app.delete("/governance/platform-role-bindings/:userId", {
@@ -107,7 +107,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "invalid user id" };
     }
-    const removed = service.removePlatformRoleBinding(userId);
+    const removed = service.governance.removePlatformRoleBinding(userId);
     if (!removed) {
       reply.code(404);
       return { message: "role binding not found" };
@@ -115,7 +115,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     return { ok: true, userId };
   });
 
-  const listCustomRolesHandler = async () => service.listGovernanceCustomRoles();
+  const listCustomRolesHandler = async () => service.governance.listGovernanceCustomRoles();
 
   const upsertCustomRolesHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     const role = currentRole(request.authRole);
@@ -135,7 +135,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "name is required" };
     }
-    const permissionPoints = service.listGovernancePermissionPoints();
+    const permissionPoints = service.governance.listGovernancePermissionPoints();
     const allowed = new Set(permissionPoints.map((item) => item.key));
     const submitted = Array.isArray(body?.permissions) ? body?.permissions : [];
     const invalid = submitted.filter((item) => !allowed.has(item));
@@ -143,7 +143,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: `unknown permissions: ${invalid.join(",")}` };
     }
-    return service.upsertGovernanceCustomRole({
+    return service.governance.upsertGovernanceCustomRole({
       roleKey: body?.roleKey?.trim() || "",
       name,
       description: body?.description?.trim() || "",
@@ -164,7 +164,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "invalid role key" };
     }
-    const removed = service.removeGovernanceCustomRole(roleKey);
+    const removed = service.governance.removeGovernanceCustomRole(roleKey);
     if (!removed) {
       reply.code(404);
       return { message: "custom role not found" };
@@ -209,13 +209,13 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     }
     const tenantId = currentTenantId(request);
     if (tenantId) {
-      const tenantAccess = service.getTenantAccess(userId, tenantId);
+      const tenantAccess = service.project.getTenantAccess(userId, tenantId);
       if (!tenantAccess.canRead) {
         reply.code(403);
         return { message: "permission denied" };
       }
     }
-    return service.listProjectsForUser(userId, tenantId || undefined);
+    return service.project.listProjectsForUser(userId, tenantId || undefined);
   });
 
   app.post("/projects", {
@@ -248,12 +248,12 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       return { message: "authentication required" };
     }
     const tenantId = currentTenantId(request) || actor;
-    const tenantAccess = service.getTenantAccess(actor, tenantId);
+    const tenantAccess = service.project.getTenantAccess(actor, tenantId);
     if (!tenantAccess.canWrite) {
       reply.code(403);
       return { message: "permission denied" };
     }
-    return service.createProject({
+    return service.project.createProject({
       name,
       description: body?.description?.trim() || "暂无描述",
       tenantId,
@@ -282,7 +282,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const archived = service.archiveProject(projectId);
+    const archived = service.project.archiveProject(projectId);
     if (!archived) {
       reply.code(404);
       return { message: "project not found" };
@@ -315,7 +315,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const items = service.listIterations(projectId);
+    const items = service.iteration.listIterations(projectId);
     if (items === null) {
       reply.code(404);
       return { message: "project not found" };
@@ -379,7 +379,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
       reply.code(400);
       return { message: "versionType must be one of: major, minor, patch" };
     }
-    const created = service.createIteration(projectId, {
+    const created = service.iteration.createIteration(projectId, {
       name,
       description: body?.description?.trim() || "暂无描述",
       versionType: versionType as "major" | "minor" | "patch",
@@ -421,7 +421,7 @@ export function registerWorkspaceProjectRoutes(app: FastifyInstance, service: Wo
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const result = service.deleteIteration(iterationId);
+    const result = service.iteration.deleteIteration(iterationId);
     if (!result.deleted) {
       if (result.reason === "not_found") {
         reply.code(404);

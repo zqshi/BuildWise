@@ -51,7 +51,7 @@ function DomainProviders({ children }: { children: React.ReactNode }) {
 function AppInner() {
   const controller = useAppController();
   const backendOffline = controller.status?.status === "offline";
-  const isMarketingRoute = controller.route === "marketing" || (!controller.isAuthenticated && controller.route !== "login");
+  const isMarketingRoute = controller.route === "marketing" || (!controller.isAuthenticated && !controller.sessionRestoring && controller.route !== "login");
   const [showAssistantWorkspace, setShowAssistantWorkspace] = useState(false);
   const openViewFromSidebar = (nextView: "dashboard" | "projects" | "permissions") => {
     const next = resolveSidebarViewState(nextView);
@@ -82,6 +82,10 @@ function AppInner() {
       </Suspense>
       </ViewErrorBoundary>
     );
+  }
+
+  if (controller.sessionRestoring) {
+    return <div className="loading-spinner" />;
   }
 
   if (controller.route === "login" || !controller.isAuthenticated) {

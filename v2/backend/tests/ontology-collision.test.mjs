@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { detectOntologyCollisionsOp } = await import(
-  "../dist/application/workspace/ontologyCollisionDetector.js"
+  "../dist/application/workspace/project/ontologyService.js"
 );
 
 const makeKb = (terms = [], rules = []) => ({

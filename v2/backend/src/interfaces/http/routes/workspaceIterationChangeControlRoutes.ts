@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { registerWorkspaceIterationChangeControlArtifactRoutes } from "./workspaceIterationChangeControlArtifactRoutes";
 import { registerWorkspaceIterationChangeControlCoreRoutes } from "./workspaceIterationChangeControlCoreRoutes";
 import { registerWorkspaceIterationChangeControlQualityRoutes } from "./workspaceIterationChangeControlQualityRoutes";

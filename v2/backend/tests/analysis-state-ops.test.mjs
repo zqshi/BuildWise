@@ -10,7 +10,7 @@ const {
   persistRetryableAnalysisInputOp,
   markFailedAnalysisOp
 } = await import(
-  "../dist/application/workspace/workspaceServiceAnalysisStateOps.js"
+  "../dist/application/workspace/analysis/stateOps.js"
 );
 
 // ─── helpers ───

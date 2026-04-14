@@ -1,6 +1,6 @@
-import { LlmInvocationError, LlmUnavailableError } from "../../../application/workspace/agentRunner";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
-import { DuplicateAttachmentUploadError, WorkspaceBindingConflictError } from "../../../application/workspace/workspaceErrors";
+import { LlmInvocationError, LlmUnavailableError } from '../../../application/workspace/shared/agentRunner';
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
+import { DuplicateAttachmentUploadError, WorkspaceBindingConflictError } from '../../../application/workspace/shared/errors';
 import { resolveErrorMessage } from "../../../shared/utils";
 
 export function parsePositiveInt(value: string | undefined) {
@@ -52,7 +52,7 @@ export function ensureProjectAccess(
 ) {
   const role = currentRole(request.authRole);
   if (role === "owner") {
-    const project = service.findProject(projectId);
+    const project = service.project.findProject(projectId);
     if (!project) {
       reply.code(404);
       return null;
@@ -77,7 +77,7 @@ export function ensureProjectAccess(
   if (!userId) {
     return null;
   }
-  const context = service.getProjectAccess(userId, projectId);
+  const context = service.project.getProjectAccess(userId, projectId);
   if (!context.project) {
     reply.code(404);
     return null;
@@ -99,12 +99,12 @@ export function ensureIterationAccess(
 ) {
   const role = currentRole(request.authRole);
   if (role === "owner") {
-    const iteration = service.findIteration(iterationId);
+    const iteration = service.iteration.findIteration(iterationId);
     if (!iteration) {
       reply.code(404);
       return null;
     }
-    const project = service.findProject(iteration.projectId);
+    const project = service.project.findProject(iteration.projectId);
     const tenantId = (project?.tenantId || project?.ownerUserId || "").trim();
     if (!tenantId) {
       return {
@@ -130,7 +130,7 @@ export function ensureIterationAccess(
   if (!userId) {
     return null;
   }
-  const context = service.getIterationAccess(userId, iterationId);
+  const context = service.iteration.getIterationAccess(userId, iterationId);
   if (!context.iteration) {
     reply.code(404);
     return null;

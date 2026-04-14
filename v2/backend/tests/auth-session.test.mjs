@@ -5,7 +5,7 @@ import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 
 const { registerRuntimeAuth } = await import("../dist/infrastructure/runtime/runtimeAuth.js");
 const { registerAuthRoutes } = await import("../dist/interfaces/http/routes/authRoutes.js");
-const { WorkspaceService } = await import("../dist/application/workspace/workspaceService.js");
+const { WorkspaceService } = await import("../dist/application/workspace/shared/workspaceService.js");
 
 function createConfig() {
   return {
@@ -24,9 +24,9 @@ test("/auth/session returns real accessible tenants and current tenant selection
   const service = new WorkspaceService(repo, null, null);
   const app = Fastify();
 
-  service.upsertPlatformRoleBinding({ userId: "13800138000", role: "member" });
-  service.upsertTenantMemberBinding({ tenantId: "owner-a", userId: "13800138000", role: "member" });
-  service.upsertTenantMemberBinding({ tenantId: "owner-b", userId: "13800138000", role: "admin" });
+  service.governance.upsertPlatformRoleBinding({ userId: "13800138000", role: "member" });
+  service.governance.upsertTenantMemberBinding({ tenantId: "owner-a", userId: "13800138000", role: "member" });
+  service.governance.upsertTenantMemberBinding({ tenantId: "owner-b", userId: "13800138000", role: "admin" });
 
   registerRuntimeAuth(app, createConfig());
   registerAuthRoutes(app, service, createConfig());

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { AttachmentUploadInput } from "../../../domain/workspace/types";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, ensureIterationAccess, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function parseAttachmentUploadInput(body: {
@@ -88,7 +88,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     }
     const limit = query.limit ? parseInt(query.limit, 10) : undefined;
     const offset = query.offset ? parseInt(query.offset, 10) : undefined;
-    return service.listMessages(iterationId, { limit, offset });
+    return service.iteration.listMessages(iterationId, { limit, offset });
   });
 
   app.post("/iterations/:id/messages", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const] }, body: { type: "object" as const, properties: { role: { type: "string" as const }, content: { type: "string" as const } }, required: ["content" as const], additionalProperties: false } } }, async (request, reply) => {
@@ -114,7 +114,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       return { message: "content is required" };
     }
     const messageRole = body?.role === "assistant" ? "assistant" : body?.role === "system" ? "system" : "user";
-    const added = service.createMessage(iterationId, messageRole, content);
+    const added = service.iteration.createMessage(iterationId, messageRole, content);
     if (!added) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -143,7 +143,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
       uploadKind?: "documents" | "prototype" | "mixed" | "other";
       lastAttachmentName?: string;
     } | null;
-    const updated = service.updateIterationInteractionState(iterationId, {
+    const updated = service.iteration.updateIterationInteractionState(iterationId, {
       hasPrototypeAssets: Boolean(body?.hasPrototypeAssets),
       uploadKind: body?.uploadKind || "documents",
       lastAttachmentName: body?.lastAttachmentName?.trim() || ""
@@ -215,7 +215,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     }
     let result;
     try {
-      result = await service.executeVisualEditInstruction(iterationId, message, body?.target);
+      result = await service.quality.executeVisualEditInstruction(iterationId, message, body?.target);
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) {
@@ -251,7 +251,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     }
     let result;
     try {
-      result = await service.rewriteCodeInBoundary(iterationId, {
+      result = await service.quality.rewriteCodeInBoundary(iterationId, {
         instruction,
         dryRun: Boolean(body?.dryRun),
         maxFiles: typeof body?.maxFiles === "number" ? body.maxFiles : undefined
@@ -291,7 +291,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     }
     let result;
     try {
-      result = await service.analyzeAttachment(iterationId, parsed.input);
+      result = await service.analysis.analyzeAttachment(iterationId, parsed.input);
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) {
@@ -357,7 +357,7 @@ export function registerWorkspaceIterationCoreRoutes(app: FastifyInstance, servi
     }
     let result;
     try {
-      result = await service.runIterationFullCycle(iterationId, {
+      result = await service.fullCycle.runIterationFullCycle(iterationId, {
         analysisInput: parsedAnalysisInput,
         runAnalysis,
         autoConfirmAnalysis: body?.autoConfirmAnalysis,

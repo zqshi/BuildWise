@@ -1,148 +1,115 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 const { ContinuousModelingService } = await import("../dist/application/continuousModeling/continuousModelingService.js");
 const { ContinuousModelingWorkspaceService } = await import("../dist/application/continuousModeling/continuousModelingWorkspaceService.js");
 const { buildProjectModelView } = await import("../dist/application/continuousModeling/continuousModelingProjectView.js");
-const { JsonWorkspaceRepository } = await import("../dist/infrastructure/persistence/jsonWorkspaceRepository.js");
+import { createInMemoryWorkspaceRepo, createInMemoryModelingRepo } from "./helpers/mock-factories.mjs";
 
 function createWorkspaceRepository() {
-  const fixtureDir = mkdtempSync(path.join(tmpdir(), "buildwise-continuous-modeling-workspace-"));
-  const dataFile = path.join(fixtureDir, "workspace.json");
-  writeFileSync(
-    dataFile,
-    JSON.stringify(
-      {
-        projects: [
-          {
-            id: 11,
-            name: "统一建模项目",
-            description: "测试统一模型视图",
-            status: "in-progress",
-            repository: {
-              id: "repo-11",
-              repoMode: "hybrid",
-              provider: "github",
-              organization: "buildwise",
-              name: "unified-model-project",
-              url: "https://github.com/buildwise/unified-model-project",
-              defaultBranch: "main",
-              structureVersion: "v1",
-              layout: [],
-              governance: {
-                requireRemoteForProduction: true,
-                requireRemoteForStaging: false
-              },
-              health: {
-                remoteConfigured: true,
-                remoteReachable: false,
-                remoteSynced: false,
-                lastCheckedAt: "",
-                lastError: ""
-              },
-              createdAt: "2026-03-17T00:00:00.000Z",
-              updatedAt: "2026-03-17T00:00:00.000Z"
-            },
-            knowledgeBase: {
-              ontologyTerms: [
-                {
-                  term: "客户档案",
-                  aliases: ["客户"],
-                  definition: "客户主数据档案。",
-                  evidence: "kb"
-                }
-              ],
-              stableRules: [
-                {
-                  rule: "客户档案必须唯一",
-                  rationale: "避免重复建档",
-                  source: "kb"
-                }
-              ],
-              componentInventory: [],
-              codeMap: [],
-              decisionLog: [
-                {
-                  decision: "客户统一归口管理",
-                  status: "active",
-                  rationale: "减少重复维护",
-                  iterationVersion: "1.0.0"
-                }
-              ],
-              knownRisks: [
-                {
-                  risk: "客户口径不统一",
-                  mitigation: "统一术语",
-                  trigger: "新增需求"
-                }
-              ],
-              changePatterns: [],
-              updatedAt: "2026-03-17T00:00:00.000Z"
-            }
-          }
-        ],
-        iterations: [
-          {
-            id: 21,
-            projectId: 11,
-            version: "1.1.0",
-            name: "客户档案增量建模",
-            description: "新增客户标签能力",
-            goals: ["新增客户标签"],
-            modules: [],
-            status: "in-progress",
-            progress: 35,
-            createdAt: "2026-03-17",
-            createdBy: "系统",
-            current: true,
-            aiSummary: "",
-            scope: {
-              inScope: ["新增客户标签"],
-              outOfScope: [],
-              acceptanceCriteria: ["标签可追溯"]
-            },
-            continuity: {
-              inheritedFromIterationId: null,
-              inheritedSummary: "",
-              carriedGoals: [],
-              carriedRisks: [],
-              carriedDecisions: []
-            },
-            assessment: {
-              baselineIterationId: null,
-              baselineIterationName: "",
-              currentSummary: "",
-              deltaInScope: [],
-              resolvedItems: [],
-              pendingItems: [],
-              risks: []
-            }
-          }
-        ],
-        messages: [],
-        snapshots: [],
-        transitions: [],
-        auditLogs: [],
-        versionSnapshots: [],
-        projectShares: [],
-        deployments: [],
-        templateRuns: [],
-        opsTriageTemplates: [],
-        projectPolicies: [],
-        projectWorkspaceBindings: [],
-        policyExecutionLogs: [],
-        projectRoleBindings: [],
-        platformRoleBindings: [],
-        governanceCustomRoles: []
+  const repo = createInMemoryWorkspaceRepo();
+  repo._store.projects.push({
+    id: 11,
+    name: "统一建模项目",
+    description: "测试统一模型视图",
+    status: "in-progress",
+    repository: {
+      id: "repo-11",
+      repoMode: "hybrid",
+      provider: "github",
+      organization: "buildwise",
+      name: "unified-model-project",
+      url: "https://github.com/buildwise/unified-model-project",
+      defaultBranch: "main",
+      structureVersion: "v1",
+      layout: [],
+      governance: {
+        requireRemoteForProduction: true,
+        requireRemoteForStaging: false
       },
-      null,
-      2
-    ),
-    "utf-8"
-  );
-  return new JsonWorkspaceRepository(dataFile);
+      health: {
+        remoteConfigured: true,
+        remoteReachable: false,
+        remoteSynced: false,
+        lastCheckedAt: "",
+        lastError: ""
+      },
+      createdAt: "2026-03-17T00:00:00.000Z",
+      updatedAt: "2026-03-17T00:00:00.000Z"
+    },
+    knowledgeBase: {
+      ontologyTerms: [
+        {
+          term: "客户档案",
+          aliases: ["客户"],
+          definition: "客户主数据档案。",
+          evidence: "kb"
+        }
+      ],
+      stableRules: [
+        {
+          rule: "客户档案必须唯一",
+          rationale: "避免重复建档",
+          source: "kb"
+        }
+      ],
+      componentInventory: [],
+      codeMap: [],
+      decisionLog: [
+        {
+          decision: "客户统一归口管理",
+          status: "active",
+          rationale: "减少重复维护",
+          iterationVersion: "1.0.0"
+        }
+      ],
+      knownRisks: [
+        {
+          risk: "客户口径不统一",
+          mitigation: "统一术语",
+          trigger: "新增需求"
+        }
+      ],
+      changePatterns: [],
+      updatedAt: "2026-03-17T00:00:00.000Z"
+    }
+  });
+  repo._store.iterations.push({
+    id: 21,
+    projectId: 11,
+    version: "1.1.0",
+    name: "客户档案增量建模",
+    description: "新增客户标签能力",
+    goals: ["新增客户标签"],
+    modules: [],
+    status: "in-progress",
+    progress: 35,
+    createdAt: "2026-03-17",
+    createdBy: "系统",
+    current: true,
+    aiSummary: "",
+    scope: {
+      inScope: ["新增客户标签"],
+      outOfScope: [],
+      acceptanceCriteria: ["标签可追溯"]
+    },
+    continuity: {
+      inheritedFromIterationId: null,
+      inheritedSummary: "",
+      carriedGoals: [],
+      carriedRisks: [],
+      carriedDecisions: []
+    },
+    assessment: {
+      baselineIterationId: null,
+      baselineIterationName: "",
+      currentSummary: "",
+      deltaInScope: [],
+      resolvedItems: [],
+      pendingItems: [],
+      risks: []
+    }
+  });
+  return repo;
 }
 
 function createModelingRepository() {
@@ -279,8 +246,6 @@ test("buildProjectModelView merges project knowledge and latest snapshot into on
 });
 
 // ─── saveCandidate diff + publishSnapshot KB writeback ───
-
-import { createInMemoryWorkspaceRepo, createInMemoryModelingRepo } from "./helpers/mock-factories.mjs";
 
 function setupInMemory() {
   const workspaceRepo = createInMemoryWorkspaceRepo();

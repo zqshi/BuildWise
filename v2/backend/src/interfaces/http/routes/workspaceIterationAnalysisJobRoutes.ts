@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { AttachmentReportSection } from "../../../domain/workspace/types";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, ensureIterationAccess, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
 import { parseAttachmentUploadInput } from "./workspaceIterationCoreRoutes";
 
@@ -29,7 +29,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     }
     let created;
     try {
-      created = service.submitAttachmentAnalysisJob(iterationId, parsed.input);
+      created = service.analysis.submitAttachmentAnalysisJob(iterationId, parsed.input);
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) {
@@ -70,7 +70,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     }
     let created;
     try {
-      created = service.submitAttachmentAnalysisJobFromUpload(iterationId, uploadId, body?.schemaVersion || "v2");
+      created = service.upload.submitAttachmentAnalysisJobFromUpload(iterationId, uploadId, body?.schemaVersion || "v2");
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) {
@@ -105,7 +105,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     }
     let created;
     try {
-      created = service.retryLatestFailedAttachmentAnalysisJob(iterationId);
+      created = service.analysis.retryLatestFailedAttachmentAnalysisJob(iterationId);
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) {
@@ -141,7 +141,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     const body = request.body as { scope?: "job" | "batch" } | null;
     let created;
     try {
-      created = service.retryAttachmentAnalysisJob(iterationId, {
+      created = service.analysis.retryAttachmentAnalysisJob(iterationId, {
         jobId: params.jobId,
         scope: body?.scope === "batch" ? "batch" : "job"
       });
@@ -172,7 +172,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const report = service.getLatestCompletedAnalysisReport(iterationId);
+    const report = service.analysis.getLatestCompletedAnalysisReport(iterationId);
     if (!report) {
       reply.code(404);
       return { message: "no completed analysis report found" };
@@ -196,7 +196,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
       reply.code(400);
       return { message: "invalid job id" };
     }
-    const job = service.getAttachmentAnalysisJob(iterationId, jobId);
+    const job = service.analysis.getAttachmentAnalysisJob(iterationId, jobId);
     if (!job) {
       reply.code(404);
       return { message: "analysis job not found" };
@@ -215,7 +215,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const report = service.getAttachmentReportIndexByJob(iterationId, params.jobId);
+    const report = service.analysis.getAttachmentReportIndexByJob(iterationId, params.jobId);
     if (!report) {
       reply.code(404);
       return { message: "report not found" };
@@ -226,7 +226,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
   app.get("/reports/:reportId/sections/:sectionKey", { schema: { params: { type: "object" as const, properties: { reportId: { type: "string" as const, minLength: 1 }, sectionKey: { type: "string" as const, minLength: 1 } }, required: ["reportId" as const, "sectionKey" as const] }, querystring: { type: "object" as const, properties: { cursor: { type: "string" as const }, limit: { type: "string" as const } } } } }, async (request, reply) => {
     const params = request.params as { reportId: string; sectionKey: AttachmentReportSection["sectionKey"] };
     const query = request.query as { cursor?: string; limit?: string };
-    const iterationId = service.findAttachmentReportIterationId(params.reportId);
+    const iterationId = service.analysis.findAttachmentReportIterationId(params.reportId);
     if (iterationId === null) {
       reply.code(404);
       return { message: "section not found" };
@@ -237,7 +237,7 @@ export function registerWorkspaceIterationAnalysisJobRoutes(app: FastifyInstance
     }
     const cursor = Number.parseInt((query?.cursor || "").trim(), 10);
     const limit = Number.parseInt((query?.limit || "").trim(), 10);
-    const section = service.getAttachmentReportSection(
+    const section = service.analysis.getAttachmentReportSection(
       params.reportId,
       params.sectionKey,
       Number.isFinite(cursor) ? cursor : 0,

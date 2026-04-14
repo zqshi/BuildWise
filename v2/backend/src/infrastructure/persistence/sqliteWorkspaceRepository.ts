@@ -163,7 +163,7 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
   createIteration(projectId: number, payload: CreateIterationInput) {
     const existing = this.core.listIterations(projectId);
     const version = nextThreePartVersion(existing, payload.versionType || "patch");
-    const goals = Array.isArray(payload.goals) && payload.goals.length > 0 ? payload.goals : [payload.name];
+    const goals = Array.isArray(payload.goals) && payload.goals.length > 0 ? payload.goals : [];
     const created: Iteration = {
       id: this.core.nextIdFromTable("iterations"),
       projectId,
@@ -171,11 +171,11 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
       name: payload.name,
       description: payload.description,
       goals,
-      modules: goals.map((goal, idx) => ({
+      modules: goals.length > 0 ? goals.map((goal, idx) => ({
         id: `module-${Date.now()}-${idx}`,
         title: goal,
         status: "planned"
-      })),
+      })) : [],
       status: "in-progress",
       progress: 0,
       createdAt: new Date().toISOString().slice(0, 10),
@@ -185,7 +185,7 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
       scope: payload.scope ?? {
         inScope: goals,
         outOfScope: [],
-        acceptanceCriteria: goals.map((goal) => `${goal} 可演示并通过验收`)
+        acceptanceCriteria: goals.length > 0 ? goals.map((goal) => `${goal} 可演示并通过验收`) : []
       },
       continuity: payload.continuity ?? {
         inheritedFromIterationId: existing.length > 0 ? existing[existing.length - 1].id : null,

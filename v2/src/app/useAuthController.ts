@@ -17,10 +17,19 @@ import {
   type AuthTenantSummary
 } from "./authTenantSession";
 
+function hadPriorSession(): boolean {
+  try {
+    return localStorage.getItem("buildwise:auth") === "logged_in";
+  } catch {
+    return false;
+  }
+}
+
 export function useAuthController() {
   const [route, setRoute] = useState<AppRoute>(() => resolveAppRoute(window.location.hash));
-  // 每次应用启动均要求重新登录，不从 localStorage 恢复会话
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // 页面刷新后，如果 localStorage 有登录标记，先进入恢复态，避免闪屏到营销页
+  const [sessionRestoring, setSessionRestoring] = useState(hadPriorSession);
   const [loginPhone, setLoginPhone] = useState("");
   const [loginCode, setLoginCode] = useState("");
   const [loginTouched, setLoginTouched] = useState<{ phone: boolean; code: boolean }>({
@@ -89,12 +98,18 @@ export function useAuthController() {
   // in-memory access token is gone (page refresh), silently re-acquire
   // the token via the httpOnly refresh cookie.
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!hadPriorSession()) {
+      setSessionRestoring(false);
+      return;
+    }
     let cancelled = false;
-    refreshSession().catch(() => {
-      if (cancelled) return;
-      // keep local tenant session as fallback
-    });
+    refreshSession()
+      .catch(() => {
+        // refreshSession 内部已处理失败（resetAuthState），此处仅防止 unhandled rejection
+      })
+      .finally(() => {
+        if (!cancelled) setSessionRestoring(false);
+      });
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -244,6 +259,7 @@ export function useAuthController() {
   return {
     route,
     isAuthenticated,
+    sessionRestoring,
     workspaceRole,
     tenants,
     currentTenantId,

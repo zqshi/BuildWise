@@ -5,7 +5,7 @@ const {
   LlmUnavailableError,
   LlmInvocationError,
   createAgentRunnerFromEnv,
-} = await import("../dist/application/workspace/agentRunner.js");
+} = await import("../dist/application/workspace/shared/agentRunner.js");
 
 const {
   resolveLlmProvider,
@@ -13,7 +13,7 @@ const {
   resolveModel,
   resolveApiKey,
   anthropicMessagesEndpoint,
-} = await import("../dist/application/workspace/agentRunnerConfig.js");
+} = await import("../dist/application/workspace/shared/agentRunnerConfig.js");
 
 // ─── 1. LlmUnavailableError ────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { buildModelingInputFromAnalysis } = await import(
-  "../dist/application/workspace/ontologyModelingBridge.js"
+  "../dist/application/workspace/project/ontologyModelingBridge.js"
 );
 
 // ─── 基本场景：从 KB + 分析数据构建 IterationModelingInput ───

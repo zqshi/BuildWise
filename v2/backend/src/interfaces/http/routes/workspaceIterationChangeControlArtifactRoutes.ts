@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { resolveArtifactId, resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
 import { ensureIterationAccess } from "./workspaceRouteUtils";
 
@@ -22,7 +22,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const result = service.getIterationArtifactWorkflow(iterationId);
+    const result = service.changeControl.getIterationArtifactWorkflow(iterationId);
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -68,7 +68,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
       reply.code(400);
       return { message: "content is required" };
     }
-    const result = service.saveIterationArtifactDraft(iterationId, artifactId, {
+    const result = service.changeControl.saveIterationArtifactDraft(iterationId, artifactId, {
       content,
       media: Array.isArray(body?.media) ? body.media : [],
       actor: body?.actor
@@ -117,7 +117,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { actor?: string; summary?: string; evidence?: string[]; source?: string } | null;
-    const result = service.commitIterationArtifact(iterationId, artifactId, {
+    const result = service.changeControl.commitIterationArtifact(iterationId, artifactId, {
       actor: body?.actor,
       summary: body?.summary,
       evidence: Array.isArray(body?.evidence) ? body.evidence : [],
@@ -166,7 +166,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { actor?: string; passed?: boolean; note?: string } | null;
-    const result = service.confirmIterationArtifact(iterationId, artifactId, {
+    const result = service.changeControl.confirmIterationArtifact(iterationId, artifactId, {
       actor: body?.actor,
       passed: body?.passed,
       note: body?.note
@@ -213,7 +213,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { actor?: string; prompt?: string } | null;
-    const result = service.appendIterationArtifactToConversation(iterationId, artifactId, {
+    const result = service.changeControl.appendIterationArtifactToConversation(iterationId, artifactId, {
       actor: body?.actor,
       prompt: body?.prompt
     });
@@ -265,7 +265,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
       reply.code(400);
       return { message: "toStage is required" };
     }
-    const result = service.transitionIterationArtifactStage(iterationId, body.toStage, {
+    const result = service.changeControl.transitionIterationArtifactStage(iterationId, body.toStage, {
       actor: body.actor,
       note: body.note
     });

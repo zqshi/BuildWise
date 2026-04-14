@@ -1,7 +1,7 @@
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import type { ModelSnapshot, ProjectModelView } from "../../domain/continuousModeling/types";
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
-import { normalizeIteration, normalizeProject } from "../workspace/workspaceSupport";
+import { normalizeIteration, normalizeProject } from '../workspace/shared/workspaceSupport';
 
 function uniq(items: string[], max = 8) {
   return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean))).slice(0, max);

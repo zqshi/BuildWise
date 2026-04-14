@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 
-import { analyzeAttachmentOp } from "../dist/application/workspace/workspaceServiceAnalysisOps.js";
+import { analyzeAttachmentOp } from "../dist/application/workspace/analysis/analysisOps.js";
 import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 
 const COMPACT_EXCERPT =

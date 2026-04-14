@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { buildKnowledgeSyncContext } = await import(
-  "../dist/application/workspace/knowledgeSyncService.js"
+  "../dist/application/workspace/project/knowledgeSyncService.js"
 );
 
 test("returns empty context for null KB", () => {

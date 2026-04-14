@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { extractKnowledgeBaseUpdateOp } = await import(
-  "../dist/application/workspace/ontologyService.js"
+  "../dist/application/workspace/project/ontologyService.js"
 );
 const { detectOntologyCollisionsOp } = await import(
-  "../dist/application/workspace/ontologyCollisionDetector.js"
+  "../dist/application/workspace/project/ontologyService.js"
 );
 
 // ─── 端到端：分析完成后 KB 全字段填充 + 碰撞检测 ───
