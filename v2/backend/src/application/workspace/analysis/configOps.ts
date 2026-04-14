@@ -2,6 +2,13 @@ import type { AgentRunOptions, AgentRunner } from '../shared/agentRunner';
 import type { IterationAgentPrompt } from '../../../domain/workspace/types';
 import { readPositiveInt, readStringList } from '../shared/envParsers';
 
+function readBoolean(value: string | undefined, fallback: boolean): boolean {
+  const v = (value || "").trim().toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "no") return false;
+  return fallback;
+}
+
 export type ContextGuardrails = {
   maxExcerptLength: number;
   maxChunkCount: number;
@@ -49,6 +56,42 @@ function loadSynthesisLlmConfigFromEnv(): SynthesisLlmConfig {
 
 export const CONTEXT_GUARDRAILS = loadContextGuardrailsFromEnv();
 export const SYNTHESIS_LLM_CONFIG = loadSynthesisLlmConfigFromEnv();
+
+// ---------------------------------------------------------------------------
+// 分片配置 + Feature Flag
+// ---------------------------------------------------------------------------
+
+export type ChunkConfig = {
+  /** 每片最大字符数（promptBudget - 模板预留） */
+  chunkBudget: number;
+  /** 硬切时的重叠字符数 */
+  chunkOverlap: number;
+  /** 分片并发上限 */
+  chunkParallelism: number;
+  /** 单片 repair 次数上限 */
+  chunkRepairAttempts: number;
+  /** 超过此比例的片失败则整体报错 */
+  chunkFailureThreshold: number;
+};
+
+function loadChunkConfigFromEnv(): ChunkConfig {
+  const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  return {
+    chunkBudget: readPositiveInt(processEnv.BW_CHUNK_BUDGET, 21000),
+    chunkOverlap: readPositiveInt(processEnv.BW_CHUNK_OVERLAP, 500),
+    chunkParallelism: readPositiveInt(processEnv.BW_CHUNK_PARALLELISM, 3),
+    chunkRepairAttempts: readPositiveInt(processEnv.BW_CHUNK_REPAIR_ATTEMPTS, 1),
+    chunkFailureThreshold: Number.parseFloat(processEnv.BW_CHUNK_FAILURE_THRESHOLD || "0.5") || 0.5
+  };
+}
+
+export const CHUNK_CONFIG = loadChunkConfigFromEnv();
+
+/** true → 走新的 3+1 Agent 整合管道；false → 走现有 14-Agent 管道 */
+export const USE_CONSOLIDATED_AGENTS: boolean = readBoolean(
+  ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}).BW_CONSOLIDATED_AGENTS,
+  false
+);
 
 const ANALYSIS_METHOD_GUIDELINE = [
   "分析方法要求（必须遵守）：",
