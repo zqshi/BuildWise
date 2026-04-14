@@ -38,7 +38,13 @@ import {
   synthesizeReportQualityGateOp
 } from './governanceRunnerOps';
 import { synthesizeProjectProfileOp } from './projectProfileRunnerOps';
-import { CONTEXT_GUARDRAILS, SYNTHESIS_LLM_CONFIG, runAnalysisPrompt } from './configOps';
+import { CONTEXT_GUARDRAILS, SYNTHESIS_LLM_CONFIG, USE_CONSOLIDATED_AGENTS, runAnalysisPrompt } from './configOps';
+import {
+  consolidatedPreflightPhase,
+  consolidatedAgentPhase,
+  consolidatedSynthesisPhase,
+  consolidatedQualityPhase
+} from './consolidatedPipelineOps';
 import { ensureArtifactWorkflow } from '../changeControl/artifactWorkflow';
 import { commitIterationArtifactOp, confirmIterationArtifactOp } from '../changeControl/artifactOps';
 import { isSubstantiveContent } from '../changeControl/artifactDraftSynthesizer';
@@ -546,10 +552,14 @@ export async function analyzeAttachmentOp(
   const normalizedPrevious = previous ? normalizeIteration(previous) : null;
 
   // Phase 1: Preflight
-  const pre = await runPreflightPhase(agentRunner, input, normalized, normalizedPrevious, markStage);
+  const pre = USE_CONSOLIDATED_AGENTS
+    ? await consolidatedPreflightPhase(agentRunner, input, normalized, normalizedPrevious, markStage)
+    : await runPreflightPhase(agentRunner, input, normalized, normalizedPrevious, markStage);
 
   // Phase 2: Agent 执行
-  const exec = await runAgentExecutionPhase(agentRunner, repo, input, normalized, normalizedPrevious, pre, markStage);
+  const exec = USE_CONSOLIDATED_AGENTS
+    ? await consolidatedAgentPhase(agentRunner, repo, input, normalized, normalizedPrevious, pre, markStage)
+    : await runAgentExecutionPhase(agentRunner, repo, input, normalized, normalizedPrevious, pre, markStage);
 
   // Extract artifacts from agent outputs
   const generatedTestMatrix = extractGeneratedTestMatrix(exec.agentOutputs);
@@ -599,10 +609,14 @@ export async function analyzeAttachmentOp(
   if (generatedTestMatrix.length > 0) writeAuditLog(repo, "analysis.test-matrix-generated", `iteration:${iterationId}`, `cases=${generatedTestMatrix.length}`);
 
   // Phase 3: 合成管道
-  const syn = await runSynthesisPipeline(agentRunner, input, normalized, normalizedPrevious, pre, exec, clarificationQuestions, uxArtifacts, releaseOpsActions, markStage);
+  const syn = USE_CONSOLIDATED_AGENTS
+    ? await consolidatedSynthesisPhase(agentRunner, input, normalized, normalizedPrevious, pre, exec, clarificationQuestions, uxArtifacts, releaseOpsActions, markStage)
+    : await runSynthesisPipeline(agentRunner, input, normalized, normalizedPrevious, pre, exec, clarificationQuestions, uxArtifacts, releaseOpsActions, markStage);
 
   // Phase 4: 质量门 + 发布评审
-  const qg = await runQualityGatePhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, markStage);
+  const qg = USE_CONSOLIDATED_AGENTS
+    ? await consolidatedQualityPhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, markStage)
+    : await runQualityGatePhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, markStage);
 
   // Phase 5: 知识回写 + 本体
   writebackKnowledgeState(repo, iteration, normalized, pre, syn, qg, generatedAt, uxArtifacts, generatedTestMatrix, markStage);
