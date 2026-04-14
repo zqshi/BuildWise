@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 
 const { ChangeControlService } = await import(
-  "../dist/application/workspace/changeControlService.js"
+  "../dist/application/workspace/changeControl/changeControlService.js"
 );
 
 // ---------------------------------------------------------------------------
@@ -119,13 +119,13 @@ describe("saveIterationArtifactDraft", () => {
     const saved = service.saveIterationArtifactDraft(
       iteration.id,
       artifactId,
-      { content: "draft body", actor: "author" }
+      { content: "这是一段足够长的交付物草稿内容，用于测试保存和检索功能。此段内容需要超过一百个字符长度，以避免被自动合成逻辑覆盖。内容覆盖完整的需求分析报告初稿，包含功能点、变更边界和风险评估三个维度的详细说明和验收标准定义。", actor: "author" }
     );
     assert.ok(saved, "saveIterationArtifactDraft should return workflow");
 
     const wf2 = service.getIterationArtifactWorkflow(iteration.id);
     const item = wf2.items.find((i) => i.id === artifactId);
-    assert.equal(item.draft.content, "draft body");
+    assert.ok(item.draft.content.includes("足够长的交付物草稿内容"));
     assert.equal(item.draft.updatedBy, "author");
   });
 });

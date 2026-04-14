@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { ensureIterationAccess, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export async function registerRepositoryTraceRoutes(app: FastifyInstance, service: WorkspaceService) {
@@ -22,7 +22,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const repo = service.getProjectRepository(projectId);
+    const repo = service.project.getProjectRepository(projectId);
     if (!repo) {
       reply.code(404);
       return { message: "project not found" };
@@ -73,7 +73,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       requireRemoteForProduction?: boolean;
       requireRemoteForStaging?: boolean;
     } | null;
-    const repo = service.bootstrapProjectRepository(projectId, {
+    const repo = service.project.bootstrapProjectRepository(projectId, {
       provider: body?.provider,
       organization: body?.organization,
       name: body?.name,
@@ -125,7 +125,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const body = request.body as { url?: string } | null;
-    const result = service.validateProjectRepositoryRemote(projectId, { url: body?.url });
+    const result = service.project.validateProjectRepositoryRemote(projectId, { url: body?.url });
     if (!result.ok) {
       if (result.reason === "project_not_found" || result.reason === "repository_not_found") {
         reply.code(404);
@@ -160,7 +160,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const status = service.getProjectRepositoryStatus(projectId);
+    const status = service.project.getProjectRepositoryStatus(projectId);
     if (!status) {
       reply.code(404);
       return { message: "project not found" };
@@ -187,7 +187,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const plan = service.getProjectRepositoryMigrationPlan(projectId);
+    const plan = service.project.getProjectRepositoryMigrationPlan(projectId);
     if (!plan) {
       reply.code(404);
       return { message: "project not found" };
@@ -228,7 +228,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       requireRemoteForProduction?: boolean;
       requireRemoteForStaging?: boolean;
     } | null;
-    const configured = service.configureProjectRepositoryMode(projectId, {
+    const configured = service.project.configureProjectRepositoryMode(projectId, {
       repoMode: body?.repoMode,
       requireRemoteForProduction: body?.requireRemoteForProduction,
       requireRemoteForStaging: body?.requireRemoteForStaging
@@ -281,7 +281,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       autoInit?: boolean;
       dryRun?: boolean;
     } | null;
-    const result = await service.provisionProjectRepository(projectId, {
+    const result = await service.project.provisionProjectRepository(projectId, {
       ownerType: body?.ownerType,
       organization: body?.organization,
       name: body?.name,
@@ -340,7 +340,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       createInitialCommit?: boolean;
       dryRun?: boolean;
     } | null;
-    const result = service.scaffoldProjectRepository(projectId, {
+    const result = service.project.scaffoldProjectRepository(projectId, {
       rootDir: body?.rootDir,
       initializeGit: body?.initializeGit,
       createInitialCommit: body?.createInitialCommit,
@@ -394,7 +394,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       prBody?: string;
       dryRun?: boolean;
     } | null;
-    const result = await service.publishIterationToRemote(iterationId, {
+    const result = await service.project.publishIterationToRemote(iterationId, {
       commitMessage: body?.commitMessage,
       openPr: body?.openPr,
       prTitle: body?.prTitle,
@@ -471,7 +471,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       paths?: string[];
       note?: string;
     } | null;
-    const linked = service.bindIterationCodeLink(iterationId, {
+    const linked = service.changeControl.bindIterationCodeLink(iterationId, {
       branch: body?.branch,
       tag: body?.tag,
       commit: body?.commit,
@@ -505,7 +505,7 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const codeLink = service.getIterationCodeLink(iterationId);
+    const codeLink = service.changeControl.getIterationCodeLink(iterationId);
     if (!codeLink) {
       reply.code(404);
       return { message: "code link not found" };
@@ -545,14 +545,14 @@ export async function registerRepositoryTraceRoutes(app: FastifyInstance, servic
       reply.code(400);
       return { message: "ref is required" };
     }
-    if (!service.hasProject(projectId)) {
+    if (!service.project.hasProject(projectId)) {
       reply.code(404);
       return { message: "project not found" };
     }
     return {
       projectId,
       ref,
-      matches: service.locateIterationsByCodeRef(projectId, ref)
+      matches: service.iteration.locateIterationsByCodeRef(projectId, ref)
     };
   });
 }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { ensureIterationAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, service: WorkspaceService) {
@@ -24,7 +24,7 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    return service.listPolicyExecutionLogs(iterationId);
+    return service.governance.listPolicyExecutionLogs(iterationId);
   });
 
   app.post("/iterations/:id/policy-execute", {
@@ -59,22 +59,22 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     const body = request.body as { action?: string; message?: string } | null;
     const action = body?.action?.trim() || "manual-step";
     const message = body?.message?.trim() || action;
-    const gate = service.evaluatePolicyGateForCoach(iterationId, message);
+    const gate = service.governance.evaluatePolicyGateForCoach(iterationId, message);
     if (!gate) {
       reply.code(404);
       return { message: "iteration not found" };
     }
-    const context = service.getIterationContext(iterationId);
+    const context = service.iteration.getIterationContext(iterationId);
     if (!context?.iteration) {
       reply.code(404);
       return { message: "iteration not found" };
     }
-    const activePolicy = service.getEffectiveOrchestrationPolicy(context.iteration.projectId);
+    const activePolicy = service.governance.getEffectiveOrchestrationPolicy(context.iteration.projectId);
     if (!activePolicy) {
       reply.code(400);
       return { message: "effective policy not found" };
     }
-    const log = service.appendPolicyExecutionLog({
+    const log = service.governance.appendPolicyExecutionLog({
       projectId: context.iteration.projectId,
       iterationId,
       policyVersion: activePolicy.version,

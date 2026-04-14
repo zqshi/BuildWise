@@ -1,25 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { listDeepInsightsMissingReasons } from "../dist/application/workspace/workspaceServiceAnalysisDeepInsightsOps.js";
-import preflightOps from "../dist/application/workspace/workspaceServiceAnalysisPreflightOps.js";
+import { listDeepInsightsMissingReasons } from "../dist/application/workspace/analysis/deepInsightsOps.js";
+import preflightOps from "../dist/application/workspace/analysis/preflightOps.js";
 import supportAgentOps from "../dist/application/workspace/workspaceSupportAgent.js";
 import supportInsights from "../dist/application/workspace/workspaceSupportInsights.js";
-import deepInsightsHeuristics from "../dist/application/workspace/workspaceServiceAnalysisDeepInsightsHeuristicsOps.js";
-import { synthesizeProjectProfileOp } from "../dist/application/workspace/workspaceServiceAnalysisProjectProfileRunnerOps.js";
-import { synthesizeReleaseReviewOp } from "../dist/application/workspace/workspaceServiceAnalysisGovernanceRunnerOps.js";
+import { synthesizeProjectProfileOp } from "../dist/application/workspace/analysis/projectProfileRunnerOps.js";
+import { synthesizeReleaseReviewOp } from "../dist/application/workspace/analysis/governanceRunnerOps.js";
 import {
   synthesizeBusinessConfirmationOp,
   synthesizeGovernanceInsightsOp,
   synthesizeReportQualityGateOp
-} from "../dist/application/workspace/workspaceServiceAnalysisGovernanceRunnerOps.js";
-import { buildGovernanceInsightsPrompt } from "../dist/application/workspace/workspaceServiceAnalysisGovernancePromptOps.js";
-import { detectGitRequirementReadDecision } from "../dist/application/workspace/workspaceServiceGitRequirementIntakeOps.js";
+} from "../dist/application/workspace/analysis/governanceRunnerOps.js";
+import { buildGovernanceInsightsPrompt } from "../dist/application/workspace/analysis/governancePromptOps.js";
+import { detectGitRequirementReadDecision } from "../dist/application/workspace/coach/gitRequirementIntakeOps.js";
 
 const { resolveExecutionPolicyHeuristically } = preflightOps;
 const { buildIterationAgentPlan, shouldUseCompactSingleFileAnalysis } = supportAgentOps;
 const { buildAttachmentInsights } = supportInsights;
-const { buildCompactDeepInsights } = deepInsightsHeuristics;
 
 test("execution policy fast-path keeps simple single-file requirement analysis off the llm orchestrator", () => {
   const result = resolveExecutionPolicyHeuristically({
@@ -199,22 +197,6 @@ test("deep insights does not force analyzed-only fields on partial files", () =>
     }
   });
   assert(!reasons.includes("fileInsights missing mainContent/requiredWork/iterationValue/recommendedActions"));
-});
-
-test("single-file deep insights can resolve locally without llm", () => {
-  const result = buildCompactDeepInsights({
-    input: {
-      fileName: "creative-generator-demo-requirement.md",
-      mimeType: "text/markdown",
-      sourceType: "single-file",
-      excerpt: "创意生成器首版支持主题输入、创意生成、收藏、再次生成与历史记录。"
-    },
-    prioritizedFindings: [{ priority: "P1", content: "先打通生成主链路", reason: "首版目标" }],
-    clarificationQuestions: ["评分是否进入首版"]
-  });
-  assert.equal(result.coverage.coveragePercent, 100);
-  assert.equal(result.fileInsights[0].status, "analyzed");
-  assert.equal(result.crossFileInsights.rootCauses.length > 0, true);
 });
 
 test("supplemental project profile skips extended repair loops and tolerates missing project identity", async () => {

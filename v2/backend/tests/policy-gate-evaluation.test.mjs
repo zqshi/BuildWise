@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createInMemoryWorkspaceRepo, buildMinimalPolicyRecord, buildMinimalIteration } from "./helpers/mock-factories.mjs";
 
 const { evaluatePolicyGateForCoachOp } = await import(
-  "../dist/application/workspace/workspaceServicePolicyOps.js"
+  "../dist/application/workspace/governance/policyOps.js"
 );
 
 // ─── 无策略时不阻塞 ───

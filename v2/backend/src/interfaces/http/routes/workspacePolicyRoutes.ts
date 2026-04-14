@@ -1,13 +1,13 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, currentUserId, ensureProjectAccess, handleRouteError, isAdmin, parsePositiveInt } from "./workspaceRouteUtils";
 import { registerWorkspacePolicyExecutionRoutes } from "./workspacePolicyExecutionRoutes";
 
 export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: WorkspaceService) {
   app.get("/governance/orchestration/policies", async () => {
     return {
-      active: service.getActiveGlobalOrchestrationPolicy(),
-      items: service.listGlobalOrchestrationPolicies()
+      active: service.governance.getActiveGlobalOrchestrationPolicy(),
+      items: service.governance.listGlobalOrchestrationPolicies()
     };
   });
 
@@ -29,7 +29,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     }
     const body = request.body as { strategy?: Record<string, unknown> } | null;
     const actor = currentUserId(request);
-    return service.createGlobalOrchestrationPolicyDraft(actor, body?.strategy);
+    return service.governance.createGlobalOrchestrationPolicyDraft(actor, body?.strategy);
   });
 
   app.post("/governance/orchestration/policies/:version/activate", {
@@ -55,7 +55,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: "invalid version" };
     }
     const actor = currentUserId(request);
-    const activated = service.activateGlobalOrchestrationPolicy(version, actor);
+    const activated = service.governance.activateGlobalOrchestrationPolicy(version, actor);
     if (!activated) {
       reply.code(404);
       return { message: "global orchestration policy version not found" };
@@ -70,7 +70,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: "permission denied" };
     }
     const actor = currentUserId(request);
-    const restored = service.restoreGlobalOrchestrationPolicyToInitialMode(actor);
+    const restored = service.governance.restoreGlobalOrchestrationPolicyToInitialMode(actor);
     if (!restored) {
       reply.code(500);
       return { message: "failed to restore global orchestration policy" };
@@ -100,8 +100,8 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     return {
-      active: service.getActiveProjectPolicy(projectId),
-      items: service.listProjectPolicies(projectId)
+      active: service.governance.getActiveProjectPolicy(projectId),
+      items: service.governance.listProjectPolicies(projectId)
     };
   });
 
@@ -135,7 +135,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     }
     const body = request.body as { strategy?: Record<string, unknown> } | null;
     const actor = currentUserId(request);
-    return service.createProjectPolicyDraft(projectId, actor, body?.strategy);
+    return service.governance.createProjectPolicyDraft(projectId, actor, body?.strategy);
   });
 
   app.post("/projects/:id/policies/:version/activate", {
@@ -162,7 +162,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const actor = currentUserId(request);
-    const activated = service.activateProjectPolicy(projectId, version, actor);
+    const activated = service.governance.activateProjectPolicy(projectId, version, actor);
     if (!activated) {
       reply.code(404);
       return { message: "policy version not found" };
@@ -192,7 +192,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
     const actor = currentUserId(request);
-    const restored = service.restoreProjectOrchestrationPolicyToInitialMode(projectId, actor);
+    const restored = service.governance.restoreProjectOrchestrationPolicyToInitialMode(projectId, actor);
     if (!restored) {
       reply.code(500);
       return { message: "failed to restore project orchestration policy" };
@@ -246,7 +246,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     }
     const actor = currentUserId(request);
     try {
-      return service.upsertProjectWorkspaceBinding({
+      return service.governance.upsertProjectWorkspaceBinding({
         projectId,
         assistantProfile: body.assistantProfile.trim(),
         agentId: body.agentId?.trim() || "main",
@@ -286,7 +286,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    return service.listTenantMemberBindings(access.tenantId);
+    return service.governance.listTenantMemberBindings(access.tenantId);
   });
 
   app.post("/projects/:id/roles", {
@@ -324,7 +324,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
       reply.code(400);
       return { message: "userId and role are required" };
     }
-    return service.upsertTenantMemberBinding({
+    return service.governance.upsertTenantMemberBinding({
       tenantId: access.tenantId,
       userId: body.userId.trim(),
       role: body.role
@@ -354,7 +354,7 @@ export function registerWorkspacePolicyRoutes(app: FastifyInstance, service: Wor
     if (!access) {
       return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
     }
-    const removed = service.removeTenantMemberBinding(access.tenantId, userId);
+    const removed = service.governance.removeTenantMemberBinding(access.tenantId, userId);
     if (!removed) {
       reply.code(404);
       return { message: "role binding not found" };

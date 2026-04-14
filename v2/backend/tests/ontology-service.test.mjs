@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { extractKnowledgeBaseUpdateOp } = await import(
-  "../dist/application/workspace/ontologyService.js"
+  "../dist/application/workspace/project/ontologyService.js"
 );
 
 // ─── 空输入 ───

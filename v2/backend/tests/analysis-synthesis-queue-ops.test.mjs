@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 import {
   buildClarificationQuestionsOp,
   mergeSynthesisResultsOp
-} from "../dist/application/workspace/workspaceServiceAnalysisSynthesisOps.js";
+} from "../dist/application/workspace/analysis/synthesisOps.js";
 
 import {
   createQueuedAnalysisJobOp,
   reconcileAnalysisJobsOp
-} from "../dist/application/workspace/workspaceServiceAnalysisQueueOps.js";
+} from "../dist/application/workspace/analysis/queueOps.js";
 
 // ---------------------------------------------------------------------------
 // buildClarificationQuestionsOp

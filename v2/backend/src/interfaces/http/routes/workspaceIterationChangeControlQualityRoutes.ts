@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { ALLOWED_EXECUTION_STATUSES } from "../../../domain/workspace/iterationTypes";
 import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
 import { ensureIterationAccess } from "./workspaceRouteUtils";
@@ -57,7 +57,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
       reply.code(400);
       return { message: "updates[] requires caseId and status(pending|passed|failed|blocked|skipped)" };
     }
-    const result = service.updateIterationTestMatrixExecution(
+    const result = service.changeControl.updateIterationTestMatrixExecution(
       iterationId,
       updates as Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
     );
@@ -106,7 +106,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { dryRun?: boolean } | null;
-    const result = await service.generateIterationTestArtifacts(iterationId, { dryRun: body?.dryRun === true });
+    const result = await service.quality.generateIterationTestArtifacts(iterationId, { dryRun: body?.dryRun === true });
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -132,7 +132,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const result = service.getIterationReleaseReview(iterationId);
+    const result = service.quality.getIterationReleaseReview(iterationId);
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };

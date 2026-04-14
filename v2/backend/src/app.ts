@@ -6,11 +6,11 @@ import rateLimit from "@fastify/rate-limit";
 import { ContinuousModelingService } from "./application/continuousModeling/continuousModelingService";
 import { ContinuousModelingWorkspaceService } from "./application/continuousModeling/continuousModelingWorkspaceService";
 import { PlatformService } from "./application/platform/platformService";
-import { createAgentRunnerFromEnv, probeLlmRuntimeStatus } from "./application/workspace/agentRunner";
-import { extractKnowledgeBaseUpdateOp } from "./application/workspace/ontologyService";
-import { buildModelingInputFromAnalysis, buildTraceabilityMapFromDomainEntries } from "./application/workspace/ontologyModelingBridge";
-import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from "./application/workspace/projectWorkspaceKnowledgeService";
-import { WorkspaceService } from "./application/workspace/workspaceService";
+import { createAgentRunnerFromEnv, probeLlmRuntimeStatus } from './application/workspace/shared/agentRunner';
+import { extractKnowledgeBaseUpdateOp } from './application/workspace/project/ontologyService';
+import { buildModelingInputFromAnalysis, buildTraceabilityMapFromDomainEntries } from './application/workspace/project/ontologyModelingBridge';
+import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from './application/workspace/project/projectWorkspaceKnowledgeService';
+import { WorkspaceService } from './application/workspace/shared/workspaceService';
 import type { WorkspaceRepository } from "./domain/workspace/repository";
 import { JsonContinuousModelingRepository } from "./infrastructure/persistence/jsonContinuousModelingRepository";
 import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevokedTokenStore";
@@ -231,12 +231,7 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     const kb = project.knowledgeBase ?? emptyKb();
     const iteration = workspaceRepo.findIteration(iterationId);
     if (!iteration) return;
-    const dk = (iteration as Record<string, unknown>).changeControl as Record<string, unknown> | undefined;
-    const domainEntries = (dk?.domainKnowledgeEntries ?? []) as Array<{
-      term: string; definition: string;
-      mappedPages: string[]; mappedApis: string[]; mappedEntities: string[]; mappedCodePaths: string[];
-      evidence: string;
-    }>;
+    const domainEntries = iteration.changeControl?.domainKnowledgeEntries ?? [];
     const bridgeTraceMap = buildTraceabilityMapFromDomainEntries(domainEntries);
     const modelingInput = buildModelingInputFromAnalysis({
       projectId,
@@ -279,9 +274,21 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
       syncAllProjectWorkspaceKnowledge(workspaceRepo);
     }
     if (options.probeLlmOnStart !== false) {
-      void refreshLlmRuntimeStatus(runtime, options.env).catch((error) => {
-        log.warn("llm probe failed after startup", { error: error instanceof Error ? error.message : String(error) });
-      });
+      const tryProbe = async (attempt: number) => {
+        try {
+          await refreshLlmRuntimeStatus(runtime, options.env);
+          if (!runtime.snapshot().llm.reachable && attempt < 10) {
+            log.info(`llm probe unreachable, will retry in 30s (attempt ${attempt + 1}/10)`);
+            setTimeout(() => void tryProbe(attempt + 1), 30_000);
+          }
+        } catch (error) {
+          log.warn("llm probe failed", { error: error instanceof Error ? error.message : String(error) });
+          if (attempt < 10) {
+            setTimeout(() => void tryProbe(attempt + 1), 30_000);
+          }
+        }
+      };
+      void tryProbe(0);
     }
     if (options.scheduleWorkspaceRefresh !== false) {
       scheduleDailyProjectWorkspaceRefresh(workspaceRepo);

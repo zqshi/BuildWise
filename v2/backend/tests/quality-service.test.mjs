@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 
 const { QualityService } = await import(
-  "../dist/application/workspace/qualityService.js"
+  "../dist/application/workspace/quality/qualityService.js"
 );
 
 function setup() {

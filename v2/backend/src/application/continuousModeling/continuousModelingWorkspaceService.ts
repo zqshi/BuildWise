@@ -3,7 +3,7 @@ import type { IterationModelingInput, ModelSnapshot } from "../../domain/continu
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { ProjectKnowledgeBase } from "../../domain/workspace/projectTypes";
 import type { ContinuousModelingService } from "./continuousModelingService";
-import { getIterationAccessContext, getProjectAccessContext } from "../workspace/workspaceTenantAccess";
+import { getIterationAccessContext, getProjectAccessContext } from '../workspace/shared/tenantAccess';
 import { buildProjectModelView } from "./continuousModelingProjectView";
 
 // ---------------------------------------------------------------------------

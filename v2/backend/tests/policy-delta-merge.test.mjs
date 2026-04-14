@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createInMemoryWorkspaceRepo, buildMinimalPolicyRecord } from "./helpers/mock-factories.mjs";
 
 const { mergePolicyDeltaOp, getActiveProjectPolicyOp } = await import(
-  "../dist/application/workspace/workspaceServicePolicyOps.js"
+  "../dist/application/workspace/governance/policyOps.js"
 );
 
 // ─── 无活跃策略时创建新版本 ───

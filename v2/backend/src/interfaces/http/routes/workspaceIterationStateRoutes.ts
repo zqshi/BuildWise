@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { hasPermission } from "../../../application/platform/platformSupport";
-import { isIterationStatus } from "../../../application/workspace/workspaceSupport";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import { isIterationStatus } from '../../../application/workspace/shared/workspaceSupport';
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, ensureIterationAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, service: WorkspaceService) {
@@ -16,7 +16,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const context = service.getIterationContext(iterationId);
+    const context = service.iteration.getIterationContext(iterationId);
     if (!context) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -35,7 +35,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const stateMachine = service.getStateMachine(iterationId);
+    const stateMachine = service.iteration.getStateMachine(iterationId);
     if (!stateMachine) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -55,7 +55,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const role = access.projectAccess.workspaceRole;
-    const grantedPermissions = service.resolveRolePermissions(role);
+    const grantedPermissions = service.governance.resolveRolePermissions(role);
     if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
       reply.code(403);
       return { message: "permission denied" };
@@ -75,7 +75,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
       return { message: "permission denied" };
     }
     const reason = body?.reason?.trim() || "状态转换";
-    const transition = service.transitionIteration(
+    const transition = service.iteration.transitionIteration(
       iterationId,
       toStatus,
       {
@@ -115,7 +115,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const result = service.getAssessment(iterationId);
+    const result = service.iteration.getAssessment(iterationId);
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -134,7 +134,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    return service.listAssessmentSnapshots(iterationId);
+    return service.iteration.listAssessmentSnapshots(iterationId);
   });
 
   app.post("/iterations/:id/assessment/recompute", { schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id" as const] } } }, async (request, reply) => {
@@ -153,7 +153,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const result = service.recomputeAssessment(iterationId);
+    const result = service.iteration.recomputeAssessment(iterationId);
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -178,7 +178,7 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const result = service.restoreSnapshot(iterationId, snapshotId);
+    const result = service.iteration.restoreSnapshot(iterationId, snapshotId);
     if (!result) {
       reply.code(404);
       return { message: "iteration or snapshot not found" };

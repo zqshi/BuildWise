@@ -8,7 +8,7 @@ const {
   parseFolderSelectionCandidate,
   listFolderSelectionMissingReasons
 } = await import(
-  "../dist/application/workspace/workspaceServiceAnalysisPreflightOps.js"
+  "../dist/application/workspace/analysis/preflightOps.js"
 );
 
 // ─── parseExecutionPolicyCandidate ───

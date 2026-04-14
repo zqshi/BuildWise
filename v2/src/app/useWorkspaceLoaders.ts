@@ -206,7 +206,11 @@ export function useWorkspaceLoaders({
     setAssessmentData(assessment);
     setAssessmentHistory(history);
     setStateMachine(machine);
-  }, [setAssessmentData, setAssessmentHistory, setChatMessages, setContextData, setStateMachine]);
+    if (context?.iteration) {
+      const fresh = context.iteration;
+      setIterations((prev) => prev.map((item) => (item.id === fresh.id ? fresh : item)));
+    }
+  }, [setAssessmentData, setAssessmentHistory, setChatMessages, setContextData, setIterations, setStateMachine]);
 
   const loadPlatformOps = useCallback(async (projectId?: number) => {
     try {

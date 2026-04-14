@@ -9,7 +9,7 @@ import {
   resolveLlmProvider,
   resolveModel,
   type LlmEnv
-} from "../../application/workspace/agentRunnerConfig";
+} from '../../application/workspace/shared/agentRunnerConfig';
 const log = createLogger("llm-run");
 
 // ── In-memory LLM call stats ring buffer ──
@@ -351,7 +351,7 @@ export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
   };
 }
 
-export async function probeLlmRuntimeStatus(env: LlmEnv, timeoutMs = 10000): Promise<LlmRuntimeStatus> {
+export async function probeLlmRuntimeStatus(env: LlmEnv, timeoutMs = 30000): Promise<LlmRuntimeStatus> {
   const provider = resolveLlmProvider(env);
   const checkedAt = new Date().toISOString();
 

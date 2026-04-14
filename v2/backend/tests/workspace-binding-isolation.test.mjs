@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 
-const { WorkspaceService } = await import("../dist/application/workspace/workspaceService.js");
+const { WorkspaceService } = await import("../dist/application/workspace/shared/workspaceService.js");
 
 test("workspace binding rejects sharing the same workspace path across projects", () => {
   const repo = createInMemoryWorkspaceRepo();

@@ -6,7 +6,7 @@ import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 const { registerRuntimeAuth } = await import("../dist/infrastructure/runtime/runtimeAuth.js");
 const { registerWorkspaceRoutes } = await import("../dist/interfaces/http/routes/workspaceRoutes.js");
 const { registerRepositoryTraceRoutes } = await import("../dist/interfaces/http/routes/repositoryTraceRoutes.js");
-const { WorkspaceService } = await import("../dist/application/workspace/workspaceService.js");
+const { WorkspaceService } = await import("../dist/application/workspace/shared/workspaceService.js");
 
 async function createApp() {
   const repo = createInMemoryWorkspaceRepo();

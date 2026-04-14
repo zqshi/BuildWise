@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { resolveIterationId } from "./workspaceIterationChangeControlRouteHelpers";
 import { ensureIterationAccess } from "./workspaceRouteUtils";
 
@@ -22,7 +22,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const result = service.getIterationChangeControl(iterationId);
+    const result = service.changeControl.getIterationChangeControl(iterationId);
     if (!result) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -86,7 +86,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
       reply.code(400);
       return { message: "accurate(boolean) is required" };
     }
-    const result = service.confirmIterationAnalysis(iterationId, {
+    const result = service.changeControl.confirmIterationAnalysis(iterationId, {
       accurate: body.accurate,
       note: body.note,
       actor: body.actor,
@@ -149,7 +149,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
       codePaths?: string[];
       note?: string;
     } | null;
-    const result = service.updateIterationBoundary(iterationId, {
+    const result = service.changeControl.updateIterationBoundary(iterationId, {
       requirementRefs: body?.requirementRefs,
       componentRefs: body?.componentRefs,
       codePaths: body?.codePaths,
@@ -188,7 +188,7 @@ export function registerWorkspaceIterationChangeControlCoreRoutes(app: FastifyIn
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
     const body = request.body as { resolvedQuestions?: string[] } | null;
-    const updated = service.updateClarificationDraft(iterationId, Array.isArray(body?.resolvedQuestions) ? body.resolvedQuestions : []);
+    const updated = service.changeControl.updateClarificationDraft(iterationId, Array.isArray(body?.resolvedQuestions) ? body.resolvedQuestions : []);
     if (!updated) {
       reply.code(404);
       return { message: "iteration not found" };

@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 
 const { runAttachmentAnalysisJobWithTimeoutOp } = await import(
-  "../dist/application/workspace/workspaceServiceAnalysisRunnerOps.js"
+  "../dist/application/workspace/analysis/runnerOps.js"
 );
 
 // ─── runAttachmentAnalysisJobWithTimeoutOp ───

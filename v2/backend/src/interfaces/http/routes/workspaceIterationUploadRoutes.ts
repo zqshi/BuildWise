@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { WorkspaceService } from "../../../application/workspace/workspaceService";
+import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, ensureIterationAccess, parsePositiveInt } from "./workspaceRouteUtils";
 
 function parseUploadInitBody(body: {
@@ -62,7 +62,7 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
       reply.code(400);
       return { message: parsed.error };
     }
-    const created = service.initAttachmentUpload(iterationId, parsed.input);
+    const created = service.upload.initAttachmentUpload(iterationId, parsed.input);
     if (!created) {
       reply.code(404);
       return { message: "iteration not found" };
@@ -91,7 +91,7 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const upload = service.getAttachmentUpload(iterationId, params.uploadId);
+    const upload = service.upload.getAttachmentUpload(iterationId, params.uploadId);
     if (!upload) {
       reply.code(404);
       return { message: "upload not found" };
@@ -139,7 +139,7 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
       reply.code(400);
       return { message: "invalid base64 chunk payload" };
     }
-    const ok = service.putAttachmentUploadChunk(iterationId, params.uploadId, params.fileId, chunkIndex - 1, chunk);
+    const ok = service.upload.putAttachmentUploadChunk(iterationId, params.uploadId, params.fileId, chunkIndex - 1, chunk);
     if (!ok) {
       reply.code(404);
       return { message: "upload/file/chunk target not found" };
@@ -164,7 +164,7 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     if (!access) {
       return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
     }
-    const completed = service.completeAttachmentUpload(iterationId, params.uploadId);
+    const completed = service.upload.completeAttachmentUpload(iterationId, params.uploadId);
     if (!completed) {
       reply.code(404);
       return { message: "upload not found or incomplete" };

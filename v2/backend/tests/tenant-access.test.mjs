@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 
-const { WorkspaceService } = await import("../dist/application/workspace/workspaceService.js");
+const { WorkspaceService } = await import("../dist/application/workspace/shared/workspaceService.js");
 
 function buildServiceWithProjects() {
   const repo = createInMemoryWorkspaceRepo();
@@ -44,8 +44,8 @@ function buildServiceWithProjects() {
 test("tenant owner only lists projects inside own tenant", () => {
   const { service } = buildServiceWithProjects();
 
-  const ownerAProjects = service.listProjectsForUser("owner-a");
-  const ownerBProjects = service.listProjectsForUser("owner-b");
+  const ownerAProjects = service.project.listProjectsForUser("owner-a");
+  const ownerBProjects = service.project.listProjectsForUser("owner-b");
 
   assert.deepEqual(ownerAProjects.map((item) => item.id), [1]);
   assert.deepEqual(ownerBProjects.map((item) => item.id), [2]);
@@ -55,15 +55,15 @@ test("tenant owner only lists projects inside own tenant", () => {
 test("tenant member can read and write owner tenant project after invitation", () => {
   const { service } = buildServiceWithProjects();
 
-  service.upsertTenantMemberBinding({
+  service.governance.upsertTenantMemberBinding({
     tenantId: "owner-a",
     userId: "member-a",
     role: "member"
   });
 
-  const listed = service.listProjectsForUser("member-a");
-  const access = service.getProjectAccess("member-a", 1);
-  const iterationAccess = service.getIterationAccess("member-a", 11);
+  const listed = service.project.listProjectsForUser("member-a");
+  const access = service.project.getProjectAccess("member-a", 1);
+  const iterationAccess = service.iteration.getIterationAccess("member-a", 11);
 
   assert.deepEqual(listed.map((item) => item.id), [1]);
   assert.equal(access.canRead, true);
@@ -75,9 +75,9 @@ test("tenant member can read and write owner tenant project after invitation", (
 test("non-tenant user cannot read foreign tenant project", () => {
   const { service } = buildServiceWithProjects();
 
-  const listed = service.listProjectsForUser("outsider");
-  const access = service.getProjectAccess("outsider", 1);
-  const iterationAccess = service.getIterationAccess("outsider", 11);
+  const listed = service.project.listProjectsForUser("outsider");
+  const access = service.project.getProjectAccess("outsider", 1);
+  const iterationAccess = service.iteration.getIterationAccess("outsider", 11);
 
   assert.deepEqual(listed, []);
   assert.equal(access.canRead, false);
@@ -88,7 +88,7 @@ test("non-tenant user cannot read foreign tenant project", () => {
 test("platform-only member does not gain synthetic owner tenant access", () => {
   const { service } = buildServiceWithProjects();
 
-  const tenants = service.listAccessibleTenants("platform-member");
+  const tenants = service.project.listAccessibleTenants("platform-member");
 
   assert.deepEqual(tenants, []);
 });

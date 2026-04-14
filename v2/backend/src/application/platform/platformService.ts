@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import { pickString } from "../../shared/utils";
-import { safeJsonParse } from "../workspace/attachmentOps";
+import { safeJsonParse } from '../workspace/upload/attachmentUtils';
 import {
   deploymentTransitions,
   normalizeTemplateParameters,
@@ -11,7 +11,7 @@ import {
   resolveDeploymentIterationId,
   resolveIterationId
 } from "./platformSupport";
-import { listUncoveredAcceptanceCriteria } from "../workspace/workspaceServiceCommon";
+import { listUncoveredAcceptanceCriteria } from '../workspace/shared/common';
 
 export class PlatformService {
   constructor(
