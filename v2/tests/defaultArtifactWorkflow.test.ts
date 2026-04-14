@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildDefaultArtifactWorkflow } from '../backend/src/application/workspace/workspaceServiceDefaultArtifactWorkflow.ts';
+import { buildDefaultArtifactWorkflow } from '../backend/src/application/workspace/quality/defaultArtifactWorkflow.ts';
 
 test('first iteration default workflow uses first-version titles and expanded artifacts', () => {
   const workflow = buildDefaultArtifactWorkflow('2026-03-14T00:00:00.000Z', 'first-iteration');
