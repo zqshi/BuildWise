@@ -38,6 +38,35 @@ function buildFallbackDomainTerms(params: {
   return [...requirementTerms, ...componentTerms].slice(0, 12);
 }
 
+function buildFallbackTraceabilityMap(
+  existing: ReturnType<typeof parseGovernanceInsightsCandidate>["traceabilityMap"],
+  params: { requirements: string[]; components: string[]; codePaths: string[] }
+) {
+  const reqToComp = existing.requirementToComponent.length > 0
+    ? existing.requirementToComponent
+    : params.requirements.slice(0, 8).map((requirement) => ({ requirement, components: params.components.slice(0, 4), evidence: "derived-from-boundary" }));
+  const compToCode = existing.componentToCode.length > 0
+    ? existing.componentToCode
+    : params.components.slice(0, 8).map((component) => ({ component, codePaths: params.codePaths.slice(0, 6), evidence: "derived-from-boundary" }));
+  const reqToCode = existing.requirementToCode.length > 0
+    ? existing.requirementToCode
+    : params.requirements.slice(0, 8).map((requirement) => ({ requirement, codePaths: params.codePaths.slice(0, 6), evidence: "derived-from-boundary" }));
+  const coverageScore = existing.coverageScore > 0
+    ? existing.coverageScore
+    : (reqToCode.length > 0 || compToCode.length > 0 ? 70 : 0);
+  return {
+    ...existing,
+    requirementToComponent: reqToComp,
+    componentToCode: compToCode,
+    requirementToCode: reqToCode,
+    coverageScore,
+    mappingConfidence: existing.mappingConfidence || (coverageScore >= 80 ? "high" : coverageScore >= 50 ? "medium" : "low"),
+    unmappedRequirements: existing.unmappedRequirements.length > 0
+      ? existing.unmappedRequirements
+      : params.requirements.filter((item) => !reqToCode.some((mapping) => mapping.requirement === item))
+  };
+}
+
 export function hydrateGovernanceInsightsCandidate(
   candidate: ReturnType<typeof parseGovernanceInsightsCandidate>,
   params: {
@@ -52,36 +81,6 @@ export function hydrateGovernanceInsightsCandidate(
     clarificationQuestions: string[];
   }
 ) {
-  const fallbackRequirementToComponent =
-    candidate.traceabilityMap.requirementToComponent.length > 0
-      ? candidate.traceabilityMap.requirementToComponent
-      : params.requirements.slice(0, 8).map((requirement) => ({
-          requirement,
-          components: params.components.slice(0, 4),
-          evidence: "derived-from-boundary"
-        }));
-  const fallbackComponentToCode =
-    candidate.traceabilityMap.componentToCode.length > 0
-      ? candidate.traceabilityMap.componentToCode
-      : params.components.slice(0, 8).map((component) => ({
-          component,
-          codePaths: params.codePaths.slice(0, 6),
-          evidence: "derived-from-boundary"
-        }));
-  const fallbackRequirementToCode =
-    candidate.traceabilityMap.requirementToCode.length > 0
-      ? candidate.traceabilityMap.requirementToCode
-      : params.requirements.slice(0, 8).map((requirement) => ({
-          requirement,
-          codePaths: params.codePaths.slice(0, 6),
-          evidence: "derived-from-boundary"
-        }));
-  const fallbackCoverageScore =
-    candidate.traceabilityMap.coverageScore > 0
-      ? candidate.traceabilityMap.coverageScore
-      : fallbackRequirementToCode.length > 0 || fallbackComponentToCode.length > 0
-        ? 70
-        : 0;
   const derivedRules = uniqueTrimmed(
     params.prioritizedFindings.map((item) => `${item.priority}:${item.content}`),
     12
@@ -90,30 +89,13 @@ export function hydrateGovernanceInsightsCandidate(
   return {
     versionDiffDetailed: {
       ...candidate.versionDiffDetailed,
-      summary:
-        candidate.versionDiffDetailed.summary ||
+      summary: candidate.versionDiffDetailed.summary ||
         `新增 ${params.added.length} 项，变更 ${params.changed.length} 项，移除 ${params.removed.length} 项。`,
-      impactScope:
-        candidate.versionDiffDetailed.impactScope.length > 0
-          ? candidate.versionDiffDetailed.impactScope
-          : uniqueTrimmed(params.diffLocations.map((item) => item.dimension), 8)
+      impactScope: candidate.versionDiffDetailed.impactScope.length > 0
+        ? candidate.versionDiffDetailed.impactScope
+        : uniqueTrimmed(params.diffLocations.map((item) => item.dimension), 8)
     },
-    traceabilityMap: {
-      ...candidate.traceabilityMap,
-      requirementToComponent: fallbackRequirementToComponent,
-      componentToCode: fallbackComponentToCode,
-      requirementToCode: fallbackRequirementToCode,
-      coverageScore: fallbackCoverageScore,
-      mappingConfidence:
-        candidate.traceabilityMap.mappingConfidence ||
-        (fallbackCoverageScore >= 80 ? "high" : fallbackCoverageScore >= 50 ? "medium" : "low"),
-      unmappedRequirements:
-        candidate.traceabilityMap.unmappedRequirements.length > 0
-          ? candidate.traceabilityMap.unmappedRequirements
-          : params.requirements.filter(
-              (item) => !fallbackRequirementToCode.some((mapping) => mapping.requirement === item)
-            )
-    },
+    traceabilityMap: buildFallbackTraceabilityMap(candidate.traceabilityMap, params),
     executableConstraints: {
       ...candidate.executableConstraints,
       componentWhitelist:

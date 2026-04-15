@@ -1,6 +1,7 @@
 import type { AgentScope, AttachmentAnalysisReport, Iteration, IterationAgentPlan, IterationAgentPrompt, IterationStatus } from '../../../domain/workspace/types';
 import { loadAgentPromptTemplate, loadWorkflowTemplate, type AgentPromptTemplate } from "./agentAssetRegistry";
 import { RISK_SENTINEL } from '../../../domain/workspace/constants';
+import { formatDiffLocations, formatBoundaries } from '../analysis/extractors';
 
 export function inferCyclePhase(status: IterationStatus): AttachmentAnalysisReport["cyclePhase"] {
   switch (status) {
@@ -39,9 +40,9 @@ function suggestNextTransition(status: IterationStatus, risks: string[], diffCou
   return null;
 }
 
-function defaultPromptTemplate(roleKey: string): AgentPromptTemplate {
+function defaultPromptTemplate(_roleKey: string): AgentPromptTemplate {
   return {
-    systemPrompt: `你是 BuildWise 的{{role}}（role=${roleKey}），scope={{scope}}。输出必须结构化、可执行、可追溯。`,
+    systemPrompt: `你是 BuildWise 的{{role}}，负责范围为{{scope}}。输出必须结构化、可执行、可追溯。`,
     userPrompt: "目标：{{goal}}\n上下文：{{context}}\n请严格输出：{{expectedOutput}}"
   };
 }
@@ -98,129 +99,99 @@ export function shouldUseCompactSingleFileAnalysis(params: {
   );
 }
 
-export function buildIterationAgentPlan(params: {
+type AgentPlanParams = {
   iteration: Iteration;
   previous: Iteration | null;
   scope: AgentScope;
   diffLocations: AttachmentAnalysisReport["diffLocations"];
   risks: string[];
   fileName: string;
-  attachmentMeta?: {
-    strategy: string;
-    digest: string;
-    textPreview?: string;
-  };
-  attachmentSignals?: {
-    sourceType: "single-file" | "folder";
-    hasPrototypeEvidence: boolean;
-    hasDocumentEvidence: boolean;
-    totalFiles: number;
-  };
+  attachmentMeta?: { strategy: string; digest: string; textPreview?: string };
+  attachmentSignals?: { sourceType: "single-file" | "folder"; hasPrototypeEvidence: boolean; hasDocumentEvidence: boolean; totalFiles: number };
   knowledgeBaseSummary?: string;
-}): IterationAgentPlan {
-  const { iteration, previous, scope, diffLocations, risks, fileName, attachmentMeta, attachmentSignals } = params;
-  const compactSingleFileContext = shouldUseCompactSingleFileAnalysis({ attachmentSignals });
-  const recommendedTransition = suggestNextTransition(iteration.status, risks, diffLocations.length);
-  const objective = `基于附件 ${fileName} 驱动迭代 ${iteration.name} 全周期闭环执行`;
-  const diffDigest =
-    diffLocations.length > 0
-      ? diffLocations
-          .slice(0, 6)
-          .map((item) => `${item.dimension}:${item.changeType}:${item.currentItem}`)
-          .join("；")
-      : "无结构化差异";
+};
+
+function buildPlanDigests(params: AgentPlanParams) {
+  const { iteration, diffLocations, attachmentMeta, attachmentSignals } = params;
+  const diffDigest = formatDiffLocations(diffLocations.slice(0, 6));
   const boundary = iteration.changeControl?.boundary;
-  const acceptanceDigest = iteration.scope.acceptanceCriteria.join("|") || "-";
-  const acceptanceChecksDigest = iteration.changeControl?.executableConstraints?.acceptanceChecks.join("|") || "-";
   const boundaryDigest =
     boundary && (boundary.requirementRefs.length > 0 || boundary.componentRefs.length > 0 || boundary.codePaths.length > 0)
-      ? `requirements=${boundary.requirementRefs.join("|") || "-"};components=${boundary.componentRefs.join("|") || "-"};codePaths=${boundary.codePaths.join("|") || "-"}`
-      : "no-explicit-boundary";
+      ? formatBoundaries(boundary.requirementRefs, boundary.componentRefs, boundary.codePaths)
+      : "未指定变更边界";
   const confirmationDigest = iteration.changeControl?.pendingHumanConfirmation
-    ? "pending-human-confirmation"
-    : iteration.changeControl?.confirmedAt
-      ? `confirmed@${iteration.changeControl.confirmedAt}`
-      : "not-confirmed";
-  const attachmentDigest =
-    attachmentMeta && (attachmentMeta.digest || attachmentMeta.strategy)
-      ? `附件处理=${attachmentMeta.strategy || "direct"}；digest=${attachmentMeta.digest || "n/a"}`
-      : "附件处理=direct；digest=n/a";
+    ? "待人工确认"
+    : iteration.changeControl?.confirmedAt ? `已确认（${iteration.changeControl.confirmedAt}）` : "未确认";
+  const attachmentDigest = attachmentMeta && (attachmentMeta.digest || attachmentMeta.strategy)
+    ? `附件处理：${attachmentMeta.strategy || "直接解析"}；摘要：${attachmentMeta.digest || "无"}`
+    : "附件处理：直接解析；摘要：无";
   const attachmentPreview = attachmentMeta?.textPreview?.trim()
-    ? `附件预览=${attachmentMeta.textPreview.replace(/\s+/g, " ").slice(0, 240)}`
-    : "附件预览=无";
+    ? `附件预览：${attachmentMeta.textPreview.replace(/\s+/g, " ").slice(0, 240)}`
+    : "附件预览：无";
   const attachmentSignalHint = attachmentSignals
-    ? `输入信号=sourceType:${attachmentSignals.sourceType};prototype:${attachmentSignals.hasPrototypeEvidence ? "yes" : "no"};documents:${attachmentSignals.hasDocumentEvidence ? "yes" : "no"};files:${attachmentSignals.totalFiles}`
+    ? `输入信号：来源类型 ${attachmentSignals.sourceType === "single-file" ? "单文件" : "文件夹"}，${attachmentSignals.hasPrototypeEvidence ? "含" : "无"}原型，${attachmentSignals.hasDocumentEvidence ? "含" : "无"}文档，共 ${attachmentSignals.totalFiles} 个文件`
     : "";
+  return { diffDigest, boundaryDigest, confirmationDigest, attachmentDigest, attachmentPreview, attachmentSignalHint };
+}
+
+function assemblePlanContext(params: AgentPlanParams, compact: boolean, digests: ReturnType<typeof buildPlanDigests>) {
+  const { iteration, previous, risks } = params;
+  const acceptanceDigest = iteration.scope.acceptanceCriteria.join("；") || "无";
+  const acceptanceChecksDigest = iteration.changeControl?.executableConstraints?.acceptanceChecks.join("；") || "无";
   const requireInfoCompletion =
-    Boolean(attachmentSignals) &&
-    (attachmentSignals?.hasPrototypeEvidence || attachmentSignals?.hasDocumentEvidence || attachmentSignals?.sourceType === "folder");
-  const infoCompletionHint = requireInfoCompletion
-    ? "本轮必须先执行信息完善：融合文档与原型信息，补全缺失约束后再进入任务拆解。"
-    : "";
-  const skillPackHint = "skillsRoot=v2/backend/skills/claude-arsenal/skills；运行策略=单编排Agent驱动技能链。";
-  const ontologyHint = params.knowledgeBaseSummary
-    ? `ontologyContext=${params.knowledgeBaseSummary.slice(0, 2000)}`
-    : "";
-  const contextBase = `项目迭代=${iteration.name}；当前状态=${iteration.status}；基线=${previous?.name ?? "无"}；差异=${diffDigest}；风险=${risks.join("；") || "无"}；验收标准=${acceptanceDigest}`;
-  const contextParts = compactSingleFileContext
+    Boolean(params.attachmentSignals) &&
+    (params.attachmentSignals?.hasPrototypeEvidence || params.attachmentSignals?.hasDocumentEvidence || params.attachmentSignals?.sourceType === "folder");
+  const infoCompletionHint = requireInfoCompletion ? "本轮必须先执行信息完善：融合文档与原型信息，补全缺失约束后再进入任务拆解。" : "";
+  const ontologyHint = params.knowledgeBaseSummary ? `本体知识：${params.knowledgeBaseSummary.slice(0, 2000)}` : "";
+  const contextBase = `项目迭代：${iteration.name}；当前状态：${iteration.status}；基线：${previous?.name ?? "无"}；${digests.diffDigest}；风险：${risks.join("；") || "无"}；验收标准：${acceptanceDigest}`;
+
+  const contextParts = compact
     ? [
-        "contextMode=compact-single-file",
-        contextBase,
-        `确认状态=${confirmationDigest}`,
-        `变更边界=${boundaryDigest}`,
-        attachmentDigest,
-        attachmentPreview,
-        attachmentSignalHint,
-        ontologyHint,
-        "仅基于文本需求执行首轮闭环编排，避免展开与当前需求无关的原型/协作推断。"
+        "模式：单文件轻量分析", contextBase,
+        `确认状态：${digests.confirmationDigest}`, `变更边界：${digests.boundaryDigest}`,
+        digests.attachmentDigest, digests.attachmentPreview, digests.attachmentSignalHint,
+        ontologyHint, "仅基于文本需求执行首轮闭环编排，避免展开与当前需求无关的原型/协作推断。"
       ]
     : [
-        contextBase,
-        `执行验收约束=${acceptanceChecksDigest}`,
-        `确认状态=${confirmationDigest}`,
-        `变更边界=${boundaryDigest}`,
-        attachmentDigest,
-        attachmentPreview,
-        attachmentSignalHint,
-        infoCompletionHint,
-        skillPackHint,
-        ontologyHint
+        contextBase, `执行验收约束：${acceptanceChecksDigest}`,
+        `确认状态：${digests.confirmationDigest}`, `变更边界：${digests.boundaryDigest}`,
+        digests.attachmentDigest, digests.attachmentPreview, digests.attachmentSignalHint,
+        infoCompletionHint, ontologyHint
       ];
-  const contextWithControl = contextParts.filter(Boolean).join("；");
+  return contextParts.filter(Boolean).join("；");
+}
 
+export function buildIterationAgentPlan(params: AgentPlanParams): IterationAgentPlan {
+  const { iteration, scope, risks, fileName, diffLocations } = params;
+  const compact = shouldUseCompactSingleFileAnalysis({ attachmentSignals: params.attachmentSignals });
+  const recommendedTransition = suggestNextTransition(iteration.status, risks, diffLocations.length);
+  const objective = `基于附件 ${fileName} 驱动迭代 ${iteration.name} 全周期闭环执行`;
+  const digests = buildPlanDigests(params);
+  const contextWithControl = assemblePlanContext(params, compact, digests);
   const workflowTemplate = loadWorkflowTemplate({
     scope,
-    fallback: {
-      name: "default-single-agent",
-      contextHint: "由项目管理Agent驱动阶段流转，专职Agent按职责完成交付。"
-    }
+    fallback: { name: "default-single-agent", contextHint: "由项目管理Agent驱动阶段流转，专职Agent按职责完成交付。" }
   });
+  const contextFinal = workflowTemplate.contextHint ? `${contextWithControl}；编排策略：${workflowTemplate.contextHint}` : contextWithControl;
 
-  const contextFinal = workflowTemplate.contextHint ? `${contextWithControl}；workflowHint=${workflowTemplate.contextHint}` : contextWithControl;
   return {
     scope,
     objective,
     recommendedTransition,
     prompts: [
       buildPrompt(
-        compactSingleFileContext
+        compact
           ? {
-              agentId: "agent-requirements-analyst-compact-1",
-              role: "requirements-analyst",
-              scope,
+              agentId: "agent-requirements-analyst-compact-1", role: "requirements-analyst", scope,
               goal: "基于当前文本需求输出轻量结构化分析输入，供后续业务确认与治理合成复用",
               context: contextFinal,
-              expectedOutput:
-                "JSON: {infoCompletion:{required,missingInputs[],assumptions[]}, diff:{summary,added[],changed[],removed[]}, risks:[...], clarificationQuestions:[...]}"
+              expectedOutput: "JSON: {infoCompletion:{required,missingInputs[],assumptions[]}, diff:{summary,added[],changed[],removed[]}, risks:[...], clarificationQuestions:[...]}"
             }
           : {
-              agentId: "agent-project-manager-1",
-              role: "orchestrator",
-              scope,
+              agentId: "agent-project-manager-1", role: "orchestrator", scope,
               goal: "基于 skills 执行统一编排并输出可执行全周期计划",
               context: contextFinal,
-              expectedOutput:
-                "JSON: {summary, infoCompletion:{required,missingInputs[],assumptions[],completionActions[]}, stagePlan:[{stage,goal,entryCriteria,exitCriteria,owner,inBoundary:boolean}], blockers:[{id,reason,severity,evidence}], handoffPlan:[{fromRole,toRole,condition}], unknowns[], humanConfirmation:{required,questions[]}, nextAction}"
+              expectedOutput: "JSON: {summary, infoCompletion:{required,missingInputs[],assumptions[],completionActions[]}, stagePlan:[{stage,goal,entryCriteria,exitCriteria,owner,inBoundary:boolean}], blockers:[{id,reason,severity,evidence}], handoffPlan:[{fromRole,toRole,condition}], unknowns[], humanConfirmation:{required,questions[]}, nextAction}"
             }
       )
     ]

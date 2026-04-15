@@ -21,11 +21,11 @@ function parseArtifactReferenceContent(content: string) {
 // 技术字段过滤：去除 system/assistant 消息中的内部字段路径和 JSON 片段
 // ---------------------------------------------------------------------------
 
-/** 匹配 key=value 格式的内部字段路径，如 deep.cross.rootCauses=xxx */
-const FIELD_PATH_PATTERN = /\b(?:deep|necessity|iteration|evidenceRefs|coreIntent|successCriteria|prioritizedFindings|clarificationQuestions|sourceType)\b[.\w]*=[^\n]*/g;
+/** 匹配 camelCase key=value 格式的内部字段路径，如 sourceType=single-file, qualitySignals=testCaseCount:5 */
+const FIELD_PATH_PATTERN = /\b[a-z][a-zA-Z]*(?:\.[a-zA-Z]+)*=[^\n]*/g;
 
-/** 匹配独立的 JSON 块 */
-const JSON_BLOCK_PATTERN = /\{[^{}]*"(?:publishable|score|missingItems|actionRequired)"[^{}]*\}/g;
+/** 匹配独立的 JSON 块：覆盖质量审计、执行策略、洞察解析等内部 JSON 残留 */
+const JSON_BLOCK_PATTERN = /\{[^{}]*"(?:publishable|score|missingItems|actionRequired|degraded|enforceSingleAgent|forceMultiAgent|promptBudgetRisk|projectCategory|artifactType|keyCharacteristics|versionChangeSummary|qualitySignals|testCaseCount|p0FindingCount|unknownSignalCount|boundaryCoverage|infoCompletion|completionActions|stagePlan|handoffPlan|rollbackDecision|shouldRollback|prioritizedFindings|meaningfulFindings|projectDetection|includedPaths|ignoredFiles|sampleReason)"[^{}]*\}/g;
 
 /** 匹配被 ```json 包裹的代码块 */
 const CODE_BLOCK_PATTERN = /```json[\s\S]*?```/g;
@@ -123,44 +123,6 @@ export function sanitizeDisplayItem(text: string): string {
     .replace(/\s*[、，,]\s*$/g, "")     // 行尾标点
     .trim();
   return result;
-}
-
-/**
- * 对整段 markdown 做行级清洗。
- * 保留 markdown 格式结构（标题、列表符号），仅清洗行内文本内容。
- */
-export function sanitizeDisplayMarkdown(markdown: string): string {
-  if (!markdown) return markdown;
-  return markdown
-    .split("\n")
-    .map((line) => {
-      // 保留空行
-      if (!line.trim()) return line;
-      // 标题行：保留 ## 前缀，清洗标题文本
-      const headingMatch = line.match(/^(#{1,6}\s+)(.*)/);
-      if (headingMatch) {
-        const cleaned = sanitizeDisplayItem(headingMatch[2]);
-        return cleaned ? `${headingMatch[1]}${cleaned}` : "";
-      }
-      // 列表行：保留列表前缀（- 或 数字.），清洗内容
-      const listMatch = line.match(/^(\s*(?:[-*+]|\d+\.)\s+(?:\[[ x]\]\s+)?)(.*)/);
-      if (listMatch) {
-        const cleaned = sanitizeDisplayItem(listMatch[2]);
-        return cleaned ? `${listMatch[1]}${cleaned}` : "";
-      }
-      // 引用行：保留 > 前缀，清洗内容
-      const quoteMatch = line.match(/^(>\s+)(.*)/);
-      if (quoteMatch) {
-        const cleaned = sanitizeDisplayItem(quoteMatch[2]);
-        return cleaned ? `${quoteMatch[1]}${cleaned}` : "";
-      }
-      // 普通行
-      return sanitizeDisplayItem(line);
-    })
-    .filter((line) => line !== "")
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 // ---------------------------------------------------------------------------

@@ -40,20 +40,6 @@ export function hasGitRequirementIntakeTarget(repo: ProjectRepository | null | u
   return Boolean(url && branch && isRemoteUrl(url));
 }
 
-export function buildGitRequirementIntakePrompt(repo: ProjectRepository) {
-  const branch = repo.defaultBranch || "main";
-  const url = repo.url || "";
-  return [
-    "检测到你已配置代码仓库，是否需要我先读取仓库来理解本次版本需求？",
-    `- 仓库地址：${url}`,
-    `- 读取分支：${branch}`,
-    "请直接回复：",
-    "- “读取仓库” 或 “是”",
-    "- “暂不读取” 或 “否”",
-    "若暂不读取，我会引导你继续需求沟通，或上传文档/文件夹来推进分析。"
-  ].join("\n");
-}
-
 export function detectGitRequirementReadDecision(message: string): GitReadDecision {
   const text = message.trim().toLowerCase();
   if (!text) {

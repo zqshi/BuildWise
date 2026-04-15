@@ -1,7 +1,7 @@
 import type { IterationStatus } from "./iterationTypes";
 
 export type AgentScope = "attachment" | "iteration" | "full-cycle" | "release";
-export type AgentRole =
+type AgentRole =
   | "orchestrator"
   | "ux-designer"
   | "solution-architect"
@@ -46,7 +46,7 @@ export type VisionPayload = {
   dataUrl: string;
 };
 
-export type IterationLifecycleAction = {
+type IterationLifecycleAction = {
   attempted: boolean;
   applied: boolean;
   fromStatus: IterationStatus;
@@ -312,7 +312,7 @@ export type AttachmentUploadInput = {
   autoTransition?: boolean;
 };
 
-export type AttachmentAnalysisJobStatus = "queued" | "running" | "succeeded" | "partial_succeeded" | "failed";
+type AttachmentAnalysisJobStatus = "queued" | "running" | "succeeded" | "partial_succeeded" | "failed";
 
 export type AttachmentAnalysisJob = {
   jobId: string;
@@ -358,7 +358,7 @@ export type AttachmentUploadManifestFile = {
   chunkCount: number;
 };
 
-export type AttachmentUploadChunkMeta = {
+type AttachmentUploadChunkMeta = {
   chunkIndex: number;
   chunkSize: number;
   chunkSha256: string;
@@ -415,7 +415,7 @@ export type AttachmentIngestJob = {
   errorMessage: string;
 };
 
-export type AttachmentReportSectionStatus = "ready" | "failed" | "empty";
+type AttachmentReportSectionStatus = "ready" | "failed" | "empty";
 
 export type AttachmentReportSection = {
   sectionId: string;
@@ -602,12 +602,3 @@ export type IterationFullCycleRunResponse = {
   warnings: string[];
 };
 
-export type OpsAlertTriageResponse = {
-  generatedAt: string;
-  projectId: number;
-  severity: "low" | "medium" | "high" | "critical";
-  hypotheses: Array<{ priority: "P0" | "P1" | "P2"; item: string; evidence: string }>;
-  triageSteps: Array<{ step: string; expectedSignal: string; fallback: string; commands: string[] }>;
-  rollbackSuggestion: string;
-  matchedTemplates: string[];
-};

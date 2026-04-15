@@ -29,7 +29,9 @@ import {
   confirmIterationArtifactOp,
   transitionIterationArtifactStageOp
 } from '../changeControl/artifactOps';
-import { synthesizeArtifactDraftContent, isSubstantiveContent } from '../changeControl/artifactDraftSynthesizer';
+import { isSubstantiveContent } from '../changeControl/artifactDraftSynthesizer';
+import { synthesizeSingleArtifactOnDemand } from '../analysis/artifactSynthesisAgentOps';
+import { isLowSignalText } from '../analysis/extractors';
 import { defaultIterationChangeControl } from '../shared/common';
 import { extractRequirementsFromConversation } from "./conversationRequirementExtractor";
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
@@ -37,6 +39,9 @@ import { dedupeActions, parseRecentSuggestedActions } from './replyGuard';
 import { pickString } from '../../../shared/utils';
 import { safeJsonParse } from '../upload/attachmentUtils';
 import { writeAuditLog } from '../shared/common';
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("orchestrator");
 
 // ── Coach marker extraction (shared with CoachOps) ──
 
@@ -107,46 +112,34 @@ function pickStringList(value: unknown, max = 8) {
 
 // ── Context builders ──
 
-function buildStageContext(
+function serializeIterationScopeContext(
   iteration: Iteration,
   previous: Iteration | null,
-  project: Project | null,
   stage: IterationArtifactStage,
-  gateResult: ReturnType<typeof evaluateCurrentStageGate>
-): string {
-  const parts: string[] = [];
-
-  // 迭代基础信息
+  parts: string[]
+) {
   parts.push(
     `当前迭代「${iteration.name}」处于「${STAGE_LABELS[stage]}」阶段。` +
     (previous ? `上一轮迭代是「${previous.name}」。` : "这是第一轮迭代。")
   );
-
-  // 范围
   if (iteration.scope.inScope.length > 0) {
     parts.push(`本轮范围：${iteration.scope.inScope.join("、")}。`);
   }
   if (iteration.scope.outOfScope.length > 0) {
     parts.push(`明确不做：${iteration.scope.outOfScope.join("、")}。`);
   }
-
-  // 分析状态
   if (iteration.changeControl?.lastAnalysisAt) {
     parts.push(`最近分析时间：${iteration.changeControl.lastAnalysisAt}。`);
   }
   if (iteration.changeControl?.confirmedAt) {
     parts.push("分析报告已确认。");
   }
-
-  // 边界
   const boundary = iteration.changeControl?.boundary;
   if (boundary && boundary.requirementRefs.length > 0) {
     parts.push(`变更边界：需求 ${boundary.requirementRefs.length} 项，组件 ${boundary.componentRefs.length} 项，代码路径 ${boundary.codePaths.length} 条。`);
   }
-
-  // 业务确认摘要（来自 LLM 分析，边界字段可能还没手动填充但分析已完成）
   const biz = iteration.changeControl?.lastBusinessConfirmation;
-  if (biz?.coreIntent) {
+  if (biz?.coreIntent && !isLowSignalText(biz.coreIntent)) {
     const bizParts: string[] = [`分析结论：${biz.coreIntent}`];
     if (biz.boundarySummary) bizParts.push(`边界摘要：${biz.boundarySummary}`);
     const na = biz.necessityAssessment;
@@ -155,28 +148,26 @@ function buildStageContext(
     if (biz.functionalPoints?.length) bizParts.push(`功能要点：${biz.functionalPoints.slice(0, 6).join("、")}`);
     parts.push(bizParts.join("\n"));
   }
+}
 
-  // 知识上下文
+function serializeGateAndWorkflowContext(
+  iteration: Iteration,
+  project: Project | null,
+  gateResult: ReturnType<typeof evaluateCurrentStageGate>,
+  parts: string[]
+) {
   const knowledgeCtx = buildKnowledgeSyncContext(project?.knowledgeBase ?? null);
-  if (knowledgeCtx) {
-    parts.push(knowledgeCtx);
-  }
-
-  // 澄清问题
+  if (knowledgeCtx) parts.push(knowledgeCtx);
   const unresolved = iteration.changeControl?.lastClarificationResolution?.unresolvedQuestions ?? [];
   if (unresolved.length > 0) {
     parts.push(`未解决的澄清问题：${unresolved.join("；")}。`);
   }
-
-  // 出口条件状态
   if (gateResult.missingArtifacts.length > 0) {
     parts.push(`本阶段还缺少：${gateResult.missingArtifacts.join("、")}。`);
   }
   if (gateResult.canProceed) {
     parts.push("本阶段出口条件已满足，可以推进到下一阶段。");
   }
-
-  // 已完成的交付物
   const workflow = iteration.changeControl?.artifactWorkflow;
   if (workflow) {
     const readyItems = workflow.items
@@ -186,29 +177,41 @@ function buildStageContext(
       parts.push(`已完成的交付物：${readyItems.join("、")}。这些交付物无需重复声明。`);
     }
   }
-
-  // 仓库信息
   if (project?.repository?.url) {
     parts.push(`项目已配置代码仓库（${project.repository.url}）。`);
   }
+}
 
+function buildStageContext(
+  iteration: Iteration,
+  previous: Iteration | null,
+  project: Project | null,
+  stage: IterationArtifactStage,
+  gateResult: ReturnType<typeof evaluateCurrentStageGate>
+): string {
+  const parts: string[] = [];
+  serializeIterationScopeContext(iteration, previous, stage, parts);
+  serializeGateAndWorkflowContext(iteration, project, gateResult, parts);
   return parts.filter(Boolean).join("\n");
 }
 
-function buildRecentConversation(repo: WorkspaceRepository, iterationId: number): string {
-  const messages = repo
+function loadRecentMessages(repo: WorkspaceRepository, iterationId: number) {
+  return repo
     .listMessages(iterationId)
     .filter((item) => item.role === "user" || item.role === "assistant")
-    .slice(-8)
-    .map((item, idx) => {
-      const roleLabel = item.role === "user" ? "用户" : "教练";
-      const content = sanitizeForCoachContext(
-        normalizeIterationMessageContent(item.role, item.content).slice(0, 400).replace(/\s+/g, " ")
-      );
-      return `  ${idx + 1}. ${roleLabel}：${content}`;
-    });
-  if (messages.length === 0) return "";
-  return `最近对话：\n${messages.join("\n")}`;
+    .slice(-8);
+}
+
+function formatRecentConversation(messages: Array<{ role: string; content: string }>): string {
+  const lines = messages.map((item, idx) => {
+    const roleLabel = item.role === "user" ? "用户" : "教练";
+    const content = sanitizeForCoachContext(
+      normalizeIterationMessageContent(item.role as "user" | "assistant", item.content).slice(0, 400).replace(/\s+/g, " ")
+    );
+    return `  ${idx + 1}. ${roleLabel}：${content}`;
+  });
+  if (lines.length === 0) return "";
+  return `最近对话：\n${lines.join("\n")}`;
 }
 
 // ── Extraction cooldown ──
@@ -227,6 +230,27 @@ function recordExtractionAttempt(iterationId: number) {
 
 // ── Phase: 路由到 StageAgent + 调用 LLM ──
 
+function buildBlockerContext(
+  gateResult: ReturnType<typeof evaluateCurrentStageGate>,
+  policyGate?: { blocked: boolean; reason: string; requiredActions: string[] } | null
+): string[] {
+  const lines: string[] = [];
+  if (gateResult.blocked) {
+    lines.push(
+      "", "⚠ 当前阶段存在阻断，需要先处理以下问题：",
+      ...gateResult.blockers.map((b) => `  - ${b}`),
+      "请在回复中：1）先回应用户的问题或疑问，不要忽略；2）简明说明阻断原因；3）给出用户可操作的具体建议（如上传什么材料、确认什么信息）。"
+    );
+  }
+  if (policyGate?.blocked) {
+    lines.push(
+      "", "⚠ 项目策略约束：", `  - ${policyGate.reason}`,
+      ...(policyGate.requiredActions.length > 0 ? [`  建议操作：${policyGate.requiredActions.join("、")}`] : [])
+    );
+  }
+  return lines;
+}
+
 async function routeToStageAgent(params: {
   repo: WorkspaceRepository;
   agentRunner: AgentRunner;
@@ -244,28 +268,12 @@ async function routeToStageAgent(params: {
     normalized, previous ? normalizeIteration(previous) : null,
     project, gateResult.currentStage, gateResult
   );
-  const recentConversation = buildRecentConversation(repo, iterationId);
-  const recentMessages = repo
-    .listMessages(iterationId)
-    .filter((item) => item.role === "user" || item.role === "assistant")
-    .slice(-8)
-    .map((item) => ({ role: item.role, content: normalizeIterationMessageContent(item.role, item.content) }));
+  const recentMessagesList = loadRecentMessages(repo, iterationId);
+  const recentConversation = formatRecentConversation(recentMessagesList);
+  const recentMessages = recentMessagesList
+    .map((item) => ({ role: item.role, content: normalizeIterationMessageContent(item.role as "user" | "assistant", item.content) }));
   const recentSuggestedActions = parseRecentSuggestedActions(recentMessages);
-
-  const blockedLines: string[] = [];
-  if (gateResult.blocked) {
-    blockedLines.push(
-      "", "⚠ 当前阶段存在阻断，需要先处理以下问题：",
-      ...gateResult.blockers.map((b) => `  - ${b}`),
-      "请在回复中：1）先回应用户的问题或疑问，不要忽略；2）简明说明阻断原因；3）给出用户可操作的具体建议（如上传什么材料、确认什么信息）。"
-    );
-  }
-  if (policyGate?.blocked) {
-    blockedLines.push(
-      "", "⚠ 项目策略约束：", `  - ${policyGate.reason}`,
-      ...(policyGate.requiredActions.length > 0 ? [`  建议操作：${policyGate.requiredActions.join("、")}`] : [])
-    );
-  }
+  const blockedLines = buildBlockerContext(gateResult, policyGate);
 
   const prompt = {
     agentId: `agent-stage-${gateResult.currentStage}-1`,
@@ -292,8 +300,7 @@ async function routeToStageAgent(params: {
   try {
     continuationResult = await runLlm();
   } catch (firstError) {
-    console.warn("[orchestrator] First LLM attempt failed, retrying once",
-      firstError instanceof Error ? firstError.message : String(firstError));
+    log.warn("first LLM attempt failed, retrying once", { error: firstError instanceof Error ? firstError.message : String(firstError) });
     await new Promise<void>((r) => setTimeout(r, 1500));
     continuationResult = await runLlm();
   }
@@ -341,6 +348,79 @@ function processAgentResponse(
 
 // ── Phase: 交付物合成 ──
 
+async function ensureStructuredRequirements(
+  agentRunner: AgentRunner,
+  repo: WorkspaceRepository,
+  iterationId: number,
+  cc: ReturnType<typeof defaultIterationChangeControl>
+): Promise<{ cc: ReturnType<typeof defaultIterationChangeControl>; workflow: ReturnType<typeof defaultIterationChangeControl>["artifactWorkflow"] | undefined } | null> {
+  const coreIntent = cc.lastBusinessConfirmation?.coreIntent?.trim() || "";
+  const bcEmpty = !coreIntent || isLowSignalText(coreIntent);
+  const lastAttempt = lastExtractionAttempt.get(iterationId) ?? 0;
+  const cooldownOk = Date.now() - lastAttempt > 30_000;
+  if (!bcEmpty || !cooldownOk) return null;
+
+  recordExtractionAttempt(iterationId);
+  const extracted = await extractRequirementsFromConversation(agentRunner, repo, iterationId);
+  if (!extracted) return null;
+
+  const refreshed = repo.findIteration(iterationId);
+  if (!refreshed) return null;
+  const refreshedNormalized = normalizeIteration(refreshed);
+  return {
+    cc: refreshedNormalized.changeControl ?? defaultIterationChangeControl(),
+    workflow: refreshedNormalized.changeControl?.artifactWorkflow
+  };
+}
+
+type WorkflowItem = ReturnType<typeof defaultIterationChangeControl>["artifactWorkflow"]["items"][number];
+
+function processArtifactItem(
+  repo: WorkspaceRepository,
+  iterationId: number,
+  artifactId: string,
+  item: WorkflowItem,
+  isDeclared: boolean,
+  insufficientArtifacts: string[],
+  committedArtifactTitles: string[]
+) {
+  if (item.outputVersion > 0 && item.gateStatus === "passed" && !item.stale) return;
+
+  const draftEditedByHuman = item.draft?.updatedBy &&
+    item.draft.updatedBy !== "system" && item.draft.updatedBy !== "orchestrator";
+  const draftContent = (item.draft?.content ?? "").trim();
+
+  // 已提交但 stale → 只清标记不重新提交（防级联 markDownstreamStale）
+  if (item.outputVersion > 0 && item.stale) {
+    if (isSubstantiveContent(draftContent)) {
+      confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
+    }
+    return;
+  }
+
+  if (isSubstantiveContent(draftContent)) {
+    if (!draftEditedByHuman) {
+      saveIterationArtifactDraftOp(repo, iterationId, artifactId, { content: draftContent, actor: "orchestrator" });
+    }
+    if (item.outputVersion > 0 && !item.stale) {
+      if (item.gateStatus !== "passed") {
+        confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
+      }
+    } else {
+      commitIterationArtifactOp(repo, iterationId, artifactId, {
+        actor: "orchestrator", summary: item.summary || item.title, source: "stage-orchestrator"
+      });
+      const alreadyConfirmedByHuman = item.lastConfirmedBy && item.lastConfirmedBy !== "orchestrator";
+      if (!alreadyConfirmedByHuman) {
+        confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
+      }
+      committedArtifactTitles.push(item.title);
+    }
+  } else if (isDeclared) {
+    insufficientArtifacts.push(item.title);
+  }
+}
+
 async function attemptArtifactSynthesis(params: {
   repo: WorkspaceRepository;
   agentRunner: AgentRunner;
@@ -350,86 +430,53 @@ async function attemptArtifactSynthesis(params: {
   declaredArtifacts: string[];
 }) {
   const { repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts } = params;
-  // LLM 调用后刷新数据，避免使用过期快照
   const freshIteration = repo.findIteration(iterationId);
   if (!freshIteration) return { insufficientArtifacts: [] as string[], committedArtifactTitles: [] as string[] };
-  let normalized = normalizeIteration(freshIteration);
+  const normalized = normalizeIteration(freshIteration);
   let workflow = normalized.changeControl?.artifactWorkflow;
   const insufficientArtifacts: string[] = [];
   const committedArtifactTitles: string[] = [];
 
-  if (gateResult.blocked || !workflow) {
-    return { insufficientArtifacts, committedArtifactTitles };
-  }
+  if (gateResult.blocked || !workflow) return { insufficientArtifacts, committedArtifactTitles };
 
   const artifactsToAttempt = new Set(declaredArtifacts);
   for (const id of agentDef.allowedArtifacts) {
     const item = workflow.items.find((i) => i.id === id);
-    if (item && item.gateStatus !== "passed") {
-      artifactsToAttempt.add(id);
-    }
+    if (item && item.gateStatus !== "passed") artifactsToAttempt.add(id);
   }
-  if (artifactsToAttempt.size === 0) {
-    return { insufficientArtifacts, committedArtifactTitles };
-  }
+  if (artifactsToAttempt.size === 0) return { insufficientArtifacts, committedArtifactTitles };
 
   let cc = normalized.changeControl ?? defaultIterationChangeControl();
-  let currentNormalized = normalized;
+  const refreshed = await ensureStructuredRequirements(agentRunner, repo, iterationId, cc);
+  if (refreshed) {
+    cc = refreshed.cc;
+    workflow = refreshed.workflow ?? workflow;
+  }
 
-  // 前置检查：结构化需求数据缺失时，先从对话提取再合成
-  const bcEmpty = !cc.lastBusinessConfirmation?.coreIntent?.trim();
-  const lastAttempt = lastExtractionAttempt.get(iterationId) ?? 0;
-  const cooldownOk = Date.now() - lastAttempt > 30_000;
-  if (bcEmpty && cooldownOk) {
-    recordExtractionAttempt(iterationId);
-    const extracted = await extractRequirementsFromConversation(agentRunner, repo, iterationId);
-    if (extracted) {
-      const refreshed = repo.findIteration(iterationId);
-      if (refreshed) {
-        currentNormalized = normalizeIteration(refreshed);
-        cc = currentNormalized.changeControl ?? defaultIterationChangeControl();
-        workflow = currentNormalized.changeControl?.artifactWorkflow ?? workflow;
+  // 对 LLM 声明但无内容的交付物，尝试按需合成
+  for (const artifactId of declaredArtifacts) {
+    const item = workflow.items.find((i) => i.id === artifactId);
+    if (!item || isSubstantiveContent(item.draft?.content ?? "")) continue;
+    try {
+      const result = await synthesizeSingleArtifactOnDemand(agentRunner, artifactId, normalized, cc);
+      if (result.content && isSubstantiveContent(result.content)) {
+        saveIterationArtifactDraftOp(repo, iterationId, artifactId, {
+          content: result.content, actor: "orchestrator"
+        });
+        const refreshedIter = repo.findIteration(iterationId);
+        if (refreshedIter) {
+          workflow = normalizeIteration(refreshedIter).changeControl?.artifactWorkflow ?? workflow;
+        }
       }
+    } catch (err) {
+      log.warn("on-demand artifact synthesis failed", { artifactId, error: err instanceof Error ? err.message : String(err) });
     }
   }
 
   for (const artifactId of artifactsToAttempt) {
     const item = workflow.items.find((i) => i.id === artifactId);
     if (!item) continue;
-
-    // 幂等守卫：已提交 + 已确认 + 未过期 → 跳过，不重复 commit/announce
-    if (item.outputVersion > 0 && item.gateStatus === "passed" && !item.stale) continue;
-
-    const draftEditedByHuman = item.draft?.updatedBy &&
-      item.draft.updatedBy !== "system" && item.draft.updatedBy !== "orchestrator";
-    const existingDraft = (item.draft?.content ?? "").trim();
-    let draftContent = existingDraft;
-    if (!draftEditedByHuman && !isSubstantiveContent(draftContent)) {
-      draftContent = synthesizeArtifactDraftContent(artifactId, currentNormalized, cc);
-    }
-
-    if (isSubstantiveContent(draftContent)) {
-      if (!draftEditedByHuman) {
-        saveIterationArtifactDraftOp(repo, iterationId, artifactId, { content: draftContent, actor: "orchestrator" });
-      }
-      // 已提交但未确认（如人工 commit 后等待确认） → 仅确认，不重复提交
-      if (item.outputVersion > 0 && !item.stale) {
-        if (item.gateStatus !== "passed") {
-          confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
-        }
-      } else {
-        commitIterationArtifactOp(repo, iterationId, artifactId, {
-          actor: "orchestrator", summary: item.summary || item.title, source: "stage-orchestrator"
-        });
-        const alreadyConfirmedByHuman = item.lastConfirmedBy && item.lastConfirmedBy !== "orchestrator";
-        if (!alreadyConfirmedByHuman) {
-          confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
-        }
-        committedArtifactTitles.push(item.title);
-      }
-    } else if (declaredArtifacts.includes(artifactId)) {
-      insufficientArtifacts.push(item.title);
-    }
+    processArtifactItem(repo, iterationId, artifactId, item, declaredArtifacts.includes(artifactId), insufficientArtifacts, committedArtifactTitles);
   }
 
   return { insufficientArtifacts, committedArtifactTitles };
@@ -476,64 +523,29 @@ function evaluateAndAdvanceStage(
 
 // ── Core orchestration ──
 
-export async function orchestrateCoachMessage(params: {
-  repo: WorkspaceRepository;
-  agentRunner: AgentRunner;
-  iterationId: number;
-  message: string;
-  project: Project | null;
-  previous: Iteration | null;
-  policyGate?: { blocked: boolean; reason: string; requiredActions: string[] } | null;
-}): Promise<IterationCoachChatResponse> {
-  const { repo, agentRunner, iterationId } = params;
+function buildDegradedResponse(iterationId: number, reason: string, model?: string): IterationCoachChatResponse {
+  const isUsed = reason !== "iteration_not_found";
+  return {
+    iterationId, intent: "general",
+    reply: reason === "iteration_not_found" ? "迭代不存在。" : "抱歉，我暂时无法回复。请稍后重试。",
+    execution: { action: "none", instruction: "", apply: false },
+    guidance: { uploadRecommended: false, suggestedUploadTypes: [], suggestedActions: [], clarificationChecklist: [] },
+    llm: { used: isUsed, model: model || "", degraded: isUsed, reason }
+  };
+}
 
-  const iteration = repo.findIteration(iterationId);
-  if (!iteration) {
-    return {
-      iterationId, intent: "general", reply: "迭代不存在。",
-      execution: { action: "none", instruction: "", apply: false },
-      guidance: { uploadRecommended: false, suggestedUploadTypes: [], suggestedActions: [], clarificationChecklist: [] },
-      llm: { used: false, model: "", degraded: false, reason: "iteration_not_found" }
-    };
-  }
-
-  const normalized = normalizeIteration(iteration);
-  const gateResult = evaluateCurrentStageGate(normalized);
-
-  if (gateResult.blocked) {
-    writeAuditLog(repo, "orchestrator.blocked", `iteration:${iterationId}`, `stage=${gateResult.currentStage};blockers=${gateResult.blockers.join(",")}`);
-  }
-
-  // Phase 1: 路由 + LLM 调用
-  const { continuationResult, agentDef, recentSuggestedActions } = await routeToStageAgent({
-    ...params, normalized, gateResult
-  });
-
-  // Phase 2: 解析 Agent 返回
-  const parsed = processAgentResponse(continuationResult, agentDef, recentSuggestedActions);
-  if (!parsed.reply) {
-    return {
-      iterationId, intent: "general", reply: "抱歉，我暂时无法回复。请稍后重试。",
-      execution: { action: "none", instruction: "", apply: false },
-      guidance: { uploadRecommended: false, suggestedUploadTypes: [], suggestedActions: [], clarificationChecklist: [] },
-      llm: { used: true, model: continuationResult.model || "", degraded: true, reason: "empty_reply" }
-    };
-  }
-
-  // Phase 3: 交付物合成
-  const { insufficientArtifacts, committedArtifactTitles } = await attemptArtifactSynthesis({
-    repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts
-  });
-
-  // Phase 4: 阶段推进
-  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult);
-
-  // 组装最终回复
+function assembleCoachResponse(
+  iterationId: number,
+  parsed: ReturnType<typeof processAgentResponse>,
+  continuationResult: { model?: string; continuations?: number; complete?: boolean },
+  stageAdvanceNote: string,
+  insufficientArtifacts: string[],
+  committedArtifactTitles: string[]
+): IterationCoachChatResponse {
   const insufficiencyNote = insufficientArtifacts.length > 0
-    ? `\n\n目前信息还不够生成${insufficientArtifacts.join("、")}，需要你先补充材料或确认关键信息。` : "";
+    ? `\n\n${insufficientArtifacts.join("、")}暂未生成，可能需要更多上下文信息。你可以补充材料后再试。` : "";
   const artifactNote = committedArtifactTitles.length > 0
     ? `\n\n已为你生成以下交付物：${committedArtifactTitles.join("、")}。你可以在交付物面板中查看详情。` : "";
-
   return {
     iterationId,
     intent: parsed.finalIntent as IterationCoachChatResponse["intent"],
@@ -556,4 +568,41 @@ export async function orchestrateCoachMessage(params: {
       contentComplete: continuationResult.complete
     }
   };
+}
+
+export async function orchestrateCoachMessage(params: {
+  repo: WorkspaceRepository;
+  agentRunner: AgentRunner;
+  iterationId: number;
+  message: string;
+  project: Project | null;
+  previous: Iteration | null;
+  policyGate?: { blocked: boolean; reason: string; requiredActions: string[] } | null;
+}): Promise<IterationCoachChatResponse> {
+  const { repo, agentRunner, iterationId } = params;
+
+  const iteration = repo.findIteration(iterationId);
+  if (!iteration) return buildDegradedResponse(iterationId, "iteration_not_found");
+
+  const normalized = normalizeIteration(iteration);
+  const gateResult = evaluateCurrentStageGate(normalized);
+
+  if (gateResult.blocked) {
+    writeAuditLog(repo, "orchestrator.blocked", `iteration:${iterationId}`, `stage=${gateResult.currentStage};blockers=${gateResult.blockers.join(",")}`);
+  }
+
+  const { continuationResult, agentDef, recentSuggestedActions } = await routeToStageAgent({
+    ...params, normalized, gateResult
+  });
+
+  const parsed = processAgentResponse(continuationResult, agentDef, recentSuggestedActions);
+  if (!parsed.reply) return buildDegradedResponse(iterationId, "empty_reply", continuationResult.model);
+
+  const { insufficientArtifacts, committedArtifactTitles } = await attemptArtifactSynthesis({
+    repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts
+  });
+
+  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult);
+
+  return assembleCoachResponse(iterationId, parsed, continuationResult, stageAdvanceNote, insufficientArtifacts, committedArtifactTitles);
 }

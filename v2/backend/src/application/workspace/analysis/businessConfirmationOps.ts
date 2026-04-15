@@ -46,20 +46,20 @@ export function parseBusinessConfirmationCandidate(content: string) {
 
 export function listBusinessConfirmationMissingReasons(candidate: ReturnType<typeof parseBusinessConfirmationCandidate>) {
   const reasons: string[] = [];
-  if (!candidate.coreIntent) reasons.push("missing coreIntent");
-  if (candidate.successCriteria.length === 0) reasons.push("successCriteria is empty");
-  if (candidate.interactionInsights.primaryFlow.length === 0) reasons.push("interactionInsights.primaryFlow is empty");
-  if (candidate.interactionInsights.keyInteractions.length === 0) reasons.push("interactionInsights.keyInteractions is empty");
+  if (!candidate.coreIntent) reasons.push("核心意图缺失");
+  if (candidate.successCriteria.length === 0) reasons.push("成功标准为空");
+  if (candidate.interactionInsights.primaryFlow.length === 0) reasons.push("主要交互流程为空");
+  if (candidate.interactionInsights.keyInteractions.length === 0) reasons.push("关键交互为空");
   if (candidate.necessityAssessment.mustDo.length === 0 && candidate.necessityAssessment.shouldDo.length === 0 && candidate.necessityAssessment.canDefer.length === 0) {
-    reasons.push("necessityAssessment has no actionable items");
+    reasons.push("必要性评估无可执行项");
   }
-  if (!candidate.necessityAssessment.rationale) reasons.push("missing necessityAssessment.rationale");
-  if (candidate.evidenceRefs.length === 0) reasons.push("evidenceRefs is empty");
-  if (!candidate.boundarySummary) reasons.push("missing boundarySummary");
-  if (candidate.functionalPoints.length === 0) reasons.push("functionalPoints is empty");
-  if (candidate.confirmationChecklist.length === 0) reasons.push("confirmationChecklist is empty");
-  if (!candidate.versionDiffSummary) reasons.push("missing versionDiffSummary");
-  if (candidate.diffNarratives.length === 0) reasons.push("diffNarratives is empty");
-  if (candidate.diffConfirmationOrder.length === 0) reasons.push("diffConfirmationOrder is empty");
+  if (!candidate.necessityAssessment.rationale) reasons.push("必要性理由缺失");
+  if (candidate.evidenceRefs.length === 0) reasons.push("证据引用为空");
+  if (!candidate.boundarySummary) reasons.push("边界总结缺失");
+  if (candidate.functionalPoints.length === 0) reasons.push("功能要点为空");
+  if (candidate.confirmationChecklist.length === 0) reasons.push("确认清单为空");
+  if (!candidate.versionDiffSummary) reasons.push("版本差异摘要缺失");
+  if (candidate.diffNarratives.length === 0) reasons.push("差异叙述为空");
+  if (candidate.diffConfirmationOrder.length === 0) reasons.push("差异确认顺序为空");
   return reasons;
 }

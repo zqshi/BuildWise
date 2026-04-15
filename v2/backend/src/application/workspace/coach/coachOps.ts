@@ -14,6 +14,49 @@ import {
 } from '../governance/policyOps';
 import { orchestrateCoachMessage } from "./stageOrchestrator";
 
+function mergeSkillChainGuidance(
+  response: IterationCoachChatResponse,
+  skillChain: ReturnType<typeof runOpenclawSkillChainForCoach>,
+  recentSuggestedActions: string[]
+) {
+  if (skillChain.suggestedActions.length > 0) {
+    const skillActions = dedupeActions(skillChain.suggestedActions, recentSuggestedActions);
+    response.guidance.suggestedActions = dedupeActions(
+      [...response.guidance.suggestedActions, ...skillActions],
+      recentSuggestedActions
+    );
+  }
+  if (skillChain.checklist.length > 0) {
+    response.guidance.clarificationChecklist = Array.from(
+      new Set([...response.guidance.clarificationChecklist, ...skillChain.checklist])
+    ).slice(0, 8);
+  }
+}
+
+function logCoachPolicyExecution(
+  repo: WorkspaceRepository,
+  normalized: ReturnType<typeof normalizeIteration>,
+  gate: ReturnType<typeof evaluatePolicyGateForCoachOp>,
+  activePolicy: NonNullable<ReturnType<typeof getEffectiveOrchestrationPolicyForProjectOp>>,
+  response: IterationCoachChatResponse,
+  skillChain: ReturnType<typeof runOpenclawSkillChainForCoach>
+) {
+  appendPolicyExecutionLogOp(repo, {
+    projectId: normalized.projectId,
+    iterationId: normalized.id,
+    policyVersion: activePolicy.version,
+    stage: gate.stage,
+    action: "coach_reply_generated",
+    result: "success",
+    evidence: [
+      response.reply.slice(0, 180),
+      `skills=${skillChain.selectedSkills.join(" | ") || "none"}`,
+      `skill_reasons=${skillChain.selectionReasons.join(" | ") || "none"}`,
+      ...skillChain.evidence.slice(0, 4)
+    ]
+  });
+}
+
 export async function coachIterationConversationOp(
   repo: WorkspaceRepository,
   agentRunner: AgentRunner | null,
@@ -79,48 +122,15 @@ export async function coachIterationConversationOp(
   // ── 通过 StageOrchestrator 路由到阶段专职 Agent ──
   try {
     const response = await orchestrateCoachMessage({
-      repo,
-      agentRunner,
-      iterationId,
-      message,
+      repo, agentRunner, iterationId, message,
       project: project ?? null,
       previous: previous ? normalizeIteration(previous) : null,
       policyGate
     });
-
-    // 合并 skill chain 建议到 response
-    if (skillChain.suggestedActions.length > 0) {
-      const skillActions = dedupeActions(skillChain.suggestedActions, recentSuggestedActions);
-      response.guidance.suggestedActions = dedupeActions(
-        [...response.guidance.suggestedActions, ...skillActions],
-        recentSuggestedActions
-      );
-    }
-    if (skillChain.checklist.length > 0) {
-      response.guidance.clarificationChecklist = Array.from(
-        new Set([...response.guidance.clarificationChecklist, ...skillChain.checklist])
-      ).slice(0, 8);
-    }
-
-    // Policy execution log
+    mergeSkillChainGuidance(response, skillChain, recentSuggestedActions);
     if (activePolicy) {
-      appendPolicyExecutionLogOp(repo, {
-        projectId: normalized.projectId,
-        iterationId: normalized.id,
-        policyVersion: activePolicy.version,
-        stage: gate.stage,
-        action: "coach_reply_generated",
-        result: "success",
-        evidence: [
-          response.reply.slice(0, 180),
-          `skills=${skillChain.selectedSkills.join(" | ") || "none"}`,
-          `skill_reasons=${skillChain.selectionReasons.join(" | ") || "none"}`,
-          ...skillChain.evidence.slice(0, 4)
-        ]
-      });
+      logCoachPolicyExecution(repo, normalized, gate, activePolicy, response, skillChain);
     }
-
-    // 消息持久化由前端统一负责
     return response;
   } catch (error) {
     if (error instanceof LlmInvocationError) {

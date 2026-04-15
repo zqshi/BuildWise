@@ -12,9 +12,7 @@ import type {
 import type { FullCycleCheckpoint, FullCycleStepId, FullCycleStepState } from '../../../domain/workspace/iterationTypes';
 import type { AgentRunner } from '../shared/agentRunner';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
-import { runFullCycleFinalizeOps } from './fullCycleFinalizeOps';
-import { mergeRewriteResults } from '../upload/attachmentUtils';
-import { generateUxExecutionGuidanceOp } from './uxGuidanceOps';
+import { executeStep, type FullCycleStepResults } from './fullCycleSteps';
 
 type PublishResult = {
   ok: boolean;
@@ -280,11 +278,44 @@ function buildResponseFromCheckpoint(
   };
 }
 
-// ── Main entry point ──
+function shouldSkipStep(stepId: FullCycleStepId, flags: FullCycleFlags): string | null {
+  if (stepId === "analysis" && !flags.runAnalysis) return "按参数跳过分析。";
+  if (stepId === "confirmation" && !flags.autoConfirm) return "按参数跳过自动确认。";
+  if (stepId === "test-artifacts" && !flags.generateTestArtifacts) return "按参数跳过测试产物生成。";
+  if (stepId === "release-review" && !flags.refreshReleaseReview) return "按参数跳过发布评审刷新。";
+  if (stepId === "delivery-package" && !flags.generateDeliveryPackage) return "按参数跳过交付包生成。";
+  if (stepId === "publish" && !flags.publishEnabled) return "按参数跳过发布。";
+  return null;
+}
 
-export { STEP_LABELS };
+function handleBlockedStep(
+  stepId: FullCycleStepId,
+  stepState: FullCycleStepState,
+  missing: string[],
+  checkpoint: FullCycleCheckpoint,
+  repo: WorkspaceRepository,
+  iterationId: number,
+  blockers: string[],
+  warnings: string[],
+  results: FullCycleResultAccumulator
+): IterationFullCycleRunResponse {
+  stepState.status = "blocked";
+  stepState.note = `前置条件不满足：${missing.join("；")}`;
+  stepState.missingPreconditions = missing;
+  stepState.retryable = true;
+  checkpoint.currentStep = stepId;
+  checkpoint.resumable = true;
+  checkpoint.lastUpdatedAt = new Date().toISOString();
+  persistCheckpoint(repo, iterationId, checkpoint);
+  writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `blocked_at=${stepId};missing=${missing.join(",")}`);
+  return buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
+}
 
-export async function runIterationFullCycleOp(params: {
+type FullCycleResultAccumulator = FullCycleStepResults;
+
+export type BuildResponseFn = typeof buildResponseFromCheckpoint;
+
+export type FullCycleRunParams = {
   repo: WorkspaceRepository;
   agentRunner: AgentRunner | null;
   iterationId: number;
@@ -298,32 +329,14 @@ export async function runIterationFullCycleOp(params: {
       actor?: string;
       force?: boolean;
       resolvedClarificationQuestions?: string[];
-      boundary?: {
-        requirementRefs: string[];
-        componentRefs: string[];
-        codePaths: string[];
-        note: string;
-      };
+      boundary?: { requirementRefs: string[]; componentRefs: string[]; codePaths: string[]; note: string };
     }
-  ) => {
-    ok: boolean;
-    reason?: string;
-    unresolvedQuestions?: string[];
-    quality?: { score?: number; summary?: string };
-  };
+  ) => { ok: boolean; reason?: string; unresolvedQuestions?: string[]; quality?: { score?: number; summary?: string } };
   rewriteCodeInBoundary: (
     iterationId: number,
-    input: {
-      instruction: string;
-      dryRun?: boolean;
-      maxFiles?: number;
-      role?: "delivery-engineer" | "frontend-developer" | "backend-developer";
-    }
+    input: { instruction: string; dryRun?: boolean; maxFiles?: number; role?: "delivery-engineer" | "frontend-developer" | "backend-developer" }
   ) => Promise<IterationFullCycleRunResponse["rewriteResult"]>;
-  generateIterationTestArtifacts: (
-    iterationId: number,
-    input: { dryRun?: boolean }
-  ) => Promise<IterationTestArtifactsGenerationResponse | null>;
+  generateIterationTestArtifacts: (iterationId: number, input: { dryRun?: boolean }) => Promise<IterationTestArtifactsGenerationResponse | null>;
   getIterationReleaseReview: (iterationId: number) => IterationReleaseReviewResponse | null;
   generateIterationDeliveryPackage: (
     iterationId: number,
@@ -331,161 +344,135 @@ export async function runIterationFullCycleOp(params: {
   ) => Promise<IterationDeliveryPackageResult | null>;
   publishIterationToRemote: (
     iterationId: number,
-    input: {
-      dryRun?: boolean;
-      openPr?: boolean;
-      commitMessage?: string;
-      prTitle?: string;
-      prBody?: string;
-    }
+    input: { dryRun?: boolean; openPr?: boolean; commitMessage?: string; prTitle?: string; prBody?: string }
   ) => Promise<PublishResult>;
-}): Promise<IterationFullCycleRunResponse | null> {
-  const { repo, agentRunner: _agentRunner, iterationId, input } = params;
+};
+
+type FullCycleFlags = {
+  runAnalysis: boolean;
+  autoConfirm: boolean;
+  generateTestArtifacts: boolean;
+  refreshReleaseReview: boolean;
+  generateDeliveryPackage: boolean;
+  publishEnabled: boolean;
+};
+
+function resolveFullCycleFlags(input: IterationFullCycleRunInput): FullCycleFlags {
+  return {
+    runAnalysis: input.runAnalysis !== false,
+    autoConfirm: input.autoConfirmAnalysis !== false,
+    generateTestArtifacts: input.generateTestArtifacts !== false,
+    refreshReleaseReview: input.refreshReleaseReview !== false,
+    generateDeliveryPackage: input.generateDeliveryPackage !== false,
+    publishEnabled: input.publish?.enabled !== false
+  };
+}
+
+async function executeStepLoop(
+  params: FullCycleRunParams,
+  checkpoint: FullCycleCheckpoint,
+  flags: FullCycleFlags,
+  results: FullCycleResultAccumulator,
+  blockers: string[],
+  warnings: string[]
+): Promise<IterationFullCycleRunResponse | null> {
+  const { repo, iterationId, input } = params;
+  for (let i = 0; i < STEP_ORDER.length; i++) {
+    const stepId = STEP_ORDER[i]!;
+    const stepState = checkpoint.steps[stepId];
+    if (stepState.status === "completed") continue;
+
+    const skipReason = shouldSkipStep(stepId, flags);
+    if (skipReason) {
+      stepState.status = "completed";
+      stepState.note = skipReason;
+      stepState.completedAt = new Date().toISOString();
+      continue;
+    }
+
+    const freshIteration = repo.findIteration(iterationId);
+    if (!freshIteration) { blockers.push("迭代不存在"); break; }
+    const missing = checkPreconditions(stepId, freshIteration, checkpoint);
+    if (missing.length > 0) {
+      return handleBlockedStep(stepId, stepState, missing, checkpoint, repo, iterationId, blockers, warnings, results);
+    }
+
+    checkpoint.currentStep = stepId;
+    checkpoint.lastUpdatedAt = new Date().toISOString();
+
+    const earlyReturn = await executeSingleStep(stepId, stepState, params, input, checkpoint, results, blockers, warnings);
+    if (earlyReturn) return earlyReturn;
+
+    checkpoint.lastUpdatedAt = new Date().toISOString();
+    persistCheckpoint(repo, iterationId, checkpoint);
+  }
+  return null;
+}
+
+async function executeSingleStep(
+  stepId: FullCycleStepId,
+  stepState: FullCycleStepState,
+  params: FullCycleRunParams,
+  input: IterationFullCycleRunInput,
+  checkpoint: FullCycleCheckpoint,
+  results: FullCycleResultAccumulator,
+  blockers: string[],
+  warnings: string[]
+): Promise<IterationFullCycleRunResponse | null> {
+  const { repo, iterationId } = params;
+  try {
+    await executeStep(stepId, params, input, checkpoint, results, blockers, warnings, buildResponseFromCheckpoint);
+    if (stepState.status === "blocked" || stepState.status === "failed") {
+      checkpoint.resumable = stepState.retryable;
+      checkpoint.lastUpdatedAt = new Date().toISOString();
+      persistCheckpoint(repo, iterationId, checkpoint);
+      writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `${stepState.status}_at=${stepId}`);
+      return buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
+    }
+    stepState.status = "completed";
+    stepState.completedAt = new Date().toISOString();
+    return null;
+  } catch (err) {
+    stepState.status = "failed";
+    stepState.failedAt = new Date().toISOString();
+    stepState.note = err instanceof Error ? err.message : "执行失败";
+    stepState.retryable = true;
+    checkpoint.resumable = true;
+    checkpoint.lastUpdatedAt = new Date().toISOString();
+    persistCheckpoint(repo, iterationId, checkpoint);
+    blockers.push(`${STEP_LABELS[stepId]}失败：${stepState.note}`);
+    writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `failed_at=${stepId};error=${stepState.note.slice(0, 120)}`);
+    return buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
+  }
+}
+
+// ── Main entry point ──
+
+export { STEP_LABELS };
+
+export async function runIterationFullCycleOp(params: FullCycleRunParams): Promise<IterationFullCycleRunResponse | null> {
+  const { repo, iterationId, input } = params;
   const iteration = repo.findIteration(iterationId);
   if (!iteration) return null;
 
   const now = new Date().toISOString();
   const blockers: string[] = [];
   const warnings: string[] = [];
-
-  // Resolve input flags (default true)
-  const runAnalysis = input.runAnalysis !== false;
-  const autoConfirm = input.autoConfirmAnalysis !== false;
-  const generateTestArtifacts = input.generateTestArtifacts !== false;
-  const refreshReleaseReview = input.refreshReleaseReview !== false;
-  const generateDeliveryPackage = input.generateDeliveryPackage !== false;
-  const publishEnabled = input.publish?.enabled !== false;
-
-  // Result accumulators
-  const results: {
-    analysisReport: AttachmentAnalysisReport | null;
-    rewriteResult: IterationFullCycleRunResponse["rewriteResult"];
-    testArtifactsResult: IterationTestArtifactsGenerationResponse | null;
-    releaseReview: IterationReleaseReviewResponse | null;
-    deliveryPackageResult: IterationDeliveryPackageResult | null;
-    publishResult: IterationFullCycleRunResponse["publishResult"];
-  } = {
-    analysisReport: null,
-    rewriteResult: null,
-    testArtifactsResult: null,
-    releaseReview: null,
-    deliveryPackageResult: null,
-    publishResult: null
+  const flags = resolveFullCycleFlags(input);
+  const results: FullCycleResultAccumulator = {
+    analysisReport: null, rewriteResult: null, testArtifactsResult: null,
+    releaseReview: null, deliveryPackageResult: null, publishResult: null
   };
 
-  // ── Restore or initialize checkpoint ──
   const existingCheckpoint = iteration.changeControl?.fullCycleCheckpoint;
   const checkpoint: FullCycleCheckpoint = (existingCheckpoint && existingCheckpoint.resumable)
     ? { ...existingCheckpoint, lastUpdatedAt: now }
     : initCheckpoint(now);
 
   try {
-    for (let i = 0; i < STEP_ORDER.length; i++) {
-      const stepId = STEP_ORDER[i]!;
-      const stepState = checkpoint.steps[stepId];
+    const earlyReturn = await executeStepLoop(params, checkpoint, flags, results, blockers, warnings);
+    if (earlyReturn) return earlyReturn;
 
-      // ── Already completed → skip (idempotent) ──
-      if (stepState.status === "completed") continue;
-
-      // ── Check if step is disabled by input flags ──
-      if (stepId === "analysis" && !runAnalysis) {
-        stepState.status = "completed";
-        stepState.note = "按参数跳过分析。";
-        stepState.completedAt = new Date().toISOString();
-        continue;
-      }
-      if (stepId === "confirmation" && !autoConfirm) {
-        stepState.status = "completed";
-        stepState.note = "按参数跳过自动确认。";
-        stepState.completedAt = new Date().toISOString();
-        continue;
-      }
-      if (stepId === "test-artifacts" && !generateTestArtifacts) {
-        stepState.status = "completed";
-        stepState.note = "按参数跳过测试产物生成。";
-        stepState.completedAt = new Date().toISOString();
-        continue;
-      }
-      if (stepId === "release-review" && !refreshReleaseReview) {
-        stepState.status = "completed";
-        stepState.note = "按参数跳过发布评审刷新。";
-        stepState.completedAt = new Date().toISOString();
-        continue;
-      }
-      if (stepId === "delivery-package" && !generateDeliveryPackage) {
-        stepState.status = "completed";
-        stepState.note = "按参数跳过交付包生成。";
-        stepState.completedAt = new Date().toISOString();
-        continue;
-      }
-      if (stepId === "publish" && !publishEnabled) {
-        stepState.status = "completed";
-        stepState.note = "按参数跳过发布。";
-        stepState.completedAt = new Date().toISOString();
-        continue;
-      }
-
-      // ── Check preconditions ──
-      const freshIteration = repo.findIteration(iterationId);
-      if (!freshIteration) {
-        blockers.push("迭代不存在");
-        break;
-      }
-      const missing = checkPreconditions(stepId, freshIteration, checkpoint);
-      if (missing.length > 0) {
-        // Stop at checkpoint — do not skip, do not produce fake content
-        stepState.status = "blocked";
-        stepState.note = `前置条件不满足：${missing.join("；")}`;
-        stepState.missingPreconditions = missing;
-        stepState.retryable = true;
-        checkpoint.currentStep = stepId;
-        checkpoint.resumable = true;
-        checkpoint.lastUpdatedAt = new Date().toISOString();
-        persistCheckpoint(repo, iterationId, checkpoint);
-        const response = buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
-        writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `blocked_at=${stepId};missing=${missing.join(",")}`);
-        return response;
-      }
-
-      // ── Execute step ──
-      checkpoint.currentStep = stepId;
-      checkpoint.lastUpdatedAt = new Date().toISOString();
-
-      try {
-        await executeStep(stepId, params, input, checkpoint, results, blockers, warnings);
-
-        // If step execution set status to blocked/failed, stop here
-        if (stepState.status === "blocked" || stepState.status === "failed") {
-          checkpoint.resumable = stepState.retryable;
-          checkpoint.lastUpdatedAt = new Date().toISOString();
-          persistCheckpoint(repo, iterationId, checkpoint);
-          const response = buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
-          writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `${stepState.status}_at=${stepId}`);
-          return response;
-        }
-
-        stepState.status = "completed";
-        stepState.completedAt = new Date().toISOString();
-      } catch (err) {
-        stepState.status = "failed";
-        stepState.failedAt = new Date().toISOString();
-        stepState.note = err instanceof Error ? err.message : "执行失败";
-        stepState.retryable = true;
-        checkpoint.resumable = true;
-        checkpoint.lastUpdatedAt = new Date().toISOString();
-        persistCheckpoint(repo, iterationId, checkpoint);
-        blockers.push(`${STEP_LABELS[stepId]}失败：${stepState.note}`);
-        const response = buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
-        writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `failed_at=${stepId};error=${stepState.note.slice(0, 120)}`);
-        return response;
-      }
-
-      // Persist after each step completion
-      checkpoint.lastUpdatedAt = new Date().toISOString();
-      persistCheckpoint(repo, iterationId, checkpoint);
-    }
-
-    // ── All steps completed ──
     checkpoint.completedAt = new Date().toISOString();
     checkpoint.currentStep = null;
     checkpoint.resumable = false;
@@ -504,285 +491,3 @@ export async function runIterationFullCycleOp(params: {
   }
 }
 
-// ── Step execution dispatcher ──
-
-async function executeStep(
-  stepId: FullCycleStepId,
-  params: Parameters<typeof runIterationFullCycleOp>[0],
-  input: IterationFullCycleRunInput,
-  checkpoint: FullCycleCheckpoint,
-  results: {
-    analysisReport: AttachmentAnalysisReport | null;
-    rewriteResult: IterationFullCycleRunResponse["rewriteResult"];
-    testArtifactsResult: IterationTestArtifactsGenerationResponse | null;
-    releaseReview: IterationReleaseReviewResponse | null;
-    deliveryPackageResult: IterationDeliveryPackageResult | null;
-    publishResult: IterationFullCycleRunResponse["publishResult"];
-  },
-  blockers: string[],
-  warnings: string[]
-): Promise<void> {
-  const { repo, agentRunner, iterationId } = params;
-  const stepState = checkpoint.steps[stepId];
-
-  switch (stepId) {
-    case "analysis": {
-      if (!input.analysisInput) {
-        stepState.status = "failed";
-        stepState.note = "缺少 analysisInput，无法执行分析。";
-        stepState.retryable = false;
-        blockers.push("缺少分析输入材料");
-        return;
-      }
-      const report = await params.analyzeAttachment(iterationId, {
-        ...input.analysisInput,
-        agentScope: input.analysisInput.agentScope || "full-cycle"
-      });
-      if (!report) {
-        stepState.status = "failed";
-        stepState.note = "分析失败：迭代不存在或结果为空。";
-        stepState.retryable = true;
-        blockers.push("材料分析失败");
-        return;
-      }
-      results.analysisReport = report;
-      stepState.note = `分析完成，待澄清问题 ${report.clarificationQuestions.length} 个`;
-      return;
-    }
-
-    case "confirmation": {
-      const currentIteration = repo.findIteration(iterationId);
-      const currentCC = currentIteration?.changeControl ?? defaultIterationChangeControl();
-      const unresolvedClarifications = Array.isArray(currentCC.clarificationQuestions) ? currentCC.clarificationQuestions : [];
-      const autoResolveClarifications = input.autoResolveClarifications !== false;
-      const resolvedClarificationQuestions = autoResolveClarifications ? unresolvedClarifications : [];
-      const autoBoundarySource = results.analysisReport?.executableConstraints;
-      const autoBoundary = autoBoundarySource
-        ? {
-            requirementRefs: results.analysisReport?.traceabilityMap.requirementToCode.map((item) => item.requirement).slice(0, 16) || [],
-            componentRefs: autoBoundarySource.componentWhitelist,
-            codePaths: autoBoundarySource.codePathWhitelist,
-            note: "由全流程执行器自动确认。"
-          }
-        : undefined;
-      const confirmResult = params.confirmIterationAnalysis(iterationId, {
-        accurate: true,
-        note: "全流程执行器自动确认",
-        actor: "full-cycle-bot",
-        resolvedClarificationQuestions,
-        boundary: autoBoundary
-      });
-      if (!confirmResult.ok) {
-        if (confirmResult.reason === "clarification_questions_unresolved") {
-          stepState.status = "blocked";
-          stepState.note = "存在未收敛澄清问题，自动确认被阻断。";
-          stepState.retryable = true;
-          blockers.push(...(confirmResult.unresolvedQuestions || []));
-        } else if (confirmResult.reason === "report_not_publishable") {
-          stepState.status = "blocked";
-          stepState.note = `报告质量门禁阻断：${confirmResult.quality?.summary || "report_not_publishable"}`;
-          stepState.retryable = true;
-          blockers.push(`报告质量评分 ${confirmResult.quality?.score || 0} 分，未达标`);
-        } else {
-          stepState.status = "failed";
-          stepState.note = `自动确认失败：${confirmResult.reason || "原因未知"}`;
-          stepState.retryable = true;
-          blockers.push(`分析确认失败：${confirmResult.reason || "原因未知"}`);
-        }
-        return;
-      }
-      stepState.note = "分析与边界已自动确认。";
-      return;
-    }
-
-    case "ux-guidance": {
-      const iterationForUx = repo.findIteration(iterationId) as Iteration | null;
-      const baseRewriteInstruction =
-        input.rewriteInstruction?.trim() ||
-        (results.analysisReport
-          ? `依据需求与验收清单执行边界内增量实现：${
-              results.analysisReport.businessConfirmation.necessityAssessment.mustDo.join("；") ||
-              results.analysisReport.businessConfirmation.functionalPoints.slice(0, 3).join("；")
-            }`
-          : "依据当前迭代边界与验收清单执行增量实现");
-
-      const uxGuidance = await generateUxExecutionGuidanceOp({
-        agentRunner,
-        iteration: iterationForUx,
-        analysisReport: results.analysisReport,
-        rewriteInstruction: baseRewriteInstruction
-      });
-      if (uxGuidance.warnings.length > 0) {
-        warnings.push(...uxGuidance.warnings);
-      }
-      // Persist UX artifacts
-      const iterationAfterUx = repo.findIteration(iterationId);
-      const shouldPersistUxArtifacts =
-        Boolean(uxGuidance.uxArtifacts?.updatedAt) ||
-        (uxGuidance.uxArtifacts?.informationArchitecture.length || 0) > 0 ||
-        (uxGuidance.uxArtifacts?.interactionFlows.length || 0) > 0 ||
-        (uxGuidance.uxArtifacts?.uiStates.length || 0) > 0 ||
-        (uxGuidance.uxArtifacts?.uxConstraints.length || 0) > 0;
-      if (iterationAfterUx && uxGuidance.uxArtifacts && shouldPersistUxArtifacts) {
-        iterationAfterUx.changeControl = {
-          ...(iterationAfterUx.changeControl || defaultIterationChangeControl()),
-          uxArtifacts: uxGuidance.uxArtifacts
-        };
-        repo.updateIteration(iterationAfterUx);
-      }
-      stepState.note = uxGuidance.guidance ? "UX 执行指引已生成。" : "UX 指引跳过（无需额外约束）。";
-      return;
-    }
-
-    case "frontend-rewrite": {
-      const iterForRewrite = repo.findIteration(iterationId);
-      const rewriteInstruction = buildRewriteInstruction(input, iterForRewrite, results.analysisReport);
-      const rewriteDryRun = input.rewriteDryRun === true;
-      const rewriteMaxFiles = typeof input.rewriteMaxFiles === "number" ? input.rewriteMaxFiles : 8;
-      const frontendRewrite = await params.rewriteCodeInBoundary(iterationId, {
-        instruction: `前端实现要求：${rewriteInstruction}`,
-        dryRun: rewriteDryRun,
-        maxFiles: Math.max(3, Math.ceil(rewriteMaxFiles / 2)),
-        role: "frontend-developer"
-      });
-      if (!frontendRewrite) {
-        stepState.status = "failed";
-        stepState.note = "前端改写失败：结果为空。";
-        stepState.retryable = true;
-        return;
-      }
-      if ((frontendRewrite.outOfBoundaryFiles?.length || 0) > 0) {
-        stepState.status = "blocked";
-        stepState.note = "前端改写存在越界文件。";
-        stepState.retryable = true;
-        blockers.push(...frontendRewrite.outOfBoundaryFiles.map((f) => `越界文件：${f}`));
-        return;
-      }
-      stepState.note = frontendRewrite.dryRun ? "模拟执行完成" : `前端改写完成，修改 ${frontendRewrite.edits.length} 处，跳过 ${frontendRewrite.skippedFiles.length} 个文件`;
-      return;
-    }
-
-    case "backend-rewrite": {
-      const iterForRewrite = repo.findIteration(iterationId);
-      const rewriteInstruction = buildRewriteInstruction(input, iterForRewrite, results.analysisReport);
-      const rewriteDryRun = input.rewriteDryRun === true;
-      const rewriteMaxFiles = typeof input.rewriteMaxFiles === "number" ? input.rewriteMaxFiles : 8;
-      const backendRewrite = await params.rewriteCodeInBoundary(iterationId, {
-        instruction: `后端实现要求：${rewriteInstruction}`,
-        dryRun: rewriteDryRun,
-        maxFiles: Math.max(3, Math.ceil(rewriteMaxFiles / 2)),
-        role: "backend-developer"
-      });
-      if (!backendRewrite) {
-        stepState.status = "failed";
-        stepState.note = "后端改写失败：结果为空。";
-        stepState.retryable = true;
-        return;
-      }
-      if ((backendRewrite.outOfBoundaryFiles?.length || 0) > 0) {
-        stepState.status = "blocked";
-        stepState.note = "后端改写存在越界文件。";
-        stepState.retryable = true;
-        blockers.push(...backendRewrite.outOfBoundaryFiles.map((f) => `越界文件：${f}`));
-        return;
-      }
-      stepState.note = backendRewrite.dryRun ? "模拟执行完成" : `后端改写完成，修改 ${backendRewrite.edits.length} 处，跳过 ${backendRewrite.skippedFiles.length} 个文件`;
-      return;
-    }
-
-    case "merge-rewrite": {
-      const rewriteDryRun = input.rewriteDryRun === true;
-      // Merge is a no-op in the new model — individual rewrite results are tracked per-step.
-      // We still call mergeRewriteResults for the combined response payload.
-      // Since frontend/backend rewrites store results in params callbacks that update changeControl,
-      // we just need to produce the merged result for the response.
-      results.rewriteResult = mergeRewriteResults(iterationId, rewriteDryRun, []);
-      stepState.note = "改写结果已合并。";
-      return;
-    }
-
-    case "test-artifacts": {
-      const artifacts = await params.generateIterationTestArtifacts(iterationId, {
-        dryRun: input.testArtifactsDryRun === true
-      });
-      results.testArtifactsResult = artifacts;
-      if (!artifacts) {
-        stepState.status = "failed";
-        stepState.note = "测试产物生成失败。";
-        stepState.retryable = true;
-        blockers.push("测试产物生成失败");
-        return;
-      }
-      stepState.note = artifacts.dryRun ? "模拟执行完成" : `测试产物已生成，共 ${artifacts.generatedFiles.length} 个文件`;
-      if (artifacts.warnings.length > 0) warnings.push(...artifacts.warnings);
-      return;
-    }
-
-    case "release-review":
-    case "delivery-package":
-    case "publish": {
-      // Delegate to finalize ops (they mutate response.steps directly via the legacy interface)
-      // Build a temporary legacy response object for the finalize ops
-      const legacyResponse: IterationFullCycleRunResponse = buildResponseFromCheckpoint(
-        iterationId, checkpoint, blockers, warnings, results
-      );
-      await runFullCycleFinalizeOps({
-        repo,
-        iterationId,
-        input,
-        response: legacyResponse,
-        blockers,
-        warnings,
-        refreshReleaseReview: stepId === "release-review",
-        generateDeliveryPackage: stepId === "delivery-package",
-        publishEnabled: stepId === "publish",
-        getIterationReleaseReview: params.getIterationReleaseReview,
-        generateIterationDeliveryPackage: params.generateIterationDeliveryPackage,
-        publishIterationToRemote: params.publishIterationToRemote
-      });
-      // Sync results back
-      results.releaseReview = legacyResponse.releaseReview ?? results.releaseReview;
-      results.deliveryPackageResult = legacyResponse.deliveryPackageResult ?? results.deliveryPackageResult;
-      results.publishResult = legacyResponse.publishResult ?? results.publishResult;
-
-      // Map legacy step status back to checkpoint
-      if (stepId === "release-review") {
-        const ls = legacyResponse.steps.releaseReview;
-        if (ls.status === "failed") { stepState.status = "failed"; stepState.retryable = true; }
-        stepState.note = ls.note;
-      } else if (stepId === "delivery-package") {
-        const ls = legacyResponse.steps.deliveryPackage;
-        if (ls.status === "failed") { stepState.status = "failed"; stepState.retryable = true; }
-        stepState.note = ls.note;
-      } else if (stepId === "publish") {
-        const ls = legacyResponse.steps.publish;
-        if (ls.status === "failed") { stepState.status = "failed"; stepState.retryable = true; }
-        if (ls.status === "blocked") { stepState.status = "blocked"; stepState.retryable = true; }
-        stepState.note = ls.note;
-      }
-      return;
-    }
-  }
-}
-
-// ── Shared rewrite instruction builder ──
-
-function buildRewriteInstruction(
-  input: IterationFullCycleRunInput,
-  iteration: Iteration | null,
-  analysisReport: AttachmentAnalysisReport | null
-): string {
-  const base = input.rewriteInstruction?.trim() ||
-    (analysisReport
-      ? `依据需求与验收清单执行边界内增量实现：${
-          analysisReport.businessConfirmation.necessityAssessment.mustDo.join("；") ||
-          analysisReport.businessConfirmation.functionalPoints.slice(0, 3).join("；")
-        }`
-      : "依据当前迭代边界与验收清单执行增量实现");
-
-  const executableChecks = iteration?.changeControl?.executableConstraints?.acceptanceChecks ?? [];
-  const scopeCriteria = iteration?.scope?.acceptanceCriteria ?? [];
-  const merged = Array.from(new Set([...scopeCriteria, ...executableChecks])).slice(0, 12);
-  const hint = merged.length > 0 ? `。请同时满足以下验收约束：${merged.join("；")}` : "";
-  return `${base}${hint}`;
-}

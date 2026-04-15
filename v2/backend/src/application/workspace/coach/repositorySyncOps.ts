@@ -87,125 +87,53 @@ function shouldRunSync(lastCheckedAt: string, intervalMs: number, nowMs: number)
   return nowMs - lastMs >= intervalMs;
 }
 
-export function handleCoachPeriodicRepositorySync(params: {
-  repo: WorkspaceRepository;
-  iteration: Iteration;
-}): IterationCoachChatResponse | null {
-  const { repo, iteration } = params;
-  const project = repo.findProject(iteration.projectId);
-  if (!project) {
-    return null;
-  }
-  const normalizedProject = normalizeProject(project);
-  const projectRepo = normalizedProject.repository;
-  if (!projectRepo?.workspace?.gitInitialized || !projectRepo.workspace.repoPath) {
-    return null;
-  }
-  if (!hasRemoteTarget(projectRepo)) {
-    return null;
-  }
-  const repoPath = projectRepo.workspace.repoPath;
-  if (!existsSync(repoPath) || !existsSync(`${repoPath}/.git`)) {
-    return null;
-  }
-  const now = new Date().toISOString();
-  const nowMs = Date.parse(now);
-  const intervalMs = resolveSyncIntervalMs();
-  const previousHealth = projectRepo.health ?? {
-    remoteConfigured: false,
-    remoteReachable: false,
-    remoteSynced: false,
-    lastCheckedAt: "",
-    lastError: ""
-  };
-  if (!shouldRunSync(previousHealth.lastCheckedAt, intervalMs, nowMs)) {
-    return null;
-  }
-  const branch = (projectRepo.defaultBranch || "main").trim();
+function failSyncWithHealth(
+  repo: WorkspaceRepository,
+  project: Project,
+  iterationId: number,
+  projectId: number,
+  branch: string,
+  now: string,
+  partial: { remoteConfigured: boolean; remoteReachable: boolean; lastError: string }
+): IterationCoachChatResponse {
+  const health = { ...partial, remoteSynced: false, lastCheckedAt: now };
+  const updatedProject = buildUpdatedProject(project, health);
+  if (updatedProject) repo.updateProject(updatedProject);
+  writeAuditLog(repo, "project_repo_periodic_sync_failed", `project:${projectId}`, `reason=${partial.lastError}`);
+  return syncFailureResponse(iterationId, branch, partial.lastError);
+}
+
+function runGitSyncOps(
+  repo: WorkspaceRepository,
+  project: Project,
+  iteration: Iteration,
+  repoPath: string,
+  branch: string,
+  now: string
+): IterationCoachChatResponse | null {
+  const fail = (partial: { remoteConfigured: boolean; remoteReachable: boolean; lastError: string }) =>
+    failSyncWithHealth(repo, project, iteration.id, iteration.projectId, branch, now, partial);
+
   const remoteGet = runGit(["remote", "get-url", "origin"], repoPath);
   if (remoteGet.status !== 0 || !remoteGet.stdout.trim()) {
-    const health = {
-      remoteConfigured: false,
-      remoteReachable: false,
-      remoteSynced: false,
-      lastCheckedAt: now,
-      lastError: (remoteGet.stderr || remoteGet.stdout || "origin remote not configured").trim().slice(0, 240)
-    };
-    const updatedProject = buildUpdatedProject(project, health);
-    if (updatedProject) {
-      repo.updateProject(updatedProject);
-    }
-    writeAuditLog(repo, "project_repo_periodic_sync_failed", `project:${iteration.projectId}`, `reason=${health.lastError}`);
-    return syncFailureResponse(iteration.id, branch, health.lastError);
+    return fail({ remoteConfigured: false, remoteReachable: false, lastError: (remoteGet.stderr || remoteGet.stdout || "origin remote not configured").trim().slice(0, 240) });
   }
   const fetch = runGit(["fetch", "origin", branch], repoPath);
   if (fetch.status !== 0) {
-    const error = (fetch.stderr || fetch.stdout || "git_fetch_failed").trim().slice(0, 240);
-    const health = {
-      remoteConfigured: true,
-      remoteReachable: false,
-      remoteSynced: false,
-      lastCheckedAt: now,
-      lastError: error
-    };
-    const updatedProject = buildUpdatedProject(project, health);
-    if (updatedProject) {
-      repo.updateProject(updatedProject);
-    }
-    writeAuditLog(repo, "project_repo_periodic_sync_failed", `project:${iteration.projectId}`, `reason=${error}`);
-    return syncFailureResponse(iteration.id, branch, error);
+    return fail({ remoteConfigured: true, remoteReachable: false, lastError: (fetch.stderr || fetch.stdout || "git_fetch_failed").trim().slice(0, 240) });
   }
   const before = runGit(["rev-list", "--left-right", "--count", `origin/${branch}...HEAD`], repoPath);
   if (before.status !== 0) {
-    const error = (before.stderr || before.stdout || "git_rev_list_failed").trim().slice(0, 240);
-    const health = {
-      remoteConfigured: true,
-      remoteReachable: true,
-      remoteSynced: false,
-      lastCheckedAt: now,
-      lastError: error
-    };
-    const updatedProject = buildUpdatedProject(project, health);
-    if (updatedProject) {
-      repo.updateProject(updatedProject);
-    }
-    writeAuditLog(repo, "project_repo_periodic_sync_failed", `project:${iteration.projectId}`, `reason=${error}`);
-    return syncFailureResponse(iteration.id, branch, error);
+    return fail({ remoteConfigured: true, remoteReachable: true, lastError: (before.stderr || before.stdout || "git_rev_list_failed").trim().slice(0, 240) });
   }
   const aheadBehindBefore = parseAheadBehind(before.stdout);
   if (!aheadBehindBefore) {
-    const error = "unable_to_parse_ahead_behind";
-    const health = {
-      remoteConfigured: true,
-      remoteReachable: true,
-      remoteSynced: false,
-      lastCheckedAt: now,
-      lastError: error
-    };
-    const updatedProject = buildUpdatedProject(project, health);
-    if (updatedProject) {
-      repo.updateProject(updatedProject);
-    }
-    writeAuditLog(repo, "project_repo_periodic_sync_failed", `project:${iteration.projectId}`, `reason=${error}`);
-    return syncFailureResponse(iteration.id, branch, error);
+    return fail({ remoteConfigured: true, remoteReachable: true, lastError: "unable_to_parse_ahead_behind" });
   }
   if (aheadBehindBefore.behind > 0) {
     const pull = runGit(["pull", "--ff-only", "origin", branch], repoPath);
     if (pull.status !== 0) {
-      const error = (pull.stderr || pull.stdout || "git_pull_ff_only_failed").trim().slice(0, 240);
-      const health = {
-        remoteConfigured: true,
-        remoteReachable: true,
-        remoteSynced: false,
-        lastCheckedAt: now,
-        lastError: error
-      };
-      const updatedProject = buildUpdatedProject(project, health);
-      if (updatedProject) {
-        repo.updateProject(updatedProject);
-      }
-      writeAuditLog(repo, "project_repo_periodic_sync_failed", `project:${iteration.projectId}`, `reason=${error}`);
-      return syncFailureResponse(iteration.id, branch, error);
+      return fail({ remoteConfigured: true, remoteReachable: true, lastError: (pull.stderr || pull.stdout || "git_pull_ff_only_failed").trim().slice(0, 240) });
     }
     writeAuditLog(repo, "project_repo_periodic_sync_applied", `project:${iteration.projectId}`, `branch=${branch};behind=${aheadBehindBefore.behind}`);
   }
@@ -219,8 +147,32 @@ export function handleCoachPeriodicRepositorySync(params: {
     lastError: ""
   };
   const updatedProject = buildUpdatedProject(project, health);
-  if (updatedProject) {
-    repo.updateProject(updatedProject);
-  }
+  if (updatedProject) repo.updateProject(updatedProject);
   return null;
+}
+
+export function handleCoachPeriodicRepositorySync(params: {
+  repo: WorkspaceRepository;
+  iteration: Iteration;
+}): IterationCoachChatResponse | null {
+  const { repo, iteration } = params;
+  const project = repo.findProject(iteration.projectId);
+  if (!project) return null;
+  const normalizedProject = normalizeProject(project);
+  const projectRepo = normalizedProject.repository;
+  if (!projectRepo?.workspace?.gitInitialized || !projectRepo.workspace.repoPath) return null;
+  if (!hasRemoteTarget(projectRepo)) return null;
+  const repoPath = projectRepo.workspace.repoPath;
+  if (!existsSync(repoPath) || !existsSync(`${repoPath}/.git`)) return null;
+
+  const now = new Date().toISOString();
+  const nowMs = Date.parse(now);
+  const intervalMs = resolveSyncIntervalMs();
+  const previousHealth = projectRepo.health ?? {
+    remoteConfigured: false, remoteReachable: false, remoteSynced: false, lastCheckedAt: "", lastError: ""
+  };
+  if (!shouldRunSync(previousHealth.lastCheckedAt, intervalMs, nowMs)) return null;
+
+  const branch = (projectRepo.defaultBranch || "main").trim();
+  return runGitSyncOps(repo, project, iteration, repoPath, branch, now);
 }

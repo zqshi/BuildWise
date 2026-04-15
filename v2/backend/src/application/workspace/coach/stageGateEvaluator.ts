@@ -13,7 +13,7 @@ import { artifactStageOrder } from '../changeControl/artifactWorkflow';
 
 // ── Public types ──
 
-export type StageGateResult = {
+type StageGateResult = {
   /** 当前阶段出口条件是否全部满足 */
   canProceed: boolean;
   /** 是否存在阻断（stale / 门禁未通过） */
@@ -30,7 +30,7 @@ export type StageGateResult = {
   missingConfirmations: string[];
 };
 
-export type StageExitResult = {
+type StageExitResult = {
   /** 出口条件是否全部满足 */
   satisfied: boolean;
   /** 尚未满足的出口条件 */
@@ -201,7 +201,7 @@ export function evaluateStageExitConditions(
   }
 
   // 检查 stale
-  const staleInStage = items.filter((item) => item.stage === stage && item.stale);
+  const staleInStage = items.filter((item) => item.stage === stage && item.stale && item.outputVersion > 0);
   if (staleInStage.length > 0) {
     remaining.push(`${staleInStage.map((i) => i.title).join("、")} 已过时需更新`);
   }

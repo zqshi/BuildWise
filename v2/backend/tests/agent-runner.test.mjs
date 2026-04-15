@@ -13,7 +13,7 @@ const {
   resolveModel,
   resolveApiKey,
   anthropicMessagesEndpoint,
-} = await import("../dist/application/workspace/shared/agentRunnerConfig.js");
+} = await import("../dist/infrastructure/llm/agentRunnerConfig.js");
 
 // ─── 1. LlmUnavailableError ────────────────────────────────────────
 

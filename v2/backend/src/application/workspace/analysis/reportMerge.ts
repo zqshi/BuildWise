@@ -1,4 +1,5 @@
 import type { AttachmentAnalysisReport, AttachmentUploadInput } from '../../../domain/workspace/types';
+import { isLowSignalText } from './extractors';
 
 function rankProjectConfidence(value: "high" | "medium" | "low") {
   if (value === "high") return 3;
@@ -184,7 +185,7 @@ export function mergeAttachmentReports(input: AttachmentUploadInput, reports: At
     llmContext: {
       ...primary.llmContext,
       strategy: "folder-batch-job",
-      digest: `strategy=folder-batch-job;batches=${totalBatches};mergedReports=${reports.length}`,
+      digest: `策略：文件夹分批合并，共 ${totalBatches} 批，合并报告 ${reports.length} 份`,
       excerptLength: reports.reduce((total, item) => total + item.llmContext.excerptLength, 0),
       chunkCount: reports.reduce((total, item) => total + item.llmContext.chunkCount, 0),
       promptContextLength: reports.reduce((total, item) => total + item.llmContext.promptContextLength, 0),
@@ -198,7 +199,7 @@ export function mergeAttachmentReports(input: AttachmentUploadInput, reports: At
           .join(" | ")
           .slice(0, 300) || ""
     },
-    understanding: `${primary.understanding}（分批汇总：${reports.length}/${totalBatches}）`,
+    understanding: isLowSignalText(primary.understanding) ? "" : `${primary.understanding}（分批汇总：${reports.length}/${totalBatches}）`,
     agentOutputs: reports.flatMap((item) => item.agentOutputs).slice(0, 60),
     businessConfirmation: mergeBusinessConfirmation(reports),
     deepInsights: mergeDeepInsights(reports),

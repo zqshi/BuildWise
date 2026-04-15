@@ -2,7 +2,7 @@ import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type { Project } from '../../../domain/workspace/types';
 import { normalizeProject } from "./workspaceSupport";
 
-export type TenantMemberRole = "admin" | "member" | "viewer";
+type TenantMemberRole = "admin" | "member" | "viewer";
 
 export type ProjectAccessContext = {
   project: Project | null;
@@ -23,7 +23,7 @@ export type TenantAccessContext = {
   canManageTenant: boolean;
 };
 
-export type AccessibleTenantSummary = {
+type AccessibleTenantSummary = {
   tenantId: string;
   label: string;
   role: TenantMemberRole;

@@ -15,6 +15,41 @@ function latestSnapshotForIteration(snapshots: ModelSnapshot[], iterationId: num
   );
 }
 
+function mergeOntologyTerms(
+  knowledge: ReturnType<typeof normalizeProject>["knowledgeBase"],
+  snapshot: ModelSnapshot | null
+): ProjectModelView["ontologyTerms"] {
+  const terms: ProjectModelView["ontologyTerms"] = (knowledge?.ontologyTerms || []).map((item) => ({
+    businessTerm: item.term, aliases: item.aliases, technicalAliases: [] as string[],
+    definition: item.definition, source: "project_knowledge" as const
+  }));
+  for (const term of (snapshot?.ontologyTerms || []).map((item) => ({
+    businessTerm: item.canonicalTerm, aliases: item.aliases, technicalAliases: item.technicalAliases,
+    definition: item.definition, source: "snapshot" as const
+  }))) {
+    if (!terms.some((existing) => existing.businessTerm === term.businessTerm)) terms.push(term);
+  }
+  return terms;
+}
+
+function mergeModelRules(
+  knowledge: ReturnType<typeof normalizeProject>["knowledgeBase"],
+  snapshot: ModelSnapshot | null
+): ProjectModelView["rules"] {
+  const rules: ProjectModelView["rules"] = (knowledge?.stableRules || []).map((item) => ({
+    id: `kb-rule-${item.rule}`, name: item.rule, statement: item.rationale || item.rule,
+    source: "project_knowledge" as const,
+    linkedEntityIds: [] as string[], linkedSurfaceIds: [] as string[], linkedApiIds: [] as string[]
+  }));
+  for (const rule of (snapshot?.rules || []).map((item) => ({
+    id: item.id, name: item.name, statement: item.statement, source: "snapshot" as const,
+    linkedEntityIds: item.linkedEntityIds, linkedSurfaceIds: item.linkedSurfaceIds, linkedApiIds: item.linkedApiIds
+  }))) {
+    if (!rules.some((existing) => existing.name === rule.name)) rules.push(rule);
+  }
+  return rules;
+}
+
 export function buildProjectModelView(
   workspaceRepo: WorkspaceRepository,
   modelingRepo: ContinuousModelingRepository | null,
@@ -37,54 +72,8 @@ export function buildProjectModelView(
   const snapshots = modelingRepo?.listSnapshots(projectId) || [];
   const latestSnapshot = latestSnapshotForIteration(snapshots, normalizedIteration?.id ?? null);
   const knowledge = normalizedProject.knowledgeBase;
-  const knowledgeTerms =
-    knowledge?.ontologyTerms.map((item) => ({
-      businessTerm: item.term,
-      aliases: item.aliases,
-      technicalAliases: [] as string[],
-      definition: item.definition,
-      source: "project_knowledge" as const
-    })) || [];
-  const snapshotTerms =
-    latestSnapshot?.ontologyTerms.map((item) => ({
-      businessTerm: item.canonicalTerm,
-      aliases: item.aliases,
-      technicalAliases: item.technicalAliases,
-      definition: item.definition,
-      source: "snapshot" as const
-    })) || [];
-  const ontologyTerms: ProjectModelView["ontologyTerms"] = [...knowledgeTerms];
-  for (const term of snapshotTerms) {
-    if (!ontologyTerms.some((item) => item.businessTerm === term.businessTerm)) {
-      ontologyTerms.push(term);
-    }
-  }
-  const knowledgeRules =
-    knowledge?.stableRules.map((item) => ({
-      id: `kb-rule-${item.rule}`,
-      name: item.rule,
-      statement: item.rationale || item.rule,
-      source: "project_knowledge" as const,
-      linkedEntityIds: [] as string[],
-      linkedSurfaceIds: [] as string[],
-      linkedApiIds: [] as string[]
-    })) || [];
-  const snapshotRules =
-    latestSnapshot?.rules.map((item) => ({
-      id: item.id,
-      name: item.name,
-      statement: item.statement,
-      source: "snapshot" as const,
-      linkedEntityIds: item.linkedEntityIds,
-      linkedSurfaceIds: item.linkedSurfaceIds,
-      linkedApiIds: item.linkedApiIds
-    })) || [];
-  const rules: ProjectModelView["rules"] = [...knowledgeRules];
-  for (const rule of snapshotRules) {
-    if (!rules.some((item) => item.name === rule.name)) {
-      rules.push(rule);
-    }
-  }
+  const ontologyTerms = mergeOntologyTerms(knowledge, latestSnapshot);
+  const rules = mergeModelRules(knowledge, latestSnapshot);
   return {
     projectId,
     projectName: normalizedProject.name,

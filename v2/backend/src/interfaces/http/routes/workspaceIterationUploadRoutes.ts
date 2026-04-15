@@ -44,17 +44,17 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as Parameters<typeof parseUploadInitBody>[0];
     const parsed = parseUploadInitBody(body);
@@ -65,7 +65,7 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     const created = service.upload.initAttachmentUpload(iterationId, parsed.input);
     if (!created) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return {
       uploadId: created.uploadId,
@@ -85,16 +85,16 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const upload = service.upload.getAttachmentUpload(iterationId, params.uploadId);
     if (!upload) {
       reply.code(404);
-      return { message: "upload not found" };
+      return { message: "上传记录不存在" };
     }
     return {
       uploadId: upload.uploadId,
@@ -113,36 +113,36 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const params = request.params as { id: string; uploadId: string; fileId: string; chunkIndex: string };
     const iterationId = parsePositiveInt(params.id);
     const chunkIndex = parsePositiveInt(params.chunkIndex);
     if (iterationId === null || chunkIndex === null) {
       reply.code(400);
-      return { message: "invalid path params" };
+      return { message: "无效的路径参数" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { dataBase64?: string } | null;
     const dataBase64 = body?.dataBase64?.trim() || "";
     if (!dataBase64) {
       reply.code(400);
-      return { message: "dataBase64 is required" };
+      return { message: "请提供文件分片数据" };
     }
     let chunk: Uint8Array;
     try {
       chunk = Buffer.from(dataBase64, "base64");
     } catch {
       reply.code(400);
-      return { message: "invalid base64 chunk payload" };
+      return { message: "无效的文件分片数据" };
     }
     const ok = service.upload.putAttachmentUploadChunk(iterationId, params.uploadId, params.fileId, chunkIndex - 1, chunk);
     if (!ok) {
       reply.code(404);
-      return { message: "upload/file/chunk target not found" };
+      return { message: "上传文件或分片不存在" };
     }
     reply.code(204);
     return null;
@@ -152,22 +152,22 @@ export function registerWorkspaceIterationUploadRoutes(app: FastifyInstance, ser
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const params = request.params as { id: string; uploadId: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const completed = service.upload.completeAttachmentUpload(iterationId, params.uploadId);
     if (!completed) {
       reply.code(404);
-      return { message: "upload not found or incomplete" };
+      return { message: "上传不存在或未完成" };
     }
     return {
       uploadId: completed.upload.uploadId,

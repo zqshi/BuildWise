@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 type EnvMap = Record<string, string | undefined>;
 
-export type EnvFileLoadOptions = {
+type EnvFileLoadOptions = {
   cwd: string;
   env: EnvMap;
   fileName?: string;
@@ -11,7 +11,7 @@ export type EnvFileLoadOptions = {
   overrideKeys?: string[];
 };
 
-export type EnvFileLoadResult = {
+type EnvFileLoadResult = {
   loaded: number;
   skipped: number;
   overridden: number;

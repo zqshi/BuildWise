@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type JwtPayload = {
+type JwtPayload = {
   sub: string;
   role: string;
   type: "access" | "refresh";

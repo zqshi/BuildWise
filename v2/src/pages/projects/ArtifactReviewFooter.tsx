@@ -28,7 +28,7 @@ export function ArtifactReviewFooter({
       </p>
       {selectedDrawerArtifact.lastConfirmedAt ? (
         <p className="hint">
-          最近确认：{selectedDrawerArtifact.lastConfirmedBy || "-"} ·{" "}
+          最近确认：{{ orchestrator: "系统自动", system: "系统" }[selectedDrawerArtifact.lastConfirmedBy] || selectedDrawerArtifact.lastConfirmedBy || "-"} ·{" "}
           {new Date(selectedDrawerArtifact.lastConfirmedAt).toLocaleString("zh-CN")}
         </p>
       ) : (

@@ -8,6 +8,9 @@ import type {
 } from '../../../domain/workspace/types';
 import type { AnalysisService } from '../analysis/analysisService';
 import { ensureDir } from './attachmentUtils';
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("upload-svc");
 import {
   completeAttachmentUploadOp,
   getAttachmentUploadOp,
@@ -47,19 +50,19 @@ export class UploadService {
         }
       }
     } catch (err) {
-      console.error("[UploadService] Failed to restore uploads from DB", err);
+      log.error("failed to restore uploads from DB", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
   private persistUpload(upload: AttachmentUploadRecord) {
     try { this.repo.saveUpload?.(upload); } catch (err) {
-      console.error("[UploadService] Failed to persist upload", upload.uploadId, err);
+      log.error("failed to persist upload", { uploadId: upload.uploadId, error: err instanceof Error ? err.message : String(err) });
     }
   }
 
   private persistIngestJob(job: AttachmentIngestJob) {
     try { this.repo.saveIngestJob?.(job); } catch (err) {
-      console.error("[UploadService] Failed to persist ingest job", job.ingestJobId, err);
+      log.error("failed to persist ingest job", { ingestJobId: job.ingestJobId, error: err instanceof Error ? err.message : String(err) });
     }
   }
 

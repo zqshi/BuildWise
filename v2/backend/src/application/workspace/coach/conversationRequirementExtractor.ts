@@ -67,7 +67,7 @@ function buildConversationText(repo: WorkspaceRepository, iterationId: number): 
   const messages = repo
     .listMessages(iterationId)
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-20);
+    .slice(-12);
 
   if (messages.length === 0) return "";
 
@@ -88,6 +88,65 @@ function mergeStringIfEmpty(existing: string, extracted: string): string {
 
 function mergeArrayIfEmpty(existing: string[], extracted: string[]): string[] {
   return existing.length > 0 ? existing : extracted.filter(Boolean);
+}
+
+function parseExtractionResult(content: string) {
+  const raw = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+  const parsed = safeJsonParse(raw) as Record<string, unknown> | null;
+  if (!parsed) return null;
+  const pickStrArr = (v: unknown): string[] => Array.isArray(v) ? v.filter((i): i is string => typeof i === "string") : [];
+  return {
+    coreIntent: typeof parsed.coreIntent === "string" ? parsed.coreIntent : "",
+    boundarySummary: typeof parsed.boundarySummary === "string" ? parsed.boundarySummary : "",
+    functionalPoints: pickStrArr(parsed.functionalPoints),
+    successCriteria: pickStrArr(parsed.successCriteria),
+    confirmationChecklist: pickStrArr(parsed.confirmationChecklist),
+    necessityAssessment: parsed.necessityAssessment as Record<string, unknown> | undefined,
+    interactionInsights: parsed.interactionInsights as Record<string, unknown> | undefined,
+    versionDiffSummary: typeof parsed.versionDiffSummary === "string" ? parsed.versionDiffSummary : "",
+    diffNarratives: pickStrArr(parsed.diffNarratives),
+    meaningfulFindings: pickStrArr(parsed.meaningfulFindings),
+    clarificationQuestions: pickStrArr(parsed.clarificationQuestions)
+  };
+}
+
+function mergeExtractedIntoChangeControl(
+  cc: ReturnType<typeof defaultIterationChangeControl>,
+  p: NonNullable<ReturnType<typeof parseExtractionResult>>
+) {
+  const bc = cc.lastBusinessConfirmation;
+  const na = p.necessityAssessment ?? {};
+  const ii = p.interactionInsights ?? {};
+  const pickStrArr = (v: unknown): string[] => Array.isArray(v) ? v.filter((i): i is string => typeof i === "string") : [];
+  const merged = {
+    ...bc,
+    coreIntent: mergeStringIfEmpty(bc.coreIntent, p.coreIntent),
+    boundarySummary: mergeStringIfEmpty(bc.boundarySummary, p.boundarySummary),
+    functionalPoints: mergeArrayIfEmpty(bc.functionalPoints, p.functionalPoints),
+    successCriteria: mergeArrayIfEmpty(bc.successCriteria, p.successCriteria),
+    confirmationChecklist: mergeArrayIfEmpty(bc.confirmationChecklist, p.confirmationChecklist),
+    necessityAssessment: bc.necessityAssessment.rationale.trim()
+      ? bc.necessityAssessment
+      : {
+          mustDo: pickStrArr(na.mustDo), shouldDo: pickStrArr(na.shouldDo),
+          canDefer: pickStrArr(na.canDefer), outOfScope: pickStrArr(na.outOfScope),
+          rationale: typeof na.rationale === "string" ? na.rationale : ""
+        },
+    interactionInsights: {
+      primaryFlow: mergeArrayIfEmpty(bc.interactionInsights?.primaryFlow ?? [], pickStrArr(ii.primaryFlow)),
+      keyInteractions: mergeArrayIfEmpty(bc.interactionInsights?.keyInteractions ?? [], pickStrArr(ii.keyInteractions)),
+      exceptionPaths: mergeArrayIfEmpty(bc.interactionInsights?.exceptionPaths ?? [], pickStrArr(ii.exceptionPaths)),
+      usabilityRisks: mergeArrayIfEmpty(bc.interactionInsights?.usabilityRisks ?? [], pickStrArr(ii.usabilityRisks))
+    },
+    versionDiffSummary: mergeStringIfEmpty(bc.versionDiffSummary ?? "", p.versionDiffSummary),
+    diffNarratives: mergeArrayIfEmpty(bc.diffNarratives ?? [], p.diffNarratives)
+  };
+  return {
+    ...cc,
+    lastBusinessConfirmation: merged,
+    lastMeaningfulFindings: mergeArrayIfEmpty(cc.lastMeaningfulFindings, p.meaningfulFindings),
+    clarificationQuestions: mergeArrayIfEmpty(cc.clarificationQuestions, p.clarificationQuestions ?? [])
+  };
 }
 
 export async function extractRequirementsFromConversation(
@@ -120,88 +179,14 @@ export async function extractRequirementsFromConversation(
     return false;
   }
 
-  const raw = result.content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-  const parsed = safeJsonParse(raw) as Record<string, unknown> | null;
-  if (!parsed) return false;
-
-  const p = {
-    coreIntent: typeof parsed.coreIntent === "string" ? parsed.coreIntent : "",
-    boundarySummary: typeof parsed.boundarySummary === "string" ? parsed.boundarySummary : "",
-    functionalPoints: Array.isArray(parsed.functionalPoints) ? parsed.functionalPoints.filter((v): v is string => typeof v === "string") : [],
-    successCriteria: Array.isArray(parsed.successCriteria) ? parsed.successCriteria.filter((v): v is string => typeof v === "string") : [],
-    confirmationChecklist: Array.isArray(parsed.confirmationChecklist) ? parsed.confirmationChecklist.filter((v): v is string => typeof v === "string") : [],
-    necessityAssessment: parsed.necessityAssessment as Record<string, unknown> | undefined,
-    interactionInsights: parsed.interactionInsights as Record<string, unknown> | undefined,
-    versionDiffSummary: typeof parsed.versionDiffSummary === "string" ? parsed.versionDiffSummary : "",
-    diffNarratives: Array.isArray(parsed.diffNarratives) ? parsed.diffNarratives.filter((v): v is string => typeof v === "string") : [],
-    meaningfulFindings: Array.isArray(parsed.meaningfulFindings) ? parsed.meaningfulFindings.filter((v): v is string => typeof v === "string") : [],
-    clarificationQuestions: Array.isArray(parsed.clarificationQuestions) ? parsed.clarificationQuestions.filter((v): v is string => typeof v === "string") : []
-  };
+  const p = parseExtractionResult(result.content);
+  if (!p) return false;
 
   const normalized = normalizeIteration(iteration);
   const cc = normalized.changeControl ?? defaultIterationChangeControl();
-  const bc = cc.lastBusinessConfirmation;
   const now = nowIso();
-
-  const na = p.necessityAssessment ?? {};
-  const ii = p.interactionInsights ?? {};
-  const pickStrArr = (v: unknown): string[] => Array.isArray(v) ? v.filter((i): i is string => typeof i === "string") : [];
-
-  // 幂等合并：只填充空字段
-  const merged = {
-    ...bc,
-    coreIntent: mergeStringIfEmpty(bc.coreIntent, p.coreIntent),
-    boundarySummary: mergeStringIfEmpty(bc.boundarySummary, p.boundarySummary),
-    functionalPoints: mergeArrayIfEmpty(bc.functionalPoints, p.functionalPoints),
-    successCriteria: mergeArrayIfEmpty(bc.successCriteria, p.successCriteria),
-    confirmationChecklist: mergeArrayIfEmpty(bc.confirmationChecklist, p.confirmationChecklist),
-    necessityAssessment: bc.necessityAssessment.rationale.trim()
-      ? bc.necessityAssessment
-      : {
-          mustDo: pickStrArr(na.mustDo),
-          shouldDo: pickStrArr(na.shouldDo),
-          canDefer: pickStrArr(na.canDefer),
-          outOfScope: pickStrArr(na.outOfScope),
-          rationale: typeof na.rationale === "string" ? na.rationale : ""
-        },
-    interactionInsights: {
-      primaryFlow: mergeArrayIfEmpty(bc.interactionInsights?.primaryFlow ?? [], pickStrArr(ii.primaryFlow)),
-      keyInteractions: mergeArrayIfEmpty(bc.interactionInsights?.keyInteractions ?? [], pickStrArr(ii.keyInteractions)),
-      exceptionPaths: mergeArrayIfEmpty(bc.interactionInsights?.exceptionPaths ?? [], pickStrArr(ii.exceptionPaths)),
-      usabilityRisks: mergeArrayIfEmpty(bc.interactionInsights?.usabilityRisks ?? [], pickStrArr(ii.usabilityRisks))
-    },
-    versionDiffSummary: mergeStringIfEmpty(bc.versionDiffSummary ?? "", p.versionDiffSummary),
-    diffNarratives: mergeArrayIfEmpty(bc.diffNarratives ?? [], p.diffNarratives)
-  };
-
-  const meaningfulFindings = mergeArrayIfEmpty(
-    cc.lastMeaningfulFindings,
-    p.meaningfulFindings
-  );
-
-  const clarificationQuestions = mergeArrayIfEmpty(
-    cc.clarificationQuestions,
-    p.clarificationQuestions ?? []
-  );
-
-  // 回写
-  const updatedCc = {
-    ...cc,
-    lastBusinessConfirmation: merged,
-    lastMeaningfulFindings: meaningfulFindings,
-    clarificationQuestions,
-    lastAnalysisAt: cc.lastAnalysisAt || now
-  };
-
+  const updatedCc = { ...mergeExtractedIntoChangeControl(cc, p), lastAnalysisAt: cc.lastAnalysisAt || now };
   const workflow = ensureArtifactWorkflow(normalized, updatedCc, now);
-
-  repo.updateIteration({
-    ...normalized,
-    changeControl: {
-      ...updatedCc,
-      artifactWorkflow: workflow
-    }
-  });
-
+  repo.updateIteration({ ...normalized, changeControl: { ...updatedCc, artifactWorkflow: workflow } });
   return true;
 }

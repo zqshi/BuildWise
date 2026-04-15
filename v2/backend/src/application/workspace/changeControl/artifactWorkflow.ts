@@ -1,6 +1,6 @@
 import type { Iteration, IterationArtifactStage } from '../../../domain/workspace/types';
 import { defaultIterationChangeControl } from '../shared/common';
-import { synthesizeArtifactDraftContent } from "./artifactDraftSynthesizer";
+import { isLowSignalText } from '../analysis/extractors';
 
 export const artifactStageOrder: IterationArtifactStage[] = [
   "clarification",
@@ -42,6 +42,192 @@ function preferEvidence(existing: string[], fallback: string[]) {
   return cleaned.length > 0 ? cleaned.slice(0, 20) : fallback;
 }
 
+type WorkflowItem = ReturnType<typeof defaultIterationChangeControl>["artifactWorkflow"]["items"][number];
+type ControlData = ReturnType<typeof defaultIterationChangeControl>;
+
+function enrichClarificationArtifacts(
+  items: WorkflowItem[],
+  iteration: Iteration,
+  control: ControlData
+) {
+  const analysis = items.find((item) => item.id === "analysis-report");
+  if (analysis) {
+    const historySummary =
+      iteration.continuity?.inheritedSummary?.trim() ||
+      (iteration.assessment?.baselineIterationName ? `基于 ${iteration.assessment.baselineIterationName} 继承上下文` : "");
+    const defaultSummary = control.lastAnalysisAt
+      ? `分析完成于 ${control.lastAnalysisAt.slice(0, 10)}`
+      : historySummary || "等待完成需求分析";
+    analysis.status = mergeArtifactStatus(analysis.status, control.lastAnalysisAt ? "ready" : control.lastUploadedAt ? "partial" : "pending", analysis);
+    analysis.summary = preferSummary(analysis.summary, defaultSummary);
+    analysis.evidence = preferEvidence(analysis.evidence, [
+      control.lastAnalysisAt ? `分析时间：${control.lastAnalysisAt.slice(0, 10)}` : "分析时间：待完成",
+      control.lastReportQualitySummary || "质量评估：待评"
+    ]);
+  }
+  const boundary = items.find((item) => item.id === "boundary-confirmation");
+  if (boundary) {
+    const filledDimensions = [
+      control.boundary.requirementRefs.length > 0,
+      control.boundary.componentRefs.length > 0,
+      control.boundary.codePaths.length > 0
+    ].filter(Boolean).length;
+    const boundaryStatus = filledDimensions >= 2 ? "ready" : filledDimensions === 1 ? "partial" : "pending";
+    boundary.status = mergeArtifactStatus(boundary.status, boundaryStatus, boundary);
+    boundary.summary = preferSummary(
+      boundary.summary,
+      `需求 ${control.boundary.requirementRefs.length} 项、组件 ${control.boundary.componentRefs.length} 个、代码路径 ${control.boundary.codePaths.length} 条`
+    );
+    boundary.evidence = preferEvidence(boundary.evidence, [control.boundary.note || "备注：无"]);
+  }
+  const interaction = items.find((item) => item.id === "prototype-preview");
+  if (interaction) {
+    interaction.status = mergeArtifactStatus(interaction.status, iteration.interactionState?.hasPrototypeAssets ? "ready" : "pending", interaction);
+    interaction.summary = preferSummary(interaction.summary, iteration.interactionState?.hasPrototypeAssets ? "检测到原型资产" : "未检测到原型资产");
+    interaction.evidence = preferEvidence(interaction.evidence, [iteration.interactionState?.lastAttachmentName || "附件：无"]);
+  }
+}
+
+function enrichDevelopmentArtifacts(
+  items: WorkflowItem[],
+  iteration: Iteration
+) {
+  const frontendCode = items.find((item) => item.id === "frontend-code");
+  if (frontendCode) {
+    const link = iteration.codeLink;
+    const ready = Boolean(link?.commit || link?.pr || (link?.paths.length ?? 0) > 0);
+    frontendCode.status = mergeArtifactStatus(frontendCode.status, ready ? "ready" : "pending", frontendCode);
+    frontendCode.summary = preferSummary(frontendCode.summary, ready ? `分支：${link?.branch || "未知"}，提交：${link?.commit || "未知"}` : "尚未记录前端代码交付");
+    const frontendPaths = link?.paths ?? [];
+    frontendCode.evidence = preferEvidence(frontendCode.evidence, [link?.pr ? `PR：${link.pr}` : "PR：待关联", frontendPaths.length > 0 ? `变更路径 ${frontendPaths.length} 条` : "变更路径：待记录"]);
+  }
+  const backendCode = items.find((item) => item.id === "backend-code");
+  if (backendCode) {
+    const link = iteration.codeLink;
+    const ready = Boolean(link?.commit || link?.pr || (link?.paths.length ?? 0) > 0);
+    backendCode.status = mergeArtifactStatus(backendCode.status, ready ? "ready" : "pending", backendCode);
+    backendCode.summary = preferSummary(backendCode.summary, ready ? `分支：${link?.branch || "未知"}，提交：${link?.commit || "未知"}` : "尚未记录后端代码交付");
+    const backendPaths = link?.paths ?? [];
+    backendCode.evidence = preferEvidence(backendCode.evidence, [link?.pr ? `PR：${link.pr}` : "PR：待关联", backendPaths.length > 0 ? `变更路径 ${backendPaths.length} 条` : "变更路径：待记录"]);
+  }
+}
+
+function enrichTestingAndReleaseArtifacts(
+  items: WorkflowItem[],
+  control: ControlData
+) {
+  const matrix = items.find((item) => item.id === "test-matrix");
+  if (matrix) {
+    const summary = summarizeMatrixExecution(control.generatedTestMatrix);
+    matrix.status = mergeArtifactStatus(
+      matrix.status,
+      summary.total === 0 ? "pending" : summary.coverage >= 100 && summary.passRate >= 80 ? "ready" : "partial",
+      matrix
+    );
+    matrix.summary = preferSummary(matrix.summary, `测试用例 ${summary.total} 个、覆盖率 ${summary.coverage}%、通过率 ${summary.passRate}%`);
+    matrix.evidence = preferEvidence(matrix.evidence, [control.testMatrixExecutionUpdatedAt ? `执行更新：${control.testMatrixExecutionUpdatedAt.slice(0, 10)}` : "执行更新：待完成"]);
+  }
+  const acceptance = items.find((item) => item.id === "acceptance-checklist");
+  if (acceptance) {
+    const count = control.qualityArtifacts.acceptanceChecklist.length;
+    acceptance.status = mergeArtifactStatus(acceptance.status, count > 0 ? "ready" : "pending", acceptance);
+    acceptance.summary = preferSummary(acceptance.summary, `验收清单 ${count} 项`);
+    acceptance.evidence = preferEvidence(acceptance.evidence, [control.qualityArtifacts.updatedAt ? `质量更新：${control.qualityArtifacts.updatedAt.slice(0, 10)}` : "质量更新：待完成"]);
+  }
+  const release = items.find((item) => item.id === "release-review");
+  if (release) {
+    const decisionLabel = control.lastReleaseReviewDecision === "go" ? "允许发布" : control.lastReleaseReviewDecision === "caution" ? "谨慎发布" : control.lastReleaseReviewDecision === "block" ? "阻塞发布" : "";
+    release.status = mergeArtifactStatus(release.status, control.lastReleaseReviewDecision ? "ready" : "pending", release);
+    release.summary = preferSummary(
+      release.summary,
+      decisionLabel
+        ? `评审结论：${decisionLabel}（${control.lastReleaseReviewScore} 分）`
+        : "尚未生成发布评审"
+    );
+    release.evidence = preferEvidence(release.evidence, [control.lastReleaseReviewReason || "评审理由：待生成"]);
+  }
+  const archive = items.find((item) => item.id === "delivery-package");
+  if (archive) {
+    const files = control.qualityArtifacts.materializedFiles || [];
+    archive.status = mergeArtifactStatus(archive.status, files.length > 0 ? "ready" : "pending", archive);
+    archive.summary = preferSummary(archive.summary, `归档文件 ${files.length} 个`);
+    archive.evidence = preferEvidence(archive.evidence, files.slice(0, 6));
+  }
+}
+
+function enrichDocumentArtifacts(
+  items: WorkflowItem[],
+  control: ControlData
+) {
+  const prd = items.find((item) => item.id === "product-requirements-doc");
+  if (prd) {
+    const coreIntent = control.lastBusinessConfirmation?.coreIntent?.trim() || "";
+    const hasBizData = Boolean(coreIntent) && !isLowSignalText(coreIntent);
+    prd.status = mergeArtifactStatus(
+      prd.status,
+      hasBizData ? "ready" : control.lastAnalysisAt ? "partial" : "pending",
+      prd
+    );
+    prd.summary = preferSummary(prd.summary,
+      hasBizData
+        ? `核心意图已识别，功能要点 ${control.lastBusinessConfirmation?.functionalPoints?.length || 0} 项`
+        : "等待需求分析");
+  }
+  const designSpec = items.find((item) => item.id === "design-spec");
+  if (designSpec) {
+    const ux = control.uxArtifacts;
+    const hasUxData = (ux?.interactionFlows?.length ?? 0) > 0
+      || (ux?.informationArchitecture?.length ?? 0) > 0
+      || (ux?.uiStates?.length ?? 0) > 0;
+    designSpec.status = mergeArtifactStatus(designSpec.status, hasUxData ? "ready" : "pending", designSpec);
+    designSpec.summary = preferSummary(designSpec.summary,
+      hasUxData ? `交互流程 ${ux?.interactionFlows?.length ?? 0} 条、界面状态 ${ux?.uiStates?.length ?? 0} 个` : "等待交互设计输入");
+  }
+  const techArch = items.find((item) => item.id === "technical-architecture");
+  if (techArch) {
+    const hasComponents = (control.boundary?.componentRefs?.length ?? 0) > 0;
+    const hasCodePaths = (control.boundary?.codePaths?.length ?? 0) > 0;
+    techArch.status = mergeArtifactStatus(techArch.status, hasComponents || hasCodePaths ? "ready" : "pending", techArch);
+    techArch.summary = preferSummary(techArch.summary,
+      hasComponents || hasCodePaths
+        ? `组件 ${control.boundary.componentRefs.length} 个、代码路径 ${control.boundary.codePaths.length} 条`
+        : "等待边界确认");
+  }
+  const apiSpec = items.find((item) => item.id === "api-specification");
+  if (apiSpec) {
+    const apiEntries = (control.domainKnowledgeEntries || []).filter(
+      (e: { mappedApis?: unknown[] }) => Array.isArray(e.mappedApis) && e.mappedApis.length > 0
+    );
+    apiSpec.status = mergeArtifactStatus(apiSpec.status, apiEntries.length > 0 ? "ready" : "pending", apiSpec);
+    apiSpec.summary = preferSummary(apiSpec.summary,
+      apiEntries.length > 0 ? `接口映射 ${apiEntries.length} 条` : "等待领域知识提取");
+  }
+  const dbDesign = items.find((item) => item.id === "database-design");
+  if (dbDesign) {
+    const entityEntries = (control.domainKnowledgeEntries || []).filter(
+      (e: { mappedEntities?: unknown[] }) => Array.isArray(e.mappedEntities) && e.mappedEntities.length > 0
+    );
+    dbDesign.status = mergeArtifactStatus(dbDesign.status, entityEntries.length > 0 ? "ready" : "pending", dbDesign);
+    dbDesign.summary = preferSummary(dbDesign.summary,
+      entityEntries.length > 0 ? `实体映射 ${entityEntries.length} 条` : "等待领域知识提取");
+  }
+  const deployPlan = items.find((item) => item.id === "deployment-plan");
+  if (deployPlan) {
+    const hasDecision = Boolean(control.lastReleaseReviewDecision);
+    const hasScope = (control.boundary?.componentRefs?.length ?? 0) > 0
+      || (control.boundary?.codePaths?.length ?? 0) > 0;
+    const hasChecks = (control.qualityArtifacts?.acceptanceChecklist?.length ?? 0) > 0
+      || (control.executableConstraints?.acceptanceChecks?.length ?? 0) > 0;
+    const deploySignal = hasDecision && hasScope ? "ready"
+      : hasDecision || hasScope || hasChecks ? "partial" : "pending";
+    deployPlan.status = mergeArtifactStatus(deployPlan.status, deploySignal, deployPlan);
+    deployPlan.summary = preferSummary(deployPlan.summary,
+      hasDecision
+        ? `发布评审已完成，部署范围 ${(control.boundary?.componentRefs?.length ?? 0) + (control.boundary?.codePaths?.length ?? 0)} 项`
+        : "等待发布评审");
+  }
+}
+
 export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType<typeof defaultIterationChangeControl>, now: string) {
   const fallback = defaultIterationChangeControl().artifactWorkflow;
   const existing = Array.isArray(control.artifactWorkflow?.items) ? control.artifactWorkflow.items : [];
@@ -72,198 +258,10 @@ export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType
     };
   });
 
-  const analysis = nextItems.find((item) => item.id === "analysis-report");
-  if (analysis) {
-    const historySummary =
-      iteration.continuity?.inheritedSummary?.trim() ||
-      (iteration.assessment?.baselineIterationName ? `基于 ${iteration.assessment.baselineIterationName} 继承上下文` : "");
-    const defaultSummary = control.lastAnalysisAt
-      ? `分析完成于 ${control.lastAnalysisAt.slice(0, 10)}`
-      : historySummary || "等待完成需求分析";
-    analysis.status = mergeArtifactStatus(analysis.status, control.lastAnalysisAt ? "ready" : control.lastUploadedAt ? "partial" : "pending", analysis);
-    analysis.summary = preferSummary(analysis.summary, defaultSummary);
-    analysis.evidence = preferEvidence(analysis.evidence, [
-      control.lastAnalysisAt ? `分析时间：${control.lastAnalysisAt.slice(0, 10)}` : "分析时间：待完成",
-      control.lastReportQualitySummary || "质量评估：待评"
-    ]);
-  }
-  const boundary = nextItems.find((item) => item.id === "boundary-confirmation");
-  if (boundary) {
-    const filledDimensions = [
-      control.boundary.requirementRefs.length > 0,
-      control.boundary.componentRefs.length > 0,
-      control.boundary.codePaths.length > 0
-    ].filter(Boolean).length;
-    const boundaryStatus = filledDimensions >= 2 ? "ready" : filledDimensions === 1 ? "partial" : "pending";
-    boundary.status = mergeArtifactStatus(boundary.status, boundaryStatus, boundary);
-    boundary.summary = preferSummary(
-      boundary.summary,
-      `需求 ${control.boundary.requirementRefs.length} 项、组件 ${control.boundary.componentRefs.length} 个、代码路径 ${control.boundary.codePaths.length} 条`
-    );
-    boundary.evidence = preferEvidence(boundary.evidence, [control.boundary.note || "备注：无"]);
-  }
-  const interaction = nextItems.find((item) => item.id === "prototype-preview");
-  if (interaction) {
-    interaction.status = mergeArtifactStatus(interaction.status, iteration.interactionState?.hasPrototypeAssets ? "ready" : "pending", interaction);
-    interaction.summary = preferSummary(interaction.summary, iteration.interactionState?.hasPrototypeAssets ? "检测到原型资产" : "未检测到原型资产");
-    interaction.evidence = preferEvidence(interaction.evidence, [iteration.interactionState?.lastAttachmentName || "附件：无"]);
-  }
-  const frontendCode = nextItems.find((item) => item.id === "frontend-code");
-  if (frontendCode) {
-    const link = iteration.codeLink;
-    const ready = Boolean(link?.commit || link?.pr || (link?.paths.length ?? 0) > 0);
-    frontendCode.status = mergeArtifactStatus(frontendCode.status, ready ? "ready" : "pending", frontendCode);
-    frontendCode.summary = preferSummary(frontendCode.summary, ready ? `分支：${link?.branch || "未知"}，提交：${link?.commit || "未知"}` : "尚未记录前端代码交付");
-    const frontendPaths = link?.paths ?? [];
-    frontendCode.evidence = preferEvidence(frontendCode.evidence, [link?.pr ? `PR：${link.pr}` : "PR：待关联", frontendPaths.length > 0 ? `变更路径 ${frontendPaths.length} 条` : "变更路径：待记录"]);
-  }
-  const backendCode = nextItems.find((item) => item.id === "backend-code");
-  if (backendCode) {
-    const link = iteration.codeLink;
-    const ready = Boolean(link?.commit || link?.pr || (link?.paths.length ?? 0) > 0);
-    backendCode.status = mergeArtifactStatus(backendCode.status, ready ? "ready" : "pending", backendCode);
-    backendCode.summary = preferSummary(backendCode.summary, ready ? `分支：${link?.branch || "未知"}，提交：${link?.commit || "未知"}` : "尚未记录后端代码交付");
-    const backendPaths = link?.paths ?? [];
-    backendCode.evidence = preferEvidence(backendCode.evidence, [link?.pr ? `PR：${link.pr}` : "PR：待关联", backendPaths.length > 0 ? `变更路径 ${backendPaths.length} 条` : "变更路径：待记录"]);
-  }
-  const matrix = nextItems.find((item) => item.id === "test-matrix");
-  if (matrix) {
-    const summary = summarizeMatrixExecution(control.generatedTestMatrix);
-    matrix.status = mergeArtifactStatus(
-      matrix.status,
-      summary.total === 0 ? "pending" : summary.coverage >= 100 && summary.passRate >= 80 ? "ready" : "partial",
-      matrix
-    );
-    matrix.summary = preferSummary(matrix.summary, `测试用例 ${summary.total} 个、覆盖率 ${summary.coverage}%、通过率 ${summary.passRate}%`);
-    matrix.evidence = preferEvidence(matrix.evidence, [control.testMatrixExecutionUpdatedAt ? `执行更新：${control.testMatrixExecutionUpdatedAt.slice(0, 10)}` : "执行更新：待完成"]);
-  }
-  const acceptance = nextItems.find((item) => item.id === "acceptance-checklist");
-  if (acceptance) {
-    const count = control.qualityArtifacts.acceptanceChecklist.length;
-    acceptance.status = mergeArtifactStatus(acceptance.status, count > 0 ? "ready" : "pending", acceptance);
-    acceptance.summary = preferSummary(acceptance.summary, `验收清单 ${count} 项`);
-    acceptance.evidence = preferEvidence(acceptance.evidence, [control.qualityArtifacts.updatedAt ? `质量更新：${control.qualityArtifacts.updatedAt.slice(0, 10)}` : "质量更新：待完成"]);
-  }
-  const release = nextItems.find((item) => item.id === "release-review");
-  if (release) {
-    const decisionLabel = control.lastReleaseReviewDecision === "go" ? "允许发布" : control.lastReleaseReviewDecision === "caution" ? "谨慎发布" : control.lastReleaseReviewDecision === "block" ? "阻塞发布" : "";
-    release.status = mergeArtifactStatus(release.status, control.lastReleaseReviewDecision ? "ready" : "pending", release);
-    release.summary = preferSummary(
-      release.summary,
-      decisionLabel
-        ? `评审结论：${decisionLabel}（${control.lastReleaseReviewScore} 分）`
-        : "尚未生成发布评审"
-    );
-    release.evidence = preferEvidence(release.evidence, [control.lastReleaseReviewReason || "评审理由：待生成"]);
-  }
-  const archive = nextItems.find((item) => item.id === "delivery-package");
-  if (archive) {
-    const files = control.qualityArtifacts.materializedFiles || [];
-    archive.status = mergeArtifactStatus(archive.status, files.length > 0 ? "ready" : "pending", archive);
-    archive.summary = preferSummary(archive.summary, `归档文件 ${files.length} 个`);
-    archive.evidence = preferEvidence(archive.evidence, files.slice(0, 6));
-  }
-  // ── 以下交付物从 changeControl 字段驱动外部信号 ──
-
-  const prd = nextItems.find((item) => item.id === "product-requirements-doc");
-  if (prd) {
-    const hasBizData = Boolean(control.lastBusinessConfirmation?.coreIntent?.trim());
-    prd.status = mergeArtifactStatus(
-      prd.status,
-      hasBizData ? "ready" : control.lastAnalysisAt ? "partial" : "pending",
-      prd
-    );
-    prd.summary = preferSummary(prd.summary,
-      hasBizData
-        ? `核心意图已识别，功能要点 ${control.lastBusinessConfirmation?.functionalPoints?.length || 0} 项`
-        : "等待需求分析");
-  }
-
-  const designSpec = nextItems.find((item) => item.id === "design-spec");
-  if (designSpec) {
-    const ux = control.uxArtifacts;
-    const hasUxData = (ux?.interactionFlows?.length ?? 0) > 0
-      || (ux?.informationArchitecture?.length ?? 0) > 0
-      || (ux?.uiStates?.length ?? 0) > 0;
-    designSpec.status = mergeArtifactStatus(
-      designSpec.status,
-      hasUxData ? "ready" : "pending",
-      designSpec
-    );
-    designSpec.summary = preferSummary(designSpec.summary,
-      hasUxData ? `交互流程 ${ux!.interactionFlows.length} 条、界面状态 ${ux!.uiStates.length} 个` : "等待交互设计输入");
-  }
-
-  const techArch = nextItems.find((item) => item.id === "technical-architecture");
-  if (techArch) {
-    const hasComponents = (control.boundary?.componentRefs?.length ?? 0) > 0;
-    const hasCodePaths = (control.boundary?.codePaths?.length ?? 0) > 0;
-    techArch.status = mergeArtifactStatus(
-      techArch.status,
-      hasComponents || hasCodePaths ? "ready" : "pending",
-      techArch
-    );
-    techArch.summary = preferSummary(techArch.summary,
-      hasComponents || hasCodePaths
-        ? `组件 ${control.boundary.componentRefs.length} 个、代码路径 ${control.boundary.codePaths.length} 条`
-        : "等待边界确认");
-  }
-
-  const apiSpec = nextItems.find((item) => item.id === "api-specification");
-  if (apiSpec) {
-    const apiEntries = (control.domainKnowledgeEntries || []).filter(
-      (e: { mappedApis?: unknown[] }) => Array.isArray(e.mappedApis) && e.mappedApis.length > 0
-    );
-    apiSpec.status = mergeArtifactStatus(
-      apiSpec.status,
-      apiEntries.length > 0 ? "ready" : "pending",
-      apiSpec
-    );
-    apiSpec.summary = preferSummary(apiSpec.summary,
-      apiEntries.length > 0 ? `接口映射 ${apiEntries.length} 条` : "等待领域知识提取");
-  }
-
-  const dbDesign = nextItems.find((item) => item.id === "database-design");
-  if (dbDesign) {
-    const entityEntries = (control.domainKnowledgeEntries || []).filter(
-      (e: { mappedEntities?: unknown[] }) => Array.isArray(e.mappedEntities) && e.mappedEntities.length > 0
-    );
-    dbDesign.status = mergeArtifactStatus(
-      dbDesign.status,
-      entityEntries.length > 0 ? "ready" : "pending",
-      dbDesign
-    );
-    dbDesign.summary = preferSummary(dbDesign.summary,
-      entityEntries.length > 0 ? `实体映射 ${entityEntries.length} 条` : "等待领域知识提取");
-  }
-
-  const deployPlan = nextItems.find((item) => item.id === "deployment-plan");
-  if (deployPlan) {
-    const hasDecision = Boolean(control.lastReleaseReviewDecision);
-    const hasScope = (control.boundary?.componentRefs?.length ?? 0) > 0
-      || (control.boundary?.codePaths?.length ?? 0) > 0;
-    const hasChecks = (control.qualityArtifacts?.acceptanceChecklist?.length ?? 0) > 0
-      || (control.executableConstraints?.acceptanceChecks?.length ?? 0) > 0;
-    const deploySignal = hasDecision && hasScope ? "ready"
-      : hasDecision || hasScope || hasChecks ? "partial" : "pending";
-    deployPlan.status = mergeArtifactStatus(deployPlan.status, deploySignal, deployPlan);
-    deployPlan.summary = preferSummary(deployPlan.summary,
-      hasDecision
-        ? `发布评审已完成，部署范围 ${(control.boundary?.componentRefs?.length ?? 0) + (control.boundary?.codePaths?.length ?? 0)} 项`
-        : "等待发布评审");
-  }
-
-  // 自动合成 draft.content — 如果 draft 不足 100 字且有 metadata 可用，生成可读内容
-  for (const item of nextItems) {
-    if (item.draft.content.trim().length < 100) {
-      const synthesized = synthesizeArtifactDraftContent(item.id, iteration, control);
-      if (synthesized) {
-        item.draft.content = synthesized;
-        item.draft.updatedAt = item.draft.updatedAt || now;
-        item.draft.updatedBy = item.draft.updatedBy || "system";
-      }
-    }
-  }
+  enrichClarificationArtifacts(nextItems, iteration, control);
+  enrichDevelopmentArtifacts(nextItems, iteration);
+  enrichTestingAndReleaseArtifacts(nextItems, control);
+  enrichDocumentArtifacts(nextItems, control);
 
   const activeStage = (control.artifactWorkflow?.activeStage as IterationArtifactStage) || fallback.activeStage;
   return {
@@ -272,7 +270,6 @@ export function ensureArtifactWorkflow(iteration: Iteration, control: ReturnType
     updatedAt: now
   };
 }
-
 export function markDownstreamStale(
   items: ReturnType<typeof defaultIterationChangeControl>["artifactWorkflow"]["items"],
   artifactId: string
@@ -282,7 +279,8 @@ export function markDownstreamStale(
   const impacted = new Set(target.downstreamImpacts);
   const staleItems: Array<{ id: string; title: string }> = [];
   for (const item of items) {
-    if (impacted.has(item.stage)) {
+    // 从未生成过的交付物（outputVersion=0）不标记为 stale —— 没有内容何来过时
+    if (impacted.has(item.stage) && item.outputVersion > 0) {
       item.stale = true;
       item.gateStatus = "pending";
       staleItems.push({ id: item.id, title: item.title });

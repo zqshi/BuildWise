@@ -46,8 +46,8 @@ export function resolveExecutionPolicyHeuristically(input: {
 
 export function listExecutionPolicyMissingReasons(candidate: ReturnType<typeof parseExecutionPolicyCandidate>) {
   const reasons: string[] = [];
-  if (!candidate.reason) reasons.push("missing reason");
-  if (candidate.enforceSingleAgent && candidate.forceMultiAgent) reasons.push("conflict enforceSingleAgent and forceMultiAgent");
+  if (!candidate.reason) reasons.push("执行策略原因缺失");
+  if (candidate.enforceSingleAgent && candidate.forceMultiAgent) reasons.push("单Agent模式与多Agent模式冲突");
   return reasons;
 }
 
@@ -69,6 +69,6 @@ export function parseFolderSelectionCandidate(content: string) {
 
 export function listFolderSelectionMissingReasons(candidate: ReturnType<typeof parseFolderSelectionCandidate>) {
   const reasons: string[] = [];
-  if (candidate.includedPaths.length === 0) reasons.push("includedPaths is empty");
+  if (candidate.includedPaths.length === 0) reasons.push("已选文件路径为空");
   return reasons;
 }

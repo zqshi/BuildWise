@@ -31,12 +31,12 @@ export async function generateUxExecutionGuidanceOp(params: {
   const iterationName = params.iteration?.name || "-";
   const boundary = params.iteration?.changeControl?.boundary;
   const context = [
-    `iteration=${iterationName}`,
-    `instruction=${params.rewriteInstruction}`,
-    `boundary.codePaths=${boundary?.codePaths.join(" | ") || "-"}`,
-    `mustDo=${params.analysisReport?.businessConfirmation?.necessityAssessment?.mustDo?.join(" | ") || "-"}`,
-    `functionalPoints=${params.analysisReport?.businessConfirmation?.functionalPoints?.join(" | ") || "-"}`,
-    `acceptance=${params.iteration?.scope?.acceptanceCriteria?.join(" | ") || "-"}`
+    `所属迭代：${iterationName}`,
+    `改写指令：${params.rewriteInstruction}`,
+    `代码路径边界：${boundary?.codePaths.join("、") || "无"}`,
+    `本迭代必须完成：${params.analysisReport?.businessConfirmation?.necessityAssessment?.mustDo?.join("、") || "无"}`,
+    `功能要点：${params.analysisReport?.businessConfirmation?.functionalPoints?.join("、") || "无"}`,
+    `验收标准：${params.iteration?.scope?.acceptanceCriteria?.join("、") || "无"}`
   ].join("\n");
   try {
     const result = await params.agentRunner.run({

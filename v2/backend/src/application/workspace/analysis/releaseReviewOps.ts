@@ -42,8 +42,8 @@ export function parseReleaseReviewCandidate(
 
 export function listReleaseReviewMissingReasons(candidate: ReturnType<typeof parseReleaseReviewCandidate>) {
   const reasons: string[] = [];
-  if (!candidate.reason) reasons.push("missing reason");
-  if (candidate.blockers.length === 0 && candidate.decision === "block") reasons.push("block decision without blockers");
-  if (candidate.recommendations.length === 0) reasons.push("recommendations is empty");
+  if (!candidate.reason) reasons.push("发布评审原因缺失");
+  if (candidate.blockers.length === 0 && candidate.decision === "block") reasons.push("阻断决策缺少阻断项");
+  if (candidate.recommendations.length === 0) reasons.push("发布建议为空");
   return reasons;
 }

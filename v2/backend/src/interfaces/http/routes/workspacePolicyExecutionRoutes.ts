@@ -18,11 +18,11 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     return service.governance.listPolicyExecutionLogs(iterationId);
   });
@@ -50,11 +50,11 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { action?: string; message?: string } | null;
     const action = body?.action?.trim() || "manual-step";
@@ -62,17 +62,17 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
     const gate = service.governance.evaluatePolicyGateForCoach(iterationId, message);
     if (!gate) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     const context = service.iteration.getIterationContext(iterationId);
     if (!context?.iteration) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     const activePolicy = service.governance.getEffectiveOrchestrationPolicy(context.iteration.projectId);
     if (!activePolicy) {
       reply.code(400);
-      return { message: "effective policy not found" };
+      return { message: "未找到有效策略" };
     }
     const log = service.governance.appendPolicyExecutionLog({
       projectId: context.iteration.projectId,

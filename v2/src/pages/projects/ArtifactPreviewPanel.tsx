@@ -141,7 +141,7 @@ export function ArtifactPreviewPanel({
   return (
     <Suspense fallback={<ArtifactEditorFallback />}>
       <div className="deliverable-preview-focus">
-      {selectedDrawerArtifact?.stale && (
+      {selectedDrawerArtifact?.stale && (selectedDrawerArtifact?.outputVersion ?? 0) > 0 && (
         <div style={{
           padding: "6px 12px",
           background: "#fff8e6",
@@ -437,8 +437,8 @@ export function ArtifactPreviewPanel({
                   <strong>
                     [{item.type}] {item.caseId}
                   </strong>
-                  <p>expected：{item.expected || "-"}</p>
-                  <p className="hint">状态：{item.executionStatus}</p>
+                  <p>预期：{item.expected || "-"}</p>
+                  <p className="hint">状态：{{ pending: "待执行", passed: "已通过", failed: "未通过", blocked: "阻塞", skipped: "已跳过" }[item.executionStatus] || item.executionStatus || "待执行"}</p>
                 </li>
               ))}
             </ul>
@@ -452,7 +452,7 @@ export function ArtifactPreviewPanel({
           <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} profile="release-review" readOnly showTitle={false} />
         ) : (
           <div className="artifact-drawer-structured-content">
-            <p>最近结论：{currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
+            <p>最近结论：{{ go: "通过", caution: "有条件通过", block: "阻断" }[currentIteration?.changeControl?.lastReleaseReviewDecision] || currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
             <p className="hint">说明：{currentIteration?.changeControl?.lastReleaseReviewReason || "-"}</p>
           </div>
         )

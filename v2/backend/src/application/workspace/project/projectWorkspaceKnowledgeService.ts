@@ -35,6 +35,37 @@ function resolveKnowledgeRoot(workspacePath: string) {
   return join(resolve(workspacePath), ".buildwise");
 }
 
+function writeKnowledgeMemoryFiles(
+  documents: Record<string, string>,
+  project: NonNullable<ReturnType<WorkspaceRepository["findProject"]>>,
+  kb: NonNullable<ReturnType<typeof import("../shared/workspaceSupport").normalizeProject>["knowledgeBase"]>,
+  iterations: ReturnType<WorkspaceRepository["listIterations"]>,
+  now: string
+) {
+  writeTextFile(
+    documents.workspace,
+    JSON.stringify({ version: INDEX_VERSION, projectId: project.id, projectName: project.name, status: project.status, syncedAt: now }, null, 2)
+  );
+  writeTextFile(documents.projectSummary, buildProjectSummaryDoc(project, iterations));
+  writeTextFile(documents.business, buildBusinessOntologyDoc(kb));
+  writeTextFile(documents.technical, buildTechnicalOntologyDoc(kb));
+  writeTextFile(documents.decisions, buildDecisionRiskDoc(kb));
+  writeTextFile(documents.releaseHistory, buildReleaseHistoryDoc(iterations));
+  writeTextFile(
+    documents.memoryIndex,
+    [
+      `# ${project.name} Memory Index`, "",
+      "- `project-summary.md`：项目基础信息与最近迭代",
+      "- `ontology-business.md`：业务术语与稳定规则",
+      "- `ontology-tech.md`：技术本体、组件与代码映射",
+      "- `decisions.md`：决策、风险与变更模式",
+      "- `release-history.md`：迭代发布历史",
+      "- `daily/*.md`：每日自动汇总",
+    ].join("\n")
+  );
+  writeTextFile(documents.daily, buildDailySummaryDoc(project, iterations, now));
+}
+
 export function syncProjectWorkspaceKnowledge(repo: WorkspaceRepository, projectId: number): ProjectWorkspaceSyncResult | null {
   const project = repo.findProject(projectId);
   const binding = repo.listProjectWorkspaceBindings(projectId)[0] || null;
@@ -78,40 +109,7 @@ export function syncProjectWorkspaceKnowledge(repo: WorkspaceRepository, project
     daily: join(dailyDir, `${isoDay(now)}.md`)
   };
 
-  writeTextFile(
-    documents.workspace,
-    JSON.stringify(
-      {
-        version: INDEX_VERSION,
-        projectId: project.id,
-        projectName: project.name,
-        status: project.status,
-        binding,
-        syncedAt: now
-      },
-      null,
-      2
-    )
-  );
-  writeTextFile(documents.projectSummary, buildProjectSummaryDoc(project, iterations));
-  writeTextFile(documents.business, buildBusinessOntologyDoc(kb));
-  writeTextFile(documents.technical, buildTechnicalOntologyDoc(kb));
-  writeTextFile(documents.decisions, buildDecisionRiskDoc(kb));
-  writeTextFile(documents.releaseHistory, buildReleaseHistoryDoc(iterations));
-  writeTextFile(
-    documents.memoryIndex,
-    [
-      `# ${project.name} Memory Index`,
-      "",
-      "- `project-summary.md`：项目基础信息与最近迭代",
-      "- `ontology-business.md`：业务术语与稳定规则",
-      "- `ontology-tech.md`：技术本体、组件与代码映射",
-      "- `decisions.md`：决策、风险与变更模式",
-      "- `release-history.md`：迭代发布历史",
-      "- `daily/*.md`：每日自动汇总",
-    ].join("\n")
-  );
-  writeTextFile(documents.daily, buildDailySummaryDoc(project, iterations, now));
+  writeKnowledgeMemoryFiles(documents, project, kb, iterations, now);
 
   const shards = buildShards(project, kb, iterations, now);
   for (const shard of shards) {

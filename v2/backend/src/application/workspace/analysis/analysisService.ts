@@ -8,6 +8,9 @@ import type {
   IterationStatus,
   IterationTransitionSource
 } from '../../../domain/workspace/types';
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("analysis-svc");
 import type { AgentRunner } from '../shared/agentRunner';
 import { analyzeAttachmentOp } from './analysisOps';
 import { buildAttachmentReportSections, getAttachmentReportSectionPage } from './reportOps';
@@ -131,7 +134,7 @@ export class AnalysisService {
         }
       }
     } catch (err) {
-      console.error("[AnalysisService] Failed to restore from DB, starting fresh", err);
+      log.error("failed to restore from DB, starting fresh", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -143,7 +146,7 @@ export class AnalysisService {
         inputFingerprint: job.inputFingerprint
       });
     } catch (err) {
-      console.error("[AnalysisService] Failed to persist job", job.jobId, err);
+      log.error("failed to persist job", { jobId: job.jobId, error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -151,7 +154,7 @@ export class AnalysisService {
     try {
       this.repo.saveReportIndex?.(report);
     } catch (err) {
-      console.error("[AnalysisService] Failed to persist report index", report.reportId, err);
+      log.error("failed to persist report index", { reportId: report.reportId, error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -159,7 +162,7 @@ export class AnalysisService {
     try {
       this.repo.saveReportSections?.(sections);
     } catch (err) {
-      console.error("[AnalysisService] Failed to persist report sections", err);
+      log.error("failed to persist report sections", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -441,7 +444,7 @@ export class AnalysisService {
         this.onAnalysisCompletedCallback(iterationId, report);
       } catch (err) {
         // modeling trigger failure must not block analysis pipeline
-        console.error("[AnalysisService] onAnalysisCompleted callback failed for iteration", iterationId, err);
+        log.error("onAnalysisCompleted callback failed", { iterationId, error: err instanceof Error ? err.message : String(err) });
       }
     }
   }

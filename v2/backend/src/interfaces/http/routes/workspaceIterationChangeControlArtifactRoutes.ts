@@ -16,16 +16,16 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const result = service.changeControl.getIterationArtifactWorkflow(iterationId);
     if (!result) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return result;
   });
@@ -56,17 +56,17 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
-      return { message: "invalid iteration id or artifact id" };
+      return { message: "无效的迭代或交付物" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { content?: string; media?: string[]; actor?: string } | null;
     const content = body?.content?.trim() || "";
     if (!content) {
       reply.code(400);
-      return { message: "content is required" };
+      return { message: "内容不能为空" };
     }
     const result = service.changeControl.saveIterationArtifactDraft(iterationId, artifactId, {
       content,
@@ -75,11 +75,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     });
     if (result === null) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     if (typeof result === "undefined") {
       reply.code(404);
-      return { message: "artifact not found" };
+      return { message: "交付物不存在" };
     }
     return result;
   });
@@ -110,11 +110,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
-      return { message: "invalid iteration id or artifact id" };
+      return { message: "无效的迭代或交付物" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { actor?: string; summary?: string; evidence?: string[]; source?: string } | null;
     const result = service.changeControl.commitIterationArtifact(iterationId, artifactId, {
@@ -125,11 +125,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     });
     if (result === null) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     if (typeof result === "undefined") {
       reply.code(404);
-      return { message: "artifact not found" };
+      return { message: "交付物不存在" };
     }
     return result;
   });
@@ -159,11 +159,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
-      return { message: "invalid iteration id or artifact id" };
+      return { message: "无效的迭代或交付物" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { actor?: string; passed?: boolean; note?: string } | null;
     const result = service.changeControl.confirmIterationArtifact(iterationId, artifactId, {
@@ -173,11 +173,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     });
     if (result === null) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     if (typeof result === "undefined") {
       reply.code(404);
-      return { message: "artifact not found" };
+      return { message: "交付物不存在" };
     }
     return result;
   });
@@ -206,11 +206,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const iterationId = resolveIterationId(reply, params.id);
     const artifactId = resolveArtifactId(reply, params.artifactId);
     if (iterationId === null || artifactId === null) {
-      return { message: "invalid iteration id or artifact id" };
+      return { message: "无效的迭代或交付物" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { actor?: string; prompt?: string } | null;
     const result = service.changeControl.appendIterationArtifactToConversation(iterationId, artifactId, {
@@ -219,11 +219,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     });
     if (result === null) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     if (typeof result === "undefined") {
       reply.code(404);
-      return { message: "artifact not found" };
+      return { message: "交付物不存在" };
     }
     return result;
   });
@@ -250,11 +250,11 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as {
       toStage?: "clarification" | "scope" | "interaction" | "development" | "testing" | "release" | "archive";
@@ -263,7 +263,7 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     } | null;
     if (!body?.toStage) {
       reply.code(400);
-      return { message: "toStage is required" };
+      return { message: "请指定目标阶段" };
     }
     const result = service.changeControl.transitionIterationArtifactStage(iterationId, body.toStage, {
       actor: body.actor,
@@ -272,18 +272,18 @@ export function registerWorkspaceIterationChangeControlArtifactRoutes(app: Fasti
     if (!result.ok) {
       if (result.reason === "iteration_not_found") {
         reply.code(404);
-        return { message: "iteration not found" };
+        return { message: "迭代不存在" };
       }
       if (result.reason === "upstream_gate_not_passed") {
         reply.code(409);
-        return { message: "upstream gate not passed", blockers: result.blockers };
+        return { message: "前置阶段门禁未通过，请先完成所需交付物", blockers: result.blockers };
       }
       if (result.reason === "invalid_stage_order") {
         reply.code(409);
-        return { message: "invalid stage order", expectedNext: result.expectedNext };
+        return { message: "阶段顺序不正确", expectedNext: result.expectedNext };
       }
       reply.code(400);
-      return { message: "invalid stage transition" };
+      return { message: "无法执行该阶段切换" };
     }
     return result.workflow;
   });

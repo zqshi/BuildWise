@@ -61,6 +61,84 @@ function rankConfidence(value: "high" | "medium" | "low"): number {
 
 const PRIORITY_ORDER: Record<string, number> = { P0: 0, P1: 1, P2: 2 };
 
+function mergeChunkDeepInsights(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["deepInsights"] {
+  const fileInsights = dedupByKey(chunks.flatMap((c) => c.deepInsights.fileInsights), (item) => item.path || item.fileName, 400);
+  const analyzed = fileInsights.filter((i) => i.status === "analyzed").length;
+  const partial = fileInsights.filter((i) => i.status === "partial").length;
+  const failed = fileInsights.filter((i) => i.status === "failed").length;
+  const considered = fileInsights.length;
+  return {
+    coverage: {
+      consideredFiles: considered, analyzedFiles: analyzed, partialFiles: partial, failedFiles: failed,
+      coveragePercent: considered === 0 ? 0 : Math.round(((analyzed + partial) / considered) * 100)
+    },
+    fileInsights,
+    crossFileInsights: {
+      themes: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.themes), 12),
+      conflicts: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.conflicts), 12),
+      gaps: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.gaps), 12),
+      recommendations: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.recommendations), 12),
+      conflictChains: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.conflictChains), 12),
+      rootCauses: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.rootCauses), 12),
+      impactScope: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.impactScope), 12),
+      decisionSuggestions: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.decisionSuggestions), 12)
+    }
+  };
+}
+
+function mergeChunkTraceabilityMap(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["traceabilityMap"] {
+  return {
+    requirementToComponent: dedupByKey(chunks.flatMap((c) => c.traceabilityMap.requirementToComponent), (item) => item.requirement, 20),
+    componentToCode: dedupByKey(chunks.flatMap((c) => c.traceabilityMap.componentToCode), (item) => item.component, 20),
+    requirementToCode: dedupByKey(chunks.flatMap((c) => c.traceabilityMap.requirementToCode), (item) => item.requirement, 20),
+    coverageScore: chunks.length === 0 ? 0 : Math.round(chunks.reduce((sum, c) => sum + c.traceabilityMap.coverageScore, 0) / chunks.length),
+    mappingConfidence: chunks.reduce((best, c) =>
+      rankConfidence(c.traceabilityMap.mappingConfidence) > rankConfidence(best) ? c.traceabilityMap.mappingConfidence : best
+    , "low" as "high" | "medium" | "low"),
+    unmappedRequirements: dedupStrings(chunks.flatMap((c) => c.traceabilityMap.unmappedRequirements), 12),
+    conflicts: dedupStrings(chunks.flatMap((c) => c.traceabilityMap.conflicts), 12),
+    gaps: dedupStrings(chunks.flatMap((c) => c.traceabilityMap.gaps), 12)
+  };
+}
+
+function mergeChunkDomainKnowledge(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["domainKnowledge"] {
+  const termMap = new Map<string, CoreAnalysisChunkResult["domainKnowledge"]["terms"][number]>();
+  for (const chunk of chunks) {
+    for (const t of chunk.domainKnowledge.terms) {
+      const existing = termMap.get(t.term);
+      if (existing) {
+        existing.mappedTo = {
+          pages: dedupStrings([...existing.mappedTo.pages, ...t.mappedTo.pages], 10),
+          apis: dedupStrings([...existing.mappedTo.apis, ...t.mappedTo.apis], 10),
+          entities: dedupStrings([...existing.mappedTo.entities, ...t.mappedTo.entities], 10),
+          codePaths: dedupStrings([...existing.mappedTo.codePaths, ...t.mappedTo.codePaths], 10)
+        };
+        if (rankConfidence(t.bindingStrength) > rankConfidence(existing.bindingStrength)) {
+          existing.bindingStrength = t.bindingStrength;
+        }
+      } else {
+        termMap.set(t.term, { ...t });
+      }
+    }
+  }
+  return {
+    terms: Array.from(termMap.values()).slice(0, 30),
+    rules: dedupStrings(chunks.flatMap((c) => c.domainKnowledge.rules), 20),
+    unknowns: dedupStrings(chunks.flatMap((c) => c.domainKnowledge.unknowns), 12)
+  };
+}
+
+function mergeChunkVersionDiffDetailed(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["versionDiffDetailed"] {
+  return {
+    summary: pickLongest(chunks.map((c) => c.versionDiffDetailed.summary)),
+    impactScope: dedupStrings(chunks.flatMap((c) => c.versionDiffDetailed.impactScope), 12),
+    riskPoints: dedupStrings(chunks.flatMap((c) => c.versionDiffDetailed.riskPoints), 12),
+    added: dedupByKey(chunks.flatMap((c) => c.versionDiffDetailed.added), (i) => `${i.dimension}:${i.item}`, 15),
+    changed: dedupByKey(chunks.flatMap((c) => c.versionDiffDetailed.changed), (i) => `${i.dimension}:${i.item}`, 15),
+    removed: dedupByKey(chunks.flatMap((c) => c.versionDiffDetailed.removed), (i) => `${i.dimension}:${i.item}`, 15)
+  };
+}
+
 export function mergeCoreAnalysisChunks(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult {
   if (chunks.length === 1) return chunks[0];
 
@@ -99,103 +177,16 @@ export function mergeCoreAnalysisChunks(chunks: CoreAnalysisChunkResult[]): Core
     limitations: dedupStrings(chunks.flatMap((c) => c.attachmentInsights.limitations), 8)
   };
 
-  // deepInsights: fileInsights 直接 concat（每片负责不同文件），crossFileInsights 各字段合并
-  const allFileInsights = chunks.flatMap((c) => c.deepInsights.fileInsights);
-  const fileInsights = dedupByKey(allFileInsights, (item) => item.path || item.fileName, 400);
-  const analyzed = fileInsights.filter((i) => i.status === "analyzed").length;
-  const partial = fileInsights.filter((i) => i.status === "partial").length;
-  const failed = fileInsights.filter((i) => i.status === "failed").length;
-  const considered = fileInsights.length;
-  const deepInsights: CoreAnalysisChunkResult["deepInsights"] = {
-    coverage: {
-      consideredFiles: considered,
-      analyzedFiles: analyzed,
-      partialFiles: partial,
-      failedFiles: failed,
-      coveragePercent: considered === 0 ? 0 : Math.round(((analyzed + partial) / considered) * 100)
-    },
-    fileInsights,
-    crossFileInsights: {
-      themes: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.themes), 12),
-      conflicts: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.conflicts), 12),
-      gaps: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.gaps), 12),
-      recommendations: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.recommendations), 12),
-      conflictChains: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.conflictChains), 12),
-      rootCauses: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.rootCauses), 12),
-      impactScope: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.impactScope), 12),
-      decisionSuggestions: dedupStrings(chunks.flatMap((c) => c.deepInsights.crossFileInsights.decisionSuggestions), 12)
-    }
-  };
-
-  // traceabilityMap: 各子数组 concat 去重；coverageScore 取加权平均
-  const traceabilityMap: CoreAnalysisChunkResult["traceabilityMap"] = {
-    requirementToComponent: dedupByKey(
-      chunks.flatMap((c) => c.traceabilityMap.requirementToComponent),
-      (item) => item.requirement,
-      20
-    ),
-    componentToCode: dedupByKey(
-      chunks.flatMap((c) => c.traceabilityMap.componentToCode),
-      (item) => item.component,
-      20
-    ),
-    requirementToCode: dedupByKey(
-      chunks.flatMap((c) => c.traceabilityMap.requirementToCode),
-      (item) => item.requirement,
-      20
-    ),
-    coverageScore: chunks.length === 0 ? 0 : Math.round(chunks.reduce((sum, c) => sum + c.traceabilityMap.coverageScore, 0) / chunks.length),
-    mappingConfidence: chunks.reduce((best, c) =>
-      rankConfidence(c.traceabilityMap.mappingConfidence) > rankConfidence(best) ? c.traceabilityMap.mappingConfidence : best
-    , "low" as "high" | "medium" | "low"),
-    unmappedRequirements: dedupStrings(chunks.flatMap((c) => c.traceabilityMap.unmappedRequirements), 12),
-    conflicts: dedupStrings(chunks.flatMap((c) => c.traceabilityMap.conflicts), 12),
-    gaps: dedupStrings(chunks.flatMap((c) => c.traceabilityMap.gaps), 12)
-  };
-
-  // executableConstraints: whitelist 类字段 concat 去重
+  const deepInsights = mergeChunkDeepInsights(chunks);
+  const traceabilityMap = mergeChunkTraceabilityMap(chunks);
   const executableConstraints: CoreAnalysisChunkResult["executableConstraints"] = {
     componentWhitelist: dedupStrings(chunks.flatMap((c) => c.executableConstraints.componentWhitelist), 20),
     codePathWhitelist: dedupStrings(chunks.flatMap((c) => c.executableConstraints.codePathWhitelist), 20),
     acceptanceChecks: dedupStrings(chunks.flatMap((c) => c.executableConstraints.acceptanceChecks), 16),
     gateRules: dedupStrings(chunks.flatMap((c) => c.executableConstraints.gateRules), 12)
   };
-
-  // domainKnowledge: terms 合并（term 相同则合并 mappedTo），rules 合并
-  const termMap = new Map<string, CoreAnalysisChunkResult["domainKnowledge"]["terms"][number]>();
-  for (const chunk of chunks) {
-    for (const t of chunk.domainKnowledge.terms) {
-      const existing = termMap.get(t.term);
-      if (existing) {
-        existing.mappedTo = {
-          pages: dedupStrings([...existing.mappedTo.pages, ...t.mappedTo.pages], 10),
-          apis: dedupStrings([...existing.mappedTo.apis, ...t.mappedTo.apis], 10),
-          entities: dedupStrings([...existing.mappedTo.entities, ...t.mappedTo.entities], 10),
-          codePaths: dedupStrings([...existing.mappedTo.codePaths, ...t.mappedTo.codePaths], 10)
-        };
-        if (rankConfidence(t.bindingStrength) > rankConfidence(existing.bindingStrength)) {
-          existing.bindingStrength = t.bindingStrength;
-        }
-      } else {
-        termMap.set(t.term, { ...t });
-      }
-    }
-  }
-  const domainKnowledge: CoreAnalysisChunkResult["domainKnowledge"] = {
-    terms: Array.from(termMap.values()).slice(0, 30),
-    rules: dedupStrings(chunks.flatMap((c) => c.domainKnowledge.rules), 20),
-    unknowns: dedupStrings(chunks.flatMap((c) => c.domainKnowledge.unknowns), 12)
-  };
-
-  // versionDiffDetailed: summary 取最长，数组字段 concat 去重
-  const versionDiffDetailed: CoreAnalysisChunkResult["versionDiffDetailed"] = {
-    summary: pickLongest(chunks.map((c) => c.versionDiffDetailed.summary)),
-    impactScope: dedupStrings(chunks.flatMap((c) => c.versionDiffDetailed.impactScope), 12),
-    riskPoints: dedupStrings(chunks.flatMap((c) => c.versionDiffDetailed.riskPoints), 12),
-    added: dedupByKey(chunks.flatMap((c) => c.versionDiffDetailed.added), (i) => `${i.dimension}:${i.item}`, 15),
-    changed: dedupByKey(chunks.flatMap((c) => c.versionDiffDetailed.changed), (i) => `${i.dimension}:${i.item}`, 15),
-    removed: dedupByKey(chunks.flatMap((c) => c.versionDiffDetailed.removed), (i) => `${i.dimension}:${i.item}`, 15)
-  };
+  const domainKnowledge = mergeChunkDomainKnowledge(chunks);
+  const versionDiffDetailed = mergeChunkVersionDiffDetailed(chunks);
 
   return {
     projectDetection,

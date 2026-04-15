@@ -1,7 +1,6 @@
 import { LlmInvocationError, LlmUnavailableError } from '../../../application/workspace/shared/agentRunner';
 import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { DuplicateAttachmentUploadError, WorkspaceBindingConflictError } from '../../../application/workspace/shared/errors';
-import { resolveErrorMessage } from "../../../shared/utils";
 
 export function parsePositiveInt(value: string | undefined) {
   if (!value) return null;
@@ -34,7 +33,7 @@ export function currentTenantId(request: import("fastify").FastifyRequest) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-export function ensureAuthenticatedUser(request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) {
+function ensureAuthenticatedUser(request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) {
   const userId = currentUserId(request);
   if (!userId) {
     reply.code(401);
@@ -148,7 +147,7 @@ export function isValidPhone(phone: string) {
   return /^1\d{10}$/.test(phone);
 }
 
-export function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
+function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
   if (error instanceof LlmUnavailableError) {
     return 503;
   }
@@ -177,14 +176,20 @@ export function resolveLlmErrorStatus(error: unknown): 502 | 503 | null {
  */
 export function handleRouteError(error: unknown): { code: number; message: string } | null {
   if (error instanceof DuplicateAttachmentUploadError) {
-    return { code: 409, message: "duplicate_upload" };
+    return { code: 409, message: "文件重复上传" };
   }
   if (error instanceof WorkspaceBindingConflictError) {
-    return { code: 409, message: "workspace_path_already_bound" };
+    return { code: 409, message: "工作空间路径已绑定" };
   }
   const llmStatus = resolveLlmErrorStatus(error);
   if (llmStatus) {
-    return { code: llmStatus, message: resolveErrorMessage(error) };
+    if (error instanceof LlmUnavailableError) {
+      return { code: 503, message: "AI 服务未配置或暂时不可用" };
+    }
+    if (error instanceof LlmInvocationError) {
+      return { code: 502, message: "AI 服务处理失败，请稍后重试" };
+    }
+    return { code: llmStatus, message: "AI 服务暂时不可用，请稍后重试" };
   }
   return null;
 }

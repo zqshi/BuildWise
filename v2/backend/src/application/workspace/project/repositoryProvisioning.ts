@@ -1,5 +1,8 @@
 type OwnerType = "org" | "user";
 type Visibility = "private" | "public";
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("repo-provision");
 
 type ProvisionRepositoryInput = {
   ownerType: OwnerType;
@@ -73,8 +76,10 @@ async function requestGitHub(
   let body: GitHubRepoResponse | null = null;
   try {
     body = (await res.json()) as GitHubRepoResponse;
-  } catch {
+  } catch (err) {
     body = null;
+    // HTTP body parse failure — non-JSON response from GitHub API
+    log.debug("GitHub response body parse failed", { error: err instanceof Error ? err.message : String(err) });
   }
   return { status: res.status, body };
 }

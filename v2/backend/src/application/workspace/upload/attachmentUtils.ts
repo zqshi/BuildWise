@@ -6,6 +6,9 @@ import type {
 } from '../../../domain/workspace/types';
 export { nowIso, pickStringList } from '../../../shared/utils';
 import { mergeAttachmentReports } from '../analysis/reportMerge';
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("attachment-utils");
 
 function countInputFiles(input: AttachmentUploadInput) {
   if (input.sourceType === "folder" && Array.isArray(input.files) && input.files.length > 0) {
@@ -228,14 +231,15 @@ export function safeJsonParse(value: string) {
   let parsed: Record<string, unknown> | null = null;
   try {
     parsed = JSON.parse(text) as Record<string, unknown>;
-  } catch {
+  } catch (outerErr) {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start >= 0 && end > start) {
       try {
         parsed = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        // fall through to truncated JSON repair
+      } catch (innerErr) {
+        // substring JSON extraction also failed, fall through to truncated JSON repair
+        log.debug("JSON substring parse failed", { error: innerErr instanceof Error ? innerErr.message : String(innerErr) });
       }
     }
     if (!parsed) {
@@ -261,7 +265,8 @@ function tryRepairTruncatedJson(text: string): Record<string, unknown> | null {
   let reply = replyMatch[1];
   try {
     reply = JSON.parse(`"${reply}"`);
-  } catch {
+  } catch (repairErr) {
+    log.debug("JSON reply unescape failed, using manual repair", { error: repairErr instanceof Error ? repairErr.message : String(repairErr) });
     reply = reply.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   }
   if (!reply || reply.length < 10) {
