@@ -13,6 +13,7 @@ import { parseBusinessConfirmationCandidate, listBusinessConfirmationMissingReas
 import { type BizConfirmationChunkResult, mergeBizConfirmationChunks } from './chunkMergeOps';
 import { planChunks, batchArray } from './chunkingOps';
 import { type ChunkConfig, runAnalysisPrompt } from './configOps';
+import { formatSourceType, formatVersionDiff, formatDiffLocations, formatBoundaries } from './extractors';
 
 export type BizConfirmParams = {
   iterationName: string;
@@ -46,7 +47,7 @@ export async function runBizConfirmAgent(
 
   const plan = planChunks(
     params.excerpt,
-    `target=${params.analyzedTarget};sourceType=${params.sourceType}`,
+    `分析对象：${params.analyzedTarget}；来源类型：${params.sourceType === "single-file" ? "单文件" : "文件夹"}`,
     chunkConfig.chunkBudget,
     chunkConfig.chunkOverlap
   );
@@ -73,7 +74,7 @@ export async function runBizConfirmAgent(
       if (r.status === "fulfilled") {
         results.push(r.value);
       } else {
-        const log = (await import("../../shared/logger")).createLogger("biz-confirm");
+        const log = (await import("../../../infrastructure/runtime/logger")).createLogger("biz-confirm");
         log.warn("biz confirmation chunk failed", { error: r.reason instanceof Error ? r.reason.message : String(r.reason) });
       }
     }
@@ -121,16 +122,15 @@ async function runBizConfirmSingleChunk(
     userPrompt: [
       ...chunkPreamble,
       ...phase2Context,
-      `iteration=${params.iterationName}`,
-      `baseline=${params.baselineIterationName || "无基线"}`,
-      `target=${params.analyzedTarget};sourceType=${params.sourceType}`,
-      `需求边界=${params.requirements.join(" | ") || "-"}`,
-      `组件边界=${params.components.join(" | ") || "-"}`,
-      `代码边界=${params.codePaths.join(" | ") || "-"}`,
-      `澄清问题=${params.clarificationQuestions.join(" | ") || "-"}`,
-      `版本差异=新增:${params.versionDiff.added.join(" | ") || "-"};修改:${params.versionDiff.changed.join(" | ") || "-"};移除:${params.versionDiff.removed.join(" | ") || "-"}`,
-      `差异定位=${params.diffLocations.map((i) => `${i.dimension}/${i.changeType}:${i.baselineItem || "-"}->${i.currentItem}`).join(" | ") || "-"}`,
-      `附件文本节选=${excerpt.slice(0, isCompact ? 1800 : 2800) || "-"}`,
+      `所属迭代：${params.iterationName}`,
+      `基线迭代：${params.baselineIterationName || "无基线"}`,
+      `分析目标：${params.analyzedTarget}`,
+      `来源类型：${formatSourceType(params.sourceType)}`,
+      formatBoundaries(params.requirements, params.components, params.codePaths),
+      `澄清问题：${params.clarificationQuestions.join("；") || "无"}`,
+      formatVersionDiff(params.versionDiff),
+      formatDiffLocations(params.diffLocations),
+      `附件文本节选：${excerpt.slice(0, isCompact ? 1800 : 2800) || "无"}`,
       "输出要求：",
       "0) coreIntent: 一句话说明核心任务与业务目标",
       isCompact ? "0.1) successCriteria: 3-5条" : "0.1) successCriteria: 3-8条",
@@ -158,6 +158,7 @@ async function runBizConfirmSingleChunk(
       userPrompt: [
         prompt.userPrompt,
         "你上一版输出不满足必填字段，请仅输出严格 JSON 并补齐缺失项。",
+        "输出的 JSON 字符串值必须使用中文业务语言，禁止引用 JSON key 名称。",
         `缺失项：${missing.join("; ")}`,
         `上一版：${selected.content.slice(0, 2400)}`
       ].join("\n\n")
@@ -168,7 +169,7 @@ async function runBizConfirmSingleChunk(
   }
 
   if (missing.length > 0) {
-    const log = (await import("../../shared/logger")).createLogger("biz-confirm");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("biz-confirm");
     log.warn("biz confirmation incomplete", { chunk: chunkLabel, missing: missing.join(", ") });
   }
 

@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { AgentScope } from '../../../domain/workspace/types';
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("asset-registry");
 
 export type AgentPromptTemplate = {
   systemPrompt: string;
@@ -48,7 +51,7 @@ export function loadAgentPromptTemplate(roleKey: string, fallback: AgentPromptTe
         return parsed;
       }
     } catch (err) {
-      console.warn("[AgentAssetRegistry] failed to load prompt template from", filePath, err);
+      log.warn("failed to load prompt template", { filePath, error: err instanceof Error ? err.message : String(err) });
     }
   }
   return fallback;
@@ -73,7 +76,7 @@ export function loadWorkflowTemplate(params: {
       const contextHint = typeof raw.contextHint === "string" ? raw.contextHint.trim() : "";
       return { name, contextHint: contextHint || fallback.contextHint };
     } catch (err) {
-      console.warn("[AgentAssetRegistry] failed to load workflow template from", filePath, err);
+      log.warn("failed to load workflow template", { filePath, error: err instanceof Error ? err.message : String(err) });
     }
   }
   return fallback;

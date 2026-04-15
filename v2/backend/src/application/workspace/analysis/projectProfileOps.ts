@@ -63,10 +63,10 @@ export function parseProjectProfileCandidate(content: string) {
 
 export function listProjectProfileMissingReasons(candidate: ReturnType<typeof parseProjectProfileCandidate>) {
   const reasons: string[] = [];
-  if (!candidate.projectName && !candidate.productName) reasons.push("missing projectDetection.projectName/productName");
-  if (candidate.meaningfulFindings.length === 0) reasons.push("meaningfulFindings is empty");
-  if (candidate.prioritizedFindings.length === 0) reasons.push("prioritizedFindings is empty");
-  if (candidate.nextActions.length === 0) reasons.push("nextActions is empty");
+  if (!candidate.projectName && !candidate.productName) reasons.push("项目/产品名称缺失");
+  if (candidate.meaningfulFindings.length === 0) reasons.push("关键发现为空");
+  if (candidate.prioritizedFindings.length === 0) reasons.push("优先级发现为空");
+  if (candidate.nextActions.length === 0) reasons.push("下一步行动为空");
   return reasons;
 }
 

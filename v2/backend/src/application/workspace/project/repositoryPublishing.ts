@@ -1,6 +1,9 @@
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("repo-publish");
 
 type Visibility = "private" | "public";
 type OwnerType = "org" | "user";
@@ -120,8 +123,10 @@ async function requestGitHub(
   let body: GitHubPrResponse | GitHubPrResponse[] | null = null;
   try {
     body = (await res.json()) as GitHubPrResponse | GitHubPrResponse[];
-  } catch {
+  } catch (err) {
     body = null;
+    // HTTP body parse failure — non-JSON response from GitHub API
+    log.debug("GitHub response body parse failed", { error: err instanceof Error ? err.message : String(err) });
   }
   return { status: res.status, body };
 }

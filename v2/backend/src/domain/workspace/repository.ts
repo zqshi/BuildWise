@@ -29,7 +29,7 @@ import type {
 
 // ── Sub-interfaces (ISP) ──
 
-export interface StoreAccess {
+interface StoreAccess {
   read(): WorkspaceStore;
   write(data: WorkspaceStore): void;
   nextId(items: { id: number }[]): number;
@@ -42,7 +42,7 @@ export interface ProjectRepository {
   updateProject(project: Project): void;
 }
 
-export interface IterationRepository {
+interface IterationRepository {
   listIterations(projectId: number): Iteration[];
   findIteration(iterationId: number): Iteration | null;
   findPreviousIteration(iteration: Iteration): Iteration | null;
@@ -55,12 +55,12 @@ export interface IterationRepository {
   appendTransition(transition: IterationTransition): void;
 }
 
-export interface MessageRepository {
+interface MessageRepository {
   listMessages(iterationId: number, opts?: { limit?: number; offset?: number }): IterationMessage[];
   createMessage(iterationId: number, role: IterationMessage["role"], content: string): IterationMessage;
 }
 
-export interface GovernanceRepository {
+interface GovernanceRepository {
   listAuditLogs(limit?: number): AuditLog[];
   appendAuditLog(log: AuditLog): void;
   listProjectPolicies(projectId: number): ProjectPolicyRecord[];
@@ -82,7 +82,7 @@ export interface GovernanceRepository {
   removeGovernanceCustomRole(roleKey: string): boolean;
 }
 
-export interface CollaborationRepository {
+interface CollaborationRepository {
   listVersionSnapshots(projectId: number): VersionSnapshot[];
   appendVersionSnapshot(snapshot: VersionSnapshot): void;
   findVersionSnapshot(snapshotId: number): VersionSnapshot | null;

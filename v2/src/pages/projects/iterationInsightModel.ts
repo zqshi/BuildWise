@@ -147,9 +147,16 @@ export function buildIterationGuidance(input: IterationGuidanceInput): Iteration
       "qa-review": "质量评审窗口",
       "clarification": "需求澄清窗口",
       "scope": "范围定义窗口",
+      "scope-clarified": "范围已确认",
+      "task-planning": "任务规划",
+      "build-in-progress": "开发实施中",
+      "ready-for-release": "准备发布",
       "testing": "测试验证窗口",
+      "development": "开发实施窗口",
+      "release": "发布评审窗口",
+      "archive": "交付归档窗口",
     };
-    checkpoints.push(`当前处于${phaseLabels[input.analysisReport.cyclePhase] ?? input.analysisReport.cyclePhase}`);
+    checkpoints.push(`当前处于${phaseLabels[input.analysisReport.cyclePhase] ?? "进行中"}`);
   }
 
   const questions = input.iteration.changeControl?.clarificationQuestions ?? [];

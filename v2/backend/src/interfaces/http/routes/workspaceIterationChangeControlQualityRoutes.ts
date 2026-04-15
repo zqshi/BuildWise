@@ -36,11 +36,11 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as {
       updates?: Array<{ caseId?: string; status?: string; by?: string; note?: string }>;
@@ -55,7 +55,7 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
       : [];
     if (updates.length === 0 || updates.some((item) => !item.caseId.trim() || !ALLOWED_EXECUTION_STATUSES.has(item.status))) {
       reply.code(400);
-      return { message: "updates[] requires caseId and status(pending|passed|failed|blocked|skipped)" };
+      return { message: "请为每条测试用例提供编号和执行状态" };
     }
     const result = service.changeControl.updateIterationTestMatrixExecution(
       iterationId,
@@ -64,18 +64,18 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     if (!result.ok) {
       if (result.reason === "iteration_not_found") {
         reply.code(404);
-        return { message: "iteration not found" };
+        return { message: "迭代不存在" };
       }
       if (result.reason === "case_not_found") {
         reply.code(409);
-        return { message: "test case not found", missingCaseIds: result.missingCaseIds };
+        return { message: "测试用例不存在", missingCaseIds: result.missingCaseIds };
       }
       if (result.reason === "test_matrix_missing") {
         reply.code(409);
-        return { message: "test matrix not generated" };
+        return { message: "测试矩阵尚未生成" };
       }
       reply.code(400);
-      return { message: "invalid updates" };
+      return { message: "更新内容无效" };
     }
     return result;
   });
@@ -99,17 +99,17 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const body = request.body as { dryRun?: boolean } | null;
     const result = await service.quality.generateIterationTestArtifacts(iterationId, { dryRun: body?.dryRun === true });
     if (!result) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return result;
   });
@@ -126,16 +126,16 @@ export function registerWorkspaceIterationChangeControlQualityRoutes(app: Fastif
     const params = request.params as { id: string };
     const iterationId = resolveIterationId(reply, params.id);
     if (iterationId === null) {
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const result = service.quality.getIterationReleaseReview(iterationId);
     if (!result) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return result;
   });

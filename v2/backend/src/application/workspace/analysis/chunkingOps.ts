@@ -10,7 +10,7 @@
  * - 分片边界尊重语义单元（文件 > 章节 > 段落 > 硬切+重叠）
  */
 
-export type ChunkEntry = {
+type ChunkEntry = {
   index: number;
   total: number;
   text: string;
@@ -18,7 +18,7 @@ export type ChunkEntry = {
   charRange: [number, number];
 };
 
-export type ChunkPlan = {
+type ChunkPlan = {
   chunks: ChunkEntry[];
   totalChars: number;
   chunkCount: number;
@@ -146,7 +146,7 @@ function hardSplitWithOverlap(text: string, budget: number, overlap: number): st
  * @param budget   每片最大字符数
  * @param overlap  硬切时的重叠字符数（默认 500）
  */
-export function splitExcerptByBoundary(text: string, budget: number, overlap = 500): string[] {
+function splitExcerptByBoundary(text: string, budget: number, overlap = 500): string[] {
   if (text.length <= budget) {
     return [text];
   }

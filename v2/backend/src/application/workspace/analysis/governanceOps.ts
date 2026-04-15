@@ -85,14 +85,7 @@ function extractStringsFromObjectArray(raw: unknown, ...fields: string[]): strin
     .filter((s) => s.length > 0);
 }
 
-export function parseGovernanceInsightsCandidate(content: string) {
-  const parsed = parseJsonObjectFromText(content) as Record<string, unknown> | null;
-  const diffRaw = (parsed?.versionDiffDetailed ?? {}) as Record<string, unknown>;
-  const traceRaw = (parsed?.traceabilityMap ?? {}) as Record<string, unknown>;
-  const constraintsRaw = (parsed?.executableConstraints ?? {}) as Record<string, unknown>;
-  const domainRaw = (parsed?.domainKnowledge ?? {}) as Record<string, unknown>;
-
-  // traceabilityMap: handle both array format and object-map format from DeepSeek
+function parseTraceabilityMapRaw(traceRaw: Record<string, unknown>) {
   const r2cRaw = resolveTraceField(traceRaw,
     "requirementToComponent", "requirementsToComponents", "requirements_to_components",
     "requirement_to_component", "requirementToComponents");
@@ -103,10 +96,54 @@ export function parseGovernanceInsightsCandidate(content: string) {
   const r2codeRaw = resolveTraceField(traceRaw,
     "requirementToCode", "requirementsToCode", "requirements_to_code", "requirement_to_code");
   const r2codeArray = convertObjectMapToArray(r2codeRaw, "requirement", "codePaths", "mappedCodePaths", "code");
-  // coverageScore: handle both 0-100 int and 0-1 float
   const rawScore = Number(resolveTraceField(traceRaw, "coverageScore", "coverage_score", "overallCoverageScore") ?? 0);
   const coverageScore = rawScore > 0 && rawScore <= 1 ? Math.round(rawScore * 100) : Math.max(0, Math.min(100, Math.round(rawScore)));
+  return {
+    requirementToComponent: r2cArray.map((item) => ({ requirement: pickString(item.requirement), components: pickStringList(item.components, 12), evidence: pickString(item.evidence) })).filter((item) => item.requirement).slice(0, 16),
+    componentToCode: c2cArray.map((item) => ({ component: pickString(item.component), codePaths: pickStringList(item.codePaths, 12), evidence: pickString(item.evidence) })).filter((item) => item.component).slice(0, 16),
+    requirementToCode: r2codeArray.map((item) => ({ requirement: pickString(item.requirement), codePaths: pickStringList(item.codePaths, 12), evidence: pickString(item.evidence) })).filter((item) => item.requirement).slice(0, 16),
+    coverageScore,
+    mappingConfidence: normalizeMappingConfidence(pickString(resolveTraceField(traceRaw, "mappingConfidence", "mapping_confidence") as string | undefined)),
+    unmappedRequirements: pickStringList(traceRaw.unmappedRequirements, 16),
+    conflicts: pickStringList(traceRaw.conflicts, 16),
+    gaps: pickStringList(traceRaw.gaps, 16)
+  };
+}
 
+function parseDomainKnowledgeRaw(domainRaw: Record<string, unknown>) {
+  return {
+    terms: Array.isArray(domainRaw.terms)
+      ? (domainRaw.terms as Array<Record<string, unknown>>)
+          .map((item) => {
+            const rawMapped = item.mappedTo;
+            const mappedTo = (typeof rawMapped === "object" && rawMapped !== null && !Array.isArray(rawMapped))
+              ? rawMapped as Record<string, unknown>
+              : {};
+            return {
+              term: pickString(item.term),
+              definition: pickString(item.definition),
+              mappedTo: {
+                pages: pickStringList(mappedTo.pages, 12), apis: pickStringList(mappedTo.apis, 12),
+                entities: pickStringList(mappedTo.entities, 12), codePaths: pickStringList(mappedTo.codePaths, 12)
+              },
+              evidence: pickString(item.evidence),
+              bindingStrength: normalizeBindingStrength(pickString(item.bindingStrength))
+            };
+          })
+          .filter((item) => item.term.length > 0)
+          .slice(0, 16)
+      : [],
+    rules: extractStringsFromObjectArray(domainRaw.rules, "rule", "content", "description"),
+    unknowns: extractStringsFromObjectArray(domainRaw.unknowns, "item", "content", "description")
+  };
+}
+
+export function parseGovernanceInsightsCandidate(content: string) {
+  const parsed = parseJsonObjectFromText(content) as Record<string, unknown> | null;
+  const diffRaw = (parsed?.versionDiffDetailed ?? {}) as Record<string, unknown>;
+  const traceRaw = (parsed?.traceabilityMap ?? {}) as Record<string, unknown>;
+  const constraintsRaw = (parsed?.executableConstraints ?? {}) as Record<string, unknown>;
+  const domainRaw = (parsed?.domainKnowledge ?? {}) as Record<string, unknown>;
   return {
     versionDiffDetailed: {
       summary: pickString(diffRaw.summary),
@@ -116,70 +153,14 @@ export function parseGovernanceInsightsCandidate(content: string) {
       changed: parseDiffItems(diffRaw.changed),
       removed: parseDiffItems(diffRaw.removed)
     },
-    traceabilityMap: {
-      requirementToComponent: r2cArray
-        .map((item) => ({
-          requirement: pickString(item.requirement),
-          components: pickStringList(item.components, 12),
-          evidence: pickString(item.evidence)
-        }))
-        .filter((item) => item.requirement)
-        .slice(0, 16),
-      componentToCode: c2cArray
-        .map((item) => ({
-          component: pickString(item.component),
-          codePaths: pickStringList(item.codePaths, 12),
-          evidence: pickString(item.evidence)
-        }))
-        .filter((item) => item.component)
-        .slice(0, 16),
-      requirementToCode: r2codeArray
-        .map((item) => ({
-          requirement: pickString(item.requirement),
-          codePaths: pickStringList(item.codePaths, 12),
-          evidence: pickString(item.evidence)
-        }))
-        .filter((item) => item.requirement)
-        .slice(0, 16),
-      coverageScore,
-      mappingConfidence: normalizeMappingConfidence(pickString(resolveTraceField(traceRaw, "mappingConfidence", "mapping_confidence") as string | undefined)),
-      unmappedRequirements: pickStringList(traceRaw.unmappedRequirements, 16),
-      conflicts: pickStringList(traceRaw.conflicts, 16),
-      gaps: pickStringList(traceRaw.gaps, 16)
-    },
+    traceabilityMap: parseTraceabilityMapRaw(traceRaw),
     executableConstraints: {
       componentWhitelist: flattenObjectToStringList(constraintsRaw.componentWhitelist || constraintsRaw.whitelist, 32),
       codePathWhitelist: flattenObjectToStringList(constraintsRaw.codePathWhitelist, 32),
       acceptanceChecks: flattenObjectToStringList(constraintsRaw.acceptanceChecks, 32),
       gateRules: flattenObjectToStringList(constraintsRaw.gateRules || constraintsRaw.gate_rules, 16)
     },
-    domainKnowledge: {
-      terms: Array.isArray(domainRaw.terms)
-        ? (domainRaw.terms as Array<Record<string, unknown>>)
-            .map((item) => {
-              const rawMapped = item.mappedTo;
-              const mappedTo = (typeof rawMapped === "object" && rawMapped !== null && !Array.isArray(rawMapped))
-                ? rawMapped as Record<string, unknown>
-                : {};
-              return {
-                term: pickString(item.term),
-                definition: pickString(item.definition),
-                mappedTo: {
-                  pages: pickStringList(mappedTo.pages, 12),
-                  apis: pickStringList(mappedTo.apis, 12),
-                  entities: pickStringList(mappedTo.entities, 12),
-                  codePaths: pickStringList(mappedTo.codePaths, 12)
-                },
-                evidence: pickString(item.evidence),
-                bindingStrength: normalizeBindingStrength(pickString(item.bindingStrength))
-              };
-            })
-            .filter((item) => item.term.length > 0)
-            .slice(0, 16)
-        : [],
-      rules: extractStringsFromObjectArray(domainRaw.rules, "rule", "content", "description"),
-      unknowns: extractStringsFromObjectArray(domainRaw.unknowns, "item", "content", "description")
-    }
+    domainKnowledge: parseDomainKnowledgeRaw(domainRaw)
   };
 }
 
@@ -199,8 +180,8 @@ export function parseReportQualityCandidate(content: string) {
 
 export function listReportQualityMissingReasons(candidate: ReturnType<typeof parseReportQualityCandidate>) {
   const reasons: string[] = [];
-  if (!candidate.summary) reasons.push("missing summary");
-  if (!Number.isFinite(candidate.score)) reasons.push("missing score");
+  if (!candidate.summary) reasons.push("质量摘要缺失");
+  if (!Number.isFinite(candidate.score)) reasons.push("质量评分缺失");
   return reasons;
 }
 
@@ -209,16 +190,16 @@ export function listReportQualityMissingReasons(candidate: ReturnType<typeof par
 export function listGovernanceInsightsMissingReasons(candidate: ReturnType<typeof parseGovernanceInsightsCandidate>) {
   const reasons: string[] = [];
   if (!candidate.versionDiffDetailed.summary && candidate.versionDiffDetailed.added.length === 0 && candidate.versionDiffDetailed.changed.length === 0) {
-    reasons.push("versionDiffDetailed is empty");
+    reasons.push("版本差异详情为空");
   }
   if (candidate.traceabilityMap.requirementToCode.length === 0 && candidate.traceabilityMap.componentToCode.length === 0) {
-    reasons.push("traceabilityMap mappings are empty");
+    reasons.push("追溯映射为空");
   }
   if (candidate.executableConstraints.codePathWhitelist.length === 0 && candidate.executableConstraints.componentWhitelist.length === 0) {
-    reasons.push("executableConstraints missing whitelist");
+    reasons.push("可执行约束白名单缺失");
   }
   if (candidate.domainKnowledge.terms.length === 0) {
-    reasons.push("domainKnowledge.terms is empty");
+    reasons.push("领域术语为空");
   }
   return reasons;
 }

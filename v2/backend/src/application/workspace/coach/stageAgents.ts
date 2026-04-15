@@ -36,12 +36,9 @@ const SHARED_OUTPUT_FORMAT = [
   '<!-- coach:{"intent":"意图标签","execution":{"action":"none","instruction":"","apply":false,"artifacts":[]},"guidance":{"uploadRecommended":false,"suggestedUploadTypes":[],"suggestedActions":[],"clarificationChecklist":[]}} -->',
   "",
   "【artifacts 声明规则】",
-  "当你判断当前对话信息已经足够生成某个交付物时，必须在 execution.artifacts 数组中填入对应的 id。",
-  "例如：用户已经描述了核心需求和功能要点 → artifacts:[\"analysis-report\"]",
-  "不要在正文中说「帮你生成报告」却不在 artifacts 中声明——声明了系统才会真正生成。",
-  "",
-  "【强制规则】交付物内容禁止直接写在对话正文中：",
-  "当你要输出详细的技术文档、接口设计、测试矩阵等内容时，必须声明对应的 artifact id，对话正文只做简短说明（2-4句话概括要点和下一步建议）。",
+  "当你判断当前对话信息已经足够生成某个交付物时，在 execution.artifacts 数组中填入对应的 id。",
+  "系统会基于当前分析数据自动合成该交付物的完整内容。",
+  "对话正文只需简要说明要点和下一步建议（2-4句话），不要在正文中输出大段文档内容。",
   "",
   "intent 可选值：collect-attachment / clarify / confirm-boundary / plan / qa / release / full-cycle / general",
   "注意：自然语言回复部分不要包含任何 JSON、markdown 标记或结构化格式。coach 标记必须在回复最后一行，独占一行。"
@@ -285,8 +282,4 @@ export const STAGE_LABELS: Record<IterationArtifactStage, string> = {
 
 export function getStageAgent(stage: IterationArtifactStage): StageAgentDefinition {
   return STAGE_AGENTS[stage];
-}
-
-export function getAllStageAgents(): StageAgentDefinition[] {
-  return Object.values(STAGE_AGENTS);
 }

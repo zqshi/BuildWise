@@ -112,11 +112,11 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     const phone = (body?.phone || "").trim();
     if (!isValidPhone(phone)) {
       reply.code(400);
-      return { message: "invalid phone" };
+      return { message: "无效的手机号" };
     }
     if (smsCodeStore.size >= SMS_CODE_MAX_STORE_SIZE) {
       reply.code(503);
-      return { message: "sms code store is full, please try later" };
+      return { message: "验证码发送过于频繁，请稍后再试" };
     }
     // IP-based rate limiting to prevent SMS bombing across different phone numbers
     const clientIp = request.ip || "unknown";
@@ -172,12 +172,12 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     const code = (body?.code || "").trim();
     if (!isValidPhone(phone) || !/^\d{6}$/.test(code)) {
       reply.code(400);
-      return { message: "invalid phone or code" };
+      return { message: "手机号或验证码无效" };
     }
     const saved = smsCodeStore.get(phone);
     if (!saved || saved.expireAt < Date.now()) {
       reply.code(400);
-      return { message: "invalid or expired code" };
+      return { message: "验证码无效或已过期" };
     }
     if (saved.failedAttempts >= SMS_MAX_FAILED_ATTEMPTS) {
       smsCodeStore.delete(phone);
@@ -188,13 +188,13 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     if (!codeMatch) {
       saved.failedAttempts += 1;
       reply.code(400);
-      return { message: "invalid or expired code" };
+      return { message: "验证码无效或已过期" };
     }
     smsCodeStore.delete(phone);
     const binding = service.governance.listPlatformRoleBindings().find((item) => item.userId === phone);
     if (!binding) {
       reply.code(403);
-      return { message: "phone is not registered in platform members" };
+      return { message: "该手机号未注册为平台成员" };
     }
     const workspaceRole = service.governance.resolveWorkspaceRole(binding.role);
 
@@ -219,12 +219,12 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     const userId = request.authSub || "";
     if (!userId) {
       reply.code(401);
-      return { message: "authentication required" };
+      return { message: "请先登录" };
     }
     const binding = service.governance.listPlatformRoleBindings().find((item) => item.userId === userId);
     if (!binding) {
       reply.code(403);
-      return { message: "user is not registered in platform members" };
+      return { message: "该用户未注册为平台成员" };
     }
     const workspaceRole = service.governance.resolveWorkspaceRole(binding.role);
     return buildAuthSessionPayload(service, userId, binding.role, workspaceRole, currentTenantId(request));
@@ -238,17 +238,17 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
         return { accessToken: "dev-off-mode-token", expiresIn: 86400 };
       }
       reply.code(404);
-      return { message: "token refresh is only available in jwt auth mode" };
+      return { message: "仅在 JWT 认证模式下可刷新令牌" };
     }
     const refreshToken = parseRefreshTokenCookie(request);
     if (!refreshToken) {
       reply.code(400);
-      return { message: "missing refresh token cookie" };
+      return { message: "缺少刷新令牌" };
     }
     if (isTokenRevoked(refreshToken)) {
       clearRefreshTokenCookie(reply);
       reply.code(401);
-      return { message: "refresh token has been revoked" };
+      return { message: "刷新令牌已被撤销" };
     }
     let payload;
     try {
@@ -256,19 +256,19 @@ export function registerAuthRoutes(app: FastifyInstance, service: WorkspaceServi
     } catch {
       clearRefreshTokenCookie(reply);
       reply.code(401);
-      return { message: "invalid or expired refresh token" };
+      return { message: "刷新令牌无效或已过期" };
     }
     if (payload.type !== "refresh") {
       clearRefreshTokenCookie(reply);
       reply.code(401);
-      return { message: "invalid token type" };
+      return { message: "无效的令牌类型" };
     }
     // 重新查 platformRoleBindings 确认用户仍然存在
     const binding = service.governance.listPlatformRoleBindings().find((item) => item.userId === payload.sub);
     if (!binding) {
       clearRefreshTokenCookie(reply);
       reply.code(403);
-      return { message: "user no longer registered" };
+      return { message: "用户已不再注册" };
     }
     // Revoke the old refresh token (rotation)
     revokeToken(refreshToken, payload.exp);

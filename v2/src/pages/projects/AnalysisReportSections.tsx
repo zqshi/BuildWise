@@ -326,7 +326,7 @@ export function AnalysisReportSections({
           <ul className="history-list findings-list">
             {analysisReport.deepInsights.fileInsights.map((fi, index) => (
               <li key={`fi-${fi.path}-${index}`} className="history-item history-item-stack">
-                <strong>{fi.fileName}{fi.status !== "analyzed" ? `（${fi.status}）` : ""}</strong>
+                <strong>{fi.fileName}{fi.status !== "analyzed" ? `（${{ skipped: "已跳过", truncated: "已截断", error: "分析失败", pending: "待分析" }[fi.status] || fi.status}）` : ""}</strong>
                 <p>{fi.summary || fi.mainContent || "-"}</p>
                 {fi.iterationValue ? <p className="hint">迭代价值：{fi.iterationValue}</p> : null}
                 {fi.risks?.length ? <p className="hint">风险：{fi.risks.join("；")}</p> : null}
@@ -379,7 +379,7 @@ export function AnalysisReportSections({
         <div className="info-box">
           <h3>需求-组件-代码映射</h3>
           <p>覆盖分：{traceabilityMap.coverageScore}%</p>
-          <p>映射置信度：{traceabilityMap.mappingConfidence?.toUpperCase?.() || "-"}</p>
+          <p>映射置信度：{{ high: "高", medium: "中", low: "低" }[traceabilityMap.mappingConfidence?.toLowerCase?.()] || traceabilityMap.mappingConfidence || "-"}</p>
           {traceabilityMap.gaps.length > 0 ? <p className="hint">缺口：{traceabilityMap.gaps.join("；")}</p> : null}
           {(traceabilityMap.unmappedRequirements?.length ?? 0) > 0 ? (
             <p className="hint">未映射需求：{traceabilityMap.unmappedRequirements.join("；")}</p>
@@ -393,7 +393,7 @@ export function AnalysisReportSections({
                 <li key={`${item.requirement}-${index}`} className="history-item">
                   <strong>{item.requirement}</strong>
                   <p>代码路径：{item.codePaths.join("；") || "-"}</p>
-                  <p className="hint">evidence：{item.evidence || "-"}</p>
+                  <p className="hint">依据：{item.evidence || "-"}</p>
                 </li>
               ))}
             </ul>
@@ -416,10 +416,10 @@ export function AnalysisReportSections({
       {showAdvancedReportSections && releaseReview ? (
         <div className="info-box">
           <h3>发布前质量评审</h3>
-          <p>结论：{releaseReview.decision.toUpperCase()}</p>
+          <p>结论：{{ go: "通过", caution: "有条件通过", block: "阻断" }[releaseReview.decision] || releaseReview.decision}</p>
           <p>原因：{releaseReview.reason || "-"}</p>
           <p>
-            信号：用例 {releaseReview.qualitySignals.testCaseCount}，P0 {releaseReview.qualitySignals.p0FindingCount}，unknown{" "}
+            信号：用例 {releaseReview.qualitySignals.testCaseCount}，高优发现 {releaseReview.qualitySignals.p0FindingCount}，待确定信号{" "}
             {releaseReview.qualitySignals.unknownSignalCount}，边界覆盖 {releaseReview.qualitySignals.boundaryCoverage}%
           </p>
           {(releaseReview.blockers?.length ?? 0) > 0 ? <p className="hint">阻断项：{releaseReview.blockers.join("；")}</p> : null}
@@ -440,7 +440,7 @@ export function AnalysisReportSections({
                   <strong>{item.term}</strong>
                   <p>{item.definition}</p>
                   <p className="hint">绑定路径：{item.mappedTo.codePaths.join("；") || "-"}</p>
-                  <p className="hint">绑定强度：{item.bindingStrength?.toUpperCase?.() || "-"}</p>
+                  <p className="hint">绑定强度：{{ high: "高", medium: "中", low: "低" }[item.bindingStrength?.toLowerCase?.()] || item.bindingStrength || "-"}</p>
                 </li>
               ))}
             </ul>

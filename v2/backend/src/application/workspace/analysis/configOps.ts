@@ -106,8 +106,7 @@ function withAnalysisMethodology(prompt: IterationAgentPrompt): IterationAgentPr
   const methodBlock = `\n\n${ANALYSIS_METHOD_GUIDELINE}`;
   return {
     ...prompt,
-    systemPrompt: `${prompt.systemPrompt}${methodBlock}`,
-    userPrompt: `${prompt.userPrompt}${methodBlock}`
+    systemPrompt: `${prompt.systemPrompt}${methodBlock}`
   };
 }
 

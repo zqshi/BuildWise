@@ -14,7 +14,7 @@ import { fixOrphanTenant } from "./migrations/002_fix_orphan_tenant";
 import { analysisPipelinePersistence } from "./migrations/003_analysis_pipeline_persistence";
 import { runMigrations } from "./migrations/migrationRunner";
 
-export const seedStore: WorkspaceStore = {
+const seedStore: WorkspaceStore = {
   projects: [
     {
       id: 1,
@@ -47,7 +47,7 @@ export const seedStore: WorkspaceStore = {
   ingestJobs: []
 };
 
-export const collectionKeys: Array<keyof WorkspaceStore> = [
+const collectionKeys: Array<keyof WorkspaceStore> = [
   "projects",
   "iterations",
   "messages",
@@ -70,7 +70,7 @@ export const collectionKeys: Array<keyof WorkspaceStore> = [
   "ingestJobs"
 ];
 
-export function toArray<T>(value: unknown): T[] {
+function toArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
@@ -378,67 +378,48 @@ export class SqliteWorkspaceCore {
       .run(log.id, log.action, log.resource, log.createdAt, JSON.stringify(log));
   }
 
+  private syncEntityTable<T extends { id: number | string }>(
+    tableName: string,
+    upsertSql: string,
+    extractRow: (item: T) => (string | number | null)[],
+    data: T[]
+  ) {
+    const ids = new Set(data.map((item) => item.id));
+    const upsertStmt = this.db.prepare(upsertSql);
+    for (const item of data) {
+      upsertStmt.run(...extractRow(item));
+    }
+    const existing = (this.db.prepare(`SELECT id FROM ${tableName}`).all() as Array<{ id: number | string }>).map((r) => r.id);
+    const deleteStmt = this.db.prepare(`DELETE FROM ${tableName} WHERE id = ?`);
+    for (const id of existing) {
+      if (!ids.has(id)) deleteStmt.run(id);
+    }
+  }
+
   private syncTypedTables(data: WorkspaceStore) {
-    const projectIds = new Set(data.projects.map((p) => p.id));
-    const iterationIds = new Set(data.iterations.map((i) => i.id));
-    const messageIds = new Set(data.messages.map((m) => m.id));
-    const auditLogIds = new Set(data.auditLogs.map((a) => a.id));
-
-    // Upsert projects
-    const projectStmt = this.db.prepare(
+    this.syncEntityTable("projects",
       `INSERT INTO projects (id, name, description, status, last_updated, payload) VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, status=excluded.status, last_updated=excluded.last_updated, payload=excluded.payload`
+       ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, status=excluded.status, last_updated=excluded.last_updated, payload=excluded.payload`,
+      (item) => [item.id, item.name, item.description, item.status, item.lastUpdated || null, JSON.stringify(item)],
+      data.projects
     );
-    for (const item of data.projects) {
-      projectStmt.run(item.id, item.name, item.description, item.status, item.lastUpdated || null, JSON.stringify(item));
-    }
-    // Remove projects no longer in store
-    const existingProjectIds = (this.db.prepare("SELECT id FROM projects").all() as Array<{ id: number }>).map((r) => r.id);
-    const deleteProjectStmt = this.db.prepare("DELETE FROM projects WHERE id = ?");
-    for (const id of existingProjectIds) {
-      if (!projectIds.has(id)) deleteProjectStmt.run(id);
-    }
-
-    // Upsert iterations
-    const iterationStmt = this.db.prepare(
+    this.syncEntityTable("iterations",
       `INSERT INTO iterations (id, project_id, status, current_flag, created_at, payload) VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id, status=excluded.status, current_flag=excluded.current_flag, created_at=excluded.created_at, payload=excluded.payload`
+       ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id, status=excluded.status, current_flag=excluded.current_flag, created_at=excluded.created_at, payload=excluded.payload`,
+      (item) => [item.id, item.projectId, item.status, item.current ? 1 : 0, item.createdAt, JSON.stringify(item)],
+      data.iterations
     );
-    for (const item of data.iterations) {
-      iterationStmt.run(item.id, item.projectId, item.status, item.current ? 1 : 0, item.createdAt, JSON.stringify(item));
-    }
-    const existingIterationIds = (this.db.prepare("SELECT id FROM iterations").all() as Array<{ id: number }>).map((r) => r.id);
-    const deleteIterationStmt = this.db.prepare("DELETE FROM iterations WHERE id = ?");
-    for (const id of existingIterationIds) {
-      if (!iterationIds.has(id)) deleteIterationStmt.run(id);
-    }
-
-    // Upsert messages
-    const messageStmt = this.db.prepare(
+    this.syncEntityTable("messages",
       `INSERT INTO messages (id, iteration_id, created_at, payload) VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET iteration_id=excluded.iteration_id, created_at=excluded.created_at, payload=excluded.payload`
+       ON CONFLICT(id) DO UPDATE SET iteration_id=excluded.iteration_id, created_at=excluded.created_at, payload=excluded.payload`,
+      (item) => [item.id, item.iterationId, item.createdAt, JSON.stringify(item)],
+      data.messages
     );
-    for (const item of data.messages) {
-      messageStmt.run(item.id, item.iterationId, item.createdAt, JSON.stringify(item));
-    }
-    const existingMessageIds = (this.db.prepare("SELECT id FROM messages").all() as Array<{ id: number }>).map((r) => r.id);
-    const deleteMessageStmt = this.db.prepare("DELETE FROM messages WHERE id = ?");
-    for (const id of existingMessageIds) {
-      if (!messageIds.has(id)) deleteMessageStmt.run(id);
-    }
-
-    // Upsert audit logs
-    const auditStmt = this.db.prepare(
+    this.syncEntityTable("audit_logs",
       `INSERT INTO audit_logs (id, action, resource, created_at, payload) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET action=excluded.action, resource=excluded.resource, created_at=excluded.created_at, payload=excluded.payload`
+       ON CONFLICT(id) DO UPDATE SET action=excluded.action, resource=excluded.resource, created_at=excluded.created_at, payload=excluded.payload`,
+      (item) => [item.id, item.action, item.resource, item.createdAt, JSON.stringify(item)],
+      data.auditLogs
     );
-    for (const item of data.auditLogs) {
-      auditStmt.run(item.id, item.action, item.resource, item.createdAt, JSON.stringify(item));
-    }
-    const existingAuditIds = (this.db.prepare("SELECT id FROM audit_logs").all() as Array<{ id: number }>).map((r) => r.id);
-    const deleteAuditStmt = this.db.prepare("DELETE FROM audit_logs WHERE id = ?");
-    for (const id of existingAuditIds) {
-      if (!auditLogIds.has(id)) deleteAuditStmt.run(id);
-    }
   }
 }

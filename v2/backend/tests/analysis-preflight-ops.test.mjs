@@ -191,7 +191,7 @@ describe("listExecutionPolicyMissingReasons", () => {
       promptBudgetRisk: "medium"
     };
     const reasons = listExecutionPolicyMissingReasons(candidate);
-    assert.ok(reasons.some((r) => r.includes("missing reason")));
+    assert.ok(reasons.some((r) => r.includes("执行策略原因缺失")));
   });
 
   test("enforceSingleAgent + forceMultiAgent both true includes conflict message", () => {
@@ -203,7 +203,7 @@ describe("listExecutionPolicyMissingReasons", () => {
       promptBudgetRisk: "high"
     };
     const reasons = listExecutionPolicyMissingReasons(candidate);
-    assert.ok(reasons.some((r) => r.includes("conflict")));
+    assert.ok(reasons.some((r) => r.includes("冲突")));
   });
 });
 
@@ -255,6 +255,6 @@ describe("listFolderSelectionMissingReasons", () => {
     const candidate = { includedPaths: [], ignoredFiles: [], sampleReason: "" };
     const reasons = listFolderSelectionMissingReasons(candidate);
     assert.ok(reasons.length > 0);
-    assert.ok(reasons.some((r) => r.includes("includedPaths")));
+    assert.ok(reasons.some((r) => r.includes("已选文件路径为空")));
   });
 });

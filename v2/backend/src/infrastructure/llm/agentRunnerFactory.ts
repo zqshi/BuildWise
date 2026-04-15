@@ -9,7 +9,7 @@ import {
   resolveLlmProvider,
   resolveModel,
   type LlmEnv
-} from '../../application/workspace/shared/agentRunnerConfig';
+} from './agentRunnerConfig';
 const log = createLogger("llm-run");
 
 // ── In-memory LLM call stats ring buffer ──
@@ -127,37 +127,11 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const startedAt = Date.now();
     try {
-      const imageDataUrls = Array.isArray(options?.imageDataUrls)
-        ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
-        : [];
-      const userContent =
-        imageDataUrls.length === 0
-          ? prompt.userPrompt
-          : [
-              { type: "text", text: prompt.userPrompt },
-              ...imageDataUrls.map((url) => ({
-                type: "image_url",
-                image_url: { url }
-              }))
-            ];
       const modelToUse = options?.modelOverride?.trim() || this.model;
+      const { body, headers } = this.buildOpenAIRequest(prompt, modelToUse, options);
       log.info("start", { model: modelToUse, role: prompt.role, agentId: prompt.agentId });
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {})
-        },
-        body: JSON.stringify({
-          model: modelToUse,
-          temperature: 0.2,
-          max_tokens: this.maxOutputTokens,
-          messages: [
-            { role: "system", content: prompt.systemPrompt },
-            { role: "user", content: userContent }
-          ]
-        }),
-        signal: controller.signal
+        method: "POST", headers, body, signal: controller.signal
       });
 
       if (!response.ok) {
@@ -191,6 +165,37 @@ class OpenAICompatibleAgentRunner implements AgentRunner {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private buildOpenAIRequest(prompt: IterationAgentPrompt, modelToUse: string, options?: AgentRunOptions) {
+    const imageDataUrls = Array.isArray(options?.imageDataUrls)
+      ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
+      : [];
+    const userContent =
+      imageDataUrls.length === 0
+        ? prompt.userPrompt
+        : [
+            { type: "text", text: prompt.userPrompt },
+            ...imageDataUrls.map((url) => ({
+              type: "image_url",
+              image_url: { url }
+            }))
+          ];
+    return {
+      headers: {
+        "Content-Type": "application/json",
+        ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {})
+      },
+      body: JSON.stringify({
+        model: modelToUse,
+        temperature: 0.2,
+        max_tokens: this.maxOutputTokens,
+        messages: [
+          { role: "system", content: prompt.systemPrompt },
+          { role: "user", content: userContent }
+        ]
+      })
+    };
   }
 }
 
@@ -259,24 +264,7 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
   async run(prompt: IterationAgentPrompt, options?: AgentRunOptions): Promise<AgentRunResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    const imageDataUrls = Array.isArray(options?.imageDataUrls)
-      ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
-      : [];
-    const userContent: Array<Record<string, unknown>> = [{ type: "text", text: prompt.userPrompt }];
-    for (const dataUrl of imageDataUrls) {
-      const parsed = this.parseDataUrl(dataUrl);
-      if (!parsed) {
-        continue;
-      }
-      userContent.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: parsed.mediaType,
-          data: parsed.data
-        }
-      });
-    }
+    const userContent = this.buildAnthropicUserContent(prompt, options);
     try {
       const modelToUse = options?.modelOverride?.trim() || this.model;
       const response = await fetch(anthropicMessagesEndpoint(this.baseUrl), {
@@ -299,32 +287,41 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
         const text = await response.text().catch(() => "");
         throw new Error(`llm_http_${response.status}${text ? `: ${text.slice(0, 160)}` : ""}`);
       }
-      const payload = (await response.json()) as {
-        model?: string;
-        stop_reason?: string;
-        content?: Array<{ type?: string; text?: string; thinking?: string }>;
-      };
-      const blocks = Array.isArray(payload.content) ? payload.content : [];
-      const textBlocks = blocks
-        .map((item) => (typeof item.text === "string" ? item.text.trim() : ""))
-        .filter(Boolean);
-      const fallbackThinking = blocks
-        .map((item) => (typeof item.thinking === "string" ? item.thinking.trim() : ""))
-        .filter(Boolean);
-      const content = (textBlocks[0] || fallbackThinking[0] || "").trim();
-      if (!content) {
-        throw new Error("llm_empty_content");
-      }
-      const finishReason = payload.stop_reason || undefined;
-      return {
-        content,
-        model: payload.model || modelToUse,
-        finishReason,
-        truncated: finishReason === "max_tokens"
-      };
+      return this.parseAnthropicResponse(await response.json(), modelToUse);
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private buildAnthropicUserContent(prompt: IterationAgentPrompt, options?: AgentRunOptions): Array<Record<string, unknown>> {
+    const imageDataUrls = Array.isArray(options?.imageDataUrls)
+      ? options?.imageDataUrls.map((item) => item.trim()).filter(Boolean).slice(0, 2)
+      : [];
+    const userContent: Array<Record<string, unknown>> = [{ type: "text", text: prompt.userPrompt }];
+    for (const dataUrl of imageDataUrls) {
+      const parsed = this.parseDataUrl(dataUrl);
+      if (!parsed) continue;
+      userContent.push({
+        type: "image",
+        source: { type: "base64", media_type: parsed.mediaType, data: parsed.data }
+      });
+    }
+    return userContent;
+  }
+
+  private parseAnthropicResponse(json: unknown, modelToUse: string): AgentRunResult {
+    const payload = json as {
+      model?: string;
+      stop_reason?: string;
+      content?: Array<{ type?: string; text?: string; thinking?: string }>;
+    };
+    const blocks = Array.isArray(payload.content) ? payload.content : [];
+    const textBlocks = blocks.map((item) => (typeof item.text === "string" ? item.text.trim() : "")).filter(Boolean);
+    const fallbackThinking = blocks.map((item) => (typeof item.thinking === "string" ? item.thinking.trim() : "")).filter(Boolean);
+    const content = (textBlocks[0] || fallbackThinking[0] || "").trim();
+    if (!content) throw new Error("llm_empty_content");
+    const finishReason = payload.stop_reason || undefined;
+    return { content, model: payload.model || modelToUse, finishReason, truncated: finishReason === "max_tokens" };
   }
 }
 

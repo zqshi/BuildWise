@@ -11,10 +11,9 @@ import {
   type GlobalCustomSkillEntry,
   type SkillsPlanEntry
 } from "./skillRegistry";
-import { buildSkillPromptInjection } from "./skillInjector";
 
 // Exported types
-export type OpenclawSkillChainRun = {
+type OpenclawSkillChainRun = {
   enabled: boolean;
   mode: "bridge" | "openclaw-native" | "disabled";
   blocked: boolean;
@@ -28,7 +27,7 @@ export type OpenclawSkillChainRun = {
   error: string;
 };
 
-export type SkillRegistryContext = {
+type SkillRegistryContext = {
   globalCustomSkills?: GlobalCustomSkillEntry[];
   policySkillsPlan?: SkillsPlanEntry[];
 };
@@ -76,7 +75,7 @@ type RegistrySelectionResult = {
   selectionReasons: string[];
 };
 
-export function selectOpenclawSkillsFromRegistry(
+function selectOpenclawSkillsFromRegistry(
   params: RegistrySelectionParams
 ): RegistrySelectionResult {
   const { registrySkills, userMessage, activeStage, stageSkillMap } = params;
@@ -199,45 +198,6 @@ function extractSelectionParams(
     knowledgeConflicts,
     domainTerms: [...domainTerms, ...projectRules]
   };
-}
-
-// buildOpenclawSkillsPackContext — skill 能力概览（注入 contract context）
-export function buildOpenclawSkillsPackContext(registryContext?: SkillRegistryContext) {
-  const registry = buildRegistry(registryContext);
-  if (registry.length === 0) {
-    return "skills.mode=disabled\nskills.progressive_loading=no\nskills.available=-";
-  }
-  return [
-    "skills.mode=agent-led",
-    "skills.progressive_loading=yes",
-    "skills.selection_rule=agent chooses and loads only the minimum required skills for the current concern",
-    `skills.available=${registry.map((item) => `${item.id}:${item.description || item.name}`).join(" | ")}`
-  ].join("\n");
-}
-
-// buildOpenclawSkillSelectionContext — skill 选择摘要 + SOP 注入
-export function buildOpenclawSkillSelectionContext(params: {
-  iteration?: Iteration | null;
-  project?: Project | null;
-  previousIterationName?: string;
-  userMessage: string;
-  registryContext?: SkillRegistryContext;
-}) {
-  const registry = buildRegistry(params.registryContext);
-  const selectionParams = extractSelectionParams(registry, {
-    ...params,
-    policySkillsPlan: params.registryContext?.policySkillsPlan
-  });
-  const selection = selectOpenclawSkillsFromRegistry(selectionParams);
-
-  const metadata = [
-    `skills.selected=${selection.selectedSkills.join(" | ") || "-"}`,
-    `skills.selection_reasons=${selection.selectionReasons.join(" | ") || "-"}`
-  ].join("\n");
-
-  const sopInjection = buildSkillPromptInjection(selection.selectedSkillEntries, {});
-
-  return [metadata, sopInjection].filter(Boolean).join("\n\n");
 }
 
 // runOpenclawSkillChainForCoach — Coach 完整 skill chain 执行

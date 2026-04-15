@@ -1,15 +1,15 @@
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import { LlmInvocationError, type AgentRunner } from '../shared/agentRunner';
+import { createLogger } from '../../../infrastructure/runtime/logger';
 import type {
   AttachmentAnalysisReport,
   AttachmentUploadInput,
   IterationAgentOutput,
   IterationStatus,
   IterationTransitionSource,
+  VisionPayload,
 } from '../../../domain/workspace/types';
-import { extractKnowledgeBaseUpdateOp } from '../project/ontologyService';
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
-import { createLogger as createOntologyLogger } from '../../../infrastructure/runtime/logger';
 import {
   buildDiffLocations,
   buildIterationAgentPlan,
@@ -46,8 +46,6 @@ import {
   consolidatedQualityPhase
 } from './consolidatedPipelineOps';
 import { ensureArtifactWorkflow } from '../changeControl/artifactWorkflow';
-import { commitIterationArtifactOp, confirmIterationArtifactOp } from '../changeControl/artifactOps';
-import { isSubstantiveContent } from '../changeControl/artifactDraftSynthesizer';
 import {
   synthesizeExecutionPolicyOp,
   synthesizeFolderSelectionOp,
@@ -55,34 +53,17 @@ import {
   executeAgentPlanOp,
   synthesizeAttachmentInsightsOp
 } from './synthesisTaskOps';
+import {
+  applyLifecycleTransitionOp,
+  enrichBoundaryFromGovernance,
+  buildAnalysisChangeControlState,
+  synthesizeAndPersistDrafts,
+  autoCommitClarificationArtifacts,
+  runOntologyExtraction,
+  isAnalysisDataSufficient
+} from './analysisHelpers';
 
-// ── Lifecycle transition helper ──
-
-function applyLifecycleTransitionOp(
-  transitionIteration: (
-    iterationId: number,
-    toStatus: IterationStatus,
-    input: { source: IterationTransitionSource; reason: string; operator: string; operatorRole: string }
-  ) => { ok: boolean; reason?: string },
-  iterationId: number,
-  fromStatus: IterationStatus,
-  toStatus: IterationStatus | null,
-  autoTransition: boolean
-) {
-  if (!toStatus || toStatus === fromStatus) {
-    return { attempted: false, applied: false, fromStatus, toStatus, note: "推荐状态与当前一致，未触发自动流转。" };
-  }
-  if (!autoTransition) {
-    return { attempted: false, applied: false, fromStatus, toStatus, note: `已生成状态流转建议 ${fromStatus} -> ${toStatus}，等待手动确认。` };
-  }
-  const result = transitionIteration(iterationId, toStatus, {
-    source: "auto", reason: "Agent 自动驱动流转", operator: "agent-runner", operatorRole: "system"
-  });
-  if (result.ok) {
-    return { attempted: true, applied: true, fromStatus, toStatus, note: `已自动流转：${fromStatus} -> ${toStatus}` };
-  }
-  return { attempted: true, applied: false, fromStatus, toStatus, note: `自动流转失败：${result.reason || "unknown"}` };
-}
+const log = createLogger("analysis-ops");
 
 // ── Phase 1: Preflight — folder选择、excerpt组装、execution policy ──
 
@@ -146,6 +127,37 @@ async function runAgentExecutionPhase(agentRunner: AgentRunner | null, repo: Wor
 
 // ── Phase 3: 合成管道 ──
 
+async function runBatchSynthesisAndMerge(
+  agentRunner: AgentRunner | null,
+  primary: Awaited<ReturnType<typeof synthesizeProjectProfileOp>>,
+  excerptPayload: { batchContexts: string[]; fileStats: { totalFiles: number; textFiles: number; binaryFiles: number } },
+  params: { iterationName: string; sourceType: "folder" | "single-file"; analyzedTarget: string; versionDiff: { added: string[]; changed: string[]; removed: string[] }; agentOutputs: IterationAgentOutput[]; visionPayloads: VisionPayload[] },
+  releaseOpsActions: string[],
+  markStage: (s: string) => void
+) {
+  markStage("synthesis:project-profile-batch-merge");
+  const batchSyntheses = excerptPayload.batchContexts.length
+    ? await Promise.all(excerptPayload.batchContexts.map((batchContext, index) =>
+        synthesizeProjectProfileOp(agentRunner, {
+          iterationName: params.iterationName, sourceType: params.sourceType,
+          analyzedTarget: params.analyzedTarget, excerpt: batchContext, fileStats: excerptPayload.fileStats,
+          versionDiff: params.versionDiff, agentOutputs: params.agentOutputs, contextLabel: `batch-${index + 1}`,
+          visionPayloads: params.visionPayloads, contextMode: "supplemental"
+        }, { runAnalysisPrompt, synthesisLlmConfig: SYNTHESIS_LLM_CONFIG })))
+    : [];
+  const merged = mergeSynthesisResultsOp({
+    projectDetection: { ...primary.projectDetection, confidence: primary.projectDetection.confidence || "low" },
+    meaningfulFindings: primary.meaningfulFindings, prioritizedFindings: primary.prioritizedFindings, nextActions: primary.nextActions
+  }, batchSyntheses);
+  return {
+    resolvedProjectDetection: { ...merged.projectDetection, evidence: Array.from(new Set(merged.projectDetection.evidence)).slice(0, 5) },
+    resolvedMeaningfulFindings: merged.meaningfulFindings,
+    resolvedPrioritizedFindings: merged.prioritizedFindings,
+    finalNextActions: Array.from(new Set([...merged.nextActions, ...releaseOpsActions].map((i) => i.trim()).filter(Boolean))).slice(0, 12),
+    batchSyntheses
+  };
+}
+
 async function runSynthesisPipeline(agentRunner: AgentRunner | null, input: AttachmentUploadInput, normalized: ReturnType<typeof normalizeIteration>, previous: ReturnType<typeof normalizeIteration> | null, pre: Awaited<ReturnType<typeof runPreflightPhase>>, exec: Awaited<ReturnType<typeof runAgentExecutionPhase>>, clarificationQuestions: string[], uxArtifacts: ReturnType<typeof extractUxArtifacts>, releaseOpsActions: string[], markStage: (s: string) => void) {
   const { excerptPayload, visionPayloads, added, changed, removed, diffLocations } = pre;
   const { agentOutputs } = exec;
@@ -166,22 +178,11 @@ async function runSynthesisPipeline(agentRunner: AgentRunner | null, input: Atta
   }, { runAnalysisPrompt, synthesisLlmConfig: SYNTHESIS_LLM_CONFIG });
 
   markStage("synthesis:project-profile-batches");
-  const batchSyntheses = excerptPayload.batchContexts.length
-    ? await Promise.all(excerptPayload.batchContexts.map((batchContext, index) =>
-        synthesizeProjectProfileOp(agentRunner, {
-          iterationName: normalized.name, sourceType: input.sourceType === "folder" ? "folder" : "single-file",
-          analyzedTarget, excerpt: batchContext, fileStats: excerptPayload.fileStats,
-          versionDiff: { added, changed, removed }, agentOutputs, contextLabel: `batch-${index + 1}`, visionPayloads, contextMode: "supplemental"
-        }, { runAnalysisPrompt, synthesisLlmConfig: SYNTHESIS_LLM_CONFIG })))
-    : [];
-  const mergedSynthesis = mergeSynthesisResultsOp({
-    projectDetection: { ...synthesis.projectDetection, confidence: synthesis.projectDetection.confidence || "low" },
-    meaningfulFindings: synthesis.meaningfulFindings, prioritizedFindings: synthesis.prioritizedFindings, nextActions: synthesis.nextActions
-  }, batchSyntheses);
-  const resolvedProjectDetection = { ...mergedSynthesis.projectDetection, evidence: Array.from(new Set(mergedSynthesis.projectDetection.evidence)).slice(0, 5) };
-  const resolvedMeaningfulFindings = mergedSynthesis.meaningfulFindings;
-  const resolvedPrioritizedFindings = mergedSynthesis.prioritizedFindings;
-  const finalNextActions = Array.from(new Set([...mergedSynthesis.nextActions, ...releaseOpsActions].map((i) => i.trim()).filter(Boolean))).slice(0, 12);
+  const { resolvedProjectDetection, resolvedMeaningfulFindings, resolvedPrioritizedFindings, finalNextActions, batchSyntheses } =
+    await runBatchSynthesisAndMerge(agentRunner, synthesis, excerptPayload, {
+      iterationName: normalized.name, sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+      analyzedTarget, versionDiff: { added, changed, removed }, agentOutputs, visionPayloads
+    }, releaseOpsActions, markStage);
 
   const resolvedBoundaryForReport = normalized.changeControl?.boundary ?? defaultIterationChangeControl().boundary;
   const reportBoundaryRequirements = resolvedBoundaryForReport?.requirementRefs?.length > 0 ? resolvedBoundaryForReport.requirementRefs : normalized.scope.inScope.slice(0, 12);
@@ -284,185 +285,54 @@ async function runQualityGatePhase(agentRunner: AgentRunner | null, input: Attac
 
 // ── Phase 5: 知识回写 + 本体提取 ──
 
-function writebackKnowledgeState(repo: WorkspaceRepository, iteration: { projectId: number }, normalized: ReturnType<typeof normalizeIteration>, pre: Awaited<ReturnType<typeof runPreflightPhase>>, syn: Awaited<ReturnType<typeof runSynthesisPipeline>>, qg: Awaited<ReturnType<typeof runQualityGatePhase>>, generatedAt: string, uxArtifacts: ReturnType<typeof extractUxArtifacts>, _generatedTestMatrix: ReturnType<typeof extractGeneratedTestMatrix>, markStage: (s: string) => void) {
+async function writebackKnowledgeState(repo: WorkspaceRepository, iteration: { projectId: number }, normalized: ReturnType<typeof normalizeIteration>, pre: Awaited<ReturnType<typeof runPreflightPhase>>, syn: Awaited<ReturnType<typeof runSynthesisPipeline>>, qg: Awaited<ReturnType<typeof runQualityGatePhase>>, generatedAt: string, uxArtifacts: ReturnType<typeof extractUxArtifacts>, _generatedTestMatrix: ReturnType<typeof extractGeneratedTestMatrix>, markStage: (s: string) => void, agentRunner: AgentRunner | null) {
   const { excerptPayload } = pre;
   const { resolvedPrioritizedFindings, resolvedMeaningfulFindings, businessConfirmationWithUx, deepInsights } = syn;
   const { reportQuality, releaseReview, releaseReviewScore, traceabilityMap, domainKnowledge, versionDiffDetailed, executableConstraints } = qg;
   const currentChangeControl = normalized.changeControl ?? defaultIterationChangeControl();
-
-  const analysisP0Count = resolvedPrioritizedFindings.filter((i) => i.priority === "P0").length;
-  const analysisHighValueCount = resolvedPrioritizedFindings.filter((i) => i.priority === "P0" || i.priority === "P1").length;
-  const analysisConsideredFiles = excerptPayload.fileSelection.consideredFiles;
-  const analysisIgnoredFiles = excerptPayload.fileSelection.ignoredFiles.length;
-  const analysisIgnoredRatio = analysisConsideredFiles === 0 ? 0 : Math.round((analysisIgnoredFiles / analysisConsideredFiles) * 100);
-
+  const consideredFiles = excerptPayload.fileSelection.consideredFiles;
+  const ignoredFiles = excerptPayload.fileSelection.ignoredFiles.length;
+  const metrics = {
+    p0Count: resolvedPrioritizedFindings.filter((i) => i.priority === "P0").length,
+    highValueCount: resolvedPrioritizedFindings.filter((i) => i.priority === "P0" || i.priority === "P1").length,
+    consideredFiles,
+    ignoredFiles,
+    ignoredRatio: consideredFiles === 0 ? 0 : Math.round((ignoredFiles / consideredFiles) * 100)
+  };
   markStage("finalize:report");
   const execConstraintsState = {
     componentWhitelist: executableConstraints.componentWhitelist.slice(0, 24),
     codePathWhitelist: executableConstraints.codePathWhitelist.slice(0, 24),
     acceptanceChecks: executableConstraints.acceptanceChecks.slice(0, 24)
   };
-
-  // 边界回填：Phase 2 的 boundary-guardian 可能未运行（compact single-file / agent 跳过），
-  // 此时 boundary 为空，需从 Phase 3/4 的治理分析结果自动填充
   const prevBoundary = currentChangeControl.boundary ?? defaultIterationChangeControl().boundary;
-  const enrichedBoundary = { ...prevBoundary };
-  if (prevBoundary.requirementRefs.length === 0) {
-    const fromBiz = [
-      ...(businessConfirmationWithUx.functionalPoints || []),
-      ...(businessConfirmationWithUx.necessityAssessment?.mustDo || [])
-    ].filter(Boolean);
-    const fromTrace = (traceabilityMap.requirementToComponent || [])
-      .map((r: { requirement?: string }) => String(r?.requirement || "")).filter(Boolean);
-    enrichedBoundary.requirementRefs = Array.from(new Set([...fromBiz, ...fromTrace])).slice(0, 20);
-  }
-  if (prevBoundary.componentRefs.length === 0) {
-    const fromTrace = Array.from(new Set(
-      (traceabilityMap.requirementToComponent || [])
-        .flatMap((r: { components?: string[] }) => r?.components || [])
-    )).filter(Boolean);
-    enrichedBoundary.componentRefs = Array.from(new Set([
-      ...fromTrace, ...execConstraintsState.componentWhitelist
-    ])).slice(0, 20);
-  }
-  if (prevBoundary.codePaths.length === 0) {
-    enrichedBoundary.codePaths = execConstraintsState.codePathWhitelist.slice(0, 20);
-  }
-  const boundaryWasEnriched =
-    enrichedBoundary.requirementRefs.length > prevBoundary.requirementRefs.length ||
-    enrichedBoundary.componentRefs.length > prevBoundary.componentRefs.length ||
-    enrichedBoundary.codePaths.length > prevBoundary.codePaths.length;
-  if (boundaryWasEnriched) {
-    enrichedBoundary.note = enrichedBoundary.note || "由分析管道从治理分析结果自动填充，待人工确认。";
-    enrichedBoundary.updatedAt = generatedAt;
-  }
+  const enrichedBoundary = enrichBoundaryFromGovernance(prevBoundary, businessConfirmationWithUx, traceabilityMap, execConstraintsState, generatedAt);
 
-  normalized.changeControl = {
-    ...currentChangeControl,
-    boundary: enrichedBoundary,
-    lastAnalysisP0Count: analysisP0Count,
-    lastAnalysisHighValueCount: analysisHighValueCount,
-    lastAnalysisConsideredFiles: analysisConsideredFiles,
-    lastAnalysisIgnoredFiles: analysisIgnoredFiles,
-    lastAnalysisIgnoredFileRatio: analysisIgnoredRatio,
-    lastReleaseReviewDecision: releaseReview.decision,
-    lastReleaseReviewReason: releaseReview.reason,
-    lastReleaseReviewBlockers: releaseReview.blockers,
-    lastReleaseReviewScore: releaseReviewScore,
-    lastReleaseReviewUpdatedAt: generatedAt,
-    lastTraceabilityCoverageScore: traceabilityMap.coverageScore,
-    lastOpsRollbackSuggested: releaseReview.rollback.shouldRollback,
-    lastReportPublishable: reportQuality.publishable,
-    lastReportQualityScore: reportQuality.score,
-    lastReportQualitySummary: reportQuality.summary,
-    lastReportQualityUpdatedAt: generatedAt,
-    uxArtifacts: { ...uxArtifacts, updatedAt: generatedAt },
-    executableConstraints: { ...execConstraintsState, generatedAt },
-    traceabilitySnapshot: {
-      requirementCoverage: traceabilityMap.coverageScore,
-      mappingConfidence: traceabilityMap.mappingConfidence,
-      unmappedRequirements: traceabilityMap.unmappedRequirements,
-      conflicts: traceabilityMap.conflicts,
-      generatedAt
-    },
-    domainKnowledgeEntries: domainKnowledge.terms.map((item) => ({
-      term: item.term, definition: item.definition,
-      mappedPages: item.mappedTo.pages, mappedApis: item.mappedTo.apis,
-      mappedEntities: item.mappedTo.entities, mappedCodePaths: item.mappedTo.codePaths,
-      evidence: item.evidence
-    })),
-    domainKnowledgeUpdatedAt: generatedAt,
-    lastBusinessConfirmation: {
-      coreIntent: (businessConfirmationWithUx.coreIntent || "").slice(0, 2000),
-      boundarySummary: (businessConfirmationWithUx.boundarySummary || "").slice(0, 2000),
-      functionalPoints: (businessConfirmationWithUx.functionalPoints || []).slice(0, 20),
-      successCriteria: (businessConfirmationWithUx.successCriteria || []).slice(0, 10),
-      confirmationChecklist: (businessConfirmationWithUx.confirmationChecklist || []).slice(0, 15).map((c: unknown) =>
-        typeof c === "string" ? c : typeof c === "object" && c !== null && "item" in c ? String((c as Record<string, unknown>).item) : String(c)
-      ),
-      versionDiffSummary: (businessConfirmationWithUx.versionDiffSummary || "").slice(0, 2000),
-      necessityAssessment: {
-        mustDo: (businessConfirmationWithUx.necessityAssessment?.mustDo || []).slice(0, 12),
-        shouldDo: (businessConfirmationWithUx.necessityAssessment?.shouldDo || []).slice(0, 12),
-        canDefer: (businessConfirmationWithUx.necessityAssessment?.canDefer || []).slice(0, 12),
-        outOfScope: (businessConfirmationWithUx.necessityAssessment?.outOfScope || []).slice(0, 12),
-        rationale: (businessConfirmationWithUx.necessityAssessment?.rationale || "").slice(0, 2000),
-      },
-      interactionInsights: {
-        primaryFlow: (businessConfirmationWithUx.interactionInsights?.primaryFlow || []).slice(0, 12),
-        keyInteractions: (businessConfirmationWithUx.interactionInsights?.keyInteractions || []).slice(0, 14),
-        exceptionPaths: (businessConfirmationWithUx.interactionInsights?.exceptionPaths || []).slice(0, 12),
-        usabilityRisks: (businessConfirmationWithUx.interactionInsights?.usabilityRisks || []).slice(0, 12),
-      },
-      diffNarratives: (businessConfirmationWithUx.diffNarratives || []).slice(0, 18),
-    },
-    lastMeaningfulFindings: resolvedMeaningfulFindings.slice(0, 15),
-    lastPrioritizedFindings: resolvedPrioritizedFindings.slice(0, 15).map((f) => ({ priority: f.priority, content: f.content, reason: f.reason })),
-    lastDeepInsightsSummary: {
-      themes: (deepInsights?.crossFileInsights?.themes || []).slice(0, 10),
-      gaps: (deepInsights?.crossFileInsights?.gaps || []).slice(0, 10),
-      rootCauses: (deepInsights?.crossFileInsights?.rootCauses || []).slice(0, 8),
-      decisionSuggestions: (deepInsights?.crossFileInsights?.decisionSuggestions || []).slice(0, 8)
-    }
-  };
+  normalized.changeControl = buildAnalysisChangeControlState(
+    currentChangeControl,
+    { resolvedPrioritizedFindings, resolvedMeaningfulFindings, businessConfirmationWithUx, deepInsights },
+    { reportQuality, releaseReview, releaseReviewScore, traceabilityMap, domainKnowledge, executableConstraints: execConstraintsState },
+    metrics, enrichedBoundary, uxArtifacts, generatedAt
+  );
   repo.updateIteration(normalized);
 
   const refreshedControl = normalized.changeControl ?? currentChangeControl;
   normalized.changeControl = { ...refreshedControl, artifactWorkflow: ensureArtifactWorkflow(normalized, refreshedControl, generatedAt) };
   repo.updateIteration(normalized);
-
-  // 分析完成后自动提交 clarification 阶段交付物（analysis-report / product-requirements-doc）
-  const autoCommitTargets = ["analysis-report", "product-requirements-doc"];
-  for (const artifactId of autoCommitTargets) {
-    const item = normalized.changeControl!.artifactWorkflow.items.find((i) => i.id === artifactId);
-    if (item && item.outputVersion === 0 && isSubstantiveContent(item.draft.content)) {
-      commitIterationArtifactOp(repo, normalized.id, artifactId, {
-        actor: "analysis-pipeline", summary: item.summary, source: "auto-analysis"
-      });
-      confirmIterationArtifactOp(repo, normalized.id, artifactId, {
-        actor: "analysis-pipeline", passed: true, note: "分析管道自动确认"
-      });
-      // 刷新 normalized 以反映 commit/confirm 后的状态
-      const refreshed = repo.findIteration(normalized.id);
-      if (refreshed) {
-        const rn = normalizeIteration(refreshed);
-        normalized.changeControl = rn.changeControl;
-      }
-    }
+  if (!normalized.changeControl) throw new Error("changeControl missing after normalization");
+  const activeControl = normalized.changeControl;
+  const dataCheck = isAnalysisDataSufficient(activeControl);
+  if (dataCheck.sufficient) {
+    await synthesizeAndPersistDrafts(agentRunner, repo, normalized, activeControl, generatedAt);
+    autoCommitClarificationArtifacts(repo, normalized, activeControl);
+  } else {
+    log.warn("analysis data insufficient, skipping artifact synthesis", { reasons: dataCheck.reasons.join(", ") });
   }
-
-  // 本体提取
-  const ontologyLog = createOntologyLogger("ontology-pipeline");
-  try {
-    const domainKnowledgeEntries = (normalized.changeControl?.domainKnowledgeEntries ?? []).map(e => ({
-      term: e.term, definition: e.definition, mappedPages: e.mappedPages, mappedApis: e.mappedApis,
-      mappedEntities: e.mappedEntities, mappedCodePaths: e.mappedCodePaths, evidence: e.evidence
-    }));
-    if (domainKnowledgeEntries.length > 0) {
-      const freshProject = repo.findProject(iteration.projectId);
-      if (freshProject) {
-        const existingKb = freshProject.knowledgeBase ?? { ontologyTerms: [], stableRules: [], componentInventory: [], codeMap: [], decisionLog: [], knownRisks: [], changePatterns: [], updatedAt: "" };
-        const resolvedBoundaryForReport = normalized.changeControl?.boundary ?? defaultIterationChangeControl().boundary;
-        const ontologyInput = {
-          domainKnowledgeEntries,
-          traceabilityMap: traceabilityMap ? {
-            pages: traceabilityMap.requirementToComponent.map(r => ({ name: r.requirement, path: r.requirement, components: r.components })),
-            apis: traceabilityMap.componentToCode.map(c => ({ path: c.component, method: "GET", description: c.component })),
-            entities: domainKnowledgeEntries.filter(e => e.mappedEntities.length > 0).map(e => ({ name: e.term, fields: e.mappedEntities }))
-          } : null,
-          boundary: resolvedBoundaryForReport ? { codePaths: resolvedBoundaryForReport.codePaths ?? [], requirementRefs: resolvedBoundaryForReport.requirementRefs ?? [] } : null,
-          analysisReport: { businessConfirmation: businessConfirmationWithUx, domainKnowledge, versionDiffDetailed, risks: versionDiffDetailed.riskPoints ?? [], releaseReview: { rollback: releaseReview.rollback } }
-        };
-        const ontologyResult = extractKnowledgeBaseUpdateOp(existingKb, ontologyInput);
-        freshProject.knowledgeBase = ontologyResult.updatedKb;
-        repo.updateProject(freshProject);
-        ontologyLog.info("ontology pipeline completed", { newTerms: ontologyResult.newTerms.length, updatedTerms: ontologyResult.updatedTerms.length, newRules: ontologyResult.newRules.length, newComponents: ontologyResult.newComponents.length });
-        writeAuditLog(repo, "ontology.kb-updated", `project:${iteration.projectId}`, `terms=${ontologyResult.newTerms.length}+${ontologyResult.updatedTerms.length};rules=${ontologyResult.newRules.length};components=${ontologyResult.newComponents.length}`);
-      }
-    }
-  } catch (ontologyError) {
-    ontologyLog.error("ontology pipeline failed (non-blocking)", { error: ontologyError instanceof Error ? ontologyError.message : String(ontologyError) });
-  }
+  const ontologyAnalysisReport = {
+    businessConfirmation: businessConfirmationWithUx, domainKnowledge, versionDiffDetailed,
+    risks: versionDiffDetailed.riskPoints ?? [], releaseReview: { rollback: releaseReview.rollback }
+  };
+  runOntologyExtraction(repo, normalized, iteration.projectId, traceabilityMap, ontologyAnalysisReport);
 }
 
 // ── Phase 6: 报告组装 ──
@@ -482,7 +352,7 @@ function assembleAnalysisReport(input: AttachmentUploadInput, normalized: Return
     businessConfirmation: businessConfirmationWithUx, reportQuality, outputList
   });
   if (reportPayloadIssues.length > 0) {
-    throw new LlmInvocationError(`report_not_llm_quality: ${reportPayloadIssues.join(", ")}`);
+    throw new LlmInvocationError(`分析报告质量不达标: ${reportPayloadIssues.join(", ")}`);
   }
 
   const llmModels = Array.from(new Set(outputList.map((i) => (i.model || "").trim()).filter(Boolean)));
@@ -519,13 +389,53 @@ function assembleAnalysisReport(input: AttachmentUploadInput, normalized: Return
     clarificationQuestions,
     understanding: [businessConfirmationWithUx.coreIntent, businessConfirmationWithUx.versionDiffSummary,
       resolvedPrioritizedFindings.length > 0 ? `优先关注：${resolvedPrioritizedFindings[0].content}` : ""
-    ].filter((i) => i && i.trim().length > 0).join(" "),
+    ].filter((i) => i && i.trim().length > 0 && !isLowSignalText(i)).join(" "),
     versionDiff: { baselineIterationName: previous?.name ?? "无基线", added, changed, removed },
     versionDiffDetailed, diffLocations, cyclePhase: inferCyclePhase(normalized.status),
     agentPlan: finalAgentPlan, agentOutputs: outputList, lifecycleAction: finalLifecycleAction,
     risks: finalRisks, traceabilityMap, executableConstraints: { ...executableConstraints, gateRules: ["仅允许改动代码路径白名单内文件。", "发布前测试矩阵不得存在失败或阻断用例。", "生产环境需发布评审通过且验收清单非空。"] },
     releaseReview, qualityArtifacts, uxArtifacts, domainKnowledge, opsTriage,
     businessConfirmation: businessConfirmationWithUx, deepInsights, reportQuality, suggestions: finalSuggestions
+  };
+}
+
+function buildAnalysisDigest(pre: { added: string[]; removed: string[]; diffLocations: Array<unknown>; excerptPayload: { strategy: string }; executionPolicy: { degraded: boolean; reason: string; promptBudgetRisk: string } }, input: AttachmentUploadInput) {
+  const chunks = Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0;
+  const parts = [
+    `新增 ${pre.added.length} 项`,
+    `移除 ${pre.removed.length} 项`,
+    `差异定位 ${pre.diffLocations.length} 处`,
+    `策略 ${pre.excerptPayload.strategy}`,
+    `分片 ${chunks}`,
+    pre.executionPolicy.degraded ? `已降级（${pre.executionPolicy.reason || "未知原因"}）` : "未降级",
+    `预算风险 ${pre.executionPolicy.promptBudgetRisk}`
+  ];
+  return parts.join("，");
+}
+
+function buildPreAnalysisChangeControl(
+  currentChangeControl: ReturnType<typeof defaultIterationChangeControl>,
+  resolvedBoundary: ReturnType<typeof defaultIterationChangeControl>["boundary"],
+  generatedAt: string,
+  pre: { executionPolicy: { degraded: boolean; reason: string; promptBudgetRisk: string }; added: string[]; removed: string[]; diffLocations: Array<unknown>; excerptPayload: { strategy: string } },
+  input: AttachmentUploadInput,
+  clarificationQuestions: string[],
+  generatedTestMatrix: ReturnType<typeof extractGeneratedTestMatrix>,
+  qualityArtifacts: ReturnType<typeof extractGeneratedQualityArtifacts> & { materializedFiles: string[] },
+  uxArtifacts: ReturnType<typeof extractUxArtifacts>,
+  executableConstraints: { componentWhitelist: string[]; codePathWhitelist: string[]; acceptanceChecks: string[]; generatedAt: string }
+): ReturnType<typeof defaultIterationChangeControl> {
+  return {
+    ...currentChangeControl,
+    pendingHumanConfirmation: true, lastAnalysisAt: generatedAt, lastAnalysisFileName: input.fileName,
+    lastAnalysisDigest: buildAnalysisDigest(pre, input),
+    clarificationQuestions, clarificationDraftResolvedQuestions: [], clarificationDraftUpdatedAt: generatedAt,
+    lastClarificationResolution: { resolvedQuestions: [], unresolvedQuestions: clarificationQuestions, updatedAt: generatedAt },
+    lastClarificationNote: "", confirmedAt: "", confirmedBy: "", boundary: resolvedBoundary,
+    generatedTestMatrix, generatedTestMatrixUpdatedAt: generatedTestMatrix.length > 0 ? generatedAt : "", testMatrixExecutionUpdatedAt: "",
+    qualityArtifacts: { ...qualityArtifacts, updatedAt: generatedAt },
+    uxArtifacts: { ...uxArtifacts, updatedAt: generatedAt },
+    executableConstraints
   };
 }
 
@@ -587,23 +497,16 @@ export async function analyzeAttachmentOp(
   const qualityArtifacts = { ...qualityArtifactsRaw, materializedFiles: existingMaterializedFiles };
   const finalLifecycleAction = applyLifecycleTransitionOp(transitionIteration, iterationId, normalized.status, exec.finalAgentPlan.recommendedTransition, input.autoTransition === true);
 
-  normalized.changeControl = {
-    ...currentChangeControl,
-    pendingHumanConfirmation: true, lastAnalysisAt: generatedAt, lastAnalysisFileName: input.fileName,
-    lastAnalysisDigest: `added=${pre.added.length};removed=${pre.removed.length};diff=${pre.diffLocations.length};strategy=${pre.excerptPayload.strategy};chunks=${Array.isArray(input.excerptChunks) ? input.excerptChunks.length : 0};degraded=${pre.executionPolicy.degraded ? "yes" : "no"}${pre.executionPolicy.reason ? `;reason=${pre.executionPolicy.reason}` : ""};policyRisk=${pre.executionPolicy.promptBudgetRisk}`,
-    clarificationQuestions, clarificationDraftResolvedQuestions: [], clarificationDraftUpdatedAt: generatedAt,
-    lastClarificationResolution: { resolvedQuestions: [], unresolvedQuestions: clarificationQuestions, updatedAt: generatedAt },
-    lastClarificationNote: "", confirmedAt: "", confirmedBy: "", boundary: resolvedBoundary,
-    generatedTestMatrix, generatedTestMatrixUpdatedAt: generatedTestMatrix.length > 0 ? generatedAt : "", testMatrixExecutionUpdatedAt: "",
-    qualityArtifacts: { ...qualityArtifacts, updatedAt: generatedAt },
-    uxArtifacts: { ...uxArtifacts, updatedAt: generatedAt },
-    executableConstraints: {
+  normalized.changeControl = buildPreAnalysisChangeControl(
+    currentChangeControl, resolvedBoundary, generatedAt, pre, input,
+    clarificationQuestions, generatedTestMatrix, qualityArtifacts, uxArtifacts,
+    {
       componentWhitelist: resolvedBoundary.componentRefs.slice(0, 24),
       codePathWhitelist: resolvedBoundary.codePaths.slice(0, 24),
       acceptanceChecks: Array.from(new Set([...normalized.scope.acceptanceCriteria, ...qualityArtifactsRaw.acceptanceChecklist])).slice(0, 24),
       generatedAt
     }
-  };
+  );
   repo.updateIteration(normalized);
   writeAuditLog(repo, "analysis.attachment-analyzed", `iteration:${iterationId}`, `分析附件 ${input.fileName}`);
   if (generatedTestMatrix.length > 0) writeAuditLog(repo, "analysis.test-matrix-generated", `iteration:${iterationId}`, `cases=${generatedTestMatrix.length}`);
@@ -619,7 +522,7 @@ export async function analyzeAttachmentOp(
     : await runQualityGatePhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, markStage);
 
   // Phase 5: 知识回写 + 本体
-  writebackKnowledgeState(repo, iteration, normalized, pre, syn, qg, generatedAt, uxArtifacts, generatedTestMatrix, markStage);
+  await writebackKnowledgeState(repo, iteration, normalized, pre, syn, qg, generatedAt, uxArtifacts, generatedTestMatrix, markStage, agentRunner);
 
   // Phase 6: 报告组装
   return assembleAnalysisReport(input, normalized, normalizedPrevious, pre, exec, syn, qg, generatedAt, clarificationQuestions, qualityArtifacts, uxArtifacts, finalLifecycleAction, repo, iterationId);

@@ -15,7 +15,7 @@ import type { AttachmentAnalysisReport, IterationAgentPrompt, VisionPayload } fr
 import { parseProjectProfileCandidate } from './projectProfileOps';
 import { parseDeepInsightsCandidate } from './deepInsightsOps';
 import { parseGovernanceInsightsCandidate } from './governanceOps';
-import { normalizeConfidence, parseJsonObjectFromText, pickString, pickStringList } from './extractors';
+import { normalizeConfidence, parseJsonObjectFromText, pickString, pickStringList, formatSourceType, formatFileStats, formatVersionDiff, formatDiffLocations, formatBoundaries } from './extractors';
 import { type CoreAnalysisChunkResult, mergeCoreAnalysisChunks } from './chunkMergeOps';
 import { planChunks, batchArray } from './chunkingOps';
 import { type ChunkConfig, runAnalysisPrompt } from './configOps';
@@ -41,7 +41,9 @@ function buildCoreAnalysisSystemPrompt(isCompact: boolean): string {
     "10) versionDiffDetailed: {summary, impactScope[], riskPoints[], added:[{dimension,item,impact,risk}], changed:[{dimension,item,impact,risk}], removed:[{dimension,item,impact,risk}]}",
     "11) clarificationQuestions: string[] — 仍存疑需向用户确认的问题",
     "12) risks: string[]",
-    "13) suggestions: string[]"
+    "13) suggestions: string[]",
+    "所有 string 类型字段的值必须使用中文业务语言，禁止出现：文件名路径、文件大小、英文技术缩写、前端后端框架名称。技术映射字段（如 codePaths、path）除外。",
+    "禁止在任何 string 值中引用 JSON key 名称（如 crossFileInsights、rootCauses）。用中文业务概念替代。"
   ].join("\n");
 }
 
@@ -65,13 +67,13 @@ function buildCoreAnalysisUserPrompt(
   }
 
   lines.push(
-    `分析目标=${params.analyzedTarget};sourceType=${params.sourceType};iteration=${params.iterationName}`,
-    `文件统计=total:${params.fileStats.totalFiles},text:${params.fileStats.textFiles},binary:${params.fileStats.binaryFiles}`,
-    `版本差异=added:${params.versionDiff.added.join(" | ") || "-"};changed:${params.versionDiff.changed.join(" | ") || "-"};removed:${params.versionDiff.removed.join(" | ") || "-"}`,
-    `需求边界=${params.requirements.join(" | ") || "-"}`,
-    `组件边界=${params.components.join(" | ") || "-"}`,
-    `代码边界=${params.codePaths.join(" | ") || "-"}`,
-    `差异定位=${params.diffLocations.map((d) => `${d.dimension}/${d.changeType}:${d.baselineItem || "-"}->${d.currentItem}`).join(" | ") || "-"}`,
+    `分析目标：${params.analyzedTarget}`,
+    `来源类型：${formatSourceType(params.sourceType)}`,
+    `所属迭代：${params.iterationName}`,
+    formatFileStats(params.fileStats),
+    formatVersionDiff(params.versionDiff),
+    formatBoundaries(params.requirements, params.components, params.codePaths),
+    formatDiffLocations(params.diffLocations),
     `附件内容:\n${excerpt || "无"}`,
     "",
     "输出要求：",
@@ -131,12 +133,12 @@ function parseCoreAnalysisResponse(content: string): CoreAnalysisChunkResult {
 function listCoreAnalysisMissingReasons(result: CoreAnalysisChunkResult): string[] {
   const reasons: string[] = [];
   if (!result.projectDetection.projectName && !result.projectDetection.productName) {
-    reasons.push("missing projectDetection.projectName/productName");
+    reasons.push("项目/产品名称缺失");
   }
-  if (result.meaningfulFindings.length === 0) reasons.push("meaningfulFindings is empty");
-  if (result.prioritizedFindings.length === 0) reasons.push("prioritizedFindings is empty");
-  if (result.deepInsights.fileInsights.length === 0) reasons.push("deepInsights.fileInsights is empty");
-  if (result.domainKnowledge.terms.length === 0) reasons.push("domainKnowledge.terms is empty");
+  if (result.meaningfulFindings.length === 0) reasons.push("关键发现为空");
+  if (result.prioritizedFindings.length === 0) reasons.push("优先级发现为空");
+  if (result.deepInsights.fileInsights.length === 0) reasons.push("文件洞察为空");
+  if (result.domainKnowledge.terms.length === 0) reasons.push("领域术语为空");
   return reasons;
 }
 
@@ -174,7 +176,7 @@ export async function runCoreAnalysisAgent(
   // 分片规划
   const plan = planChunks(
     params.excerpt,
-    `target=${params.analyzedTarget};files=${params.fileStats.totalFiles};sourceType=${params.sourceType}`,
+    `分析对象：${params.analyzedTarget}；文件数：${params.fileStats.totalFiles}；来源：${formatSourceType(params.sourceType)}`,
     chunkConfig.chunkBudget,
     chunkConfig.chunkOverlap
   );
@@ -208,7 +210,7 @@ export async function runCoreAnalysisAgent(
         results.push(r.value);
       } else {
         failCount += 1;
-        const log = (await import("../../shared/logger")).createLogger("core-analysis");
+        const log = (await import("../../../infrastructure/runtime/logger")).createLogger("core-analysis");
         log.warn("core analysis chunk failed", { error: r.reason instanceof Error ? r.reason.message : String(r.reason) });
       }
     }
@@ -218,7 +220,7 @@ export async function runCoreAnalysisAgent(
     throw new (await import('../shared/agentRunner')).LlmInvocationError("all core analysis chunks failed");
   }
   if (failCount / plan.chunkCount > chunkConfig.chunkFailureThreshold) {
-    const log = (await import("../../shared/logger")).createLogger("core-analysis");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("core-analysis");
     log.warn("core analysis chunk failure rate exceeded threshold", { failed: failCount, total: plan.chunkCount });
   }
 
@@ -260,6 +262,7 @@ async function runSingleChunk(
       userPrompt: [
         prompt.userPrompt,
         "你上一版输出不满足必填字段约束。请只输出严格 JSON 并补齐缺失项。",
+        "输出的 JSON 字符串值必须使用中文业务语言，禁止引用 JSON key 名称。",
         `缺失项：${missing.join("; ")}`,
         `上一版输出：\n${selected.content.slice(0, 3000)}`
       ].join("\n\n")
@@ -270,7 +273,7 @@ async function runSingleChunk(
   }
 
   if (missing.length > 0) {
-    const log = (await import("../../shared/logger")).createLogger("core-analysis");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("core-analysis");
     log.warn("core analysis incomplete after repair", { chunk: chunkLabel, missing: missing.join(", ") });
   }
 

@@ -118,6 +118,105 @@ function declinedResponse(input: {
   };
 }
 
+function buildAcceptedChangeControl(
+  iteration: Iteration,
+  currentControl: ReturnType<typeof defaultIterationChangeControl>,
+  gitIntake: { repoUrl: string; branch: string },
+  now: string
+) {
+  const base = {
+    ...currentControl,
+    pendingHumanConfirmation: true,
+    lastAnalysisAt: now,
+    lastAnalysisFileName: "git-repository-intake",
+    lastAnalysisDigest: `仓库：${gitIntake.repoUrl}，分支：${gitIntake.branch}`,
+    lastReportPublishable: true,
+    lastReportQualityScore: 88,
+    lastReportQualitySummary: "已基于仓库结构与文档生成首轮需求分析报告，待人工确认。",
+    lastReportQualityUpdatedAt: now
+  };
+  return {
+    ...base,
+    clarificationQuestions: ["请确认《仓库需求分析报告》是否准确。"],
+    clarificationDraftResolvedQuestions: [],
+    clarificationDraftUpdatedAt: now,
+    lastClarificationResolution: {
+      resolvedQuestions: [],
+      unresolvedQuestions: ["请确认《仓库需求分析报告》是否准确。"],
+      updatedAt: now
+    },
+    lastClarificationNote: "等待用户确认仓库需求分析报告",
+    confirmedAt: "",
+    confirmedBy: "",
+    artifactWorkflow: ensureArtifactWorkflow(iteration, base, now)
+  };
+}
+
+function handleGitIntakeDeclined(
+  repo: WorkspaceRepository,
+  iteration: Iteration,
+  gitIntake: { status: string; askedAt: string; branch: string; repoUrl: string },
+  now: string,
+  skillChain: ReturnType<typeof runOpenclawSkillChainForCoach>
+): IterationCoachChatResponse {
+  repo.updateIteration({
+    ...iteration,
+    interactionState: {
+      ...defaultInteractionState(iteration, now),
+      gitRequirementIntake: {
+        status: "declined", askedAt: gitIntake.askedAt || now, decidedAt: now,
+        branch: gitIntake.branch, repoUrl: gitIntake.repoUrl, summary: "", error: ""
+      }
+    }
+  });
+  writeAuditLog(repo, "iteration_git_intake_declined", `iteration:${iteration.id}`, `repo=${gitIntake.repoUrl}`);
+  return declinedResponse({
+    iterationId: iteration.id,
+    suggestedActions: skillChain.suggestedActions,
+    checklist: skillChain.checklist,
+    summaries: skillChain.summaries
+  });
+}
+
+function handleGitIntakeAccepted(
+  repo: WorkspaceRepository,
+  iteration: Iteration,
+  gitIntake: { askedAt: string; branch: string; repoUrl: string },
+  now: string,
+  skillChain: ReturnType<typeof runOpenclawSkillChainForCoach>
+): IterationCoachChatResponse {
+  const snapshot = readGitRepositoryRequirementSnapshot({ repoUrl: gitIntake.repoUrl, branch: gitIntake.branch });
+  const currentControl = iteration.changeControl ?? defaultIterationChangeControl();
+  const analysisSummary = snapshot.ok
+    ? buildGitAnalysisReport({ branch: gitIntake.branch, summary: snapshot.summary, highlights: snapshot.highlights, repoUrl: gitIntake.repoUrl })
+    : "";
+  const nextControl = snapshot.ok ? buildAcceptedChangeControl(iteration, currentControl, gitIntake, now) : currentControl;
+  repo.updateIteration({
+    ...iteration,
+    changeControl: nextControl,
+    interactionState: {
+      ...defaultInteractionState(iteration, now),
+      gitRequirementIntake: {
+        status: snapshot.ok ? "accepted-read" : "read-failed",
+        askedAt: gitIntake.askedAt || now, decidedAt: now,
+        branch: gitIntake.branch, repoUrl: gitIntake.repoUrl,
+        summary: analysisSummary || snapshot.summary, error: snapshot.error
+      }
+    }
+  });
+  writeAuditLog(
+    repo,
+    snapshot.ok ? "iteration_git_intake_read_succeeded" : "iteration_git_intake_read_failed",
+    `iteration:${iteration.id}`,
+    `branch=${gitIntake.branch};repo=${gitIntake.repoUrl};error=${snapshot.error || "none"}`
+  );
+  return acceptedResponse({
+    iterationId: iteration.id, summary: analysisSummary || snapshot.summary,
+    ok: snapshot.ok, error: snapshot.error,
+    suggestedActions: skillChain.suggestedActions, checklist: skillChain.checklist, summaries: skillChain.summaries
+  });
+}
+
 export function handlePendingGitRequirementIntake(params: {
   repo: WorkspaceRepository;
   iteration: Iteration;
@@ -130,126 +229,18 @@ export function handlePendingGitRequirementIntake(params: {
     gitIntake?.status === "pending-confirmation" &&
     hasGitRequirementIntakeTarget(projectRepo) &&
     Boolean(gitIntake.repoUrl && gitIntake.branch);
-  if (!pending || !projectRepo || !gitIntake) {
-    return null;
-  }
+  if (!pending || !projectRepo || !gitIntake) return null;
+
   const decision = detectGitRequirementReadDecision(userMessage);
+  if (decision === "unknown") return null;
+
   const skillChain = runOpenclawSkillChainForCoach({
-    iteration,
-    previousIterationName: "",
-    userMessage: `[git-intake:${decision}] ${userMessage}`
+    iteration, previousIterationName: "", userMessage: `[git-intake:${decision}] ${userMessage}`
   });
   const now = new Date().toISOString();
-  if (decision === "unknown") {
-    // 用户消息未明确回应 git 读取问题，放行到正常 Coach 流程
-    return null;
-  }
+
   if (decision === "decline") {
-    repo.updateIteration({
-      ...iteration,
-      interactionState: {
-        ...defaultInteractionState(iteration, now),
-        gitRequirementIntake: {
-          status: "declined",
-          askedAt: gitIntake.askedAt || now,
-          decidedAt: now,
-          branch: gitIntake.branch,
-          repoUrl: gitIntake.repoUrl,
-          summary: "",
-          error: ""
-        }
-      }
-    });
-    writeAuditLog(repo, "iteration_git_intake_declined", `iteration:${iteration.id}`, `repo=${gitIntake.repoUrl}`);
-    return declinedResponse({
-      iterationId: iteration.id,
-      suggestedActions: skillChain.suggestedActions,
-      checklist: skillChain.checklist,
-      summaries: skillChain.summaries
-    });
+    return handleGitIntakeDeclined(repo, iteration, gitIntake, now, skillChain);
   }
-  const snapshot = readGitRepositoryRequirementSnapshot({
-    repoUrl: gitIntake.repoUrl,
-    branch: gitIntake.branch
-  });
-  const nextStatus: "accepted-read" | "read-failed" = snapshot.ok ? "accepted-read" : "read-failed";
-  const currentControl = iteration.changeControl ?? defaultIterationChangeControl();
-  const analysisSummary = snapshot.ok
-    ? buildGitAnalysisReport({
-        branch: gitIntake.branch,
-        summary: snapshot.summary,
-        highlights: snapshot.highlights,
-        repoUrl: gitIntake.repoUrl
-      })
-    : "";
-  const nextControl = snapshot.ok
-    ? {
-        ...currentControl,
-        pendingHumanConfirmation: true,
-        lastAnalysisAt: now,
-        lastAnalysisFileName: "git-repository-intake",
-        lastAnalysisDigest: `repo=${gitIntake.repoUrl};branch=${gitIntake.branch}`,
-        clarificationQuestions: ["请确认《仓库需求分析报告》是否准确。"],
-        clarificationDraftResolvedQuestions: [],
-        clarificationDraftUpdatedAt: now,
-        lastClarificationResolution: {
-          resolvedQuestions: [],
-          unresolvedQuestions: ["请确认《仓库需求分析报告》是否准确。"],
-          updatedAt: now
-        },
-        lastClarificationNote: "等待用户确认仓库需求分析报告",
-        confirmedAt: "",
-        confirmedBy: "",
-        lastReportPublishable: true,
-        lastReportQualityScore: 88,
-        lastReportQualitySummary: "已基于仓库结构与文档生成首轮需求分析报告，待人工确认。",
-        lastReportQualityUpdatedAt: now,
-        artifactWorkflow: ensureArtifactWorkflow(
-          iteration,
-          {
-            ...currentControl,
-            pendingHumanConfirmation: true,
-            lastAnalysisAt: now,
-            lastAnalysisFileName: "git-repository-intake",
-            lastAnalysisDigest: `repo=${gitIntake.repoUrl};branch=${gitIntake.branch}`,
-            lastReportPublishable: true,
-            lastReportQualityScore: 88,
-            lastReportQualitySummary: "已基于仓库结构与文档生成首轮需求分析报告，待人工确认。",
-            lastReportQualityUpdatedAt: now
-          },
-          now
-        )
-      }
-    : currentControl;
-  repo.updateIteration({
-    ...iteration,
-    changeControl: nextControl,
-    interactionState: {
-      ...defaultInteractionState(iteration, now),
-      gitRequirementIntake: {
-        status: nextStatus,
-        askedAt: gitIntake.askedAt || now,
-        decidedAt: now,
-        branch: gitIntake.branch,
-        repoUrl: gitIntake.repoUrl,
-        summary: analysisSummary || snapshot.summary,
-        error: snapshot.error
-      }
-    }
-  });
-  writeAuditLog(
-    repo,
-    snapshot.ok ? "iteration_git_intake_read_succeeded" : "iteration_git_intake_read_failed",
-    `iteration:${iteration.id}`,
-    `branch=${gitIntake.branch};repo=${gitIntake.repoUrl};error=${snapshot.error || "none"}`
-  );
-  return acceptedResponse({
-    iterationId: iteration.id,
-    summary: analysisSummary || snapshot.summary,
-    ok: snapshot.ok,
-    error: snapshot.error,
-    suggestedActions: skillChain.suggestedActions,
-    checklist: skillChain.checklist,
-    summaries: skillChain.summaries
-  });
+  return handleGitIntakeAccepted(repo, iteration, gitIntake, now, skillChain);
 }

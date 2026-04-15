@@ -108,16 +108,12 @@ async function inferActionsByLlm(
     ].join("\n"),
     userPrompt: [
       `用户指令：${normalizedMessage}`,
-      `目标信息：${JSON.stringify(
-        {
-          mode: target?.mode || "prototype",
-          target: target?.target || "",
-          summary: target?.summary || "",
-          html: target?.html || null
-        },
-        null,
-        2
-      )}`,
+      [
+        `编辑模式：${{ html: "HTML 编辑", image: "图片编辑", prototype: "原型编辑" }[target?.mode as string] || "原型"}`,
+        `编辑目标：${target?.target || "未指定"}`,
+        `内容摘要：${target?.summary || "无"}`,
+        target?.html ? `页面内容：选择器 ${target.html.selector || "无"}，标签 ${target.html.tag || "无"}，文本 ${target.html.text || "无"}` : ""
+      ].filter(Boolean).join("\n"),
       optimizeIntent ? "补充要求：这是优化类指令，请给出可直接执行的保守样式优化动作，不要返回空 actions。" : "",
       "请输出：JSON {actions:[{op,property?,value?}], reasoning}"
     ].join("\n\n")

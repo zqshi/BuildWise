@@ -10,16 +10,16 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const context = service.iteration.getIterationContext(iterationId);
     if (!context) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return context;
   });
@@ -29,16 +29,16 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const stateMachine = service.iteration.getStateMachine(iterationId);
     if (!stateMachine) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return stateMachine;
   });
@@ -48,31 +48,31 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const role = access.projectAccess.workspaceRole;
     const grantedPermissions = service.governance.resolveRolePermissions(role);
     if (!hasPermission(role, "iteration:transition", grantedPermissions)) {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const body = request.body as { toStatus?: string; reason?: string } | null;
     const toStatus = body?.toStatus?.trim();
     if (!toStatus) {
       reply.code(400);
-      return { message: "toStatus is required" };
+      return { message: "请指定目标状态" };
     }
     if (!isIterationStatus(toStatus)) {
       reply.code(400);
-      return { message: "invalid toStatus" };
+      return { message: "无效的目标状态" };
     }
     if (toStatus === "completed" && !hasPermission(role, "iteration:transition:complete", grantedPermissions)) {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const reason = body?.reason?.trim() || "状态转换";
     const transition = service.iteration.transitionIteration(
@@ -88,18 +88,18 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     if (!transition.ok) {
       if (transition.reason === "iteration_not_found") {
         reply.code(404);
-        return { message: "iteration not found" };
+        return { message: "迭代不存在" };
       }
       if (transition.reason === "reason_required" || transition.reason === "reason_too_short") {
         reply.code(400);
-        return { message: transition.reason === "reason_required" ? "reason is required" : "reason must be at least 10 characters for manual transition" };
+        return { message: transition.reason === "reason_required" ? "请填写转换原因" : "转换原因至少需要 10 个字符" };
       }
       if (transition.reason === "invalid_transition") {
         reply.code(409);
-        return { message: "invalid transition" };
+        return { message: "不允许的状态转换" };
       }
       reply.code(400);
-      return { message: "transition failed" };
+      return { message: "状态转换失败" };
     }
     return transition.data;
   });
@@ -109,16 +109,16 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const result = service.iteration.getAssessment(iterationId);
     if (!result) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return result;
   });
@@ -128,11 +128,11 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     return service.iteration.listAssessmentSnapshots(iterationId);
   });
@@ -141,22 +141,22 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const params = request.params as { id: string };
     const iterationId = parsePositiveInt(params.id);
     if (iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const result = service.iteration.recomputeAssessment(iterationId);
     if (!result) {
       reply.code(404);
-      return { message: "iteration not found" };
+      return { message: "迭代不存在" };
     }
     return result;
   });
@@ -165,23 +165,23 @@ export function registerWorkspaceIterationStateRoutes(app: FastifyInstance, serv
     const role = currentRole(request.authRole);
     if (role === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const params = request.params as { id: string; snapshotId: string };
     const iterationId = parsePositiveInt(params.id);
     const snapshotId = parsePositiveInt(params.snapshotId);
     if (iterationId === null || snapshotId === null) {
       reply.code(400);
-      return { message: "invalid iteration id or snapshot id" };
+      return { message: "无效的迭代或快照" };
     }
     const access = ensureIterationAccess(service, request, reply, iterationId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "iteration not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
     }
     const result = service.iteration.restoreSnapshot(iterationId, snapshotId);
     if (!result) {
       reply.code(404);
-      return { message: "iteration or snapshot not found" };
+      return { message: "迭代或快照不存在" };
     }
     return result;
   });

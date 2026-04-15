@@ -62,7 +62,7 @@ export function parseDeepInsightsCandidate(content: string) {
 
 export function listDeepInsightsMissingReasons(candidate: ReturnType<typeof parseDeepInsightsCandidate>) {
   const reasons: string[] = [];
-  if (candidate.fileInsights.length === 0) reasons.push("fileInsights is empty");
+  if (candidate.fileInsights.length === 0) reasons.push("文件洞察为空");
   if (
     candidate.fileInsights.some(
       (item) =>
@@ -70,16 +70,16 @@ export function listDeepInsightsMissingReasons(candidate: ReturnType<typeof pars
         (!item.mainContent || !item.requiredWork || !item.iterationValue || item.recommendedActions.length === 0)
     )
   ) {
-    reasons.push("fileInsights missing mainContent/requiredWork/iterationValue/recommendedActions");
+    reasons.push("文件洞察缺少主要内容/所需工作/迭代价值/推荐操作");
   }
   if (candidate.crossFileInsights.themes.length === 0 && candidate.crossFileInsights.gaps.length === 0) {
-    reasons.push("crossFileInsights missing themes/gaps");
+    reasons.push("跨文件洞察缺少主题/缺口");
   }
   if (candidate.crossFileInsights.rootCauses.length === 0) {
-    reasons.push("crossFileInsights missing rootCauses");
+    reasons.push("跨文件洞察缺少根因分析");
   }
   if (candidate.crossFileInsights.decisionSuggestions.length === 0) {
-    reasons.push("crossFileInsights missing decisionSuggestions");
+    reasons.push("跨文件洞察缺少决策建议");
   }
   return reasons;
 }

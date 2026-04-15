@@ -38,7 +38,7 @@ export function registerGracefulShutdown(
       processLike.exit(0);
     } catch (error) {
       clearTimeout(timer);
-      log.error("graceful shutdown failed", { error: error instanceof Error ? (error as Error).message : String(error) });
+      log.error("graceful shutdown failed", { error: error instanceof Error ? error.message : String(error) });
       processLike.exit(1);
     }
   };

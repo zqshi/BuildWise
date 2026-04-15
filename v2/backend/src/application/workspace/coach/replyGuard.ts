@@ -1,3 +1,7 @@
+import { createLogger } from '../../../infrastructure/runtime/logger';
+
+const log = createLogger("reply-guard");
+
 export function parseRecentSuggestedActions(messages: Array<{ role: string; content: string }>) {
   const actions: string[] = [];
   for (const msg of messages) {
@@ -25,7 +29,7 @@ export function parseRecentSuggestedActions(messages: Array<{ role: string; cont
           );
         }
       } catch (err) {
-        console.debug("[CoachReplyGuard] failed to parse action JSON from coach reply", err);
+        log.debug("failed to parse action JSON from coach reply", { error: err instanceof Error ? err.message : String(err) });
       }
     }
   }

@@ -60,8 +60,8 @@ function parsePreflightCandidate(content: string) {
 
 function listPreflightMissingReasons(candidate: ReturnType<typeof parsePreflightCandidate>) {
   const reasons: string[] = [];
-  if (candidate.includedPaths.length === 0) reasons.push("includedPaths is empty");
-  if (!candidate.executionStrategy.reason) reasons.push("executionStrategy.reason is empty");
+  if (candidate.includedPaths.length === 0) reasons.push("已选文件路径为空");
+  if (!candidate.executionStrategy.reason) reasons.push("执行策略原因缺失");
   return reasons;
 }
 
@@ -153,9 +153,8 @@ async function runPreflightSingleBatch(
     .map((item, i) => {
       const path = (item.path || item.fileName || "").trim();
       const mime = (item.mimeType || "").trim();
-      const size = Number.isFinite(item.size) ? item.size : 0;
       const excerpt = (item.excerpt || "").trim().slice(0, 200);
-      return `[${i + 1}] path=${path};mime=${mime};size=${size};excerpt=${excerpt || "[empty]"}`;
+      return `[${i + 1}] 路径：${path}；类型：${mime}；摘要：${excerpt || "（空）"}`;
     })
     .join("\n");
 
@@ -168,12 +167,13 @@ async function runPreflightSingleBatch(
     expectedOutput: "JSON: {includedPaths[], ignoredFiles:[{path,reason}], sampleReason, executionStrategy:{degraded,reason,enforceSingleAgent,forceMultiAgent,promptBudgetRisk}}",
     systemPrompt: [
       "你是分析上下文策展器。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文本。",
-      "基于业务价值、可解析性和版本相关性选择文件，同时评估执行策略。"
+      "基于业务价值、可解析性和版本相关性选择文件，同时评估执行策略。",
+      "所有 string 类型字段的值（如 reason、sampleReason）必须使用中文业务语言，禁止出现：文件大小、英文技术缩写、前端后端框架名称。路径字段除外。"
     ].join("\n"),
     userPrompt: [
-      `folder=${input.folderName || input.fileName || "folder"}${batchLabel}`,
-      `totalFiles=${(input.files || []).length};batchFiles=${batchFiles.length}`,
-      `excerptLength=${excerptLength};chunkCount=${chunkCount}`,
+      `文件夹名称：${input.folderName || input.fileName || "folder"}${batchLabel}`,
+      `文件总数：${(input.files || []).length}；本批文件数：${batchFiles.length}`,
+      `摘要长度：${excerptLength}；分片数量：${chunkCount}`,
       "请从以下文件清单中选出应纳入本轮分析的文件路径 includedPaths。",
       "忽略的文件写入 ignoredFiles（含 reason）。",
       "同时在 executionStrategy 中给出 degraded/reason/enforceSingleAgent/forceMultiAgent/promptBudgetRisk。",
@@ -192,6 +192,7 @@ async function runPreflightSingleBatch(
       userPrompt: [
         prompt.userPrompt,
         "请仅输出严格 JSON 并补齐以下缺失项：",
+        "输出的 JSON 字符串值必须使用中文业务语言，禁止引用 JSON key 名称。",
         missing.join("; "),
         `上一版输出：${selected.content.slice(0, 2000)}`
       ].join("\n\n")

@@ -67,16 +67,16 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
-      return { message: "invalid project id" };
+      return { message: "无效的项目 ID" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     }
     const snapshots = service.listSnapshots(projectId);
     if (!snapshots) {
       reply.code(404);
-      return { message: "project not found" };
+      return { message: "项目不存在" };
     }
     return snapshots;
   });
@@ -95,28 +95,28 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     const body = (request.body || {}) as Record<string, unknown>;
     if (projectId === null) {
       reply.code(400);
-      return { message: "invalid project id" };
+      return { message: "无效的项目 ID" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     }
     const parsed = parseIterationModelingInput({ ...body, projectId });
     if (!parsed) {
       reply.code(400);
-      return { message: "projectId and iterationId are required" };
+      return { message: "请提供项目 ID 和迭代 ID" };
     }
     const iterationAccess = ensureIterationAccess(service, request, reply, parsed.iterationId, "write");
     if (!iterationAccess || iterationAccess.iteration?.projectId !== projectId) {
       if (reply.statusCode === 200) {
         reply.code(iterationAccess ? 404 : reply.statusCode);
       }
-      return { message: iterationAccess ? "iteration not found" : "permission denied" };
+      return { message: iterationAccess ? "迭代不存在" : "没有权限" };
     }
     const planned = service.planIterationModeling(parsed);
     if (!planned.ok) {
       reply.code(planned.reason === "project_not_found" ? 404 : 404);
-      return { message: planned.reason === "project_not_found" ? "project not found" : "iteration not found" };
+      return { message: planned.reason === "project_not_found" ? "项目不存在" : "迭代不存在" };
     }
     const plan = planned.data;
     return {
@@ -143,28 +143,28 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     const body = (request.body || {}) as Record<string, unknown>;
     if (projectId === null) {
       reply.code(400);
-      return { message: "invalid project id" };
+      return { message: "无效的项目 ID" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "write");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     }
     const parsed = parseIterationModelingInput({ ...body, projectId });
     if (!parsed) {
       reply.code(400);
-      return { message: "projectId and iterationId are required" };
+      return { message: "请提供项目 ID 和迭代 ID" };
     }
     const iterationAccess = ensureIterationAccess(service, request, reply, parsed.iterationId, "write");
     if (!iterationAccess || iterationAccess.iteration?.projectId !== projectId) {
       if (reply.statusCode === 200) {
         reply.code(iterationAccess ? 404 : reply.statusCode);
       }
-      return { message: iterationAccess ? "iteration not found" : "permission denied" };
+      return { message: iterationAccess ? "迭代不存在" : "没有权限" };
     }
     const saved = service.saveCandidate(parsed);
     if (!saved.ok) {
       reply.code(saved.reason === "project_not_found" ? 404 : 404);
-      return { message: saved.reason === "project_not_found" ? "project not found" : "iteration not found" };
+      return { message: saved.reason === "project_not_found" ? "项目不存在" : "迭代不存在" };
     }
     return saved.data;
   });
@@ -184,16 +184,16 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     const projectId = parsePositiveInt(params.id);
     if (projectId === null) {
       reply.code(400);
-      return { message: "invalid project id" };
+      return { message: "无效的项目 ID" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     }
     const snapshotId = (params.snapshotId || "").trim();
     if (!snapshotId) {
       reply.code(400);
-      return { message: "invalid snapshot id" };
+      return { message: "无效的快照 ID" };
     }
     const result = service.publishSnapshot(snapshotId, projectId);
     if (!result.ok) {
@@ -222,15 +222,15 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     const iterationId = parsePositiveInt(query?.iterationId);
     if (projectId === null) {
       reply.code(400);
-      return { message: "invalid project id" };
+      return { message: "无效的项目 ID" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "read");
     if (!access) {
-      return { message: reply.statusCode === 404 ? "project not found" : "permission denied" };
+      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     }
     if (query?.iterationId && iterationId === null) {
       reply.code(400);
-      return { message: "invalid iteration id" };
+      return { message: "无效的迭代 ID" };
     }
     if (iterationId !== null) {
       const iterationAccess = ensureIterationAccess(service, request, reply, iterationId, "read");
@@ -238,13 +238,13 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
         if (reply.statusCode === 200) {
           reply.code(iterationAccess ? 404 : reply.statusCode);
         }
-        return { message: iterationAccess ? "project or iteration not found" : "permission denied" };
+        return { message: iterationAccess ? "项目或迭代不存在" : "没有权限" };
       }
     }
     const view = service.getProjectModelView(projectId, iterationId ?? undefined);
     if (!view) {
       reply.code(404);
-      return { message: iterationId ? "project or iteration not found" : "project not found" };
+      return { message: iterationId ? "项目或迭代不存在" : "项目不存在" };
     }
     return view;
   });

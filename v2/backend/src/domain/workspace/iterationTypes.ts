@@ -25,7 +25,7 @@ export type VersionAssessment = {
   risks: string[];
 };
 
-export type IterationModule = {
+type IterationModule = {
   id: string;
   title: string;
   status: string;
@@ -54,7 +54,7 @@ export type IterationChangeBoundary = {
   updatedAt: string;
 };
 
-export type IterationChangeSourceType =
+type IterationChangeSourceType =
   | "natural-language"
   | "document"
   | "html"
@@ -64,7 +64,7 @@ export type IterationChangeSourceType =
   | "mixed"
   | "unknown";
 
-export type IterationChangeSource = {
+type IterationChangeSource = {
   type: IterationChangeSourceType;
   rawInput: string;
   attachments: string[];
@@ -72,7 +72,7 @@ export type IterationChangeSource = {
   updatedAt: string;
 };
 
-export type IterationGeneratedTestCase = {
+type IterationGeneratedTestCase = {
   type: string;
   caseId: string;
   focus: string;
@@ -84,7 +84,7 @@ export type IterationGeneratedTestCase = {
   executionNote: string;
 };
 
-export type IterationQualityArtifacts = {
+type IterationQualityArtifacts = {
   unitTests: string[];
   contractTests: string[];
   acceptanceChecklist: string[];
@@ -93,7 +93,7 @@ export type IterationQualityArtifacts = {
   updatedAt: string;
 };
 
-export type IterationUxArtifacts = {
+type IterationUxArtifacts = {
   informationArchitecture: string[];
   interactionFlows: string[];
   uiStates: string[];
@@ -110,9 +110,9 @@ export type IterationArtifactStage =
   | "release"
   | "archive";
 
-export type IterationArtifactGateStatus = "pending" | "passed" | "blocked";
-export type IterationArtifactStatus = "pending" | "partial" | "ready";
-export type IterationArtifactEditCapability = "none" | "rich-text" | "prototype-select";
+type IterationArtifactGateStatus = "pending" | "passed" | "blocked";
+type IterationArtifactStatus = "pending" | "partial" | "ready";
+type IterationArtifactEditCapability = "none" | "rich-text" | "prototype-select";
 
 export type IterationArtifactWorkflowItem = {
   id: string;
@@ -149,7 +149,7 @@ export type IterationArtifactWorkflow = {
 
 // ── IterationChangeControl sub-types (ISP) ──
 
-export type AnalysisState = {
+type AnalysisState = {
   lastAnalysisAt: string;
   lastAnalysisFileName: string;
   lastAnalysisDigest: string;
@@ -203,7 +203,7 @@ export type AnalysisState = {
   };
 };
 
-export type ClarificationState = {
+type ClarificationState = {
   pendingHumanConfirmation: boolean;
   clarificationRounds: number;
   clarificationQuestions: string[];
@@ -219,7 +219,7 @@ export type ClarificationState = {
   confirmedBy: string;
 };
 
-export type BoundaryState = {
+type BoundaryState = {
   boundary: IterationChangeBoundary;
   changeSource: IterationChangeSource;
   executableConstraints: {
@@ -230,7 +230,7 @@ export type BoundaryState = {
   };
 };
 
-export type TestingState = {
+type TestingState = {
   generatedTestMatrix: IterationGeneratedTestCase[];
   generatedTestMatrixUpdatedAt: string;
   testMatrixExecutionUpdatedAt: string;
@@ -238,7 +238,7 @@ export type TestingState = {
   uxArtifacts: IterationUxArtifacts;
 };
 
-export type TraceabilityState = {
+type TraceabilityState = {
   traceabilitySnapshot: {
     requirementCoverage: number;
     mappingConfidence: "high" | "medium" | "low";
@@ -261,7 +261,7 @@ export type TraceabilityState = {
   }>;
 };
 
-export type DomainKnowledgeState = {
+type DomainKnowledgeState = {
   domainKnowledgeEntries: Array<{
     term: string;
     definition: string;
@@ -276,7 +276,7 @@ export type DomainKnowledgeState = {
   knowledgeConflicts: string[];
 };
 
-export type ReleaseState = {
+type ReleaseState = {
   lastReleaseReviewDecision: "go" | "caution" | "block" | "";
   lastReleaseReviewReason: string;
   lastReleaseReviewBlockers: string[];
@@ -375,7 +375,7 @@ export type CreateIterationInput = Partial<Iteration> &
     versionType?: IterationVersionType;
   };
 
-export type ChatRole = "system" | "assistant" | "user";
+type ChatRole = "system" | "assistant" | "user";
 
 export type IterationMessage = {
   id: number;
@@ -423,18 +423,3 @@ export type AssessmentPayload = {
   assessment: VersionAssessment;
 };
 
-export type ProductionDeliveryLoopState =
-  | "need_prototype_alignment"
-  | "need_arch_alignment"
-  | "implementing"
-  | "repairing"
-  | "testing"
-  | "ready_for_release";
-
-export type ProductionDeliveryLoop = {
-  state: ProductionDeliveryLoopState;
-  blockedBy: string[];
-  repairActions: string[];
-  evidence: string[];
-  updatedAt: string;
-};

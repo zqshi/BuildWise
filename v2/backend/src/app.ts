@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -97,14 +98,12 @@ function scheduleDailyProjectWorkspaceRefresh(workspaceRepo: WorkspaceRepository
   scheduleNext();
 }
 
-export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Promise<BuildwiseAppContext> {
-  const log = createLogger("bootstrap");
-  const backendRoot = join(__dirname, "..");
-  const config = loadRuntimeConfig(options.env, {
-    dataFile: options.dataFile || join(backendRoot, "data.runtime.json")
-  });
-  const runtime = new RuntimeState(config);
-  const app = Fastify({ logger: false, requestTimeout: 600_000 });
+async function registerMiddleware(
+  app: ReturnType<typeof Fastify>,
+  runtime: RuntimeState,
+  config: ReturnType<typeof loadRuntimeConfig>,
+  options: CreateBuildwiseAppOptions
+) {
   registerRuntimeHooks(app, runtime, config);
   await app.register(helmet, {
     contentSecurityPolicy: {
@@ -125,62 +124,24 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   });
   await app.register(cors, { origin: resolveCorsOriginOption(config.corsOrigins), credentials: true });
   if (config.rateLimitMax > 0) {
-    await app.register(rateLimit, {
-      max: config.rateLimitMax,
-      timeWindow: config.rateLimitWindowMs
-    });
+    await app.register(rateLimit, { max: config.rateLimitMax, timeWindow: config.rateLimitWindowMs });
   }
   registerRuntimeAuth(app, config);
   if (options.registerProcessHandlers !== false) {
     registerGracefulShutdown(app, runtime, config, resolveProcessHooks());
   }
-  app.get("/", async () => ({
-    service: config.serviceName,
-    status: "ok"
-  }));
+  app.get("/", async () => ({ service: config.serviceName, status: "ok" }));
+}
 
-  const agentRunner = createAgentRunnerFromEnv(options.env);
-  const dependencyStatus = await probeRuntimeDependencies(config);
-  runtime.setDependencyStatus(dependencyStatus);
-  log.info("dependency probe completed", { storage: dependencyStatus.storage.healthy, required: config.dependencyRequired });
-  const workspaceRepo = new SqliteWorkspaceRepository(config.workspaceDbFile, config.dataFile, {
-    bootstrapMode: config.allowSeedDataBootstrap ? "seed" : "empty"
-  });
-  setRevokedTokenStore(new SqliteRevokedTokenStore(workspaceRepo.getDb()));
-  const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
-  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo);
-
-  // Bootstrap: 自动创建初始管理员（仅当平台无任何成员时生效）
-  const bootstrapAdminPhone = (options.env?.BOOTSTRAP_ADMIN_PHONE || "").trim();
-  if (bootstrapAdminPhone && /^1\d{10}$/.test(bootstrapAdminPhone)) {
-    const existingBindings = workspaceRepo.listPlatformRoleBindings();
-    if (existingBindings.length === 0) {
-      const now = new Date().toISOString();
-      workspaceRepo.upsertPlatformRoleBinding({
-        id: 1,
-        userId: bootstrapAdminPhone,
-        role: "admin",
-        createdAt: now,
-        updatedAt: now
-      });
-      log.info("bootstrap admin created", { phone: `${bootstrapAdminPhone.slice(0, 3)}****${bootstrapAdminPhone.slice(7)}` });
-    }
-  }
-
-  const platformService = new PlatformService(workspaceRepo);
-  const continuousModelingService = new ContinuousModelingService(continuousModelingRepo);
-  const continuousModelingWorkspaceService = new ContinuousModelingWorkspaceService(continuousModelingService, workspaceRepo, continuousModelingRepo);
-
+function wireAnalysisEventHandlers(
+  workspaceService: WorkspaceService,
+  workspaceRepo: WorkspaceRepository,
+  continuousModelingWorkspaceService: ContinuousModelingWorkspaceService
+) {
   const emptyKb = (): { ontologyTerms: never[]; stableRules: never[]; componentInventory: never[]; codeMap: never[]; decisionLog: never[]; knownRisks: never[]; changePatterns: never[]; updatedAt: string } => ({
-    ontologyTerms: [],
-    stableRules: [],
-    componentInventory: [],
-    codeMap: [],
-    decisionLog: [],
-    knownRisks: [],
-    changePatterns: [],
-    updatedAt: ""
+    ontologyTerms: [], stableRules: [], componentInventory: [], codeMap: [], decisionLog: [], knownRisks: [], changePatterns: [], updatedAt: ""
   });
+
   workspaceService.analysis.setOnAnalysisCompleted((iterationId, report) => {
     const iteration = workspaceRepo.findIteration(iterationId);
     if (!iteration) return;
@@ -188,43 +149,29 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     const project = workspaceRepo.findProject(projectId);
     const dk = report.domainKnowledge;
     const domainEntries = dk.terms.map((t) => ({
-      term: t.term,
-      definition: t.definition,
-      mappedPages: t.mappedTo.pages || [],
-      mappedApis: t.mappedTo.apis || [],
-      mappedEntities: t.mappedTo.entities || [],
-      mappedCodePaths: t.mappedTo.codePaths || [],
+      term: t.term, definition: t.definition,
+      mappedPages: t.mappedTo.pages || [], mappedApis: t.mappedTo.apis || [],
+      mappedEntities: t.mappedTo.entities || [], mappedCodePaths: t.mappedTo.codePaths || [],
       evidence: t.evidence
     }));
-
-    // 从 domainEntries 聚合构建 Bridge 所需的 TraceabilityMap
     const bridgeTraceMap = buildTraceabilityMapFromDomainEntries(domainEntries);
-
     if (project) {
       const existingKb = project.knowledgeBase ?? emptyKb();
       const ontologyResult = extractKnowledgeBaseUpdateOp(existingKb, {
-        domainKnowledgeEntries: domainEntries,
-        traceabilityMap: bridgeTraceMap,
-        boundary: null,
-        analysisReport: report
+        domainKnowledgeEntries: domainEntries, traceabilityMap: bridgeTraceMap, boundary: null, analysisReport: report
       });
       workspaceRepo.updateProject({ ...project, knowledgeBase: ontologyResult.updatedKb });
       syncProjectWorkspaceKnowledge(workspaceRepo, projectId);
     }
-
     const kb = workspaceRepo.findProject(projectId)?.knowledgeBase ?? emptyKb();
     const modelingInput = buildModelingInputFromAnalysis({
-      projectId,
-      iterationId,
-      knowledgeBase: kb,
-      domainKnowledgeEntries: domainEntries,
-      traceabilityMap: bridgeTraceMap,
+      projectId, iterationId, knowledgeBase: kb,
+      domainKnowledgeEntries: domainEntries, traceabilityMap: bridgeTraceMap,
       reportTraceabilityMap: report.traceabilityMap
     });
     continuousModelingWorkspaceService.saveCandidate(modelingInput);
   });
 
-  // 分析确认后，刷新快照 + 自动发布
   workspaceService.changeControl.setOnAnalysisConfirmed((iterationId, projectId) => {
     const project = workspaceRepo.findProject(projectId);
     if (!project) return;
@@ -234,18 +181,24 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     const domainEntries = iteration.changeControl?.domainKnowledgeEntries ?? [];
     const bridgeTraceMap = buildTraceabilityMapFromDomainEntries(domainEntries);
     const modelingInput = buildModelingInputFromAnalysis({
-      projectId,
-      iterationId,
-      knowledgeBase: kb,
-      domainKnowledgeEntries: domainEntries,
-      traceabilityMap: bridgeTraceMap,
+      projectId, iterationId, knowledgeBase: kb,
+      domainKnowledgeEntries: domainEntries, traceabilityMap: bridgeTraceMap,
     });
     const saveResult = continuousModelingWorkspaceService.saveCandidate(modelingInput);
     if (saveResult.ok && saveResult.data?.snapshotId) {
       continuousModelingWorkspaceService.publishSnapshot(saveResult.data.snapshotId, projectId);
     }
   });
+}
 
+async function registerApiRoutes(
+  app: ReturnType<typeof Fastify>,
+  workspaceService: WorkspaceService,
+  platformService: PlatformService,
+  continuousModelingWorkspaceService: ContinuousModelingWorkspaceService,
+  config: ReturnType<typeof loadRuntimeConfig>,
+  runtime: RuntimeState
+) {
   await registerSystemRoutes(app, {
     serviceName: config.serviceName,
     version: config.version,
@@ -253,14 +206,12 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     getOpsMetrics: () => platformService.getOpsMetrics(),
     isReady: () => runtime.isReady()
   });
-
   app.register(
-    async (v1) => {
-      v1.register(async (authScope) => {
+    async (v1: FastifyInstance) => {
+      v1.register(async (authScope: FastifyInstance) => {
         await authScope.register(rateLimit, { max: 30, timeWindow: 60_000 });
         registerAuthRoutes(authScope, workspaceService, config);
       });
-
       await registerWorkspaceRoutes(v1, workspaceService);
       await registerRepositoryTraceRoutes(v1, workspaceService);
       await registerContinuousModelingRoutes(v1, continuousModelingWorkspaceService);
@@ -268,6 +219,46 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     },
     { prefix: "/api/v1" }
   );
+}
+
+export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Promise<BuildwiseAppContext> {
+  const log = createLogger("bootstrap");
+  const backendRoot = join(__dirname, "..");
+  const config = loadRuntimeConfig(options.env, {
+    dataFile: options.dataFile || join(backendRoot, "data.runtime.json")
+  });
+  const runtime = new RuntimeState(config);
+  const app = Fastify({ logger: false, requestTimeout: 600_000 });
+  await registerMiddleware(app, runtime, config, options);
+
+  const agentRunner = createAgentRunnerFromEnv(options.env);
+  const dependencyStatus = await probeRuntimeDependencies(config);
+  runtime.setDependencyStatus(dependencyStatus);
+  log.info("dependency probe completed", { storage: dependencyStatus.storage.healthy, required: config.dependencyRequired });
+
+  const workspaceRepo = new SqliteWorkspaceRepository(config.workspaceDbFile, config.dataFile, {
+    bootstrapMode: config.allowSeedDataBootstrap ? "seed" : "empty"
+  });
+  setRevokedTokenStore(new SqliteRevokedTokenStore(workspaceRepo.getDb()));
+  const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
+  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo);
+
+  const bootstrapAdminPhone = (options.env?.BOOTSTRAP_ADMIN_PHONE || "").trim();
+  if (bootstrapAdminPhone && /^1\d{10}$/.test(bootstrapAdminPhone)) {
+    const existingBindings = workspaceRepo.listPlatformRoleBindings();
+    if (existingBindings.length === 0) {
+      const now = new Date().toISOString();
+      workspaceRepo.upsertPlatformRoleBinding({ id: 1, userId: bootstrapAdminPhone, role: "admin", createdAt: now, updatedAt: now });
+      log.info("bootstrap admin created", { phone: `${bootstrapAdminPhone.slice(0, 3)}****${bootstrapAdminPhone.slice(7)}` });
+    }
+  }
+
+  const platformService = new PlatformService(workspaceRepo);
+  const continuousModelingService = new ContinuousModelingService(continuousModelingRepo);
+  const continuousModelingWorkspaceService = new ContinuousModelingWorkspaceService(continuousModelingService, workspaceRepo, continuousModelingRepo);
+
+  wireAnalysisEventHandlers(workspaceService, workspaceRepo, continuousModelingWorkspaceService);
+  await registerApiRoutes(app, workspaceService, platformService, continuousModelingWorkspaceService, config, runtime);
 
   const startBackgroundTasks = () => {
     if (options.syncWorkspaceKnowledgeOnStart !== false) {
@@ -296,12 +287,7 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   };
 
   return {
-    app,
-    config,
-    runtime,
-    workspaceRepo,
-    workspaceService,
-    platformService,
+    app, config, runtime, workspaceRepo, workspaceService, platformService,
     refreshLlmRuntimeStatus: () => refreshLlmRuntimeStatus(runtime, options.env),
     startBackgroundTasks
   };

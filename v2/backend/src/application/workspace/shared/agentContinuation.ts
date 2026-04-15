@@ -7,16 +7,16 @@
 
 import type { AgentRunner, AgentRunResult, AgentRunOptions, ConversationMessage } from "./agentRunner";
 import type { IterationAgentPrompt } from '../../../domain/workspace/types';
-import { createLogger } from '../../shared/logger';
+import { createLogger } from '../../../infrastructure/runtime/logger';
 
 const log = createLogger("continuation");
 
-export type ContinuationConfig = {
+type ContinuationConfig = {
   maxContinuations: number;
   minChunkLength: number;
 };
 
-export type ContinuationResult = {
+type ContinuationResult = {
   content: string;
   continuations: number;
   complete: boolean;

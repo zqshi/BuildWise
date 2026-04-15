@@ -75,7 +75,7 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
   app.get("/api/v1/ops/runtime", async (request, reply) => {
     if (request.authRole === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     return context.getRuntime();
   });
@@ -83,7 +83,7 @@ export async function registerSystemRoutes(app: FastifyInstance, context: System
   app.get("/api/v1/ops/llm-stats", async (request, reply) => {
     if (request.authRole === "viewer") {
       reply.code(403);
-      return { message: "permission denied" };
+      return { message: "没有权限" };
     }
     const query = request.query as { limit?: string } | null;
     const limit = Math.min(Math.max(Number(query?.limit) || 50, 1), 200);

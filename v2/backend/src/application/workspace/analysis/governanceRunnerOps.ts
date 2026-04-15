@@ -6,7 +6,78 @@ import { buildGovernanceInsightsPrompt, buildGovernanceInsightsRepairPrompt } fr
 import { listReleaseReviewMissingReasons, parseReleaseReviewCandidate } from './releaseReviewOps';
 import { listReportQualityMissingReasons, parseReportQualityCandidate } from './governanceOps';
 import { hydrateGovernanceInsightsCandidate, hydrateReleaseReviewCandidate, hydrateReportQualityCandidate } from './governanceHydrationOps';
+import { formatDiffLocations, formatPrioritizedFindings, formatSourceType, formatVersionDiff } from './extractors';
 type RunAnalysisPrompt = (agentRunner: AgentRunner, prompt: IterationAgentPrompt, options?: AgentRunOptions) => Promise<AgentRunResult>;
+
+function detectCodeDominance(excerpt: string): string[] {
+  const codeSignals = [
+    /<\/?[a-z][a-z0-9]*[\s>]/i,
+    /\b(function|const|let|var|import|export|class|interface|type)\b/,
+    /\b(def|class|import|from|return)\b/,
+    /\.(tsx?|jsx?|vue|svelte|py|go|rs|java|rb|php|css|scss|less|html?)\b/i,
+    /[{};]\s*$/m,
+    /=>|\.map\(|\.filter\(|\.reduce\(/,
+  ];
+  const codeMatchCount = codeSignals.filter((re) => re.test(excerpt.slice(0, 3000))).length;
+  if (codeMatchCount < 3) return [];
+  return [
+    "",
+    "⚠ 上传内容主要是代码文件而非需求文档。请按以下策略分析：",
+    "- 从代码结构推断功能模块（如路由定义→页面列表、组件目录→UI模块、API端点→后端服务）",
+    "- 从页面/组件代码推断用户交互流程（表单→数据录入、列表→数据查询、弹窗→确认操作）",
+    "- 从数据模型/类型定义推断业务实体和关系",
+    "- 从注释、变量命名、文件名推断业务术语和领域概念",
+    "- 将技术实现翻译为业务功能描述（如 `loginForm.tsx` → '用户登录功能'）",
+    "- coreIntent 应描述这些代码实现的业务系统是什么",
+    "- functionalPoints 应列出代码实现的每个业务功能",
+    "- necessityAssessment.mustDo 应列出代码中已实现的核心功能",
+  ];
+}
+
+function buildBusinessConfirmationPrompt(
+  params: Parameters<typeof synthesizeBusinessConfirmationOp>[1],
+  compactSingleFile: boolean,
+  codeAnalysisInstructions: string[]
+): IterationAgentPrompt {
+  const confirmationRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
+  return {
+    agentId: compactSingleFile ? "agent-business-confirmation-compact-1" : "agent-business-confirmation-1",
+    role: confirmationRole,
+    scope: "attachment" as const,
+    goal: "输出可让业务角色直接确认的边界与版本差异说明",
+    expectedOutput:
+      "JSON: {coreIntent, successCriteria[], interactionInsights:{primaryFlow[],keyInteractions[],exceptionPaths[],usabilityRisks[]}, necessityAssessment:{mustDo[],shouldDo[],canDefer[],outOfScope[],rationale}, evidenceRefs[], boundarySummary, functionalPoints[], confirmationChecklist:[{order,impactLevel,item,rationale}], versionDiffSummary, diffNarratives[], diffConfirmationOrder:[{order,impactLevel,item,rationale}]}",
+    systemPrompt:
+      "你是资深产品负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，禁止解释性前后文。内容必须让非技术业务人员可直接理解并确认。impactLevel 只能是 高/中/低。所有 string 类型字段的值必须使用中文业务语言，禁止出现：文件名和路径（如 main.js、src/components/）、文件大小（如 52KB、8MB）、英文技术缩写（用中文替代：CDN→内容分发、API→接口、SDK→开发工具包）、前端后端框架名称（如 React、Tailwind CSS、Express）。如需引用具体文件作为证据，仅在 evidenceRefs 字段中使用。",
+    userPrompt: [
+      `所属迭代：${params.iterationName}`,
+      `基线迭代：${params.baselineIterationName || "无基线"}`,
+      `分析目标：${params.analyzedTarget}；来源类型：${formatSourceType(params.sourceType)}`,
+      `需求边界：${params.requirements.join("、") || "无"}`,
+      `组件边界：${params.components.join("、") || "无"}`,
+      `代码边界：${params.codePaths.join("、") || "无"}`,
+      `澄清问题：${params.clarificationQuestions.join("；") || "无"}`,
+      formatVersionDiff(params.versionDiff),
+      formatDiffLocations(params.diffLocations),
+      formatPrioritizedFindings(params.prioritizedFindings),
+      `附件文本节选：${params.excerpt.slice(0, compactSingleFile ? 1800 : 2800) || "无"}`,
+      ...codeAnalysisInstructions,
+      "输出要求：",
+      "0) coreIntent: 一句话说明上传附件的核心任务与业务目标。",
+      compactSingleFile ? "0.1) successCriteria: 3-5条可验证成功标准。" : "0.1) successCriteria: 3-8条可验证成功标准。",
+      "0.2) interactionInsights: 必须包含 primaryFlow/keyInteractions/exceptionPaths/usabilityRisks，说明关键交互与异常路径。",
+      "0.3) necessityAssessment: 必须包含 mustDo/shouldDo/canDefer/outOfScope/rationale，体现对当前迭代是否必要的判断。",
+      compactSingleFile ? "0.4) evidenceRefs: 2-6条证据，格式建议「文件名/路径: 证据点」。" : "0.4) evidenceRefs: 3-12条证据，格式建议「文件名/路径: 证据点」。",
+      "1) boundarySummary: 一段业务可读边界总结。",
+      compactSingleFile ? "2) functionalPoints: 4-8条需求功能点描述。" : "2) functionalPoints: 5-12条需求功能点描述。",
+      compactSingleFile ? "3) confirmationChecklist: 3-6条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。" : "3) confirmationChecklist: 4-10条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。",
+      "4) versionDiffSummary: 对比上版本的业务影响摘要。",
+      compactSingleFile ? "5) diffNarratives: 3-6条业务化差异描述。" : "5) diffNarratives: 4-12条业务化差异描述。",
+      compactSingleFile ? "6) diffConfirmationOrder: 2-5条，按优先级顺序给出需确认的差异项。" : "6) diffConfirmationOrder: 3-10条，按优先级顺序给出需确认的差异项。"
+    ].join("\n\n")
+  };
+}
+
 export async function synthesizeBusinessConfirmationOp(
   agentRunner: AgentRunner | null,
   params: {
@@ -28,74 +99,12 @@ export async function synthesizeBusinessConfirmationOp(
     runAnalysisPrompt: RunAnalysisPrompt;
   }
 ) {
-  const compactSingleFile = params.sourceType === "single-file";
   if (!agentRunner) {
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
-  // 检测 excerpt 是否主要是代码内容
-  const codeSignals = [
-    /<\/?[a-z][a-z0-9]*[\s>]/i,          // HTML tags
-    /\b(function|const|let|var|import|export|class|interface|type)\b/,  // JS/TS keywords
-    /\b(def|class|import|from|return)\b/, // Python
-    /\.(tsx?|jsx?|vue|svelte|py|go|rs|java|rb|php|css|scss|less|html?)\b/i, // file extensions
-    /[{};]\s*$/m,                          // code line endings
-    /=>|\.map\(|\.filter\(|\.reduce\(/,   // functional patterns
-  ];
-  const codeMatchCount = codeSignals.filter((re) => re.test(params.excerpt.slice(0, 3000))).length;
-  const isCodeDominant = codeMatchCount >= 3;
-
-  const codeAnalysisInstructions = isCodeDominant ? [
-    "",
-    "⚠ 上传内容主要是代码文件而非需求文档。请按以下策略分析：",
-    "- 从代码结构推断功能模块（如路由定义→页面列表、组件目录→UI模块、API端点→后端服务）",
-    "- 从页面/组件代码推断用户交互流程（表单→数据录入、列表→数据查询、弹窗→确认操作）",
-    "- 从数据模型/类型定义推断业务实体和关系",
-    "- 从注释、变量命名、文件名推断业务术语和领域概念",
-    "- 将技术实现翻译为业务功能描述（如 `loginForm.tsx` → '用户登录功能'）",
-    "- coreIntent 应描述这些代码实现的业务系统是什么",
-    "- functionalPoints 应列出代码实现的每个业务功能",
-    "- necessityAssessment.mustDo 应列出代码中已实现的核心功能",
-  ] : [];
-
-  const confirmationRole: "requirements-analyst" | "orchestrator" = compactSingleFile
-    ? "requirements-analyst"
-    : "orchestrator";
-  const prompt = {
-    agentId: compactSingleFile ? "agent-business-confirmation-compact-1" : "agent-business-confirmation-1",
-    role: confirmationRole,
-    scope: "attachment" as const,
-    goal: "输出可让业务角色直接确认的边界与版本差异说明",
-    expectedOutput:
-      "JSON: {coreIntent, successCriteria[], interactionInsights:{primaryFlow[],keyInteractions[],exceptionPaths[],usabilityRisks[]}, necessityAssessment:{mustDo[],shouldDo[],canDefer[],outOfScope[],rationale}, evidenceRefs[], boundarySummary, functionalPoints[], confirmationChecklist:[{order,impactLevel,item,rationale}], versionDiffSummary, diffNarratives[], diffConfirmationOrder:[{order,impactLevel,item,rationale}]}",
-    systemPrompt:
-      "你是资深产品负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，禁止解释性前后文。内容必须让非技术业务人员可直接理解并确认。impactLevel 只能是 高/中/低。所有 string 类型字段的值必须使用中文业务语言，禁止出现：文件名和路径（如 main.js、src/components/）、文件大小（如 52KB、8MB）、英文技术缩写（用中文替代：CDN→内容分发、API→接口、SDK→开发工具包）、前端后端框架名称（如 React、Tailwind CSS、Express）。如需引用具体文件作为证据，仅在 evidenceRefs 字段中使用。",
-    userPrompt: [
-      `iteration=${params.iterationName}`,
-      `baseline=${params.baselineIterationName || "无基线"}`,
-      `target=${params.analyzedTarget};sourceType=${params.sourceType}`,
-      `需求边界=${params.requirements.join(" | ") || "-"}`,
-      `组件边界=${params.components.join(" | ") || "-"}`,
-      `代码边界=${params.codePaths.join(" | ") || "-"}`,
-      `澄清问题=${params.clarificationQuestions.join(" | ") || "-"}`,
-      `版本差异=新增:${params.versionDiff.added.join(" | ") || "-"};修改:${params.versionDiff.changed.join(" | ") || "-"};移除:${params.versionDiff.removed.join(" | ") || "-"}`,
-      `差异定位=${params.diffLocations.map((item) => `${item.dimension}/${item.changeType}:${item.baselineItem || "-"}->${item.currentItem}`).join(" | ") || "-"}`,
-      `优先级发现=${params.prioritizedFindings.map((item) => `${item.priority}:${item.content}`).join(" | ") || "-"}`,
-      `附件文本节选=${params.excerpt.slice(0, compactSingleFile ? 1800 : 2800) || "-"}`,
-      ...codeAnalysisInstructions,
-      "输出要求：",
-      "0) coreIntent: 一句话说明上传附件的核心任务与业务目标。",
-      compactSingleFile ? "0.1) successCriteria: 3-5条可验证成功标准。" : "0.1) successCriteria: 3-8条可验证成功标准。",
-      "0.2) interactionInsights: 必须包含 primaryFlow/keyInteractions/exceptionPaths/usabilityRisks，说明关键交互与异常路径。",
-      "0.3) necessityAssessment: 必须包含 mustDo/shouldDo/canDefer/outOfScope/rationale，体现对当前迭代是否必要的判断。",
-      compactSingleFile ? "0.4) evidenceRefs: 2-6条证据，格式建议「文件名/路径: 证据点」。" : "0.4) evidenceRefs: 3-12条证据，格式建议「文件名/路径: 证据点」。",
-      "1) boundarySummary: 一段业务可读边界总结。",
-      compactSingleFile ? "2) functionalPoints: 4-8条需求功能点描述。" : "2) functionalPoints: 5-12条需求功能点描述。",
-      compactSingleFile ? "3) confirmationChecklist: 3-6条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。" : "3) confirmationChecklist: 4-10条，必须给 order(1..n)、impactLevel(高/中/低)、item、rationale。",
-      "4) versionDiffSummary: 对比上版本的业务影响摘要。",
-      compactSingleFile ? "5) diffNarratives: 3-6条业务化差异描述。" : "5) diffNarratives: 4-12条业务化差异描述。",
-      compactSingleFile ? "6) diffConfirmationOrder: 2-5条，按优先级顺序给出需确认的差异项。" : "6) diffConfirmationOrder: 3-10条，按优先级顺序给出需确认的差异项。"
-    ].join("\n\n")
-  };
+  const compactSingleFile = params.sourceType === "single-file";
+  const codeAnalysisInstructions = detectCodeDominance(params.excerpt);
+  const prompt = buildBusinessConfirmationPrompt(params, compactSingleFile, codeAnalysisInstructions);
   const imageDataUrls = (params.visionPayloads || []).map((item) => item.dataUrl).filter(Boolean);
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt, { imageDataUrls });
   let candidate = parseBusinessConfirmationCandidate(selected.content);
@@ -117,32 +126,17 @@ export async function synthesizeBusinessConfirmationOp(
     missing = listBusinessConfirmationMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    const log = (await import("../../shared/logger")).createLogger("biz-confirm");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("biz-confirm");
     log.warn("business confirmation incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
-export async function synthesizeReportQualityGateOp(
-  agentRunner: AgentRunner | null,
-  params: {
-    iterationName: string;
-    analyzedTarget: string;
-    sourceType: "single-file" | "folder";
-    deepInsights: AttachmentAnalysisReport["deepInsights"];
-    businessConfirmation: AttachmentAnalysisReport["businessConfirmation"];
-    prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"];
-    clarificationQuestions: string[];
-  },
-  deps: {
-    runAnalysisPrompt: RunAnalysisPrompt;
-  }
-) {
-  if (!agentRunner) {
-    throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
-  }
-  const compactSingleFile = params.sourceType === "single-file";
+function buildReportQualityGatePrompt(
+  params: Parameters<typeof synthesizeReportQualityGateOp>[1],
+  compactSingleFile: boolean
+): IterationAgentPrompt {
   const qualityRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
-  const prompt = {
+  return {
     agentId: compactSingleFile ? "agent-report-quality-gate-compact-1" : "agent-report-quality-gate-1",
     role: qualityRole,
     scope: "attachment" as const,
@@ -175,6 +169,28 @@ export async function synthesizeReportQualityGateOp(
       "5) actionRequired: 需补充动作列表（可为空）"
     ].join("\n\n")
   };
+}
+
+export async function synthesizeReportQualityGateOp(
+  agentRunner: AgentRunner | null,
+  params: {
+    iterationName: string;
+    analyzedTarget: string;
+    sourceType: "single-file" | "folder";
+    deepInsights: AttachmentAnalysisReport["deepInsights"];
+    businessConfirmation: AttachmentAnalysisReport["businessConfirmation"];
+    prioritizedFindings: AttachmentAnalysisReport["prioritizedFindings"];
+    clarificationQuestions: string[];
+  },
+  deps: {
+    runAnalysisPrompt: RunAnalysisPrompt;
+  }
+) {
+  if (!agentRunner) {
+    throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
+  }
+  const compactSingleFile = params.sourceType === "single-file";
+  const prompt = buildReportQualityGatePrompt(params, compactSingleFile);
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt);
   let candidate = hydrateReportQualityCandidate(parseReportQualityCandidate(selected.content), params);
   let missing = listReportQualityMissingReasons(candidate);
@@ -194,7 +210,7 @@ export async function synthesizeReportQualityGateOp(
     missing = listReportQualityMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    const log = (await import("../../shared/logger")).createLogger("report-quality");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("report-quality");
     log.warn("report quality incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
@@ -235,11 +251,38 @@ export async function synthesizeGovernanceInsightsOp(
   }
   // Governance insights are best-effort: if still incomplete after repair, log and return what we have
   if (missing.length > 0) {
-    const log = (await import("../../shared/logger")).createLogger("gov-insights");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("gov-insights");
     log.warn("governance insights incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
 }
+function buildReleaseReviewPrompt(
+  params: Parameters<typeof synthesizeReleaseReviewOp>[1],
+  compactSingleFile: boolean
+): IterationAgentPrompt {
+  const releaseRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
+  return {
+    agentId: compactSingleFile ? "agent-release-review-compact-1" : "agent-release-review-1",
+    role: releaseRole,
+    scope: "release" as const,
+    goal: "输出发布评审结论",
+    expectedOutput: "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}",
+    systemPrompt:
+      "你是发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。decision 只能是 go/caution/block。",
+    userPrompt: [
+      `所属迭代：${params.iterationName}`,
+      `质量信号：测试用例 ${params.qualitySignals.testCaseCount} 个、P0 问题 ${params.qualitySignals.p0FindingCount} 个、未知信号 ${params.qualitySignals.unknownSignalCount} 个、边界覆盖率 ${params.qualitySignals.boundaryCoverage}%、本体术语 ${params.qualitySignals.ontologyTermCount ?? 0} 条、本体规则 ${params.qualitySignals.ontologyRuleCount ?? 0} 条`,
+      formatPrioritizedFindings(params.prioritizedFindings),
+      `候选阻断项：${params.blockers.join("；") || "无"}`,
+      `候选发布门禁：${params.releaseGates.join("；") || "无"}`,
+      `回滚方案：${params.rollbackPlan.join("；") || "无"}`,
+      `改进建议：${params.recommendations.join("；") || "无"}`,
+      `附件节选：${params.excerpt.slice(0, compactSingleFile ? 1600 : 2200) || "无"}`,
+      compactSingleFile ? "要求：给出最小可执行的 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。" : "要求：给出可执行 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。"
+    ].join("\n\n")
+  };
+}
+
 export async function synthesizeReleaseReviewOp(
   agentRunner: AgentRunner | null,
   params: {
@@ -268,27 +311,7 @@ export async function synthesizeReleaseReviewOp(
     throw new LlmUnavailableError("LLM is not configured. Set LLM_API_BASE (and optional LLM_API_KEY / LLM_MODEL) before calling analysis.");
   }
   const compactSingleFile = params.sourceType === "single-file";
-  const releaseRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
-  const prompt = {
-    agentId: compactSingleFile ? "agent-release-review-compact-1" : "agent-release-review-1",
-    role: releaseRole,
-    scope: "release" as const,
-    goal: "输出发布评审结论",
-    expectedOutput: "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}",
-    systemPrompt:
-      "你是发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。decision 只能是 go/caution/block。",
-    userPrompt: [
-      `iteration=${params.iterationName}`,
-      `qualitySignals=testCaseCount:${params.qualitySignals.testCaseCount};p0:${params.qualitySignals.p0FindingCount};unknown:${params.qualitySignals.unknownSignalCount};boundaryCoverage:${params.qualitySignals.boundaryCoverage};ontologyTerms:${params.qualitySignals.ontologyTermCount ?? 0};ontologyRules:${params.qualitySignals.ontologyRuleCount ?? 0}`,
-      `prioritizedFindings=${params.prioritizedFindings.map((item) => `${item.priority}:${item.content}`).join(" | ") || "-"}`,
-      `candidateBlockers=${params.blockers.join(" | ") || "-"}`,
-      `candidateReleaseGates=${params.releaseGates.join(" | ") || "-"}`,
-      `rollbackPlan=${params.rollbackPlan.join(" | ") || "-"}`,
-      `recommendations=${params.recommendations.join(" | ") || "-"}`,
-      `excerpt=${params.excerpt.slice(0, compactSingleFile ? 1600 : 2200) || "-"}`,
-      compactSingleFile ? "要求：给出最小可执行的 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。" : "要求：给出可执行 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。"
-    ].join("\n\n")
-  };
+  const prompt = buildReleaseReviewPrompt(params, compactSingleFile);
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt);
   let candidate = hydrateReleaseReviewCandidate(parseReleaseReviewCandidate(selected.content, params.qualitySignals), params);
   let missing = listReleaseReviewMissingReasons(candidate);
@@ -308,7 +331,7 @@ export async function synthesizeReleaseReviewOp(
     missing = listReleaseReviewMissingReasons(candidate);
   }
   if (missing.length > 0) {
-    const log = (await import("../../shared/logger")).createLogger("release-review");
+    const log = (await import("../../../infrastructure/runtime/logger")).createLogger("release-review");
     log.warn("release review incomplete after repair", { missing: missing.join(", ") });
   }
   return candidate;
