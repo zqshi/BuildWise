@@ -334,10 +334,14 @@ function processAgentResponse(
   const executionAction = validActionSet.has(actionRaw) ? actionRaw : "none";
 
   const suggestedActionsRaw = pickStringList(guidance.suggestedActions, 8);
-  const clarificationChecklist = pickStringList(guidance.clarificationChecklist, 8);
+  const clarificationChecklistRaw = pickStringList(guidance.clarificationChecklist, 8);
   const mergedActions = dedupeActions(suggestedActionsRaw, recentSuggestedActions);
   const KEBAB_CASE_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
   const sanitizedActions = mergedActions.filter((action) => !KEBAB_CASE_RE.test(action.trim()));
+  const clarificationChecklist = clarificationChecklistRaw
+    .filter((item) => !KEBAB_CASE_RE.test(item.trim()))
+    .map((item) => sanitizeDisplayItem(item))
+    .filter(Boolean);
 
   const validIntentSet = new Set(["collect-attachment", "clarify", "confirm-boundary", "plan", "qa", "release", "full-cycle", "general"]);
   const modelIntent = pickString(parsed?.intent);
@@ -588,7 +592,7 @@ export async function orchestrateCoachMessage(params: {
   const gateResult = evaluateCurrentStageGate(normalized);
 
   if (gateResult.blocked) {
-    writeAuditLog(repo, "orchestrator.blocked", `iteration:${iterationId}`, `stage=${gateResult.currentStage};blockers=${gateResult.blockers.join(",")}`);
+    writeAuditLog(repo, "orchestrator.blocked", `iteration:${iterationId}`, `stage=${gateResult.currentStage};blockers=${gateResult.blockers.map(sanitizeDisplayItem).join(",")}`);
   }
 
   const { continuationResult, agentDef, recentSuggestedActions } = await routeToStageAgent({

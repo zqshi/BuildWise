@@ -63,7 +63,7 @@ export function registerRepositoryProvisionRoutes(app: FastifyInstance, service:
         return { message: "不支持的代码仓库提供商" };
       }
       reply.code(502);
-      return { message: result.message || "repository provision failed" };
+      return { message: result.message || "仓库创建失败" };
     }
     return result.data;
   });

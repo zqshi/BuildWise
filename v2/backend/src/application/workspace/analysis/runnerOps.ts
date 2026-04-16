@@ -22,7 +22,7 @@ export async function runAttachmentAnalysisJobWithTimeoutOp(params: {
   onMarkFailed: (iterationId: number, input: AttachmentAnalysisJobRuntime["input"], errorMessage: string, at: string) => void;
 }) {
   const { analysisJobs, jobId, analysisJobTimeoutMs, runAttachmentAnalysisJob, onMarkFailed } = params;
-  const timeoutMessage = `analysis job timeout (${analysisJobTimeoutMs}ms)`;
+  const timeoutMessage = `分析任务执行超时（${Math.round(analysisJobTimeoutMs / 1000)}秒）`;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(timeoutMessage)), analysisJobTimeoutMs);
@@ -114,7 +114,7 @@ async function runSingleBatchWithRetry(
       const report = await analyzeAttachmentOp(repo, runnerForJob, transitionIteration, job.iterationId, batch, {
         onStageChange: (stage) => { job.progress.stageHint = `batch:${batchIndex + 1}/${batchCount}:${stage}`; }
       });
-      if (!report) throw new Error("iteration not found");
+      if (!report) throw new Error("迭代不存在");
       job.progress.completedBatches += 1;
       job.progress.processedFiles += batchFileCount;
       if (attempt > 0) job.progress.retriedBatches += 1;
@@ -220,7 +220,7 @@ export async function runAttachmentAnalysisJobOp(params: AnalysisJobParams) {
         reports.push(report);
       } else {
         job.progress.failedBatches += 1;
-        batchFailures.push(`batch ${batchIndex + 1}/${batches.length}: ${error || "unknown_error"}`);
+        batchFailures.push(`批次 ${batchIndex + 1}/${batches.length}：${error || "未知错误"}`);
       }
     }
     if (reports.length === 0) {
@@ -233,7 +233,7 @@ export async function runAttachmentAnalysisJobOp(params: AnalysisJobParams) {
   } catch (error) {
     job.status = "failed";
     job.finishedAt = new Date().toISOString();
-    job.error = error instanceof Error ? error.message : "analysis failed";
+    job.error = error instanceof Error ? error.message : "分析失败";
     job.progress.stageHint = "failed";
     job.progress.currentAttempt = 0;
     job.progress.currentBatch = 0;

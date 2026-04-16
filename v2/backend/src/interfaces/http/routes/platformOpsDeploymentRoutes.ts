@@ -89,7 +89,7 @@ export function registerOpsDeploymentRoutes(
       }
       if (created.reason === "release_gate_blocked") {
         reply.code(409);
-        return { message: created.message || "release gate blocked", blockers: created.blockers || [] };
+        return { message: created.message || "发布门禁未通过", blockers: created.blockers || [] };
       }
       reply.code(404);
       return { message: "项目不存在" };

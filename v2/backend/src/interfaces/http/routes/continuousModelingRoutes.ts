@@ -199,7 +199,8 @@ export async function registerContinuousModelingRoutes(app: FastifyInstance, ser
     if (!result.ok) {
       const status = result.reason === "project_not_found" ? 404 : result.reason === "snapshot_not_found" ? 404 : 409;
       reply.code(status);
-      return { message: result.reason };
+      const reasonMap: Record<string, string> = { project_not_found: "项目不存在", snapshot_not_found: "快照不存在", snapshot_not_candidate: "该快照不符合发布条件" };
+      return { message: reasonMap[result.reason] || "操作失败" };
     }
     return result;
   });

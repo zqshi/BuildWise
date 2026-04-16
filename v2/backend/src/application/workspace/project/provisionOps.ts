@@ -99,7 +99,7 @@ export async function provisionProjectRepositoryOp(
     return {
       ok: false as const,
       reason: "provision_failed",
-      message: error instanceof Error ? error.message : "repository provision failed"
+      message: error instanceof Error ? error.message : "仓库创建失败"
     };
   }
 }
@@ -165,7 +165,7 @@ export function scaffoldProjectRepositoryOp(
     return {
       ok: false as const,
       reason: "scaffold_failed",
-      message: error instanceof Error ? error.message : "repository scaffold failed"
+      message: error instanceof Error ? error.message : "仓库脚手架初始化失败"
     };
   }
 }

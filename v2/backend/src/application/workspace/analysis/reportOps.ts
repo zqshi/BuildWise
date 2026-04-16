@@ -1,4 +1,5 @@
 import type { AttachmentAnalysisReport, AttachmentReportSection } from '../../../domain/workspace/types';
+import { sanitizeDisplayItem } from '../coach/messageSanitizer';
 
 export function buildAttachmentReportSections(params: {
   reportId: string;
@@ -7,13 +8,13 @@ export function buildAttachmentReportSections(params: {
   newSectionId: () => string;
 }): AttachmentReportSection[] {
   const { reportId, report, now, newSectionId } = params;
-  const findings = (report.meaningfulFindings || []).map((item) => ({ text: item }));
-  const risks = (report.risks || []).map((item) => ({ text: item }));
+  const findings = (report.meaningfulFindings || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text);
+  const risks = (report.risks || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text);
   const traceabilityItems = [
-    ...(report.traceabilityMap?.unmappedRequirements || []).map((item) => `未映射需求：${item}`),
-    ...(report.traceabilityMap?.conflicts || []).map((item) => `冲突：${item}`),
-    ...(report.traceabilityMap?.gaps || []).map((item) => `缺口：${item}`)
-  ].map((item) => ({ text: item }));
+    ...(report.traceabilityMap?.unmappedRequirements || []).map((item) => `未映射需求：${sanitizeDisplayItem(item)}`),
+    ...(report.traceabilityMap?.conflicts || []).map((item) => `冲突：${sanitizeDisplayItem(item)}`),
+    ...(report.traceabilityMap?.gaps || []).map((item) => `缺口：${sanitizeDisplayItem(item)}`)
+  ].map((item) => ({ text: item })).filter((item) => item.text);
   return [
     {
       sectionId: newSectionId(),
@@ -24,7 +25,7 @@ export function buildAttachmentReportSections(params: {
       itemCount: 1,
       updatedAt: now,
       content: {
-        understanding: report.understanding || "",
+        understanding: sanitizeDisplayItem(report.understanding || ""),
         summary: report.businessConfirmation?.necessityAssessment?.rationale || "",
         items: [
           {
@@ -49,7 +50,7 @@ export function buildAttachmentReportSections(params: {
             projectName: report.projectDetection?.projectName || "",
             productName: report.projectDetection?.productName || "",
             confidence: report.projectDetection?.confidence || "low",
-            evidence: report.projectDetection?.evidence || []
+            evidence: (report.projectDetection?.evidence || []).map(sanitizeDisplayItem).filter(Boolean)
           }
         ]
       }
@@ -93,7 +94,7 @@ export function buildAttachmentReportSections(params: {
       itemCount: report.clarificationQuestions.length,
       updatedAt: now,
       content: {
-        items: (report.clarificationQuestions || []).map((item) => ({ text: item })),
+        items: (report.clarificationQuestions || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text),
         releaseReview: report.releaseReview || null
       }
     }

@@ -80,7 +80,8 @@ export function registerCollabShareRoutes(
     const access = service.accessShare(params.token);
     if (!access.ok) {
       reply.code(access.reason === "share_expired" ? 410 : 404);
-      return { message: access.reason };
+      const msg = access.reason === "share_expired" ? "分享链接已过期" : "分享链接不存在";
+      return { message: msg };
     }
     return access.data;
   });
@@ -116,7 +117,8 @@ export function registerCollabShareRoutes(
       } else {
         reply.code(404);
       }
-      return { message: result.reason };
+      const reasonMap: Record<string, string> = { permission_denied: "没有评论权限", share_expired: "分享链接已过期", share_not_found: "分享链接不存在", project_not_found: "项目不存在" };
+      return { message: reasonMap[result.reason] || "操作失败" };
     }
     return result.data;
   });

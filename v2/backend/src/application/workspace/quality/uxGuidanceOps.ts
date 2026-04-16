@@ -76,7 +76,7 @@ export async function generateUxExecutionGuidanceOp(params: {
         : emptyArtifacts
     };
   } catch (error) {
-    warnings.push(`UX Agent 调用失败，已跳过 UX 规格注入：${error instanceof Error ? error.message : "unknown"}`);
+    warnings.push(`UX Agent 调用失败，已跳过 UX 规格注入：${error instanceof Error ? error.message : "未知错误"}`);
     return { guidance: "", warnings, uxArtifacts: emptyArtifacts };
   }
 }

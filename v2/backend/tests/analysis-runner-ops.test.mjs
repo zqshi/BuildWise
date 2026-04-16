@@ -49,7 +49,7 @@ describe("runAttachmentAnalysisJobWithTimeoutOp", () => {
         runAttachmentAnalysisJob: () => new Promise(resolve => setTimeout(resolve, 5000)),
         onMarkFailed: () => { markFailedCalled = true; }
       }),
-      { message: /timeout/ }
+      { message: /超时/ }
     );
     assert.equal(jobs.get("j2").status, "failed");
     assert.ok(markFailedCalled);

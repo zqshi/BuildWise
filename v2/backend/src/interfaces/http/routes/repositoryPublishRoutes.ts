@@ -62,18 +62,18 @@ export function registerRepositoryPublishRoutes(app: FastifyInstance, service: W
       }
       if (result.reason === "release_review_blocked") {
         reply.code(409);
-        return { message: result.message || "release review blocked", blockers: "blockers" in result ? (result.blockers as string[]) : [] };
+        return { message: result.message || "发布评审未通过", blockers: "blockers" in result ? (result.blockers as string[]) : [] };
       }
       if (result.reason === "boundary_violation") {
         reply.code(409);
-        return { message: result.message || "boundary violation", blockers: "blockers" in result ? (result.blockers as string[]) : [] };
+        return { message: result.message || "变更文件超出边界", blockers: "blockers" in result ? (result.blockers as string[]) : [] };
       }
       if (result.reason === "remote_required_for_publish") {
         reply.code(409);
-        return { message: result.message || "remote repository is required for publish" };
+        return { message: result.message || "需要绑定远程仓库才能发布" };
       }
       reply.code(502);
-      return { message: result.message || "iteration publish failed" };
+      return { message: result.message || "发布失败" };
     }
     return result.data;
   });

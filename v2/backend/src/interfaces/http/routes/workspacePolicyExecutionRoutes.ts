@@ -81,7 +81,7 @@ export function registerWorkspacePolicyExecutionRoutes(app: FastifyInstance, ser
       stage: gate.stage,
       action,
       result: gate.blocked ? "blocked" : "success",
-      evidence: gate.blocked ? [gate.reason] : [`message=${message.slice(0, 200)}`]
+      evidence: gate.blocked ? [gate.reason] : [`用户操作：${message.slice(0, 200)}`]
     });
     return {
       ok: !gate.blocked,

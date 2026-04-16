@@ -89,7 +89,7 @@ export function registerIterationAnalysisRoutes(app: FastifyInstance, service: W
       const parsed = parseAttachmentUploadInput(body?.analysisInput || null);
       if (!parsed.input) {
         reply.code(400);
-        return { message: `analysisInput invalid: ${parsed.error}` };
+        return { message: `分析输入无效：${parsed.error}` };
       }
       parsedAnalysisInput = parsed.input;
     }

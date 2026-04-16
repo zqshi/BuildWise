@@ -90,7 +90,7 @@ export function registerRepositoryConfigRoutes(app: FastifyInstance, service: Wo
       }
       if (repo.reason === "remote_validation_failed") {
         reply.code(400);
-        return { message: repo.message || "repository remote validation failed" };
+        return { message: repo.message || "仓库远程地址校验失败" };
       }
       reply.code(400);
       return { message: "仓库引导失败" };

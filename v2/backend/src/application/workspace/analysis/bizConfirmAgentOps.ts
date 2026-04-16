@@ -14,6 +14,7 @@ import { type BizConfirmationChunkResult, mergeBizConfirmationChunks } from './c
 import { planChunks, batchArray } from './chunkingOps';
 import { type ChunkConfig, runAnalysisPrompt } from './configOps';
 import { formatSourceType, formatVersionDiff, formatDiffLocations, formatBoundaries } from './extractors';
+import { sanitizeDisplayItem } from '../coach/messageSanitizer';
 
 export type BizConfirmParams = {
   iterationName: string;
@@ -109,7 +110,7 @@ async function runBizConfirmSingleChunk(
   // 注入 Phase 2 上下文
   const phase2Context = params.projectDetection ? [
     `项目识别：${params.projectDetection.projectName || params.projectDetection.productName || "未识别"}(${params.projectDetection.projectCategory || "未分类"})`,
-    `关键发现：${params.prioritizedFindings.slice(0, 5).map((f) => `${f.priority}:${f.content}`).join("；") || "无"}`
+    `关键发现：${params.prioritizedFindings.slice(0, 5).map((f) => `${f.priority}:${sanitizeDisplayItem(f.content)}`).join("；") || "无"}`
   ] : [];
 
   const prompt: IterationAgentPrompt = {
@@ -117,7 +118,7 @@ async function runBizConfirmSingleChunk(
     role: isCompact ? "requirements-analyst" : "orchestrator",
     scope: "attachment",
     goal: "输出可让业务角色直接确认的边界与版本差异说明",
-    expectedOutput: "JSON: {coreIntent, successCriteria[], interactionInsights, necessityAssessment, evidenceRefs[], boundarySummary, functionalPoints[], confirmationChecklist[], versionDiffSummary, diffNarratives[], diffConfirmationOrder[]}",
+    expectedOutput: "JSON: 包含业务意图、成功标准、必要性评估、边界总结、功能要点、确认清单、版本差异等部分",
     systemPrompt: "你是资深产品负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，禁止解释性前后文。内容必须让非技术业务人员可直接理解并确认。impactLevel 只能是 高/中/低。所有 string 类型字段的值必须使用中文业务语言，禁止出现：文件名和路径、文件大小、英文技术缩写、前端后端框架名称。如需引用具体文件作为证据，仅在 evidenceRefs 字段中使用。",
     userPrompt: [
       ...chunkPreamble,
@@ -134,8 +135,8 @@ async function runBizConfirmSingleChunk(
       "输出要求：",
       "0) coreIntent: 一句话说明核心任务与业务目标",
       isCompact ? "0.1) successCriteria: 3-5条" : "0.1) successCriteria: 3-8条",
-      "0.2) interactionInsights: primaryFlow/keyInteractions/exceptionPaths/usabilityRisks",
-      "0.3) necessityAssessment: mustDo/shouldDo/canDefer/outOfScope/rationale",
+      "0.2) interactionInsights: primaryFlow(主流程)/keyInteractions(关键交互)/exceptionPaths(异常路径)/usabilityRisks(可用性风险)",
+      "0.3) necessityAssessment: mustDo(必须完成)/shouldDo(建议纳入)/canDefer(可延期)/outOfScope(超出范围)/rationale(理由)",
       isCompact ? "0.4) evidenceRefs: 2-6条" : "0.4) evidenceRefs: 3-12条",
       "1) boundarySummary: 业务可读边界总结",
       isCompact ? "2) functionalPoints: 4-8条" : "2) functionalPoints: 5-12条",

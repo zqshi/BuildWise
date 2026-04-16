@@ -15,6 +15,7 @@ import { parseReleaseReviewCandidate, listReleaseReviewMissingReasons } from './
 import { hydrateReportQualityCandidate, hydrateReleaseReviewCandidate } from './governanceHydrationOps';
 import { runAnalysisPrompt } from './configOps';
 import { formatPrioritizedFindings, formatQualitySignals, formatSourceType, parseJsonObjectFromText } from './extractors';
+import { sanitizeDisplayItem } from '../coach/messageSanitizer';
 
 export type QualityAuditResult = {
   quality: AttachmentAnalysisReport["reportQuality"];
@@ -28,7 +29,7 @@ function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>
     role: compact ? "requirements-analyst" : "orchestrator",
     scope: "release",
     goal: "同时评审报告质量和发布就绪度",
-    expectedOutput: "JSON: {quality:{publishable,score,summary,missingItems[],actionRequired[]}, release:{decision,reason,score,blockers[],releaseGates[],recommendations[],rollback:{shouldRollback,reason,trigger,actions[]},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}}",
+    expectedOutput: "JSON: 包含 quality（报告质量评审）和 release（发布就绪评审）两部分",
     systemPrompt: [
       "你同时担任报告质量审计官和发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。",
       "quality.summary 必须用业务决策者可理解的语言，说明当前报告能支撑做出什么层面的决策。",
@@ -45,8 +46,8 @@ function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>
       `必要性理由：${params.businessConfirmation.necessityAssessment.rationale || "未说明"}`,
       `证据来源：${params.businessConfirmation.evidenceRefs.join("；") || "无"}`,
       `信息覆盖率：${params.deepInsights.coverage.coveragePercent}%`,
-      `根因识别：${params.deepInsights.crossFileInsights.rootCauses.join("；") || "无"}`,
-      `决策建议：${params.deepInsights.crossFileInsights.decisionSuggestions.join("；") || "无"}`,
+      `根因识别：${params.deepInsights.crossFileInsights.rootCauses.map(sanitizeDisplayItem).join("；") || "无"}`,
+      `决策建议：${params.deepInsights.crossFileInsights.decisionSuggestions.map(sanitizeDisplayItem).join("；") || "无"}`,
       `待澄清问题：${params.clarificationQuestions.join("；") || "无"}`,
       "",
       "=== 发布评审上下文 ===",

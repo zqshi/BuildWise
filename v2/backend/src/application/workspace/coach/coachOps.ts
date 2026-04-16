@@ -50,8 +50,8 @@ function logCoachPolicyExecution(
     result: "success",
     evidence: [
       response.reply.slice(0, 180),
-      `skills=${skillChain.selectedSkills.join(" | ") || "none"}`,
-      `skill_reasons=${skillChain.selectionReasons.join(" | ") || "none"}`,
+      `技能：${skillChain.selectedSkills.join(" | ") || "无"}`,
+      `选择依据：${skillChain.selectionReasons.join(" | ") || "无"}`,
       ...skillChain.evidence.slice(0, 4)
     ]
   });
@@ -102,7 +102,7 @@ export async function coachIterationConversationOp(
       stage: gate.stage,
       action: "coach_gate_check",
       result: "blocked",
-      evidence: [gate.reason, `message=${message.slice(0, 180)}`]
+      evidence: [gate.reason, `用户消息：${message.slice(0, 180)}`]
     });
   }
   const policyGate = gate.blocked
