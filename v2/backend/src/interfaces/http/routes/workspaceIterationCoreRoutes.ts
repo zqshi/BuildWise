@@ -23,10 +23,10 @@ export function parseAttachmentUploadInput(body: {
 } | null): { input: AttachmentUploadInput | null; error: string } {
   const fileName = body?.fileName?.trim();
   if (!fileName) {
-    return { input: null, error: "fileName is required" };
+    return { input: null, error: "请提供文件名" };
   }
   if (body?.sourceType === "folder" && (!Array.isArray(body.files) || body.files.length === 0)) {
-    return { input: null, error: "files[] is required when sourceType=folder" };
+    return { input: null, error: "文件夹模式需提供 files 列表" };
   }
   return {
     input: {

@@ -8,6 +8,30 @@ import { listUncoveredAcceptanceCriteria } from '../workspace/shared/common';
 type OpsHypothesis = { priority: "P0" | "P1" | "P2"; item: string; evidence: string };
 type OpsTriageStep = { step: string; expectedSignal: string; fallback: string; commands: string[] };
 
+const METRIC_LABEL_MAP: Record<string, string> = {
+  deployment_success_rate: "发布成功率",
+  iteration_analyzed_total: "已分析迭代数",
+  iteration_test_matrix_generated_total: "已生成测试矩阵数",
+  iteration_test_matrix_cases_total: "测试用例总数",
+  iteration_test_matrix_coverage: "测试矩阵覆盖率",
+  iteration_test_matrix_executed_cases_total: "已执行用例数",
+  iteration_test_matrix_execution_completed_total: "执行完成迭代数",
+  iteration_test_matrix_execution_coverage: "执行覆盖率",
+  iteration_test_matrix_pass_rate: "测试通过率",
+  iteration_p0_findings_total: "P0 发现总数",
+  iteration_high_value_findings_total: "高价值发现总数",
+  iteration_high_value_findings_coverage: "高价值发现覆盖率",
+  iteration_analysis_ignored_files_ratio: "忽略文件占比",
+  active_share_links: "活跃分享链接",
+  audit_events_total: "审计事件总数"
+};
+
+function formatMetricLabel(name: string, value: number, unit: string): string {
+  const label = METRIC_LABEL_MAP[name] || name;
+  const unitStr = unit === "%" ? "%" : "";
+  return `${label}：${value}${unitStr}`;
+}
+
 function buildRuleBasedHypotheses(
   mergedText: string,
   deploySuccessRate: number,
@@ -25,13 +49,13 @@ function buildRuleBasedHypotheses(
     hypotheses.push({ priority: "P1", item: "资源瓶颈（CPU/内存）导致实例不稳定。", evidence: "告警文本命中资源类关键词。" });
   }
   if (deploySuccessRate < 80) {
-    hypotheses.push({ priority: "P1", item: "近期发布成功率偏低，可能存在发布工单质量回退。", evidence: `deployment_success_rate=${deploySuccessRate}%` });
+    hypotheses.push({ priority: "P1", item: "近期发布成功率偏低，可能存在发布工单质量回退。", evidence: `发布成功率：${deploySuccessRate}%` });
   }
   if (matrixPassRate < 75) {
-    hypotheses.push({ priority: "P1", item: "测试通过率不足，线上故障可能由未覆盖回归引入。", evidence: `iteration_test_matrix_pass_rate=${matrixPassRate}%` });
+    hypotheses.push({ priority: "P1", item: "测试通过率不足，线上故障可能由未覆盖回归引入。", evidence: `测试矩阵通过率：${matrixPassRate}%` });
   }
   if (p0Count > 0) {
-    hypotheses.push({ priority: "P1", item: "当前仍有 P0 分析发现未闭环，需优先排查相关代码路径。", evidence: `iteration_p0_findings_total=${p0Count}` });
+    hypotheses.push({ priority: "P1", item: "当前仍有 P0 分析发现未闭环，需优先排查相关代码路径。", evidence: `P0 发现数量：${p0Count}` });
   }
   return hypotheses;
 }
@@ -143,8 +167,8 @@ export class PlatformOpsDelegate {
         body: JSON.stringify({
           model, temperature: 0.2, max_tokens: 1000,
           messages: [
-            { role: "system", content: "你是发布运维顾问。只输出 JSON：{hypotheses:[{priority,item,evidence}], triageSteps:[{step,expectedSignal,fallback}], rollbackDecision:{shouldRollback,reason,trigger}}" },
-            { role: "user", content: [`severity=${input.severity}`, `title=${input.title}`, `description=${input.description || "-"}`, `signals=${input.signals.join(" | ") || "-"}`, `metrics=${input.metricsDigest}`].join("\n") }
+            { role: "system", content: "你是发布运维顾问。只输出 JSON：{hypotheses:[{priority,item,evidence}], triageSteps:[{step,expectedSignal,fallback}], rollbackDecision:{shouldRollback,reason,trigger}}。所有 string 类型字段值必须使用中文。" },
+            { role: "user", content: [`严重程度：${input.severity}`, `标题：${input.title}`, `描述：${input.description || "无"}`, `告警信号：${input.signals.join(" | ") || "无"}`, `运行指标：${input.metricsDigest}`].join("\n") }
           ]
         })
       });
@@ -293,7 +317,7 @@ export class PlatformOpsDelegate {
       triageSteps.push({ step: `模板排障：${tpl.category}`, expectedSignal: "模板命令输出与告警现象一致", fallback: "若模板步骤无法复现，请回到基础三步排障流程", commands: tpl.commands.slice(0, 4) });
     }
     const llmResult = await this.runOpsAdvisorLlm({
-      severity, title, description, signals: Array.isArray(input.signals) ? input.signals.slice(0, 12) : [], metricsDigest: metrics.slice(0, 8).map((item) => `${item.name}=${item.value}${item.unit || ""}`).join("; ")
+      severity, title, description, signals: Array.isArray(input.signals) ? input.signals.slice(0, 12) : [], metricsDigest: metrics.slice(0, 8).map((item) => formatMetricLabel(item.name, item.value, item.unit)).join("；")
     });
     const finalHypotheses = llmResult?.hypotheses?.length ? llmResult.hypotheses : hypotheses.slice(0, 6);
     const finalTriageSteps = llmResult?.triageSteps?.length ? llmResult.triageSteps.map((item) => ({ ...item, commands: [] as string[] })) : triageSteps.slice(0, 6);

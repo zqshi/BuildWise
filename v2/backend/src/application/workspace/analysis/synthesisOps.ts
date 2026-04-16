@@ -1,5 +1,15 @@
 import type { AttachmentAnalysisReport } from '../../../domain/workspace/types';
 
+function humanizeGuardrailReason(reason: string): string {
+  const map: Record<string, string> = {
+    prompt_budget_exceeded: "分析内容过大，部分信息可能未覆盖",
+    chunk_failure_rate_high: "部分内容分析失败",
+    binary_no_text: "附件无法提取文本",
+    context_window_exceeded: "上下文窗口超限，已自动截断",
+  };
+  return map[reason] || "分析过程中存在信息损失";
+}
+
 export function buildClarificationQuestionsOp(params: {
   guardrail: { degraded: boolean; reason: string };
   unknownSignalCount: number;
@@ -9,13 +19,13 @@ export function buildClarificationQuestionsOp(params: {
 }) {
   const questions: string[] = [];
   if (params.guardrail.degraded) {
-    questions.push(`当前分析触发上下文降级（${params.guardrail.reason}），请确认本次迭代边界是否仅包含已列出的差异项。`);
+    questions.push(`当前分析存在局限（${humanizeGuardrailReason(params.guardrail.reason)}），请确认本次迭代边界是否仅包含已列出的差异项。`);
   }
   if (params.strategy === "binary-no-text") {
-    questions.push("附件无法直接抽取文本。请补充该附件对应的核心需求、受影响页面/接口和验收标准。");
+    questions.push("附件无法直接提取文本内容。请补充该附件对应的核心需求、受影响的功能模块和验收标准。");
   }
   if (params.unknownSignalCount >= params.unknownSignalThreshold) {
-    questions.push(`模型输出存在较多 unknown 信号（${params.unknownSignalCount}）。请确认关键事实：需求范围、数据口径、上线门禁。`);
+    questions.push("部分分析结论的置信度较低，建议您确认以下关键信息：需求范围、数据口径、上线标准。");
   }
   if (params.diffLocations.length === 0) {
     questions.push("未识别到明确差异，请确认是否属于文案优化、布局微调或跨模块需求。");

@@ -78,7 +78,7 @@ export function registerWorkspaceProjectGovernanceRoutes(app: FastifyInstance, s
     const legacyRoles = new Set<string>(["admin", "member", "viewer"]);
     if (!builtinRoles.has(roleKey) && !customRoles.has(roleKey) && !legacyRoles.has(roleKey)) {
       reply.code(400);
-      return { message: `unknown role: ${roleKey}` };
+      return { message: `未知角色：${roleKey}` };
     }
     return service.governance.upsertPlatformRoleBinding({ userId, role: roleKey });
   });
@@ -139,7 +139,7 @@ export function registerWorkspaceProjectGovernanceRoutes(app: FastifyInstance, s
     const invalid = submitted.filter((item) => !allowed.has(item));
     if (invalid.length > 0) {
       reply.code(400);
-      return { message: `unknown permissions: ${invalid.join(",")}` };
+      return { message: `未知权限项：${invalid.join("、")}` };
     }
     return service.governance.upsertGovernanceCustomRole({
       roleKey: body?.roleKey?.trim() || "",

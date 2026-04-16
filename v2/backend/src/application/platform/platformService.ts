@@ -196,7 +196,7 @@ export class PlatformService {
       }
       const blockers = checkDeploymentReleaseGates(project, targetIteration, environment);
       if (blockers.length > 0) {
-        return { ok: false as const, reason: "release_gate_blocked", message: "release gate blocked", blockers: Array.from(new Set(blockers)).slice(0, 20) };
+        return { ok: false as const, reason: "release_gate_blocked", message: "发布门禁未通过", blockers: Array.from(new Set(blockers)).slice(0, 20) };
       }
     }
     const data = this.workspaceRepo.read();

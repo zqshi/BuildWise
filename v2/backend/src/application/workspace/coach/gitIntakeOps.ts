@@ -50,7 +50,7 @@ function acceptedResponse(input: {
         ]
           .filter(Boolean)
           .join("\n\n")
-      : `尝试读取仓库失败：${input.error || "unknown_error"}。你可以先走需求沟通流程，或上传文档/文件夹继续分析。`,
+      : `尝试读取仓库失败：${input.error || "未知错误"}。你可以先走需求沟通流程，或上传文档/文件夹继续分析。`,
     execution: { action: "none", instruction: "", apply: false },
     guidance: {
       uploadRecommended: !input.ok,

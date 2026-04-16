@@ -115,22 +115,22 @@ export function buildProjectModelView(
 
 export function summarizeProjectModelView(view: ProjectModelView | null) {
   if (!view) {
-    return "[统一模型视图]\nproject=unknown\nsnapshot=none\nontologyTerms=-\nrules=-\nreviewTasks=-";
+    return "[统一模型视图]\n项目：未知\n快照：无\n领域术语：无\n规则：无\n待确认任务：无";
   }
   return [
     "[统一模型视图]",
-    `project=${view.projectName}`,
-    `description=${view.projectDescription || "-"}`,
-    `iteration=${view.iterationName || "-"};status=${view.iterationStatus}`,
-    `snapshot=${view.latestSnapshotId || "-"};snapshotStatus=${view.latestSnapshotStatus}`,
-    `ontologyTerms=${view.ontologyTerms
+    `项目：${view.projectName}`,
+    `描述：${view.projectDescription || "无"}`,
+    `迭代：${view.iterationName || "无"}，状态：${view.iterationStatus}`,
+    `快照：${view.latestSnapshotId || "无"}，快照状态：${view.latestSnapshotStatus}`,
+    `领域术语：${view.ontologyTerms
       .slice(0, 8)
       .map((item) => `${item.businessTerm}${item.technicalAliases.length > 0 ? `(${item.technicalAliases.join("/")})` : ""}`)
-      .join(" | ") || "-"}`,
-    `rules=${view.rules.slice(0, 8).map((item) => item.name).join(" | ") || "-"}`,
-    `entities=${view.entities.slice(0, 8).map((item) => `${item.businessName}/${item.name}`).join(" | ") || "-"}`,
-    `reviewTasks=${view.reviewTasks.slice(0, 6).map((item) => item.title).join(" | ") || "-"}`,
-    `evidence=${view.evidence.join(" | ") || "-"}`
+      .join("、") || "无"}`,
+    `规则：${view.rules.slice(0, 8).map((item) => item.name).join("、") || "无"}`,
+    `实体：${view.entities.slice(0, 8).map((item) => `${item.businessName}/${item.name}`).join("、") || "无"}`,
+    `待确认任务：${view.reviewTasks.slice(0, 6).map((item) => item.title).join("、") || "无"}`,
+    `证据来源：${view.evidence.join("、") || "无"}`
   ].join("\n");
 }
 

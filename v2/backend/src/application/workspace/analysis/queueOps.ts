@@ -61,7 +61,7 @@ export function reconcileAnalysisJobsOp(params: {
       if (Number.isFinite(createdAt) && nowMs - createdAt >= analysisQueuedStallTimeoutMs) {
         job.status = "failed";
         job.finishedAt = params.nowIso || new Date().toISOString();
-        job.error = `analysis job stalled in queue (${analysisQueuedStallTimeoutMs}ms)`;
+        job.error = `分析任务在队列中等待超时（${Math.round(analysisQueuedStallTimeoutMs / 1000)}秒）`;
         job.progress.stageHint = "failed:queued_stall";
       }
       continue;
@@ -71,7 +71,7 @@ export function reconcileAnalysisJobsOp(params: {
       if (Number.isFinite(startedAt) && nowMs - startedAt >= analysisJobTimeoutMs) {
         job.status = "failed";
         job.finishedAt = params.nowIso || new Date().toISOString();
-        job.error = `analysis job timed out (${analysisJobTimeoutMs}ms)`;
+        job.error = `分析任务执行超时（${Math.round(analysisJobTimeoutMs / 1000)}秒）`;
         job.progress.stageHint = "failed:running_timeout";
       }
     }

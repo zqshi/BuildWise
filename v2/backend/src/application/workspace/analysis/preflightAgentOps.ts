@@ -94,7 +94,7 @@ export async function runPreflightAgent(
       },
       executionPolicy: heuristic || {
         degraded: false,
-        reason: "single-file-default",
+        reason: "单文件默认策略",
         enforceSingleAgent: true,
         forceMultiAgent: false,
         promptBudgetRisk: "low"

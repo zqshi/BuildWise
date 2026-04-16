@@ -37,7 +37,7 @@ describe("buildClarificationQuestionsOp", () => {
       diffLocations: [{ dimension: "goals", changeType: "changed", currentItem: "目标调整" }]
     });
     assert.ok(result.length >= 1);
-    assert.ok(result.some((q) => q.includes("降级")));
+    assert.ok(result.some((q) => q.includes("存在局限")));
   });
 
   test("unknownSignalCount >= threshold includes question about unknown signals", () => {
@@ -48,7 +48,7 @@ describe("buildClarificationQuestionsOp", () => {
       strategy: "direct",
       diffLocations: [{ dimension: "inScope", changeType: "added", currentItem: "X" }]
     });
-    assert.ok(result.some((q) => q.includes("unknown")));
+    assert.ok(result.some((q) => q.includes("置信度较低")));
   });
 
   test("empty diffLocations still works and includes question about missing diff", () => {
@@ -287,7 +287,7 @@ describe("reconcileAnalysisJobsOp", () => {
     });
     assert.equal(count, 0);
     assert.equal(job.status, "failed");
-    assert.ok(job.error.includes("timed out"));
+    assert.ok(job.error.includes("超时"));
     assert.equal(job.progress.stageHint, "failed:running_timeout");
   });
 
@@ -303,7 +303,7 @@ describe("reconcileAnalysisJobsOp", () => {
       nowMs
     });
     assert.equal(job.status, "failed");
-    assert.ok(job.error.includes("stalled"));
+    assert.ok(job.error.includes("等待超时"));
     assert.equal(job.progress.stageHint, "failed:queued_stall");
   });
 });

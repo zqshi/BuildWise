@@ -25,7 +25,7 @@ function parseArtifactReferenceContent(content: string) {
 const FIELD_PATH_PATTERN = /\b[a-z][a-zA-Z]*(?:\.[a-zA-Z]+)*=[^\n]*/g;
 
 /** 匹配独立的 JSON 块：覆盖质量审计、执行策略、洞察解析等内部 JSON 残留 */
-const JSON_BLOCK_PATTERN = /\{[^{}]*"(?:publishable|score|missingItems|actionRequired|degraded|enforceSingleAgent|forceMultiAgent|promptBudgetRisk|projectCategory|artifactType|keyCharacteristics|versionChangeSummary|qualitySignals|testCaseCount|p0FindingCount|unknownSignalCount|boundaryCoverage|infoCompletion|completionActions|stagePlan|handoffPlan|rollbackDecision|shouldRollback|prioritizedFindings|meaningfulFindings|projectDetection|includedPaths|ignoredFiles|sampleReason)"[^{}]*\}/g;
+const JSON_BLOCK_PATTERN = /\{[^{}]*"(?:publishable|score|missingItems|actionRequired|degraded|enforceSingleAgent|forceMultiAgent|promptBudgetRisk|projectCategory|artifactType|keyCharacteristics|versionChangeSummary|qualitySignals|testCaseCount|p0FindingCount|unknownSignalCount|boundaryCoverage|infoCompletion|completionActions|stagePlan|handoffPlan|rollbackDecision|shouldRollback|prioritizedFindings|meaningfulFindings|projectDetection|includedPaths|ignoredFiles|sampleReason|chunkFailureRate|repairAttempts|chunkBudget|chunkOverlap|chunkParallelism|coveragePercent|coverageScore|mappingConfidence|bindingStrength|executionStatus)"[^{}]*\}/g;
 
 /** 匹配被 ```json 包裹的代码块 */
 const CODE_BLOCK_PATTERN = /```json[\s\S]*?```/g;
@@ -75,10 +75,17 @@ const TECH_ABBREV_MAP: Array<[RegExp, string]> = [
   [/\bSPA\b/g, "单页应用"],
   [/\bSSR\b/g, "服务端渲染"],
   [/\bCLI\b/g, "命令行工具"],
+  [/\bREST\b/g, "接口"],
+  [/\bGraphQL\b/g, "查询接口"],
+  [/\bWebSockets?\b/g, "实时通信"],
+  [/\bCRUD\b/g, "增删改查"],
+  [/\bORM\b/g, "数据映射"],
+  [/\bCI\/CD\b/g, "持续集成"],
+  [/\bDocker\b/g, "容器"],
 ];
 
 /** 前端/后端框架名：Tailwind CSS、React、Vue.js、Next.js、Express 等 */
-const FRAMEWORK_PATTERN = /\b(?:Tailwind\s*CSS|React(?:\.js)?|Vue(?:\.js)?|Next\.js|Nuxt(?:\.js)?|Angular|Svelte|Express(?:\.js)?|Koa|Fastify|Django|Flask|Spring\s*Boot|Laravel|Rails|Webpack|Vite|Rollup|Babel|TypeScript|ESLint|Prettier|PostCSS|Sass|Less|jQuery|Bootstrap|Ant\s*Design|Material\s*UI|Chakra\s*UI)\b/gi;
+const FRAMEWORK_PATTERN = /\b(?:Tailwind\s*CSS|React(?:\.js)?|Vue(?:\.js)?|Next\.js|Nuxt(?:\.js)?|Angular|Svelte|Express(?:\.js)?|Koa|Fastify|Django|Flask|Spring\s*Boot|Laravel|Rails|Webpack|Vite|Rollup|Babel|TypeScript|ESLint|Prettier|PostCSS|Sass|Less|jQuery|Bootstrap|Ant\s*Design|Material\s*UI|Chakra\s*UI|Bun|Deno|pnpm|Turbopack|esbuild|SWC|Prisma|Drizzle|tRPC|Zustand|Jotai|Recoil|Pinia)\b/gi;
 
 /** 内部分析术语 → 中文（出现在中文语境中的英文） */
 const INTERNAL_TERM_MAP: Array<[RegExp, string]> = [
