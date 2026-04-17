@@ -243,6 +243,7 @@ export function transitionIterationArtifactStageOp(
   repo.updateIteration(normalized);
   const toStageItems = workflow.items.filter((item) => item.stage === toStage);
   for (const item of toStageItems) {
+    if (item.status === "pending" && item.outputVersion === 0) continue;
     publishArtifactReferenceMessage(repo, iterationId, {
       title: item.title,
       summary: item.summary,
