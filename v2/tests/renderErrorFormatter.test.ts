@@ -22,6 +22,6 @@ test("formatRenderError falls back for unknown values", () => {
   const detail = formatRenderError(null);
   assert.deepEqual(detail, {
     title: "RenderError",
-    message: "Unknown render error"
+    message: "界面渲染异常"
   });
 });

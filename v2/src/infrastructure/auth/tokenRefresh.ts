@@ -1,4 +1,4 @@
-import { API_BASE } from "../../app/workspaceApiCore";
+import { API_BASE } from "../../shared/apiConfig";
 import { saveTokens, clearTokens, isTokenExpiringSoon, getAccessToken } from "./tokenStore";
 
 let refreshPromise: Promise<boolean> | null = null;

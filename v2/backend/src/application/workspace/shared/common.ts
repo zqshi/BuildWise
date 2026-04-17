@@ -76,6 +76,33 @@ export function listUncoveredAcceptanceCriteria(
   return uncovered;
 }
 
+function defaultQualityArtifacts() {
+  return { unitTests: [] as string[], contractTests: [] as string[], acceptanceChecklist: [] as string[], regressionPoints: [] as string[], materializedFiles: [] as string[], updatedAt: "" };
+}
+
+function defaultUxArtifacts() {
+  return { informationArchitecture: [] as string[], interactionFlows: [] as string[], uiStates: [] as string[], uxConstraints: [] as string[], updatedAt: "" };
+}
+
+function defaultExecutableConstraints() {
+  return { componentWhitelist: [] as string[], codePathWhitelist: [] as string[], acceptanceChecks: [] as string[], generatedAt: "" };
+}
+
+function defaultTraceabilitySnapshot() {
+  return { requirementCoverage: 0, mappingConfidence: "low" as const, unmappedRequirements: [] as string[], conflicts: [] as string[], generatedAt: "" };
+}
+
+function defaultBusinessConfirmation() {
+  return {
+    coreIntent: "", boundarySummary: "", functionalPoints: [] as string[], successCriteria: [] as string[],
+    confirmationChecklist: [] as string[],
+    versionDiffSummary: "",
+    necessityAssessment: { mustDo: [] as string[], shouldDo: [] as string[], canDefer: [] as string[], outOfScope: [] as string[], rationale: "" },
+    interactionInsights: { primaryFlow: [] as string[], keyInteractions: [] as string[], exceptionPaths: [] as string[], usabilityRisks: [] as string[] },
+    diffNarratives: [] as string[],
+  };
+}
+
 export function defaultIterationChangeControl(options?: { isFirstIteration?: boolean; hasPreviousIteration?: boolean }): IterationChangeControl {
   const now = new Date().toISOString();
   const defaultArtifactWorkflow = buildDefaultArtifactWorkflow(
@@ -84,128 +111,32 @@ export function defaultIterationChangeControl(options?: { isFirstIteration?: boo
   );
   return {
     pendingHumanConfirmation: false,
-    lastAnalysisAt: "",
-    lastAnalysisFileName: "",
-    lastAnalysisDigest: "",
-    lastUploadedInputFingerprint: "",
-    lastUploadedAt: "",
-    lastFailedAnalysisInput: "",
-    lastFailedAnalysisAt: "",
-    lastFailedAnalysisError: "",
-    lastAttachmentUploadId: "",
-    lastAttachmentIngestJobId: "",
-    lastAttachmentAnalysisJobId: "",
-    lastAttachmentReportId: "",
-    clarificationRounds: 0,
-    clarificationQuestions: [],
-    clarificationDraftResolvedQuestions: [],
-    clarificationDraftUpdatedAt: "",
-    lastClarificationResolution: {
-      resolvedQuestions: [],
-      unresolvedQuestions: [],
-      updatedAt: ""
-    },
-    lastClarificationNote: "",
-    confirmedAt: "",
-    confirmedBy: "",
-    generatedTestMatrix: [],
-    generatedTestMatrixUpdatedAt: "",
-    testMatrixExecutionUpdatedAt: "",
-    qualityArtifacts: {
-      unitTests: [],
-      contractTests: [],
-      acceptanceChecklist: [],
-      regressionPoints: [],
-      materializedFiles: [],
-      updatedAt: ""
-    },
-    uxArtifacts: {
-      informationArchitecture: [],
-      interactionFlows: [],
-      uiStates: [],
-      uxConstraints: [],
-      updatedAt: ""
-    },
-    executableConstraints: {
-      componentWhitelist: [],
-      codePathWhitelist: [],
-      acceptanceChecks: [],
-      generatedAt: ""
-    },
-    traceabilitySnapshot: {
-      requirementCoverage: 0,
-      mappingConfidence: "low",
-      unmappedRequirements: [],
-      conflicts: [],
-      generatedAt: ""
-    },
-    domainKnowledgeEntries: [],
-    domainKnowledgeUpdatedAt: "",
-    lastAnalysisP0Count: 0,
-    lastAnalysisHighValueCount: 0,
-    lastAnalysisConsideredFiles: 0,
-    lastAnalysisIgnoredFiles: 0,
-    lastAnalysisIgnoredFileRatio: 0,
-    lastReleaseReviewDecision: "",
-    lastReleaseReviewReason: "",
-    lastReleaseReviewBlockers: [],
-    lastReleaseReviewScore: 0,
-    lastReleaseReviewUpdatedAt: "",
-    lastTraceabilityCoverageScore: 0,
-    lastOpsRollbackSuggested: false,
-    lastReportPublishable: false,
-    lastReportQualityScore: 0,
-    lastReportQualitySummary: "",
-    lastReportQualityUpdatedAt: "",
-    lastBusinessConfirmation: {
-      coreIntent: "",
-      boundarySummary: "",
-      functionalPoints: [],
-      successCriteria: [],
-      confirmationChecklist: [],
-      versionDiffSummary: "",
-      necessityAssessment: {
-        mustDo: [],
-        shouldDo: [],
-        canDefer: [],
-        outOfScope: [],
-        rationale: ""
-      },
-      interactionInsights: {
-        primaryFlow: [],
-        keyInteractions: [],
-        exceptionPaths: [],
-        usabilityRisks: []
-      },
-      diffNarratives: []
-    },
-    lastMeaningfulFindings: [],
-    lastPrioritizedFindings: [],
-    lastDeepInsightsSummary: {
-      themes: [],
-      gaps: [],
-      rootCauses: [],
-      decisionSuggestions: []
-    },
+    lastAnalysisAt: "", lastAnalysisFileName: "", lastAnalysisDigest: "",
+    lastUploadedInputFingerprint: "", lastUploadedAt: "",
+    lastFailedAnalysisInput: "", lastFailedAnalysisAt: "", lastFailedAnalysisError: "",
+    lastAttachmentUploadId: "", lastAttachmentIngestJobId: "", lastAttachmentAnalysisJobId: "", lastAttachmentReportId: "",
+    clarificationRounds: 0, clarificationQuestions: [], clarificationDraftResolvedQuestions: [], clarificationDraftUpdatedAt: "",
+    lastClarificationResolution: { resolvedQuestions: [], unresolvedQuestions: [], updatedAt: "" },
+    lastClarificationNote: "", confirmedAt: "", confirmedBy: "",
+    generatedTestMatrix: [], generatedTestMatrixUpdatedAt: "", testMatrixExecutionUpdatedAt: "",
+    qualityArtifacts: defaultQualityArtifacts(),
+    uxArtifacts: defaultUxArtifacts(),
+    executableConstraints: defaultExecutableConstraints(),
+    traceabilitySnapshot: defaultTraceabilitySnapshot(),
+    domainKnowledgeEntries: [], domainKnowledgeUpdatedAt: "",
+    lastAnalysisP0Count: 0, lastAnalysisHighValueCount: 0,
+    lastAnalysisConsideredFiles: 0, lastAnalysisIgnoredFiles: 0, lastAnalysisIgnoredFileRatio: 0,
+    lastReleaseReviewDecision: "", lastReleaseReviewReason: "", lastReleaseReviewBlockers: [],
+    lastReleaseReviewScore: 0, lastReleaseReviewUpdatedAt: "",
+    lastTraceabilityCoverageScore: 0, lastOpsRollbackSuggested: false,
+    lastReportPublishable: false, lastReportQualityScore: 0, lastReportQualitySummary: "", lastReportQualityUpdatedAt: "",
+    lastBusinessConfirmation: defaultBusinessConfirmation(),
+    lastMeaningfulFindings: [], lastPrioritizedFindings: [],
+    lastDeepInsightsSummary: { themes: [], gaps: [], rootCauses: [], decisionSuggestions: [] },
     artifactWorkflow: defaultArtifactWorkflow,
-    boundary: {
-      requirementRefs: [],
-      componentRefs: [],
-      codePaths: [],
-      note: "",
-      updatedAt: ""
-    },
-    changeSource: {
-      type: "unknown",
-      rawInput: "",
-      attachments: [],
-      references: [],
-      updatedAt: ""
-    },
-    knowledgeHits: [],
-    knowledgeConflicts: [],
-    normalizedFunctionalPoints: [],
-    mappingAuditTrail: []
+    boundary: { requirementRefs: [], componentRefs: [], codePaths: [], note: "", updatedAt: "" },
+    changeSource: { type: "unknown", rawInput: "", attachments: [], references: [], updatedAt: "" },
+    knowledgeHits: [], knowledgeConflicts: [], normalizedFunctionalPoints: [], mappingAuditTrail: [],
   };
 }
 

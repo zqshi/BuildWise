@@ -9,6 +9,34 @@ type UseWorkspaceDerivedParams = {
   currentIterationId: number | null;
 };
 
+const PROGRESS_BUCKETS = [
+  { label: "0-25%", min: 0, max: 25 },
+  { label: "26-50%", min: 26, max: 50 },
+  { label: "51-75%", min: 51, max: 75 },
+  { label: "76-100%", min: 76, max: 100 }
+] as const;
+
+function computeProgressBuckets(items: Iteration[]) {
+  return PROGRESS_BUCKETS.map((b) => ({
+    label: b.label,
+    count: items.filter((i) => i.progress >= b.min && i.progress <= b.max).length
+  }));
+}
+
+function computeMonthlyTrend(items: Iteration[]) {
+  const counter = new Map<string, number>();
+  for (const item of items) {
+    const month = item.createdAt?.slice(0, 7);
+    if (!month) continue;
+    counter.set(month, (counter.get(month) || 0) + 1);
+  }
+  const points = Array.from(counter.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-6)
+    .map(([month, count]) => ({ label: month, count }));
+  return points.length > 0 ? points : [{ label: "暂无", count: 0 }];
+}
+
 export function useWorkspaceDerived({
   projects,
   currentProjectId,
@@ -23,52 +51,21 @@ export function useWorkspaceDerived({
     () => ensureArray<Iteration>(iterations).find((item) => item.id === currentIterationId) ?? null,
     [iterations, currentIterationId]
   );
+  const safeIterations = useMemo(() => ensureArray<Iteration>(iterations), [iterations]);
   const completedIterations = useMemo(
-    () => ensureArray<Iteration>(iterations).filter((item) => item.status === "completed").length,
-    [iterations]
+    () => safeIterations.filter((item) => item.status === "completed").length,
+    [safeIterations]
   );
   const inProgressIterations = useMemo(
-    () => ensureArray<Iteration>(iterations).filter((item) => item.status !== "completed").length,
-    [iterations]
+    () => safeIterations.filter((item) => item.status !== "completed").length,
+    [safeIterations]
   );
   const projectProgress = useMemo(() => {
-    const safeIterations = ensureArray<Iteration>(iterations);
-    if (safeIterations.length === 0) {
-      return 0;
-    }
+    if (safeIterations.length === 0) return 0;
     return Math.round(safeIterations.reduce((sum, item) => sum + item.progress, 0) / safeIterations.length);
-  }, [iterations]);
-  const progressBuckets = useMemo(() => {
-    const safeIterations = ensureArray<Iteration>(iterations);
-    const buckets = [
-      { label: "0-25%", min: 0, max: 25 },
-      { label: "26-50%", min: 26, max: 50 },
-      { label: "51-75%", min: 51, max: 75 },
-      { label: "76-100%", min: 76, max: 100 }
-    ];
-    return buckets.map((bucket) => ({
-      label: bucket.label,
-      count: safeIterations.filter(
-        (item) => item.progress >= bucket.min && item.progress <= bucket.max
-      ).length
-    }));
-  }, [iterations]);
-  const monthlyTrend = useMemo(() => {
-    const safeIterations = ensureArray<Iteration>(iterations);
-    const monthCounter = new Map<string, number>();
-    for (const item of safeIterations) {
-      const month = item.createdAt?.slice(0, 7);
-      if (!month) {
-        continue;
-      }
-      monthCounter.set(month, (monthCounter.get(month) || 0) + 1);
-    }
-    const points = Array.from(monthCounter.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-6)
-      .map(([month, count]) => ({ label: month, count }));
-    return points.length > 0 ? points : [{ label: "暂无", count: 0 }];
-  }, [iterations]);
+  }, [safeIterations]);
+  const progressBuckets = useMemo(() => computeProgressBuckets(safeIterations), [safeIterations]);
+  const monthlyTrend = useMemo(() => computeMonthlyTrend(safeIterations), [safeIterations]);
 
   return {
     currentProject,

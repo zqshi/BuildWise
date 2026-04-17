@@ -52,6 +52,36 @@ function unauthorized(reply: FastifyReply, message: string) {
   return reply.send({ error: "unauthorized", message });
 }
 
+function handleJwtAuth(request: FastifyRequest, reply: FastifyReply, config: RuntimeConfig, log: ReturnType<typeof createLogger>) {
+  const token = parseBearerToken(request.headers.authorization);
+  if (!token) return unauthorized(reply, "missing bearer token");
+  if (isTokenRevoked(token)) return unauthorized(reply, "token has been revoked");
+  try {
+    const payload = verifyJwt(token, config.jwtSecret);
+    if (payload.type !== "access") return unauthorized(reply, "invalid token type");
+    request.authRole = payload.role;
+    request.authSub = payload.sub;
+    const jwtTenant = typeof payload.tenantId === "string" ? payload.tenantId : "";
+    const headerTenant = tenantFromHeader(request);
+    if (jwtTenant && headerTenant && jwtTenant !== headerTenant) {
+      log.warn(`Tenant mismatch: header=${headerTenant}, jwt=${jwtTenant} — using jwt`);
+    }
+    request.authTenantId = jwtTenant || headerTenant;
+  } catch {
+    return unauthorized(reply, "invalid or expired token");
+  }
+}
+
+function handleTokenAuth(request: FastifyRequest, reply: FastifyReply, config: RuntimeConfig) {
+  const token = parseBearerToken(request.headers.authorization);
+  if (!token) return unauthorized(reply, "missing bearer token");
+  const role = config.authTokens[token];
+  if (!role) return unauthorized(reply, "invalid bearer token");
+  request.authRole = role;
+  request.authSub = devUserFromHeader(request);
+  request.authTenantId = tenantFromHeader(request);
+}
+
 export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig) {
   const log = createLogger("auth");
   if (config.authMode === "off") {
@@ -59,67 +89,22 @@ export function registerRuntimeAuth(app: FastifyInstance, config: RuntimeConfig)
   }
 
   app.addHook("onRequest", async (request, reply) => {
-    // CORS preflight 必须在 auth 之前放行
-    if (request.method === "OPTIONS") {
-      return;
-    }
-
+    if (request.method === "OPTIONS") return;
     const path = toPath(request.url);
 
     if (config.authMode === "off") {
-      request.authRole = devRoleFromHeader(request) === "viewer" && !request.headers["x-role"]
-        ? "owner"
-        : devRoleFromHeader(request);
+      request.authRole = devRoleFromHeader(request) === "viewer" && !request.headers["x-role"] ? "owner" : devRoleFromHeader(request);
       request.authSub = devUserFromHeader(request) || "dev-user";
       request.authTenantId = tenantFromHeader(request) || "";
       return;
     }
 
-    // 公开路径直接放行（token 和 jwt 模式共用）
     if (isPublicPath(path, config.authPublicPathPrefixes)) {
       request.authRole = "viewer";
       return;
     }
 
-    if (config.authMode === "jwt") {
-      const token = parseBearerToken(request.headers.authorization);
-      if (!token) {
-        return unauthorized(reply, "missing bearer token");
-      }
-      if (isTokenRevoked(token)) {
-        return unauthorized(reply, "token has been revoked");
-      }
-      try {
-        const payload = verifyJwt(token, config.jwtSecret);
-        if (payload.type !== "access") {
-          return unauthorized(reply, "invalid token type");
-        }
-        request.authRole = payload.role;
-        request.authSub = payload.sub;
-        // JWT payload 中的 tenantId 优先于 header，防止跨租户伪造
-        const jwtTenant = typeof payload.tenantId === "string" ? payload.tenantId : "";
-        const headerTenant = tenantFromHeader(request);
-        if (jwtTenant && headerTenant && jwtTenant !== headerTenant) {
-          log.warn(`Tenant mismatch: header=${headerTenant}, jwt=${jwtTenant} — using jwt`);
-        }
-        request.authTenantId = jwtTenant || headerTenant;
-      } catch {
-        return unauthorized(reply, "invalid or expired token");
-      }
-      return;
-    }
-
-    // token 模式（原有逻辑）
-    const token = parseBearerToken(request.headers.authorization);
-    if (!token) {
-      return unauthorized(reply, "missing bearer token");
-    }
-    const role = config.authTokens[token];
-    if (!role) {
-      return unauthorized(reply, "invalid bearer token");
-    }
-    request.authRole = role;
-    request.authSub = devUserFromHeader(request);
-    request.authTenantId = tenantFromHeader(request);
+    if (config.authMode === "jwt") return handleJwtAuth(request, reply, config, log);
+    return handleTokenAuth(request, reply, config);
   });
 }

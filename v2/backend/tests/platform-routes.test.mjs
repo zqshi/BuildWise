@@ -378,7 +378,7 @@ test("POST /ops/deployments — 400 when environment and version missing", async
   });
   assert.equal(res.statusCode, 400);
   const body = res.json();
-  assert.match(body.message, /environment|version|required/i);
+  assert.match(body.message, /环境|版本|required|environment|version/i);
   await app.close();
 });
 

@@ -5,7 +5,9 @@ import { resolveArtifactPreviewKind, instrumentHtmlPreview } from "../pages/proj
 import { parseAnalysisArtifactSections } from "../pages/projects/analysisArtifactPresenter";
 import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
 
-export function useArtifactEditorState(
+/* ── sub-hook: 制品选择 & 派生数据 ── */
+
+function useArtifactSelection(
   currentIteration: Iteration | null,
   selectedHtmlPreview: UploadedAttachmentMeta["htmlPreviews"][number] | null,
   interactionEditMode: boolean,
@@ -21,29 +23,21 @@ export function useArtifactEditorState(
   const artifactDraftContent = selectedDrawerArtifact?.draft?.content || "";
 
   const editableTextArtifactKinds: ArtifactPreviewKind[] = [
-    "product-requirements-doc",
-    "design-spec",
-    "technical-architecture",
-    "document"
+    "product-requirements-doc", "design-spec", "technical-architecture", "document",
   ];
   const isEditableTextArtifact = selectedArtifactKind ? editableTextArtifactKinds.includes(selectedArtifactKind) : false;
   const artifactEditorSource = isEditableTextArtifact ? artifactDraftContent || selectedDrawerArtifact?.summary || "" : artifactDraftContent;
 
-  const [artifactEditorValue, setArtifactEditorValue] = useState("");
-  const [artifactEditorDirty, setArtifactEditorDirty] = useState(false);
-  const [artifactEditorBusy, setArtifactEditorBusy] = useState(false);
-  const [artifactEditorMode, setArtifactEditorMode] = useState<"view" | "edit">("view");
-
-  const extractedArtifactPrototypeHtml = useMemo(() => extractArtifactPrototypeHtml(artifactDraftContent), [artifactDraftContent]);
+  const extractedHtml = useMemo(() => extractArtifactPrototypeHtml(artifactDraftContent), [artifactDraftContent]);
   const selectedArtifactHtmlContent =
-    selectedArtifactKind === "html-prototype" ? (extractedArtifactPrototypeHtml || selectedHtmlPreview?.content || "") : "";
+    selectedArtifactKind === "html-prototype" ? (extractedHtml || selectedHtmlPreview?.content || "") : "";
   const selectedArtifactHtmlPreview = useMemo(
     () => (selectedArtifactKind === "html-prototype" && selectedArtifactHtmlContent ? instrumentHtmlPreview(selectedArtifactHtmlContent, interactionEditMode) : ""),
-    [selectedArtifactKind, selectedArtifactHtmlContent, interactionEditMode]
+    [selectedArtifactKind, selectedArtifactHtmlContent, interactionEditMode],
   );
   const analysisDraftSections = useMemo(
     () => (selectedArtifactKind === "analysis-report" ? parseAnalysisArtifactSections(artifactDraftContent) : []),
-    [selectedArtifactKind, artifactDraftContent]
+    [selectedArtifactKind, artifactDraftContent],
   );
 
   const selectedArtifactAwaitingConfirmation = Boolean(
@@ -51,9 +45,32 @@ export function useArtifactEditorState(
     selectedDrawerArtifact.gateStatus !== "passed" &&
     (selectedDrawerArtifact.id === "analysis-report" ||
      selectedDrawerArtifact.outputVersion > 0 ||
-     (selectedDrawerArtifact.draft?.content || "").trim().length > 0)
+     (selectedDrawerArtifact.draft?.content || "").trim().length > 0),
   );
   const canEditSelectedTextArtifact = isEditableTextArtifact && selectedDrawerArtifact?.editCapability !== "none";
+
+  return {
+    artifactItems, activeArtifactStage,
+    analysisDrawerArtifactId, setAnalysisDrawerArtifactId,
+    artifactMap, selectedDrawerArtifact, selectedArtifactKind, artifactDraftContent,
+    isEditableTextArtifact, artifactEditorSource,
+    selectedArtifactHtmlContent, selectedArtifactHtmlPreview, analysisDraftSections,
+    selectedArtifactAwaitingConfirmation, canEditSelectedTextArtifact,
+  };
+}
+
+/* ── sub-hook: 编辑器状态 & 副作用 ── */
+
+function useArtifactEditor(
+  currentIteration: Iteration | null,
+  selectedDrawerArtifact: ReturnType<typeof useArtifactSelection>["selectedDrawerArtifact"],
+  artifactEditorSource: string,
+  setAnalysisDrawerArtifactId: (id: string | null) => void,
+) {
+  const [artifactEditorValue, setArtifactEditorValue] = useState("");
+  const [artifactEditorDirty, setArtifactEditorDirty] = useState(false);
+  const [artifactEditorBusy, setArtifactEditorBusy] = useState(false);
+  const [artifactEditorMode, setArtifactEditorMode] = useState<"view" | "edit">("view");
 
   useEffect(() => {
     setArtifactEditorValue(artifactEditorSource);
@@ -69,26 +86,30 @@ export function useArtifactEditorState(
     if (nextId !== undefined && prevId !== undefined && nextId !== prevId) {
       setAnalysisDrawerArtifactId(null);
     }
-  }, [currentIteration?.id]);
+  }, [currentIteration?.id, setAnalysisDrawerArtifactId]);
 
   return {
-    artifactItems,
-    activeArtifactStage,
-    analysisDrawerArtifactId, setAnalysisDrawerArtifactId,
-    artifactMap,
-    selectedDrawerArtifact,
-    selectedArtifactKind,
-    artifactDraftContent,
-    isEditableTextArtifact,
-    artifactEditorSource,
     artifactEditorValue, setArtifactEditorValue,
     artifactEditorDirty, setArtifactEditorDirty,
     artifactEditorBusy, setArtifactEditorBusy,
     artifactEditorMode, setArtifactEditorMode,
-    selectedArtifactHtmlContent,
-    selectedArtifactHtmlPreview,
-    analysisDraftSections,
-    selectedArtifactAwaitingConfirmation,
-    canEditSelectedTextArtifact,
   };
+}
+
+/* ── 组合 hook：保持原始返回结构 ── */
+
+export function useArtifactEditorState(
+  currentIteration: Iteration | null,
+  selectedHtmlPreview: UploadedAttachmentMeta["htmlPreviews"][number] | null,
+  interactionEditMode: boolean,
+) {
+  const selection = useArtifactSelection(currentIteration, selectedHtmlPreview, interactionEditMode);
+  const editor = useArtifactEditor(
+    currentIteration,
+    selection.selectedDrawerArtifact,
+    selection.artifactEditorSource,
+    selection.setAnalysisDrawerArtifactId,
+  );
+
+  return { ...selection, ...editor };
 }

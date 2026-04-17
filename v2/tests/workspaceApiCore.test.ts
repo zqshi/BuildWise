@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeApiBase, shouldUseSameOriginProxy } from "../src/app/workspaceApiCore.ts";
+import { normalizeApiBase, shouldUseSameOriginProxy } from "../src/shared/apiConfig.ts";
 
 test("normalizeApiBase strips trailing /api suffix only once", () => {
   assert.equal(normalizeApiBase("http://127.0.0.1:5055/api"), "http://127.0.0.1:5055");

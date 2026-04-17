@@ -35,7 +35,7 @@ export function IterationStatusStrip({
         {renderStatusLabel(stateMachine?.currentStatus || currentIteration?.status || "planned")}
       </span>
       <span>继承：{contextData?.previous ? contextData.previous.name : "首个版本"}</span>
-      <span>范围 in/out：{scopeInCount}/{scopeOutCount}</span>
+      <span>范围 纳入/排除：{scopeInCount}/{scopeOutCount}</span>
       <span>验收：{acceptanceCount} 项</span>
       {hasStateMachineActions ? (
         <div className="chat-tools">

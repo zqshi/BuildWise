@@ -58,7 +58,7 @@ export function OpsTriageSection({
             <li key={`${item.priority}-${item.item}-${index}`} className="history-item">
               <strong>{item.priority}</strong>
               <p>{item.item}</p>
-              <p className="hint">evidence：{item.evidence || "-"}</p>
+              <p className="hint">依据：{item.evidence || "-"}</p>
             </li>
           ))}
         </ul>

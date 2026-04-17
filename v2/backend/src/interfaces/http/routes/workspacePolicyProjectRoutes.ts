@@ -1,80 +1,52 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentUserId, ensureProjectAccess, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
 
-export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
-  app.get("/projects/:id/policies", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      }
-    }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "无效的项目 ID" };
-    }
+/* ── Shared guard ── */
+
+const projectIdParamSchema = {
+  type: "object" as const,
+  properties: { id: { type: "string" as const, pattern: "^\\d+$" } },
+  required: ["id" as const]
+};
+
+function resolveProjectId(reply: FastifyReply, raw: string) {
+  const projectId = parsePositiveInt(raw);
+  if (projectId === null) {
+    reply.code(400);
+  }
+  return projectId;
+}
+
+/* ── Route handlers ── */
+
+function handleListPolicies(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const projectId = resolveProjectId(reply, (request.params as { id: string }).id);
+    if (projectId === null) return { message: "无效的项目 ID" };
     const access = ensureProjectAccess(service, request, reply, projectId, "read");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     return {
       active: service.governance.getActiveProjectPolicy(projectId),
       items: service.governance.listProjectPolicies(projectId)
     };
-  });
+  };
+}
 
-  app.post("/projects/:id/policies", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      },
-      body: {
-        type: "object",
-        properties: {
-          strategy: { type: "object" }
-        },
-        additionalProperties: false
-      }
-    }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "无效的项目 ID" };
-    }
+function handleCreatePolicy(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const projectId = resolveProjectId(reply, (request.params as { id: string }).id);
+    if (projectId === null) return { message: "无效的项目 ID" };
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     const body = request.body as { strategy?: Record<string, unknown> } | null;
     const actor = currentUserId(request);
     return service.governance.createProjectPolicyDraft(projectId, actor, body?.strategy);
-  });
+  };
+}
 
-  app.post("/projects/:id/policies/:version/activate", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" },
-          version: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id", "version"]
-      }
-    }
-  }, async (request, reply) => {
+function handleActivatePolicy(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     const params = request.params as { id: string; version: string };
     const projectId = parsePositiveInt(params.id);
     const version = parsePositiveInt(params.version);
@@ -83,9 +55,7 @@ export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, servi
       return { message: "无效的项目或版本" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     const actor = currentUserId(request);
     const activated = service.governance.activateProjectPolicy(projectId, version, actor);
     if (!activated) {
@@ -93,29 +63,15 @@ export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, servi
       return { message: "策略版本不存在" };
     }
     return activated;
-  });
+  };
+}
 
-  app.post("/projects/:id/policies/restore-initial", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      }
-    }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "无效的项目 ID" };
-    }
+function handleRestoreInitialPolicy(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const projectId = resolveProjectId(reply, (request.params as { id: string }).id);
+    if (projectId === null) return { message: "无效的项目 ID" };
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     const actor = currentUserId(request);
     const restored = service.governance.restoreProjectOrchestrationPolicyToInitialMode(projectId, actor);
     if (!restored) {
@@ -123,41 +79,15 @@ export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, servi
       return { message: "项目编排策略恢复失败" };
     }
     return restored;
-  });
+  };
+}
 
-  app.post("/projects/:id/workspace/bind", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      },
-      body: {
-        type: "object",
-        properties: {
-          assistantProfile: { type: "string" },
-          agentId: { type: "string" },
-          workspacePath: { type: "string" },
-          runtimeMode: { type: "string", enum: ["native", "bridge"] },
-          locked: { type: "boolean" }
-        },
-        required: ["assistantProfile", "workspacePath"],
-        additionalProperties: false
-      }
-    }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "无效的项目 ID" };
-    }
+function handleBindWorkspace(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const projectId = resolveProjectId(reply, (request.params as { id: string }).id);
+    if (projectId === null) return { message: "无效的项目 ID" };
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     const body = request.body as {
       assistantProfile?: string;
       agentId?: string;
@@ -169,81 +99,55 @@ export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, servi
       reply.code(400);
       return { message: "请提供助手配置和工作空间路径" };
     }
-    const actor = currentUserId(request);
-    try {
-      return service.governance.upsertProjectWorkspaceBinding({
-        projectId,
-        assistantProfile: body.assistantProfile.trim(),
-        agentId: body.agentId?.trim() || "main",
-        workspacePath: body.workspacePath.trim(),
-        runtimeMode: body.runtimeMode === "bridge" ? "bridge" : "native",
-        locked: body.locked !== false,
-        createdBy: actor
-      });
-    } catch (error) {
-      const handled = handleRouteError(error);
-      if (handled) {
-        reply.code(handled.code);
-        return { message: handled.message };
-      }
-      throw error;
-    }
-  });
+    const { assistantProfile, agentId, workspacePath, runtimeMode, locked } = body;
+    return executeBindWorkspace(service, request, reply, projectId, { assistantProfile: assistantProfile.trim(), agentId, workspacePath: workspacePath.trim(), runtimeMode, locked });
+  };
+}
 
-  app.get("/projects/:id/roles", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      }
+function executeBindWorkspace(
+  service: WorkspaceService,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  projectId: number,
+  body: { assistantProfile: string; agentId?: string; workspacePath: string; runtimeMode?: "native" | "bridge"; locked?: boolean }
+) {
+  const actor = currentUserId(request);
+  try {
+    return service.governance.upsertProjectWorkspaceBinding({
+      projectId,
+      assistantProfile: body.assistantProfile.trim(),
+      agentId: body.agentId?.trim() || "main",
+      workspacePath: body.workspacePath.trim(),
+      runtimeMode: body.runtimeMode === "bridge" ? "bridge" : "native",
+      locked: body.locked !== false,
+      createdBy: actor
+    });
+  } catch (error) {
+    const handled = handleRouteError(error);
+    if (handled) {
+      reply.code(handled.code);
+      return { message: handled.message };
     }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "无效的项目 ID" };
-    }
+    throw error;
+  }
+}
+
+function handleListRoles(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const projectId = resolveProjectId(reply, (request.params as { id: string }).id);
+    if (projectId === null) return { message: "无效的项目 ID" };
     const access = ensureProjectAccess(service, request, reply, projectId, "read");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     return service.governance.listTenantMemberBindings(access.tenantId);
-  });
+  };
+}
 
-  app.post("/projects/:id/roles", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" }
-        },
-        required: ["id"]
-      },
-      body: {
-        type: "object",
-        properties: {
-          userId: { type: "string" },
-          role: { type: "string", enum: ["admin", "member", "viewer"] }
-        },
-        required: ["userId", "role"],
-        additionalProperties: false
-      }
-    }
-  }, async (request, reply) => {
-    const params = request.params as { id: string };
-    const projectId = parsePositiveInt(params.id);
-    if (projectId === null) {
-      reply.code(400);
-      return { message: "无效的项目 ID" };
-    }
+function handleUpsertRole(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const projectId = resolveProjectId(reply, (request.params as { id: string }).id);
+    if (projectId === null) return { message: "无效的项目 ID" };
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     const body = request.body as { userId?: string; role?: "admin" | "member" | "viewer" } | null;
     if (!body?.userId?.trim() || !body?.role) {
       reply.code(400);
@@ -254,20 +158,11 @@ export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, servi
       userId: body.userId.trim(),
       role: body.role
     });
-  });
+  };
+}
 
-  app.delete("/projects/:id/roles/:userId", {
-    schema: {
-      params: {
-        type: "object",
-        properties: {
-          id: { type: "string", pattern: "^\\d+$" },
-          userId: { type: "string", minLength: 1 }
-        },
-        required: ["id", "userId"]
-      }
-    }
-  }, async (request, reply) => {
+function handleDeleteRole(service: WorkspaceService) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
     const params = request.params as { id: string; userId: string };
     const projectId = parsePositiveInt(params.id);
     const userId = (params.userId || "").trim();
@@ -276,14 +171,51 @@ export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, servi
       return { message: "无效的项目或用户" };
     }
     const access = ensureProjectAccess(service, request, reply, projectId, "admin");
-    if (!access) {
-      return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
-    }
+    if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
     const removed = service.governance.removeTenantMemberBinding(access.tenantId, userId);
     if (!removed) {
       reply.code(404);
       return { message: "角色绑定不存在" };
     }
     return { ok: true, projectId, userId };
-  });
+  };
+}
+
+/* ── Registration ── */
+
+const policyVersionParamSchema = {
+  type: "object" as const,
+  properties: { id: { type: "string" as const, pattern: "^\\d+$" }, version: { type: "string" as const, pattern: "^\\d+$" } },
+  required: ["id" as const, "version" as const],
+};
+const workspaceBindBodySchema = {
+  type: "object" as const,
+  properties: {
+    assistantProfile: { type: "string" as const }, agentId: { type: "string" as const }, workspacePath: { type: "string" as const },
+    runtimeMode: { type: "string" as const, enum: ["native", "bridge"] }, locked: { type: "boolean" as const },
+  },
+  required: ["assistantProfile" as const, "workspacePath" as const], additionalProperties: false,
+};
+const roleBodySchema = {
+  type: "object" as const,
+  properties: { userId: { type: "string" as const }, role: { type: "string" as const, enum: ["admin", "member", "viewer"] } },
+  required: ["userId" as const, "role" as const], additionalProperties: false,
+};
+const roleDeleteParamSchema = {
+  type: "object" as const,
+  properties: { id: { type: "string" as const, pattern: "^\\d+$" }, userId: { type: "string" as const, minLength: 1 } },
+  required: ["id" as const, "userId" as const],
+};
+
+export function registerWorkspacePolicyProjectRoutes(app: FastifyInstance, service: WorkspaceService) {
+  app.get("/projects/:id/policies", { schema: { params: projectIdParamSchema } }, handleListPolicies(service));
+  app.post("/projects/:id/policies", {
+    schema: { params: projectIdParamSchema, body: { type: "object", properties: { strategy: { type: "object" } }, additionalProperties: false } }
+  }, handleCreatePolicy(service));
+  app.post("/projects/:id/policies/:version/activate", { schema: { params: policyVersionParamSchema } }, handleActivatePolicy(service));
+  app.post("/projects/:id/policies/restore-initial", { schema: { params: projectIdParamSchema } }, handleRestoreInitialPolicy(service));
+  app.post("/projects/:id/workspace/bind", { schema: { params: projectIdParamSchema, body: workspaceBindBodySchema } }, handleBindWorkspace(service));
+  app.get("/projects/:id/roles", { schema: { params: projectIdParamSchema } }, handleListRoles(service));
+  app.post("/projects/:id/roles", { schema: { params: projectIdParamSchema, body: roleBodySchema } }, handleUpsertRole(service));
+  app.delete("/projects/:id/roles/:userId", { schema: { params: roleDeleteParamSchema } }, handleDeleteRole(service));
 }

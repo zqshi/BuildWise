@@ -1,5 +1,19 @@
 import type { AttachmentAnalysisReport } from "./iterationWorkspacePanelTypes";
 
+const dimensionLabelMap: Record<string, string> = {
+  goals: "目标",
+  inScope: "纳入范围",
+  outOfScope: "排除范围",
+  acceptanceCriteria: "验收标准",
+  functionalPoints: "功能要点",
+  constraints: "约束条件",
+  risks: "风险项",
+  assumptions: "假设前提",
+  dependencies: "依赖关系",
+};
+
+const renderDimensionLabel = (dimension: string) => dimensionLabelMap[dimension] ?? dimension;
+
 export type VersionDiffBoxProps = {
   hasBaselineComparison: boolean;
   analysisReport: AttachmentAnalysisReport;
@@ -35,7 +49,7 @@ export function VersionDiffBox({
             <ul className="history-list">
               {diffLocations.map((item, index) => (
                 <li key={`${item.dimension}-${item.changeType}-${item.currentItem}-${index}`} className="history-item">
-                  <strong>{item.dimension}</strong>
+                  <strong>{renderDimensionLabel(item.dimension)}</strong>
                   <p>
                     {item.changeType === "added" ? "新增" : item.changeType === "removed" ? "移除" : "变更"}：
                     {item.baselineItem ? `${item.baselineItem} -> ` : ""}

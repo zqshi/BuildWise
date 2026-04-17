@@ -198,77 +198,40 @@ export function getProjectRepositoryStatusOp(repo: WorkspaceRepository, projectI
   };
 }
 
-export function getProjectRepositoryMigrationPlanOp(repo: WorkspaceRepository, projectId: number) {
-  const status = getProjectRepositoryStatusOp(repo, projectId);
-  if (!status) {
-    return null;
-  }
-  const mode = status.repoMode;
-  const steps: Array<{
-    id: string;
-    title: string;
-    description: string;
-    status: "pending" | "ready" | "done" | "blocked";
-    action: string;
-  }> = [];
+type MigrationStep = { id: string; title: string; description: string; status: "pending" | "ready" | "done" | "blocked"; action: string };
+
+function buildMigrationSteps(status: NonNullable<ReturnType<typeof getProjectRepositoryStatusOp>>): MigrationStep[] {
   const remoteConfigured = Boolean(status.health?.remoteConfigured);
   const remoteReachable = Boolean(status.health?.remoteReachable);
   const remoteSynced = Boolean(status.health?.remoteSynced);
+  const mode = status.repoMode;
+  return [
+    { id: "step-local-repo", title: "本地仓库可用性", description: "确认 workspace 本地仓库已初始化并可进行提交。",
+      status: status.workspace?.gitInitialized ? "done" : "pending",
+      action: status.workspace?.gitInitialized ? "已就绪" : "执行 repository/scaffold 初始化本地仓库" },
+    { id: "step-remote-bind", title: "远端仓库绑定", description: "为项目绑定远端 Git 仓库（provision 或 bootstrap URL）。",
+      status: remoteConfigured ? "done" : mode === "managed_local" ? "ready" : "pending",
+      action: remoteConfigured ? "已绑定" : "执行 repository/provision 或 repository/bootstrap 配置 URL" },
+    { id: "step-remote-check", title: "远端可达性检查", description: "验证 origin 是否可达且具备读权限。",
+      status: !remoteConfigured ? "blocked" : remoteReachable ? "done" : "pending",
+      action: !remoteConfigured ? "先完成远端绑定" : remoteReachable ? "已可达" : "检查网络、权限和 token" },
+    { id: "step-sync-check", title: "远端同步状态", description: "确认本地与远端分支无 ahead/behind 差异。",
+      status: !remoteConfigured || !remoteReachable ? "blocked" : remoteSynced ? "done" : "pending",
+      action: !remoteConfigured || !remoteReachable ? "先完成远端绑定与可达性" : remoteSynced ? "已同步" : "执行 pull/push 同步分支" },
+    { id: "step-mode-upgrade", title: "模式切换到生产策略", description: "将仓库模式切换到 hybrid/external_git，并启用生产远端门禁。",
+      status: (mode === "hybrid" || mode === "external_git") && status.governance?.requireRemoteForProduction ? "done" : remoteConfigured ? "ready" : "blocked",
+      action: (mode === "hybrid" || mode === "external_git") && status.governance?.requireRemoteForProduction
+        ? "已满足生产策略" : "调用 repository/mode 设置 repoMode=hybrid 或 external_git，requireRemoteForProduction=true" },
+  ];
+}
 
-  steps.push({
-    id: "step-local-repo",
-    title: "本地仓库可用性",
-    description: "确认 workspace 本地仓库已初始化并可进行提交。",
-    status: status.workspace?.gitInitialized ? "done" : "pending",
-    action: status.workspace?.gitInitialized ? "已就绪" : "执行 repository/scaffold 初始化本地仓库"
-  });
-  steps.push({
-    id: "step-remote-bind",
-    title: "远端仓库绑定",
-    description: "为项目绑定远端 Git 仓库（provision 或 bootstrap URL）。",
-    status: remoteConfigured ? "done" : mode === "managed_local" ? "ready" : "pending",
-    action: remoteConfigured ? "已绑定" : "执行 repository/provision 或 repository/bootstrap 配置 URL"
-  });
-  steps.push({
-    id: "step-remote-check",
-    title: "远端可达性检查",
-    description: "验证 origin 是否可达且具备读权限。",
-    status: !remoteConfigured ? "blocked" : remoteReachable ? "done" : "pending",
-    action: !remoteConfigured ? "先完成远端绑定" : remoteReachable ? "已可达" : "检查网络、权限和 token"
-  });
-  steps.push({
-    id: "step-sync-check",
-    title: "远端同步状态",
-    description: "确认本地与远端分支无 ahead/behind 差异。",
-    status: !remoteConfigured || !remoteReachable ? "blocked" : remoteSynced ? "done" : "pending",
-    action: !remoteConfigured || !remoteReachable ? "先完成远端绑定与可达性" : remoteSynced ? "已同步" : "执行 pull/push 同步分支"
-  });
-  steps.push({
-    id: "step-mode-upgrade",
-    title: "模式切换到生产策略",
-    description: "将仓库模式切换到 hybrid/external_git，并启用生产远端门禁。",
-    status:
-      (mode === "hybrid" || mode === "external_git") && status.governance?.requireRemoteForProduction
-        ? "done"
-        : remoteConfigured
-          ? "ready"
-          : "blocked",
-    action:
-      (mode === "hybrid" || mode === "external_git") && status.governance?.requireRemoteForProduction
-        ? "已满足生产策略"
-        : "调用 repository/mode 设置 repoMode=hybrid 或 external_git，requireRemoteForProduction=true"
-  });
-
-  const blockers = steps.filter((item) => item.status === "blocked").map((item) => `${item.title}: ${item.action}`);
-  const nextAction =
-    steps.find((item) => item.status === "ready" || item.status === "pending")?.action || "迁移完成，可进入生产发布流程。";
+export function getProjectRepositoryMigrationPlanOp(repo: WorkspaceRepository, projectId: number) {
+  const status = getProjectRepositoryStatusOp(repo, projectId);
+  if (!status) return null;
+  const steps = buildMigrationSteps(status);
+  const remoteConfigured = Boolean(status.health?.remoteConfigured);
+  const blockers = steps.filter((s) => s.status === "blocked").map((s) => `${s.title}: ${s.action}`);
+  const nextAction = steps.find((s) => s.status === "ready" || s.status === "pending")?.action || "迁移完成，可进入生产发布流程。";
   const targetMode: "hybrid" | "external_git" = remoteConfigured ? "external_git" : "hybrid";
-  return {
-    projectId,
-    currentMode: mode,
-    targetMode,
-    blockers,
-    nextAction,
-    steps
-  };
+  return { projectId, currentMode: status.repoMode, targetMode, blockers, nextAction, steps };
 }

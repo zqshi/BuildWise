@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AssessmentPayload,
@@ -65,6 +65,80 @@ async function fetchStatusWithRetry() {
   throw lastError instanceof Error ? lastError : new Error("API error: network unavailable");
 }
 
+interface BootstrapDeps {
+  stopped: () => boolean;
+  setStatus: Dispatch<SetStateAction<StatusPayload | null>>;
+  statusRef: React.MutableRefObject<StatusPayload | null>;
+  setError: Dispatch<SetStateAction<string | null>>;
+  toOfflineMessage: (raw: string) => string;
+  loadProjects: () => Promise<Project[]>;
+  loadGovernance: () => Promise<void>;
+}
+
+async function bootstrapWorkspace(deps: BootstrapDeps) {
+  try {
+    const statusData = await fetchStatusWithRetry();
+    if (deps.stopped()) return;
+    deps.setStatus(statusData);
+    deps.statusRef.current = statusData;
+    deps.setError(null);
+  } catch (err) {
+    if (deps.stopped()) return;
+    const offlineStatus = { status: "offline" as const, service: "buildwise-v2-backend" };
+    deps.setStatus(offlineStatus);
+    deps.statusRef.current = offlineStatus;
+    const raw = resolveErrorMessage(err);
+    deps.setError(deps.toOfflineMessage(raw));
+    return;
+  }
+
+  try {
+    await Promise.all([deps.loadProjects(), deps.loadGovernance()]);
+  } catch (err) {
+    if (deps.stopped()) return;
+    const errMsg = resolveErrorMessage(err);
+    if (errMsg.includes("401")) return;
+    await new Promise((r) => setTimeout(r, 3000));
+    if (deps.stopped()) return;
+    try {
+      await Promise.all([deps.loadProjects(), deps.loadGovernance()]);
+    } catch (retryErr) {
+      if (!deps.stopped()) {
+        deps.setError(resolveErrorMessage(retryErr));
+      }
+    }
+  }
+}
+
+interface StatusPollDeps {
+  stopped: () => boolean;
+  probeStatus: () => Promise<{ ok: true; recovered: boolean } | { ok: false; raw: string; recovered: boolean }>;
+  setError: Dispatch<SetStateAction<string | null>>;
+  isBackendError: (msg: string | null) => boolean;
+  toOfflineMessage: (raw: string) => string;
+  loadProjects: () => Promise<Project[]>;
+  loadGovernance: () => Promise<void>;
+}
+
+async function runStatusPoll(deps: StatusPollDeps) {
+  const result = await deps.probeStatus();
+  if (!result.ok) {
+    deps.setError((prev) => {
+      if (prev && !deps.isBackendError(prev)) return prev;
+      return deps.toOfflineMessage(result.raw);
+    });
+    return;
+  }
+  if (deps.stopped()) return;
+  if (result.recovered) {
+    try {
+      await Promise.all([deps.loadProjects(), deps.loadGovernance()]);
+    } catch (recoveryErr) {
+      console.warn("[workspace] recovery reload failed:", recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr));
+    }
+  }
+}
+
 type UseWorkspaceLoadersParams = {
   currentProjectId: number | null;
   setStatus: Dispatch<SetStateAction<StatusPayload | null>>;
@@ -89,44 +163,85 @@ type UseWorkspaceLoadersParams = {
   setDeployments: Dispatch<SetStateAction<DeploymentRecord[]>>;
 };
 
-export function useWorkspaceLoaders({
-  currentProjectId: _currentProjectId,
-  setStatus,
-  setError,
-  setProjects,
-  setProjectsHydrated,
-  setCurrentProjectId,
-  setIterations,
-  setCurrentIterationId,
-  setChatMessages,
-  setContextData,
-  setAssessmentData,
-  setAssessmentHistory,
-  setStateMachine,
-  setGovernanceRoles,
-  setAuditLogs,
-  setVersionSnapshots,
-  setProjectShares,
-  setTemplates,
-  setTemplateRuns,
-  setOpsMetrics,
-  setDeployments
-}: UseWorkspaceLoadersParams) {
-  const statusRef = useRef<StatusPayload | null>(null);
-  const toOfflineMessage = (raw: string) =>
-    raw.includes("network unavailable") || raw.includes("request timeout")
-      ? `后端服务不可用（${apiBaseLabel()}）。请先启动：npm --prefix v2/backend run dev`
-      : raw;
-
-  const isBackendError = (msg: string | null) =>
-    !!msg &&
+function isBackendErrorMsg(msg: string | null) {
+  return !!msg &&
     (msg.includes("后端服务不可用") ||
       msg.includes("后端服务不可达") ||
       msg.includes("network unavailable") ||
       msg.includes("too many requests"));
+}
 
-  const isAuthError = (msg: string) =>
-    msg.includes("401") || msg.includes("unauthorized") || msg.includes("bearer token");
+function isAuthErrorMsg(msg: string) {
+  return msg.includes("401") || msg.includes("unauthorized") || msg.includes("bearer token");
+}
+
+/* ---------- sub-hook 1: core data loaders ---------- */
+
+type DataLoaderDeps = Pick<
+  UseWorkspaceLoadersParams,
+  "setProjects" | "setProjectsHydrated" | "setCurrentProjectId" |
+  "setIterations" | "setCurrentIterationId" |
+  "setChatMessages" | "setContextData" | "setAssessmentData" |
+  "setAssessmentHistory" | "setStateMachine"
+>;
+
+function buildDefaultMessage(iterationId: number): IterationMessage {
+  return { id: -1, iterationId, role: "assistant", content: "请围绕当前迭代范围沟通需求，输入\u201c开始拆解任务\u201d可生成本迭代执行清单。", createdAt: nowIsoString() };
+}
+
+function useWorkspaceDataLoaders(deps: DataLoaderDeps) {
+  const { setProjects, setProjectsHydrated, setCurrentProjectId, setIterations, setCurrentIterationId, setChatMessages, setContextData, setAssessmentData, setAssessmentHistory, setStateMachine } = deps;
+
+  const loadProjects = useCallback(async () => {
+    setProjectsHydrated((prev) => (prev ? prev : false));
+    try {
+      const projectData = await fetchProjects();
+      setProjects(projectData);
+      if (projectData.length === 0) { setCurrentProjectId((prev) => (prev === null ? null : prev)); return projectData; }
+      setCurrentProjectId((prev) => {
+        if (prev !== null && projectData.some((item) => item.id === prev)) return prev;
+        return projectData[0].id;
+      });
+      return projectData;
+    } finally { setProjectsHydrated(true); }
+  }, [setCurrentProjectId, setProjects, setProjectsHydrated]);
+
+  const loadIterations = useCallback(async (projectId: number) => {
+    const data = await fetchProjectIterations(projectId);
+    setIterations(data);
+    if (data.length === 0) { setCurrentIterationId(null); return; }
+    setCurrentIterationId((prev) => {
+      if (prev !== null && data.some((item) => item.id === prev)) return prev;
+      return (data.find((item) => item.current) ?? data[data.length - 1]).id;
+    });
+  }, [setCurrentIterationId, setIterations]);
+
+  const loadIterationDetail = useCallback(async (iterationId: number) => {
+    const [{ messages, context, assessment, history }, machine] = await Promise.all([fetchIterationDetail(iterationId), fetchIterationStateMachine(iterationId)]);
+    setChatMessages(messages.length === 0 ? [buildDefaultMessage(iterationId)] : messages);
+    setContextData(context); setAssessmentData(assessment); setAssessmentHistory(history); setStateMachine(machine);
+    if (context?.iteration) {
+      const fresh = context.iteration;
+      setIterations((prev) => prev.map((item) => (item.id === fresh.id ? fresh : item)));
+    }
+  }, [setAssessmentData, setAssessmentHistory, setChatMessages, setContextData, setIterations, setStateMachine]);
+
+  return { loadProjects, loadIterations, loadIterationDetail };
+}
+
+/* ---------- sub-hook 2: auxiliary loaders ---------- */
+
+type AuxLoaderDeps = Pick<
+  UseWorkspaceLoadersParams,
+  "setStatus" | "setError" |
+  "setGovernanceRoles" | "setAuditLogs" |
+  "setVersionSnapshots" | "setProjectShares" |
+  "setTemplates" | "setTemplateRuns" | "setOpsMetrics" | "setDeployments"
+>;
+
+function useWorkspaceAuxLoaders(deps: AuxLoaderDeps) {
+  const { setStatus, setError, setGovernanceRoles, setAuditLogs, setVersionSnapshots, setProjectShares, setTemplates, setTemplateRuns, setOpsMetrics, setDeployments } = deps;
+  const statusRef = useRef<StatusPayload | null>(null);
 
   const probeStatus = useCallback(async () => {
     try {
@@ -134,7 +249,7 @@ export function useWorkspaceLoaders({
       const wasOffline = statusRef.current?.status === "offline";
       setStatus(statusData);
       statusRef.current = statusData;
-      setError((prev) => (isBackendError(prev) ? null : prev));
+      setError((prev) => (isBackendErrorMsg(prev) ? null : prev));
       return { ok: true as const, recovered: wasOffline };
     } catch (err) {
       const raw = resolveErrorMessage(err);
@@ -145,183 +260,67 @@ export function useWorkspaceLoaders({
     }
   }, [setError, setStatus]);
 
-  const loadProjects = useCallback(async () => {
-    // 仅首次加载时标记未就绪，后续刷新静默进行，避免页面闪烁
-    setProjectsHydrated((prev) => (prev ? prev : false));
-    try {
-      const projectData = await fetchProjects();
-      setProjects(projectData);
-      if (projectData.length === 0) {
-        // 只有当当前没有选中项目时才重置，避免临时 API 错误导致用户在迭代页面被踢出
-        setCurrentProjectId((prev) => (prev === null ? null : prev));
-        return projectData;
-      }
-      // 使用函数形式避免 stale closure：仅在当前值无效时才切换
-      setCurrentProjectId((prev) => {
-        if (prev !== null && projectData.some((item) => item.id === prev)) {
-          return prev; // 当前选中项仍存在，不变
-        }
-        return projectData[0].id;
-      });
-      return projectData;
-    } finally {
-      setProjectsHydrated(true);
-    }
-  }, [setCurrentProjectId, setProjects, setProjectsHydrated]);
-
-  const loadIterations = useCallback(async (projectId: number) => {
-    const data = await fetchProjectIterations(projectId);
-    setIterations(data);
-    if (data.length === 0) {
-      setCurrentIterationId(null);
-      return;
-    }
-    setCurrentIterationId((prev) => {
-      if (prev !== null && data.some((item) => item.id === prev)) {
-        return prev;
-      }
-      const current = data.find((item) => item.current) ?? data[data.length - 1];
-      return current.id;
-    });
-  }, [setCurrentIterationId, setIterations]);
-
-  const loadIterationDetail = useCallback(async (iterationId: number) => {
-    const [{ messages, context, assessment, history }, machine] = await Promise.all([
-      fetchIterationDetail(iterationId),
-      fetchIterationStateMachine(iterationId)
-    ]);
-    if (messages.length === 0) {
-      const firstMessage: IterationMessage = {
-        id: -1,
-        iterationId,
-        role: "assistant",
-        content: "请围绕当前迭代范围沟通需求，输入“开始拆解任务”可生成本迭代执行清单。",
-        createdAt: nowIsoString()
-      };
-      setChatMessages([firstMessage]);
-    } else {
-      setChatMessages(messages);
-    }
-    setContextData(context);
-    setAssessmentData(assessment);
-    setAssessmentHistory(history);
-    setStateMachine(machine);
-    if (context?.iteration) {
-      const fresh = context.iteration;
-      setIterations((prev) => prev.map((item) => (item.id === fresh.id ? fresh : item)));
-    }
-  }, [setAssessmentData, setAssessmentHistory, setChatMessages, setContextData, setIterations, setStateMachine]);
-
   const loadPlatformOps = useCallback(async (projectId?: number) => {
     try {
       const reports = await fetchPlatformOps(projectId);
-      setTemplates(reports.templates);
-      setTemplateRuns(reports.templateRuns);
-      setOpsMetrics(reports.opsMetrics);
-      setDeployments(reports.deployments);
+      setTemplates(reports.templates); setTemplateRuns(reports.templateRuns);
+      setOpsMetrics(reports.opsMetrics); setDeployments(reports.deployments);
     } catch (err) {
       const msg = resolveErrorMessage(err);
-      if (!isAuthError(msg)) {
-        setError(msg);
-      }
+      if (!isAuthErrorMsg(msg)) setError(msg);
     }
   }, [setDeployments, setError, setOpsMetrics, setTemplateRuns, setTemplates]);
 
   const loadGovernance = useCallback(async () => {
     try {
       const data = await fetchGovernance();
-      setGovernanceRoles(data.roles);
-      setAuditLogs(data.auditLogs);
+      setGovernanceRoles(data.roles); setAuditLogs(data.auditLogs);
     } catch (err) {
       const msg = resolveErrorMessage(err);
-      if (!isAuthError(msg)) {
-        setError(msg);
-      }
+      if (!isAuthErrorMsg(msg)) setError(msg);
     }
   }, [setAuditLogs, setError, setGovernanceRoles]);
 
   const loadCollaboration = useCallback(async (projectId: number) => {
     try {
       const data = await fetchCollaboration(projectId);
-      setVersionSnapshots(data.snapshots);
-      setProjectShares(data.shares);
+      setVersionSnapshots(data.snapshots); setProjectShares(data.shares);
     } catch (err) {
       const msg = resolveErrorMessage(err);
-      if (!isAuthError(msg)) {
-        setError(msg);
-      }
+      if (!isAuthErrorMsg(msg)) setError(msg);
     }
   }, [setError, setProjectShares, setVersionSnapshots]);
 
+  return { probeStatus, loadPlatformOps, loadGovernance, loadCollaboration, statusRef, isBackendError: isBackendErrorMsg };
+}
+
+/* ---------- main hook: compose + bootstrap ---------- */
+
+export function useWorkspaceLoaders(params: UseWorkspaceLoadersParams) {
+  const { setStatus, setError } = params;
+
+  const { loadProjects, loadIterations, loadIterationDetail } = useWorkspaceDataLoaders(params);
+  const { probeStatus, loadPlatformOps, loadGovernance, loadCollaboration, statusRef, isBackendError } =
+    useWorkspaceAuxLoaders(params);
+
+  const toOfflineMessage = (raw: string) =>
+    raw.includes("network unavailable") || raw.includes("request timeout")
+      ? `后端服务不可用（${apiBaseLabel()}）。请先启动：npm --prefix v2/backend run dev`
+      : raw;
+
   useEffect(() => {
     let stopped = false;
-    const bootstrap = async () => {
-      try {
-        const statusData = await fetchStatusWithRetry();
-        if (stopped) {
-          return;
-        }
-        setStatus(statusData);
-        statusRef.current = statusData;
-        setError(null);
-      } catch (err) {
-        if (stopped) {
-          return;
-        }
-        const offlineStatus = { status: "offline" as const, service: "buildwise-v2-backend" };
-        setStatus(offlineStatus);
-        statusRef.current = offlineStatus;
-        const raw = resolveErrorMessage(err);
-        setError(toOfflineMessage(raw));
-        return;
-      }
-
-      try {
-        await Promise.all([loadProjects(), loadGovernance()]);
-      } catch (err) {
-        if (stopped) {
-          return;
-        }
-        // 401 意味着未认证，auth-expired 事件会跳转登录页，不需要重试
-        const errMsg = resolveErrorMessage(err);
-        if (errMsg.includes("401")) {
-          return;
-        }
-        // 首次加载失败可能是后端刚启动或 token 尚未就绪，3秒后静默重试一次
-        await new Promise((r) => setTimeout(r, 3000));
-        if (stopped) return;
-        try {
-          await Promise.all([loadProjects(), loadGovernance()]);
-        } catch (retryErr) {
-          if (!stopped) {
-            setError(resolveErrorMessage(retryErr));
-          }
-        }
-      }
+    const isStopped = () => stopped;
+    const bootDeps: BootstrapDeps = {
+      stopped: isStopped, setStatus, statusRef, setError,
+      toOfflineMessage, loadProjects, loadGovernance,
     };
-    bootstrap();
-    const timer = window.setInterval(async () => {
-      const result = await probeStatus();
-      if (!result.ok) {
-        setError((prev) => {
-          if (prev && !isBackendError(prev)) {
-            return prev;
-          }
-          return toOfflineMessage(result.raw);
-        });
-        return;
-      }
-      if (stopped) {
-        return;
-      }
-      if (result.recovered) {
-        try {
-          await Promise.all([loadProjects(), loadGovernance()]);
-        } catch (recoveryErr) {
-          console.warn("[workspace] recovery reload failed:", recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr));
-        }
-      }
-    }, STATUS_POLL_INTERVAL_MS);
+    bootstrapWorkspace(bootDeps);
+    const pollDeps: StatusPollDeps = {
+      stopped: isStopped, probeStatus, setError,
+      isBackendError, toOfflineMessage, loadProjects, loadGovernance,
+    };
+    const timer = window.setInterval(() => runStatusPoll(pollDeps), STATUS_POLL_INTERVAL_MS);
     return () => {
       stopped = true;
       window.clearInterval(timer);

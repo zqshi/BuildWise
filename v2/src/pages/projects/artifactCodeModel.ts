@@ -83,6 +83,28 @@ function deriveSummary(lines: string[]) {
     .find((line) => line && !looksLikeFilePath(line) && !/^```/.test(line)) || "";
 }
 
+function flushCodeBlock(
+  title: string, pendingPath: string, fenceLanguage: string,
+  codeBuffer: string[], pendingSummaryLines: string[], fileIndex: number
+): ArtifactCodeFile | null {
+  const code = codeBuffer.join("\n").trimEnd();
+  if (!code) return null;
+  const language = fenceLanguage || detectCodeLanguage(pendingPath || title, code);
+  return {
+    path: pendingPath || buildFallbackPath(title, language, fileIndex),
+    language,
+    code,
+    summary: deriveSummary(pendingSummaryLines)
+  };
+}
+
+function buildSingleFallbackFile(title: string, value: string): ArtifactCodeFile | null {
+  const raw = extractArtifactDisplayContent(value).trim();
+  if (!raw) return null;
+  const language = detectCodeLanguage(title, raw);
+  return { path: buildFallbackPath(title, language, 0), language, code: raw, summary: "" };
+}
+
 export function extractArtifactCodeStructure(title: string, value: string): ArtifactCodeStructure {
   const lines = normalizeLines(value);
   const overview: string[] = [];
@@ -98,16 +120,8 @@ export function extractArtifactCodeStructure(title: string, value: string): Arti
     const fenceMatch = line.match(/^```([\w-]*)\s*$/);
     if (fenceMatch) {
       if (inFence) {
-        const code = codeBuffer.join("\n").trimEnd();
-        if (code) {
-          const language = fenceLanguage || detectCodeLanguage(pendingPath || title, code);
-          files.push({
-            path: pendingPath || buildFallbackPath(title, language, files.length),
-            language,
-            code,
-            summary: deriveSummary(pendingSummaryLines)
-          });
-        }
+        const file = flushCodeBlock(title, pendingPath, fenceLanguage, codeBuffer, pendingSummaryLines, files.length);
+        if (file) files.push(file);
         inFence = false;
         fenceLanguage = "";
         codeBuffer = [];
@@ -120,41 +134,21 @@ export function extractArtifactCodeStructure(title: string, value: string): Arti
       continue;
     }
 
-    if (inFence) {
-      codeBuffer.push(rawLine);
-      continue;
-    }
+    if (inFence) { codeBuffer.push(rawLine); continue; }
 
     const pathCandidate = extractPathCandidate(line);
-    if (pathCandidate) {
-      pendingPath = pathCandidate;
-      continue;
-    }
+    if (pathCandidate) { pendingPath = pathCandidate; continue; }
 
     const stripped = stripMarkdownDecoration(line);
-    if (!stripped) {
-      continue;
-    }
-    if (pendingPath) {
-      pendingSummaryLines.push(stripped);
-    } else if (files.length === 0 && overview.length < 5) {
-      overview.push(stripped);
-    } else {
-      pendingSummaryLines.push(stripped);
-    }
+    if (!stripped) continue;
+    if (pendingPath) pendingSummaryLines.push(stripped);
+    else if (files.length === 0 && overview.length < 5) overview.push(stripped);
+    else pendingSummaryLines.push(stripped);
   }
 
   if (files.length === 0) {
-    const raw = extractArtifactDisplayContent(value).trim();
-    if (raw) {
-      const language = detectCodeLanguage(title, raw);
-      files.push({
-        path: buildFallbackPath(title, language, 0),
-        language,
-        code: raw,
-        summary: ""
-      });
-    }
+    const fallback = buildSingleFallbackFile(title, value);
+    if (fallback) files.push(fallback);
   }
 
   return {

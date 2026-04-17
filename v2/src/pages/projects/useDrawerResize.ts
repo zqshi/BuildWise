@@ -13,155 +13,86 @@ export type DrawerResizeState = {
   handleArtifactDrawerResizePointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 };
 
+type BoundsGetter = (viewportWidth: number) => { min: number; max: number };
+
+function readStoredWidth(storageKey: string, defaultWidth: number, boundsGetter: BoundsGetter): number {
+  if (typeof window === "undefined") return defaultWidth;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    const parsed = Number(raw);
+    const { min, max } = boundsGetter(window.innerWidth);
+    if (!Number.isFinite(parsed)) return Math.min(defaultWidth, max);
+    return Math.max(min, Math.min(max, parsed));
+  } catch {
+    return defaultWidth;
+  }
+}
+
+function useResizeDrag(
+  boundsGetter: BoundsGetter,
+  setWidth: React.Dispatch<React.SetStateAction<number>>
+): [React.RefObject<{ startX: number; startWidth: number } | null>, (event: ReactPointerEvent<HTMLButtonElement>, currentWidth: number) => void] {
+  const ref = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const rs = ref.current;
+      if (!rs) return;
+      const delta = rs.startX - event.clientX;
+      const { min, max } = boundsGetter(window.innerWidth);
+      setWidth(Math.max(min, Math.min(max, rs.startWidth + delta)));
+    };
+    const onPointerUp = () => { ref.current = null; };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => { window.removeEventListener("pointermove", onPointerMove); window.removeEventListener("pointerup", onPointerUp); };
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      const { min, max } = boundsGetter(window.innerWidth);
+      setWidth((prev) => Math.max(min, Math.min(max, prev)));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>, currentWidth: number) => {
+    ref.current = { startX: event.clientX, startWidth: currentWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  return [ref, handlePointerDown];
+}
+
+function usePersistWidth(storageKey: string, width: number) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.setItem(storageKey, String(width)); } catch { /* ignore */ }
+  }, [width]);
+}
+
 export function useDrawerResize(): DrawerResizeState {
-  const [interactionDrawerWidth, setInteractionDrawerWidth] = useState(() => {
-    if (typeof window === "undefined") {
-      return 680;
-    }
-    try {
-      const raw = window.localStorage.getItem("buildwise:interaction-drawer-width");
-      const parsed = Number(raw);
-      const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
-      if (!Number.isFinite(parsed)) {
-        return Math.min(680, max);
-      }
-      return Math.max(min, Math.min(max, parsed));
-    } catch {
-      return 680;
-    }
-  });
+  const [interactionDrawerWidth, setInteractionDrawerWidth] = useState(() =>
+    readStoredWidth("buildwise:interaction-drawer-width", 680, getInteractionDrawerWidthBounds)
+  );
+  const [artifactDrawerWidth, setArtifactDrawerWidth] = useState(() =>
+    readStoredWidth("buildwise:artifact-drawer-width", 760, (vw) => {
+      const bounds = getArtifactDrawerWidthBounds(vw);
+      return { min: bounds.min, max: Math.max(bounds.min, Math.min(bounds.max, Math.round(vw * 0.42))) };
+    })
+  );
 
-  const [artifactDrawerWidth, setArtifactDrawerWidth] = useState(() => {
-    if (typeof window === "undefined") {
-      return 760;
-    }
-    try {
-      const raw = window.localStorage.getItem("buildwise:artifact-drawer-width");
-      const parsed = Number(raw);
-      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
-      if (!Number.isFinite(parsed)) {
-        return Math.max(min, Math.min(max, Math.round(window.innerWidth * 0.42)));
-      }
-      return Math.max(min, Math.min(max, parsed));
-    } catch {
-      return 760;
-    }
-  });
+  const [, handleInteractionDown] = useResizeDrag(getInteractionDrawerWidthBounds, setInteractionDrawerWidth);
+  const [, handleArtifactDown] = useResizeDrag(getArtifactDrawerWidthBounds, setArtifactDrawerWidth);
 
-  const interactionDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const artifactDrawerResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-  /* ── interaction drawer pointer-move / pointer-up ── */
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      const resizeState = interactionDrawerResizeRef.current;
-      if (!resizeState) {
-        return;
-      }
-      const delta = resizeState.startX - event.clientX;
-      const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
-      const next = Math.max(min, Math.min(max, resizeState.startWidth + delta));
-      setInteractionDrawerWidth(next);
-    };
-    const onPointerUp = () => {
-      interactionDrawerResizeRef.current = null;
-    };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, []);
-
-  /* ── artifact drawer pointer-move / pointer-up ── */
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      const resizeState = artifactDrawerResizeRef.current;
-      if (!resizeState) {
-        return;
-      }
-      const delta = resizeState.startX - event.clientX;
-      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
-      const next = Math.max(min, Math.min(max, resizeState.startWidth + delta));
-      setArtifactDrawerWidth(next);
-    };
-    const onPointerUp = () => {
-      artifactDrawerResizeRef.current = null;
-    };
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, []);
-
-  /* ── window resize clamp ── */
-  useEffect(() => {
-    const onResize = () => {
-      const { min, max } = getInteractionDrawerWidthBounds(window.innerWidth);
-      setInteractionDrawerWidth((prev) => Math.max(min, Math.min(max, prev)));
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => {
-      const { min, max } = getArtifactDrawerWidthBounds(window.innerWidth);
-      setArtifactDrawerWidth((prev) => Math.max(min, Math.min(max, prev)));
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  /* ── persist to localStorage ── */
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    try {
-      window.localStorage.setItem("buildwise:interaction-drawer-width", String(interactionDrawerWidth));
-    } catch {
-      // ignore storage failure
-    }
-  }, [interactionDrawerWidth]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    try {
-      window.localStorage.setItem("buildwise:artifact-drawer-width", String(artifactDrawerWidth));
-    } catch {
-      // ignore storage failure
-    }
-  }, [artifactDrawerWidth]);
-
-  /* ── resize-start handlers ── */
-  const handleInteractionDrawerResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    interactionDrawerResizeRef.current = {
-      startX: event.clientX,
-      startWidth: interactionDrawerWidth,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleArtifactDrawerResizePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    artifactDrawerResizeRef.current = {
-      startX: event.clientX,
-      startWidth: artifactDrawerWidth,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
+  usePersistWidth("buildwise:interaction-drawer-width", interactionDrawerWidth);
+  usePersistWidth("buildwise:artifact-drawer-width", artifactDrawerWidth);
 
   return {
-    interactionDrawerWidth,
-    setInteractionDrawerWidth,
-    artifactDrawerWidth,
-    setArtifactDrawerWidth,
-    handleInteractionDrawerResizePointerDown,
-    handleArtifactDrawerResizePointerDown,
+    interactionDrawerWidth, setInteractionDrawerWidth,
+    artifactDrawerWidth, setArtifactDrawerWidth,
+    handleInteractionDrawerResizePointerDown: (e) => handleInteractionDown(e, interactionDrawerWidth),
+    handleArtifactDrawerResizePointerDown: (e) => handleArtifactDown(e, artifactDrawerWidth),
   };
 }

@@ -45,70 +45,59 @@ function mergeDeepInsights(reports: AttachmentAnalysisReport[]) {
   };
 }
 
+function dedupStrings(reports: AttachmentAnalysisReport[], extractor: (r: AttachmentAnalysisReport) => string[], limit: number): string[] {
+  return Array.from(new Set(reports.flatMap(extractor))).slice(0, limit);
+}
+
+function lastNonEmpty(reports: AttachmentAnalysisReport[], extractor: (r: AttachmentAnalysisReport) => string): string {
+  return reports.map(extractor).filter(Boolean).slice(-1)[0] || "";
+}
+
+function mergeOrderedItems<T extends { order: number }>(reports: AttachmentAnalysisReport[], extractor: (r: AttachmentAnalysisReport) => T[], limit: number): T[] {
+  return reports.flatMap(extractor).sort((a, b) => a.order - b.order).slice(0, limit).map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+function or<T>(merged: T[], fallback: T[]): T[] { return merged.length > 0 ? merged : fallback; }
+
+function mergeInteractionInsights(reports: AttachmentAnalysisReport[], fallback: { primaryFlow: string[]; keyInteractions: string[]; exceptionPaths: string[]; usabilityRisks: string[] }) {
+  return {
+    primaryFlow: or(dedupStrings(reports, (r) => r.businessConfirmation?.interactionInsights?.primaryFlow || [], 12), fallback.primaryFlow),
+    keyInteractions: or(dedupStrings(reports, (r) => r.businessConfirmation?.interactionInsights?.keyInteractions || [], 14), fallback.keyInteractions),
+    exceptionPaths: or(dedupStrings(reports, (r) => r.businessConfirmation?.interactionInsights?.exceptionPaths || [], 12), fallback.exceptionPaths),
+    usabilityRisks: or(dedupStrings(reports, (r) => r.businessConfirmation?.interactionInsights?.usabilityRisks || [], 12), fallback.usabilityRisks),
+  };
+}
+
+function mergeNecessityAssessment(reports: AttachmentAnalysisReport[], fallback: { mustDo: string[]; shouldDo: string[]; canDefer: string[]; outOfScope: string[]; rationale: string }) {
+  return {
+    mustDo: or(dedupStrings(reports, (r) => r.businessConfirmation?.necessityAssessment?.mustDo || [], 12), fallback.mustDo),
+    shouldDo: or(dedupStrings(reports, (r) => r.businessConfirmation?.necessityAssessment?.shouldDo || [], 12), fallback.shouldDo),
+    canDefer: or(dedupStrings(reports, (r) => r.businessConfirmation?.necessityAssessment?.canDefer || [], 12), fallback.canDefer),
+    outOfScope: or(dedupStrings(reports, (r) => r.businessConfirmation?.necessityAssessment?.outOfScope || [], 12), fallback.outOfScope),
+    rationale: lastNonEmpty(reports, (r) => r.businessConfirmation?.necessityAssessment?.rationale || "") || fallback.rationale,
+  };
+}
+
 function mergeBusinessConfirmation(reports: AttachmentAnalysisReport[]) {
-  const latest = reports[reports.length - 1];
-  const latestConfirmation = latest.businessConfirmation || {
-    coreIntent: "",
-    successCriteria: [],
+  const fb = reports[reports.length - 1].businessConfirmation || {
+    coreIntent: "", successCriteria: [],
     interactionInsights: { primaryFlow: [], keyInteractions: [], exceptionPaths: [], usabilityRisks: [] },
     necessityAssessment: { mustDo: [], shouldDo: [], canDefer: [], outOfScope: [], rationale: "" },
-    evidenceRefs: [],
-    boundarySummary: "",
-    functionalPoints: [],
-    confirmationChecklist: [],
-    versionDiffSummary: "",
-    diffNarratives: [],
-    diffConfirmationOrder: []
+    evidenceRefs: [], boundarySummary: "", functionalPoints: [], confirmationChecklist: [],
+    versionDiffSummary: "", diffNarratives: [], diffConfirmationOrder: [],
   };
-  const coreIntent = reports.map((item) => item.businessConfirmation?.coreIntent || "").filter(Boolean).slice(-1)[0] || "";
-  const successCriteria = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.successCriteria || []))).slice(0, 12);
-  const primaryFlow = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.interactionInsights?.primaryFlow || []))).slice(0, 12);
-  const keyInteractions = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.interactionInsights?.keyInteractions || []))).slice(0, 14);
-  const exceptionPaths = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.interactionInsights?.exceptionPaths || []))).slice(0, 12);
-  const usabilityRisks = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.interactionInsights?.usabilityRisks || []))).slice(0, 12);
-  const mustDo = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.necessityAssessment?.mustDo || []))).slice(0, 12);
-  const shouldDo = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.necessityAssessment?.shouldDo || []))).slice(0, 12);
-  const canDefer = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.necessityAssessment?.canDefer || []))).slice(0, 12);
-  const outOfScope = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.necessityAssessment?.outOfScope || []))).slice(0, 12);
-  const necessityRationale = reports.map((item) => item.businessConfirmation?.necessityAssessment?.rationale || "").filter(Boolean).slice(-1)[0] || "";
-  const evidenceRefs = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.evidenceRefs || []))).slice(0, 20);
-  const boundarySummary = reports.map((item) => item.businessConfirmation?.boundarySummary || "").filter(Boolean).slice(-1)[0] || "";
-  const versionDiffSummary = reports.map((item) => item.businessConfirmation?.versionDiffSummary || "").filter(Boolean).slice(-1)[0] || "";
-  const functionalPoints = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.functionalPoints || []))).slice(0, 16);
-  const confirmationChecklist = reports
-    .flatMap((item) => item.businessConfirmation?.confirmationChecklist || [])
-    .sort((a, b) => a.order - b.order)
-    .slice(0, 16)
-    .map((item, index) => ({ ...item, order: index + 1 }));
-  const diffNarratives = Array.from(new Set(reports.flatMap((item) => item.businessConfirmation?.diffNarratives || []))).slice(0, 18);
-  const diffConfirmationOrder = reports
-    .flatMap((item) => item.businessConfirmation?.diffConfirmationOrder || [])
-    .sort((a, b) => a.order - b.order)
-    .slice(0, 16)
-    .map((item, index) => ({ ...item, order: index + 1 }));
   return {
-    coreIntent: coreIntent || latestConfirmation.coreIntent,
-    successCriteria: successCriteria.length > 0 ? successCriteria : latestConfirmation.successCriteria,
-    interactionInsights: {
-      primaryFlow: primaryFlow.length > 0 ? primaryFlow : latestConfirmation.interactionInsights.primaryFlow,
-      keyInteractions: keyInteractions.length > 0 ? keyInteractions : latestConfirmation.interactionInsights.keyInteractions,
-      exceptionPaths: exceptionPaths.length > 0 ? exceptionPaths : latestConfirmation.interactionInsights.exceptionPaths,
-      usabilityRisks: usabilityRisks.length > 0 ? usabilityRisks : latestConfirmation.interactionInsights.usabilityRisks
-    },
-    necessityAssessment: {
-      mustDo: mustDo.length > 0 ? mustDo : latestConfirmation.necessityAssessment.mustDo,
-      shouldDo: shouldDo.length > 0 ? shouldDo : latestConfirmation.necessityAssessment.shouldDo,
-      canDefer: canDefer.length > 0 ? canDefer : latestConfirmation.necessityAssessment.canDefer,
-      outOfScope: outOfScope.length > 0 ? outOfScope : latestConfirmation.necessityAssessment.outOfScope,
-      rationale: necessityRationale || latestConfirmation.necessityAssessment.rationale
-    },
-    evidenceRefs: evidenceRefs.length > 0 ? evidenceRefs : latestConfirmation.evidenceRefs,
-    boundarySummary: boundarySummary || latestConfirmation.boundarySummary,
-    functionalPoints: functionalPoints.length > 0 ? functionalPoints : latestConfirmation.functionalPoints,
-    confirmationChecklist: confirmationChecklist.length > 0 ? confirmationChecklist : latestConfirmation.confirmationChecklist,
-    versionDiffSummary: versionDiffSummary || latestConfirmation.versionDiffSummary,
-    diffNarratives: diffNarratives.length > 0 ? diffNarratives : latestConfirmation.diffNarratives,
-    diffConfirmationOrder: diffConfirmationOrder.length > 0 ? diffConfirmationOrder : latestConfirmation.diffConfirmationOrder
+    coreIntent: lastNonEmpty(reports, (r) => r.businessConfirmation?.coreIntent || "") || fb.coreIntent,
+    successCriteria: or(dedupStrings(reports, (r) => r.businessConfirmation?.successCriteria || [], 12), fb.successCriteria),
+    interactionInsights: mergeInteractionInsights(reports, fb.interactionInsights),
+    necessityAssessment: mergeNecessityAssessment(reports, fb.necessityAssessment),
+    evidenceRefs: or(dedupStrings(reports, (r) => r.businessConfirmation?.evidenceRefs || [], 20), fb.evidenceRefs),
+    boundarySummary: lastNonEmpty(reports, (r) => r.businessConfirmation?.boundarySummary || "") || fb.boundarySummary,
+    functionalPoints: or(dedupStrings(reports, (r) => r.businessConfirmation?.functionalPoints || [], 16), fb.functionalPoints),
+    confirmationChecklist: or(mergeOrderedItems(reports, (r) => r.businessConfirmation?.confirmationChecklist || [], 16), fb.confirmationChecklist),
+    versionDiffSummary: lastNonEmpty(reports, (r) => r.businessConfirmation?.versionDiffSummary || "") || fb.versionDiffSummary,
+    diffNarratives: or(dedupStrings(reports, (r) => r.businessConfirmation?.diffNarratives || [], 18), fb.diffNarratives),
+    diffConfirmationOrder: or(mergeOrderedItems(reports, (r) => r.businessConfirmation?.diffConfirmationOrder || [], 16), fb.diffConfirmationOrder),
   };
 }
 
@@ -130,79 +119,73 @@ function mergeReportQuality(reports: AttachmentAnalysisReport[]) {
   };
 }
 
+function mergeFolderFileStats(input: AttachmentUploadInput & { files: NonNullable<AttachmentUploadInput["files"]> }) {
+  return {
+    totalFiles: input.files.length,
+    textFiles: input.files.filter((item) => item.excerpt.trim().length > 0).length,
+    binaryFiles: input.files.filter((item) => item.excerpt.trim().length === 0).length,
+  };
+}
+
+function mergeFolderFileSelection(input: AttachmentUploadInput & { files: NonNullable<AttachmentUploadInput["files"]> }, reports: AttachmentAnalysisReport[]) {
+  return {
+    consideredFiles: input.files.length, includedFiles: input.files.length,
+    skippedNoiseFiles: reports.reduce((t, r) => t + r.fileSelection.skippedNoiseFiles, 0),
+    skippedEmptyFiles: reports.reduce((t, r) => t + r.fileSelection.skippedEmptyFiles, 0),
+    sampled: reports.some((r) => r.fileSelection.sampled),
+    sampleReason: reports.map((r) => r.fileSelection.sampleReason).find(Boolean) || "",
+    includedPaths: Array.from(new Set(reports.flatMap((r) => r.fileSelection.includedPaths))).slice(0, 12),
+    ignoredFiles: Array.from(
+      new Map(reports.flatMap((r) => r.fileSelection.ignoredFiles).map((f) => [`${f.path}:${f.reason}`, f])).values()
+    ).slice(0, 20),
+  };
+}
+
+function mergeLlmContext(primary: AttachmentAnalysisReport, reports: AttachmentAnalysisReport[], totalBatches: number) {
+  return {
+    ...primary.llmContext, strategy: "folder-batch-job" as const,
+    digest: `策略：文件夹分批合并，共 ${totalBatches} 批，合并报告 ${reports.length} 份`,
+    excerptLength: reports.reduce((t, r) => t + r.llmContext.excerptLength, 0),
+    chunkCount: reports.reduce((t, r) => t + r.llmContext.chunkCount, 0),
+    promptContextLength: reports.reduce((t, r) => t + r.llmContext.promptContextLength, 0),
+    agentCount: reports.reduce((t, r) => t + r.llmContext.agentCount, 0),
+    unknownSignalCount: reports.reduce((t, r) => t + r.llmContext.unknownSignalCount, 0),
+    degraded: reports.some((r) => r.llmContext.degraded),
+    degradeReason: reports.map((r) => r.llmContext.degradeReason).filter((s) => s.trim().length > 0).join(" | ").slice(0, 300) || "",
+  };
+}
+
 export function mergeAttachmentReports(input: AttachmentUploadInput, reports: AttachmentAnalysisReport[], totalBatches: number): AttachmentAnalysisReport {
-  if (reports.length === 1) {
-    return reports[0];
-  }
+  if (reports.length === 1) return reports[0];
   const primary = reports[reports.length - 1];
-  const bestProjectDetection = reports.reduce((best, current) => {
-    const bestScore = rankProjectConfidence(best.projectDetection.confidence) * 10 + best.projectDetection.evidence.length;
-    const currentScore = rankProjectConfidence(current.projectDetection.confidence) * 10 + current.projectDetection.evidence.length;
-    return currentScore > bestScore ? current : best;
+  const bestDetection = reports.reduce((best, cur) => {
+    const bs = rankProjectConfidence(best.projectDetection.confidence) * 10 + best.projectDetection.evidence.length;
+    const cs = rankProjectConfidence(cur.projectDetection.confidence) * 10 + cur.projectDetection.evidence.length;
+    return cs > bs ? cur : best;
   }, primary);
-  const fileStats =
-    input.sourceType === "folder" && Array.isArray(input.files)
-      ? {
-          totalFiles: input.files.length,
-          textFiles: input.files.filter((item) => item.excerpt.trim().length > 0).length,
-          binaryFiles: input.files.filter((item) => item.excerpt.trim().length === 0).length
-        }
-      : primary.fileStats;
-  const fileSelection =
-    input.sourceType === "folder" && Array.isArray(input.files)
-      ? {
-          consideredFiles: input.files.length,
-          includedFiles: input.files.length,
-          skippedNoiseFiles: reports.reduce((total, item) => total + item.fileSelection.skippedNoiseFiles, 0),
-          skippedEmptyFiles: reports.reduce((total, item) => total + item.fileSelection.skippedEmptyFiles, 0),
-          sampled: reports.some((item) => item.fileSelection.sampled),
-          sampleReason: reports.map((item) => item.fileSelection.sampleReason).find(Boolean) || "",
-          includedPaths: Array.from(new Set(reports.flatMap((item) => item.fileSelection.includedPaths))).slice(0, 12),
-          ignoredFiles: Array.from(
-            new Map(reports.flatMap((item) => item.fileSelection.ignoredFiles).map((item) => [`${item.path}:${item.reason}`, item])).values()
-          ).slice(0, 20)
-        }
-      : primary.fileSelection;
+  const isFolder = input.sourceType === "folder" && Array.isArray(input.files);
+  const folderInput = isFolder ? input as AttachmentUploadInput & { files: NonNullable<AttachmentUploadInput["files"]> } : null;
   return {
     ...primary,
     fileName: input.fileName,
-    sourceType: input.sourceType === "folder" ? "folder" : "single-file",
-    analyzedTarget: input.sourceType === "folder" ? input.folderName?.trim() || input.fileName : input.fileName,
+    sourceType: isFolder ? "folder" : "single-file",
+    analyzedTarget: isFolder ? input.folderName?.trim() || input.fileName : input.fileName,
     analyzedAt: new Date().toISOString(),
-    fileStats,
-    fileSelection,
-    projectDetection: {
-      ...bestProjectDetection.projectDetection,
-      evidence: Array.from(new Set(reports.flatMap((item) => item.projectDetection.evidence))).slice(0, 6)
-    },
-    meaningfulFindings: Array.from(new Set(reports.flatMap((item) => item.meaningfulFindings))).slice(0, 16),
+    fileStats: folderInput ? mergeFolderFileStats(folderInput) : primary.fileStats,
+    fileSelection: folderInput ? mergeFolderFileSelection(folderInput, reports) : primary.fileSelection,
+    projectDetection: { ...bestDetection.projectDetection, evidence: dedupStrings(reports, (r) => r.projectDetection.evidence, 6) },
+    meaningfulFindings: dedupStrings(reports, (r) => r.meaningfulFindings, 16),
     prioritizedFindings: Array.from(
-      new Map(reports.flatMap((item) => item.prioritizedFindings).map((item) => [`${item.priority}:${item.content}`, item])).values()
+      new Map(reports.flatMap((r) => r.prioritizedFindings).map((f) => [`${f.priority}:${f.content}`, f])).values()
     ).slice(0, 16),
-    nextActions: Array.from(new Set(reports.flatMap((item) => item.nextActions))).slice(0, 14),
-    clarificationQuestions: Array.from(new Set(reports.flatMap((item) => item.clarificationQuestions))).slice(0, 12),
-    suggestions: Array.from(new Set(reports.flatMap((item) => item.suggestions))).slice(0, 14),
-    llmContext: {
-      ...primary.llmContext,
-      strategy: "folder-batch-job",
-      digest: `策略：文件夹分批合并，共 ${totalBatches} 批，合并报告 ${reports.length} 份`,
-      excerptLength: reports.reduce((total, item) => total + item.llmContext.excerptLength, 0),
-      chunkCount: reports.reduce((total, item) => total + item.llmContext.chunkCount, 0),
-      promptContextLength: reports.reduce((total, item) => total + item.llmContext.promptContextLength, 0),
-      agentCount: reports.reduce((total, item) => total + item.llmContext.agentCount, 0),
-      unknownSignalCount: reports.reduce((total, item) => total + item.llmContext.unknownSignalCount, 0),
-      degraded: reports.some((item) => item.llmContext.degraded),
-      degradeReason:
-        reports
-          .map((item) => item.llmContext.degradeReason)
-          .filter((item) => item.trim().length > 0)
-          .join(" | ")
-          .slice(0, 300) || ""
-    },
+    nextActions: dedupStrings(reports, (r) => r.nextActions, 14),
+    clarificationQuestions: dedupStrings(reports, (r) => r.clarificationQuestions, 12),
+    suggestions: dedupStrings(reports, (r) => r.suggestions, 14),
+    llmContext: mergeLlmContext(primary, reports, totalBatches),
     understanding: isLowSignalText(primary.understanding) ? "" : `${primary.understanding}（分批汇总：${reports.length}/${totalBatches}）`,
-    agentOutputs: reports.flatMap((item) => item.agentOutputs).slice(0, 60),
+    agentOutputs: reports.flatMap((r) => r.agentOutputs).slice(0, 60),
     businessConfirmation: mergeBusinessConfirmation(reports),
     deepInsights: mergeDeepInsights(reports),
-    reportQuality: mergeReportQuality(reports)
+    reportQuality: mergeReportQuality(reports),
   };
 }

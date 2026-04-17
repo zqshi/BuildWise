@@ -452,7 +452,7 @@ export function ArtifactPreviewPanel({
           <ArtifactTextEditor title={selectedDrawerArtifact.title} value={artifactDraftContent} profile="release-review" readOnly showTitle={false} />
         ) : (
           <div className="artifact-drawer-structured-content">
-            <p>最近结论：{{ go: "通过", caution: "有条件通过", block: "阻断" }[currentIteration?.changeControl?.lastReleaseReviewDecision] || currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
+            <p>最近结论：{{ go: "通过", caution: "有条件通过", block: "阻断" }[currentIteration?.changeControl?.lastReleaseReviewDecision ?? ""] || currentIteration?.changeControl?.lastReleaseReviewDecision || "-"}</p>
             <p className="hint">说明：{currentIteration?.changeControl?.lastReleaseReviewReason || "-"}</p>
           </div>
         )
