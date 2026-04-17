@@ -429,3 +429,52 @@ describe("markDownstreamStale — 级联失效", () => {
     }
   });
 });
+
+// ── hasPendingClarification ──
+
+const { hasPendingClarification } = await import(
+  "../dist/application/workspace/shared/common.js"
+);
+
+describe("hasPendingClarification — 澄清问题未解决判断", () => {
+  test("无澄清问题时返回 false", () => {
+    assert.equal(hasPendingClarification({}), false);
+  });
+
+  test("有问题但全部已解决时返回 false", () => {
+    assert.equal(hasPendingClarification({
+      clarificationQuestions: ["Q1", "Q2"],
+      lastClarificationResolution: {
+        resolvedQuestions: ["Q1", "Q2"],
+        unresolvedQuestions: []
+      }
+    }), false);
+  });
+
+  test("有未解决问题时返回 true", () => {
+    assert.equal(hasPendingClarification({
+      clarificationQuestions: ["Q1", "Q2"],
+      lastClarificationResolution: {
+        resolvedQuestions: [],
+        unresolvedQuestions: ["Q1", "Q2"]
+      }
+    }), true);
+  });
+
+  test("部分未解决时返回 true", () => {
+    assert.equal(hasPendingClarification({
+      clarificationQuestions: ["Q1", "Q2"],
+      lastClarificationResolution: {
+        resolvedQuestions: ["Q1"],
+        unresolvedQuestions: ["Q2"]
+      }
+    }), true);
+  });
+
+  test("有问题但 resolution 为空时返回 true", () => {
+    assert.equal(hasPendingClarification({
+      clarificationQuestions: ["Q1"],
+      lastClarificationResolution: { resolvedQuestions: [], unresolvedQuestions: [] }
+    }), true);
+  });
+});

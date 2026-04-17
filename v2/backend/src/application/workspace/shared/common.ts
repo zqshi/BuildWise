@@ -140,6 +140,18 @@ export function defaultIterationChangeControl(options?: { isFirstIteration?: boo
   };
 }
 
+export function hasPendingClarification(cc: {
+  clarificationQuestions?: string[];
+  lastClarificationResolution?: { resolvedQuestions?: string[]; unresolvedQuestions?: string[] };
+}): boolean {
+  const unresolved = cc.lastClarificationResolution?.unresolvedQuestions ?? [];
+  if (unresolved.length > 0) return true;
+  const questions = cc.clarificationQuestions ?? [];
+  if (questions.length === 0) return false;
+  const resolved = cc.lastClarificationResolution?.resolvedQuestions ?? [];
+  return resolved.length < questions.length;
+}
+
 export function resolveClarificationSelection(
   allQuestions: string[],
   selectedQuestions: string[] | undefined,

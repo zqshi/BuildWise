@@ -32,7 +32,7 @@ import {
 import { isSubstantiveContent } from '../changeControl/artifactDraftSynthesizer';
 import { synthesizeSingleArtifactOnDemand } from '../analysis/artifactSynthesisAgentOps';
 import { isLowSignalText } from '../analysis/extractors';
-import { defaultIterationChangeControl } from '../shared/common';
+import { defaultIterationChangeControl, hasPendingClarification } from '../shared/common';
 import { extractRequirementsFromConversation } from "./conversationRequirementExtractor";
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
 import { dedupeActions, parseRecentSuggestedActions } from './replyGuard';
@@ -379,6 +379,12 @@ async function ensureStructuredRequirements(
 
 type WorkflowItem = ReturnType<typeof defaultIterationChangeControl>["artifactWorkflow"]["items"][number];
 
+const CLARIFICATION_GATED_ARTIFACTS = new Set(["product-requirements-doc"]);
+
+function shouldBlockAutoConfirm(artifactId: string, pendingClarification: boolean): boolean {
+  return pendingClarification && CLARIFICATION_GATED_ARTIFACTS.has(artifactId);
+}
+
 function processArtifactItem(
   repo: WorkspaceRepository,
   iterationId: number,
@@ -386,17 +392,19 @@ function processArtifactItem(
   item: WorkflowItem,
   isDeclared: boolean,
   insufficientArtifacts: string[],
-  committedArtifactTitles: string[]
+  committedArtifactTitles: string[],
+  pendingClarification: boolean
 ) {
   if (item.outputVersion > 0 && item.gateStatus === "passed" && !item.stale) return;
 
   const draftEditedByHuman = item.draft?.updatedBy &&
     item.draft.updatedBy !== "system" && item.draft.updatedBy !== "orchestrator";
   const draftContent = (item.draft?.content ?? "").trim();
+  const blockConfirm = shouldBlockAutoConfirm(artifactId, pendingClarification);
 
   // 已提交但 stale → 只清标记不重新提交（防级联 markDownstreamStale）
   if (item.outputVersion > 0 && item.stale) {
-    if (isSubstantiveContent(draftContent)) {
+    if (isSubstantiveContent(draftContent) && !blockConfirm) {
       confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
     }
     return;
@@ -407,7 +415,7 @@ function processArtifactItem(
       saveIterationArtifactDraftOp(repo, iterationId, artifactId, { content: draftContent, actor: "orchestrator" });
     }
     if (item.outputVersion > 0 && !item.stale) {
-      if (item.gateStatus !== "passed") {
+      if (item.gateStatus !== "passed" && !blockConfirm) {
         confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
       }
     } else {
@@ -415,7 +423,7 @@ function processArtifactItem(
         actor: "orchestrator", summary: item.summary || item.title, source: "stage-orchestrator"
       });
       const alreadyConfirmedByHuman = item.lastConfirmedBy && item.lastConfirmedBy !== "orchestrator";
-      if (!alreadyConfirmedByHuman) {
+      if (!alreadyConfirmedByHuman && !blockConfirm) {
         confirmIterationArtifactOp(repo, iterationId, artifactId, { actor: "orchestrator", passed: true });
       }
       committedArtifactTitles.push(item.title);
@@ -477,10 +485,12 @@ async function attemptArtifactSynthesis(params: {
     }
   }
 
+  const pendingClarification = hasPendingClarification(cc);
+
   for (const artifactId of artifactsToAttempt) {
     const item = workflow.items.find((i) => i.id === artifactId);
     if (!item) continue;
-    processArtifactItem(repo, iterationId, artifactId, item, declaredArtifacts.includes(artifactId), insufficientArtifacts, committedArtifactTitles);
+    processArtifactItem(repo, iterationId, artifactId, item, declaredArtifacts.includes(artifactId), insufficientArtifacts, committedArtifactTitles, pendingClarification);
   }
 
   return { insufficientArtifacts, committedArtifactTitles };
