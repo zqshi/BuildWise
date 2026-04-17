@@ -191,7 +191,7 @@ export function autoCommitClarificationArtifacts(
     log.warn("skipping auto-commit: analysis data insufficient", { reasons: dataCheck.reasons.join(", ") });
     return;
   }
-  const autoCommitTargets = ["analysis-report", "product-requirements-doc"];
+  const autoCommitTargets = ["analysis-report"];
   for (const artifactId of autoCommitTargets) {
     const item = activeControl.artifactWorkflow.items.find((i) => i.id === artifactId);
     if (item && item.outputVersion === 0 && isSubstantiveContent(item.draft.content)) {
