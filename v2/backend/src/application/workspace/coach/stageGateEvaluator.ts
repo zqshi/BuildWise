@@ -10,6 +10,7 @@
 
 import type { Iteration, IterationArtifactStage, IterationArtifactWorkflowItem } from '../../../domain/workspace/iterationTypes';
 import { artifactStageOrder } from '../changeControl/artifactWorkflow';
+import { hasPendingClarification } from '../shared/common';
 
 // ── Public types ──
 
@@ -204,6 +205,13 @@ export function evaluateStageExitConditions(
   const staleInStage = items.filter((item) => item.stage === stage && item.stale && item.outputVersion > 0);
   if (staleInStage.length > 0) {
     remaining.push(`${staleInStage.map((i) => i.title).join("、")} 已过时需更新`);
+  }
+
+  // 澄清阶段：未解决的澄清问题阻止出口
+  if (stage === "clarification" && iteration.changeControl) {
+    if (hasPendingClarification(iteration.changeControl)) {
+      remaining.push("存在未解决的澄清问题");
+    }
   }
 
   return {
