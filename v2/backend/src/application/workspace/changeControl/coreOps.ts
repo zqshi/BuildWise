@@ -360,65 +360,58 @@ export function updateClarificationDraftOp(repo: WorkspaceRepository, iterationI
   return normalized.changeControl;
 }
 
+function normalizeExecutionUpdates(updates: TestMatrixExecutionUpdate[]) {
+  return (Array.isArray(updates) ? updates : [])
+    .map((item) => ({
+      caseId: typeof item?.caseId === "string" ? item.caseId.trim() : "",
+      status: typeof item?.status === "string" ? item.status.trim().toLowerCase() : "",
+      by: typeof item?.by === "string" ? item.by.trim() : "",
+      note: typeof item?.note === "string" ? item.note.trim() : ""
+    }))
+    .filter((item) => item.caseId.length > 0);
+}
+
+function applyMatrixUpdates(
+  matrix: ReturnType<typeof defaultIterationChangeControl>["generatedTestMatrix"],
+  normalizedUpdates: ReturnType<typeof normalizeExecutionUpdates>,
+  now: string
+) {
+  const updateMap = new Map(normalizedUpdates.map((item) => [item.caseId, item]));
+  return matrix.map((item) => {
+    const update = updateMap.get(item.caseId);
+    if (!update) return item;
+    return {
+      ...item,
+      executionStatus: update.status as "pending" | "passed" | "failed" | "blocked" | "skipped",
+      executionUpdatedAt: now, executionBy: update.by || "qa", executionNote: update.note || ""
+    };
+  });
+}
+
 export function updateIterationTestMatrixExecutionOp(
   repo: WorkspaceRepository,
   iterationId: number,
   updates: TestMatrixExecutionUpdate[]
 ) {
   const iteration = repo.findIteration(iterationId);
-  if (!iteration) {
-    return { ok: false as const, reason: "iteration_not_found" };
-  }
+  if (!iteration) return { ok: false as const, reason: "iteration_not_found" };
   const normalized = normalizeIteration(iteration);
   const current = normalized.changeControl ?? defaultIterationChangeControl();
   const matrix = Array.isArray(current.generatedTestMatrix) ? current.generatedTestMatrix : [];
-  if (matrix.length === 0) {
-    return { ok: false as const, reason: "test_matrix_missing" };
-  }
+  if (matrix.length === 0) return { ok: false as const, reason: "test_matrix_missing" };
 
-  const normalizedUpdates = Array.isArray(updates)
-    ? updates
-        .map((item) => ({
-          caseId: typeof item?.caseId === "string" ? item.caseId.trim() : "",
-          status: typeof item?.status === "string" ? item.status.trim().toLowerCase() : "",
-          by: typeof item?.by === "string" ? item.by.trim() : "",
-          note: typeof item?.note === "string" ? item.note.trim() : ""
-        }))
-        .filter((item) => item.caseId.length > 0)
-    : [];
-
+  const normalizedUpdates = normalizeExecutionUpdates(updates);
   if (normalizedUpdates.length === 0 || normalizedUpdates.some((item) => !ALLOWED_EXECUTION_STATUSES.has(item.status))) {
     return { ok: false as const, reason: "invalid_updates" };
   }
-
   const existingIds = new Set(matrix.map((item) => item.caseId).filter(Boolean));
-  const missingCaseIds = normalizedUpdates
-    .map((item) => item.caseId)
-    .filter((caseId, index, arr) => arr.indexOf(caseId) === index && !existingIds.has(caseId));
-  if (missingCaseIds.length > 0) {
-    return { ok: false as const, reason: "case_not_found", missingCaseIds };
-  }
+  const missingCaseIds = normalizedUpdates.map((item) => item.caseId).filter((id, i, a) => a.indexOf(id) === i && !existingIds.has(id));
+  if (missingCaseIds.length > 0) return { ok: false as const, reason: "case_not_found", missingCaseIds };
 
   const now = new Date().toISOString();
-  const updateMap = new Map(normalizedUpdates.map((item) => [item.caseId, item]));
-  const updatedMatrix = matrix.map((item) => {
-    const update = updateMap.get(item.caseId);
-    if (!update) {
-      return item;
-    }
-    return {
-      ...item,
-      executionStatus: update.status as "pending" | "passed" | "failed" | "blocked" | "skipped",
-      executionUpdatedAt: now,
-      executionBy: update.by || "qa",
-      executionNote: update.note || ""
-    };
-  });
-
+  const updatedMatrix = applyMatrixUpdates(matrix, normalizedUpdates, now);
   normalized.changeControl = {
-    ...current,
-    generatedTestMatrix: updatedMatrix,
-    testMatrixExecutionUpdatedAt: now,
+    ...current, generatedTestMatrix: updatedMatrix, testMatrixExecutionUpdatedAt: now,
     artifactWorkflow: ensureArtifactWorkflow(normalized, current, now)
   };
   const matrixItem = normalized.changeControl.artifactWorkflow.items.find((item) => item.id === "test-matrix");
@@ -431,11 +424,7 @@ export function updateIterationTestMatrixExecutionOp(
   repo.updateIteration(normalized);
 
   const summary = summarizeMatrixExecution(updatedMatrix);
-  writeAuditLog(
-    repo,
-    "iteration_test_matrix_execution_updated",
-    `iteration:${iterationId}`,
-    `updated=${normalizedUpdates.length};executed=${summary.executed};coverage=${summary.coverage};passRate=${summary.passRate}`
-  );
+  writeAuditLog(repo, "iteration_test_matrix_execution_updated", `iteration:${iterationId}`,
+    `updated=${normalizedUpdates.length};executed=${summary.executed};coverage=${summary.coverage};passRate=${summary.passRate}`);
   return { ok: true as const, data: normalized.changeControl, summary };
 }

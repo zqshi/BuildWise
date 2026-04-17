@@ -139,22 +139,37 @@ function mergeChunkVersionDiffDetailed(chunks: CoreAnalysisChunkResult[]): CoreA
   };
 }
 
+function mergeProjectDetection(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["projectDetection"] {
+  const best = chunks.reduce((prev, cur) => {
+    const prevScore = rankConfidence(prev.projectDetection.confidence) * 10 + prev.projectDetection.evidence.length;
+    const curScore = rankConfidence(cur.projectDetection.confidence) * 10 + cur.projectDetection.evidence.length;
+    return curScore > prevScore ? cur : prev;
+  }, chunks[0]);
+  return { ...best.projectDetection, evidence: dedupStrings(chunks.flatMap((c) => c.projectDetection.evidence), 8) };
+}
+
+function mergeAttachmentInsights(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["attachmentInsights"] {
+  const best = chunks.reduce((prev, cur) =>
+    rankConfidence(cur.attachmentInsights.confidence) > rankConfidence(prev.attachmentInsights.confidence) ? cur : prev
+  , chunks[0]);
+  return {
+    ...best.attachmentInsights,
+    keyCharacteristics: dedupStrings(chunks.flatMap((c) => c.attachmentInsights.keyCharacteristics), 12),
+    limitations: dedupStrings(chunks.flatMap((c) => c.attachmentInsights.limitations), 8)
+  };
+}
+
+function mergeExecutableConstraints(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult["executableConstraints"] {
+  return {
+    componentWhitelist: dedupStrings(chunks.flatMap((c) => c.executableConstraints.componentWhitelist), 20),
+    codePathWhitelist: dedupStrings(chunks.flatMap((c) => c.executableConstraints.codePathWhitelist), 20),
+    acceptanceChecks: dedupStrings(chunks.flatMap((c) => c.executableConstraints.acceptanceChecks), 16),
+    gateRules: dedupStrings(chunks.flatMap((c) => c.executableConstraints.gateRules), 12)
+  };
+}
+
 export function mergeCoreAnalysisChunks(chunks: CoreAnalysisChunkResult[]): CoreAnalysisChunkResult {
   if (chunks.length === 1) return chunks[0];
-
-  // projectDetection: 取 evidence 最多 + confidence 最高的
-  const bestProject = chunks.reduce((best, cur) => {
-    const bestScore = rankConfidence(best.projectDetection.confidence) * 10 + best.projectDetection.evidence.length;
-    const curScore = rankConfidence(cur.projectDetection.confidence) * 10 + cur.projectDetection.evidence.length;
-    return curScore > bestScore ? cur : best;
-  }, chunks[0]);
-  const projectDetection = {
-    ...bestProject.projectDetection,
-    evidence: dedupStrings(chunks.flatMap((c) => c.projectDetection.evidence), 8)
-  };
-
-  // 数组字段：concat → 去重 → 限量
-  const meaningfulFindings = dedupStrings(chunks.flatMap((c) => c.meaningfulFindings), 15);
 
   const prioritizedFindings = dedupByKey(
     chunks.flatMap((c) => c.prioritizedFindings),
@@ -162,46 +177,20 @@ export function mergeCoreAnalysisChunks(chunks: CoreAnalysisChunkResult[]): Core
     15
   ).sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9));
 
-  const nextActions = dedupStrings(chunks.flatMap((c) => c.nextActions), 12);
-  const clarificationQuestions = dedupStrings(chunks.flatMap((c) => c.clarificationQuestions), 12);
-  const risks = dedupStrings(chunks.flatMap((c) => c.risks), 12);
-  const suggestions = dedupStrings(chunks.flatMap((c) => c.suggestions), 14);
-
-  // attachmentInsights: 取 confidence 最高的，keyCharacteristics 合并
-  const bestInsight = chunks.reduce((best, cur) =>
-    rankConfidence(cur.attachmentInsights.confidence) > rankConfidence(best.attachmentInsights.confidence) ? cur : best
-  , chunks[0]);
-  const attachmentInsights = {
-    ...bestInsight.attachmentInsights,
-    keyCharacteristics: dedupStrings(chunks.flatMap((c) => c.attachmentInsights.keyCharacteristics), 12),
-    limitations: dedupStrings(chunks.flatMap((c) => c.attachmentInsights.limitations), 8)
-  };
-
-  const deepInsights = mergeChunkDeepInsights(chunks);
-  const traceabilityMap = mergeChunkTraceabilityMap(chunks);
-  const executableConstraints: CoreAnalysisChunkResult["executableConstraints"] = {
-    componentWhitelist: dedupStrings(chunks.flatMap((c) => c.executableConstraints.componentWhitelist), 20),
-    codePathWhitelist: dedupStrings(chunks.flatMap((c) => c.executableConstraints.codePathWhitelist), 20),
-    acceptanceChecks: dedupStrings(chunks.flatMap((c) => c.executableConstraints.acceptanceChecks), 16),
-    gateRules: dedupStrings(chunks.flatMap((c) => c.executableConstraints.gateRules), 12)
-  };
-  const domainKnowledge = mergeChunkDomainKnowledge(chunks);
-  const versionDiffDetailed = mergeChunkVersionDiffDetailed(chunks);
-
   return {
-    projectDetection,
-    meaningfulFindings,
+    projectDetection: mergeProjectDetection(chunks),
+    meaningfulFindings: dedupStrings(chunks.flatMap((c) => c.meaningfulFindings), 15),
     prioritizedFindings,
-    nextActions,
-    attachmentInsights,
-    deepInsights,
-    traceabilityMap,
-    executableConstraints,
-    domainKnowledge,
-    versionDiffDetailed,
-    clarificationQuestions,
-    risks,
-    suggestions
+    nextActions: dedupStrings(chunks.flatMap((c) => c.nextActions), 12),
+    attachmentInsights: mergeAttachmentInsights(chunks),
+    deepInsights: mergeChunkDeepInsights(chunks),
+    traceabilityMap: mergeChunkTraceabilityMap(chunks),
+    executableConstraints: mergeExecutableConstraints(chunks),
+    domainKnowledge: mergeChunkDomainKnowledge(chunks),
+    versionDiffDetailed: mergeChunkVersionDiffDetailed(chunks),
+    clarificationQuestions: dedupStrings(chunks.flatMap((c) => c.clarificationQuestions), 12),
+    risks: dedupStrings(chunks.flatMap((c) => c.risks), 12),
+    suggestions: dedupStrings(chunks.flatMap((c) => c.suggestions), 14)
   };
 }
 

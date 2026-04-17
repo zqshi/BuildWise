@@ -24,6 +24,6 @@ test("buildLabeledSignal formats hint text consistently", () => {
 });
 
 test("buildEvidenceSignal normalizes missing evidence", () => {
-  assert.equal(buildEvidenceSignal("sync_status=ok"), "evidence：sync_status=ok");
-  assert.equal(buildEvidenceSignal(""), "evidence：-");
+  assert.equal(buildEvidenceSignal("sync_status=ok"), "依据：sync_status=ok");
+  assert.equal(buildEvidenceSignal(""), "依据：-");
 });

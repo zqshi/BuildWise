@@ -2,7 +2,7 @@ export function formatRenderError(error: unknown) {
   if (error instanceof Error) {
     return {
       title: error.name || "RenderError",
-      message: error.message || "Unknown render error"
+      message: error.message || "界面渲染异常"
     };
   }
   if (typeof error === "string" && error.trim()) {
@@ -13,6 +13,6 @@ export function formatRenderError(error: unknown) {
   }
   return {
     title: "RenderError",
-    message: "Unknown render error"
+    message: "界面渲染异常"
   };
 }

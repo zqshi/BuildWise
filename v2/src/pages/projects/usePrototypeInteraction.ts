@@ -28,6 +28,98 @@ export type PrototypeInteractionState = {
   ) => { applied: boolean; summary: string; plan: string[] };
 };
 
+const PROTOTYPE_COLOR_MAP: Record<string, { background: string; color: string }> = {
+  蓝色: { background: "#2563eb", color: "#ffffff" },
+  绿色: { background: "#16a34a", color: "#ffffff" },
+  橙色: { background: "#ea580c", color: "#ffffff" },
+  红色: { background: "#dc2626", color: "#ffffff" },
+  灰色: { background: "#475569", color: "#ffffff" },
+};
+
+function applyColorChanges(
+  normalized: string,
+  element: PrototypeElement,
+  plan: string[],
+): void {
+  for (const [key, color] of Object.entries(PROTOTYPE_COLOR_MAP)) {
+    if (normalized.includes(key) && (element.background !== color.background || element.color !== color.color)) {
+      element.background = color.background;
+      element.color = color.color;
+      plan.push(`配色 → ${key}`);
+    }
+  }
+}
+
+function parsePrototypeChanges(
+  instruction: string,
+  selected: PrototypeElement,
+): { next: PrototypeElement; plan: string[] } {
+  const normalized = instruction.trim();
+  const quotedText = normalized.match(/[""](.+?)[""]/)?.[1];
+  const renamedText =
+    quotedText ||
+    normalized.match(/(?:改成|改为|改名为|文案改为)\s*[:：]?\s*(.+)$/)?.[1]?.trim() ||
+    "";
+  const next = { ...selected };
+  const plan: string[] = [];
+  if (renamedText && renamedText !== selected.label) {
+    next.label = renamedText;
+    plan.push(`文案 → ${renamedText}`);
+  }
+  if (/隐藏|删除|移除/.test(normalized) && selected.visible) {
+    next.visible = false;
+    plan.push("可见性 → 隐藏");
+  }
+  if (/显示|恢复/.test(normalized) && !selected.visible) {
+    next.visible = true;
+    plan.push("可见性 → 显示");
+  }
+  if (/加粗|强调/.test(normalized) && !selected.emphasized) {
+    next.emphasized = true;
+    plan.push("强调状态 → 开启");
+  }
+  if (/取消加粗|去强调/.test(normalized) && selected.emphasized) {
+    next.emphasized = false;
+    plan.push("强调状态 → 关闭");
+  }
+  const widthMatch = normalized.match(/宽(?:度)?\s*(\d{2,4})/);
+  if (widthMatch) {
+    const width = Math.max(120, Math.min(900, Number(widthMatch[1])));
+    if (width !== selected.width) {
+      next.width = width;
+      plan.push(`宽度 → ${width}`);
+    }
+  }
+  const heightMatch = normalized.match(/高(?:度)?\s*(\d{2,4})/);
+  if (heightMatch) {
+    const height = Math.max(32, Math.min(600, Number(heightMatch[1])));
+    if (height !== selected.height) {
+      next.height = height;
+      plan.push(`高度 → ${height}`);
+    }
+  }
+  if (/变大|放大/.test(normalized)) {
+    const width = Math.min(900, next.width + 40);
+    const height = Math.min(600, next.height + 10);
+    if (width !== next.width || height !== next.height) {
+      next.width = width;
+      next.height = height;
+      plan.push(`尺寸 → ${width}×${height}`);
+    }
+  }
+  if (/变小|缩小/.test(normalized)) {
+    const width = Math.max(120, next.width - 40);
+    const height = Math.max(32, next.height - 10);
+    if (width !== next.width || height !== next.height) {
+      next.width = width;
+      next.height = height;
+      plan.push(`尺寸 → ${width}×${height}`);
+    }
+  }
+  applyColorChanges(normalized, next, plan);
+  return { next, plan };
+}
+
 export function usePrototypeInteraction(
   interactionEditMode: boolean,
 ): PrototypeInteractionState {
@@ -134,85 +226,10 @@ export function usePrototypeInteraction(
     setPrototypeLastPlan: React.Dispatch<React.SetStateAction<string[]>>,
     setPrototypeHistory: React.Dispatch<React.SetStateAction<PrototypeChangeHistoryItem[]>>,
   ): { applied: boolean; summary: string; plan: string[] } => {
-    const normalized = instruction.trim();
-    if (!selected || !normalized) {
+    if (!selected || !instruction.trim()) {
       return { applied: false, summary: "未识别有效修改。", plan: [] as string[] };
     }
-    const colorMap: Record<string, { background: string; color: string }> = {
-      蓝色: { background: "#2563eb", color: "#ffffff" },
-      绿色: { background: "#16a34a", color: "#ffffff" },
-      橙色: { background: "#ea580c", color: "#ffffff" },
-      红色: { background: "#dc2626", color: "#ffffff" },
-      灰色: { background: "#475569", color: "#ffffff" },
-    };
-    const quotedText = normalized.match(/[""](.+?)[""]/)?.[1];
-    const renamedText =
-      quotedText ||
-      normalized.match(/(?:改成|改为|改名为|文案改为)\s*[:：]?\s*(.+)$/)?.[1]?.trim() ||
-      "";
-    const next = { ...selected };
-    const plan: string[] = [];
-    if (renamedText && renamedText !== selected.label) {
-      next.label = renamedText;
-      plan.push(`文案 → ${renamedText}`);
-    }
-    if (/隐藏|删除|移除/.test(normalized) && selected.visible) {
-      next.visible = false;
-      plan.push("可见性 → 隐藏");
-    }
-    if (/显示|恢复/.test(normalized) && !selected.visible) {
-      next.visible = true;
-      plan.push("可见性 → 显示");
-    }
-    if (/加粗|强调/.test(normalized) && !selected.emphasized) {
-      next.emphasized = true;
-      plan.push("强调状态 → 开启");
-    }
-    if (/取消加粗|去强调/.test(normalized) && selected.emphasized) {
-      next.emphasized = false;
-      plan.push("强调状态 → 关闭");
-    }
-    const widthMatch = normalized.match(/宽(?:度)?\s*(\d{2,4})/);
-    if (widthMatch) {
-      const width = Math.max(120, Math.min(900, Number(widthMatch[1])));
-      if (width !== selected.width) {
-        next.width = width;
-        plan.push(`宽度 → ${width}`);
-      }
-    }
-    const heightMatch = normalized.match(/高(?:度)?\s*(\d{2,4})/);
-    if (heightMatch) {
-      const height = Math.max(32, Math.min(600, Number(heightMatch[1])));
-      if (height !== selected.height) {
-        next.height = height;
-        plan.push(`高度 → ${height}`);
-      }
-    }
-    if (/变大|放大/.test(normalized)) {
-      const width = Math.min(900, next.width + 40);
-      const height = Math.min(600, next.height + 10);
-      if (width !== next.width || height !== next.height) {
-        next.width = width;
-        next.height = height;
-        plan.push(`尺寸 → ${width}×${height}`);
-      }
-    }
-    if (/变小|缩小/.test(normalized)) {
-      const width = Math.max(120, next.width - 40);
-      const height = Math.max(32, next.height - 10);
-      if (width !== next.width || height !== next.height) {
-        next.width = width;
-        next.height = height;
-        plan.push(`尺寸 → ${width}×${height}`);
-      }
-    }
-    for (const [key, color] of Object.entries(colorMap)) {
-      if (normalized.includes(key) && (next.background !== color.background || next.color !== color.color)) {
-        next.background = color.background;
-        next.color = color.color;
-        plan.push(`配色 → ${key}`);
-      }
-    }
+    const { next, plan } = parsePrototypeChanges(instruction, selected);
     if (plan.length === 0) {
       setPrototypeLastPlan(["未识别到可执行属性变更（可尝试：文案、颜色、宽高、显隐、强调）。"]);
       return { applied: false, summary: "未识别有效修改。", plan: [] as string[] };
@@ -224,7 +241,7 @@ export function usePrototypeInteraction(
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       targetId: selected.id,
       targetLabel: selected.label,
-      instruction: normalized,
+      instruction: instruction.trim(),
       summary,
       before: selected,
       after: next,

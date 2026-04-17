@@ -1,6 +1,33 @@
 import type { AttachmentAnalysisReport, AttachmentReportSection } from '../../../domain/workspace/types';
 import { sanitizeDisplayItem } from '../coach/messageSanitizer';
 
+type SectionCtx = { reportId: string; now: string; newSectionId: () => string };
+
+function buildOverviewSection(report: AttachmentAnalysisReport, ctx: SectionCtx): AttachmentReportSection {
+  return {
+    sectionId: ctx.newSectionId(), reportId: ctx.reportId, sectionKey: "overview", sectionOrder: 1, status: "ready", itemCount: 1, updatedAt: ctx.now,
+    content: {
+      understanding: sanitizeDisplayItem(report.understanding || ""),
+      summary: report.businessConfirmation?.necessityAssessment?.rationale || "",
+      items: [{ project: report.projectDetection?.projectName || "", product: report.projectDetection?.productName || "", confidence: report.projectDetection?.confidence || "low" }],
+    },
+  };
+}
+
+function buildProjectDetectionSection(report: AttachmentAnalysisReport, ctx: SectionCtx): AttachmentReportSection {
+  return {
+    sectionId: ctx.newSectionId(), reportId: ctx.reportId, sectionKey: "projectDetection", sectionOrder: 2, status: "ready", itemCount: 1, updatedAt: ctx.now,
+    content: { items: [{ projectName: report.projectDetection?.projectName || "", productName: report.projectDetection?.productName || "", confidence: report.projectDetection?.confidence || "low", evidence: (report.projectDetection?.evidence || []).map(sanitizeDisplayItem).filter(Boolean) }] },
+  };
+}
+
+function buildListSection(key: AttachmentReportSection["sectionKey"], order: number, items: Array<{ text: string }>, ctx: SectionCtx): AttachmentReportSection {
+  return {
+    sectionId: ctx.newSectionId(), reportId: ctx.reportId, sectionKey: key, sectionOrder: order,
+    status: items.length > 0 ? "ready" : "empty", itemCount: items.length, updatedAt: ctx.now, content: { items },
+  };
+}
+
 export function buildAttachmentReportSections(params: {
   reportId: string;
   report: AttachmentAnalysisReport;
@@ -8,6 +35,7 @@ export function buildAttachmentReportSections(params: {
   newSectionId: () => string;
 }): AttachmentReportSection[] {
   const { reportId, report, now, newSectionId } = params;
+  const ctx: SectionCtx = { reportId, now, newSectionId };
   const findings = (report.meaningfulFindings || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text);
   const risks = (report.risks || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text);
   const traceabilityItems = [
@@ -15,89 +43,14 @@ export function buildAttachmentReportSections(params: {
     ...(report.traceabilityMap?.conflicts || []).map((item) => `冲突：${sanitizeDisplayItem(item)}`),
     ...(report.traceabilityMap?.gaps || []).map((item) => `缺口：${sanitizeDisplayItem(item)}`)
   ].map((item) => ({ text: item })).filter((item) => item.text);
+  const appendixItems = (report.clarificationQuestions || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text);
   return [
-    {
-      sectionId: newSectionId(),
-      reportId,
-      sectionKey: "overview",
-      sectionOrder: 1,
-      status: "ready",
-      itemCount: 1,
-      updatedAt: now,
-      content: {
-        understanding: sanitizeDisplayItem(report.understanding || ""),
-        summary: report.businessConfirmation?.necessityAssessment?.rationale || "",
-        items: [
-          {
-            project: report.projectDetection?.projectName || "",
-            product: report.projectDetection?.productName || "",
-            confidence: report.projectDetection?.confidence || "low"
-          }
-        ]
-      }
-    },
-    {
-      sectionId: newSectionId(),
-      reportId,
-      sectionKey: "projectDetection",
-      sectionOrder: 2,
-      status: "ready",
-      itemCount: 1,
-      updatedAt: now,
-      content: {
-        items: [
-          {
-            projectName: report.projectDetection?.projectName || "",
-            productName: report.projectDetection?.productName || "",
-            confidence: report.projectDetection?.confidence || "low",
-            evidence: (report.projectDetection?.evidence || []).map(sanitizeDisplayItem).filter(Boolean)
-          }
-        ]
-      }
-    },
-    {
-      sectionId: newSectionId(),
-      reportId,
-      sectionKey: "findings",
-      sectionOrder: 3,
-      status: findings.length > 0 ? "ready" : "empty",
-      itemCount: findings.length,
-      updatedAt: now,
-      content: { items: findings }
-    },
-    {
-      sectionId: newSectionId(),
-      reportId,
-      sectionKey: "risks",
-      sectionOrder: 4,
-      status: risks.length > 0 ? "ready" : "empty",
-      itemCount: risks.length,
-      updatedAt: now,
-      content: { items: risks }
-    },
-    {
-      sectionId: newSectionId(),
-      reportId,
-      sectionKey: "traceability",
-      sectionOrder: 5,
-      status: traceabilityItems.length > 0 ? "ready" : "empty",
-      itemCount: traceabilityItems.length,
-      updatedAt: now,
-      content: { items: traceabilityItems }
-    },
-    {
-      sectionId: newSectionId(),
-      reportId,
-      sectionKey: "appendix",
-      sectionOrder: 6,
-      status: "ready",
-      itemCount: report.clarificationQuestions.length,
-      updatedAt: now,
-      content: {
-        items: (report.clarificationQuestions || []).map((item) => ({ text: sanitizeDisplayItem(item) })).filter((item) => item.text),
-        releaseReview: report.releaseReview || null
-      }
-    }
+    buildOverviewSection(report, ctx),
+    buildProjectDetectionSection(report, ctx),
+    buildListSection("findings", 3, findings, ctx),
+    buildListSection("risks", 4, risks, ctx),
+    buildListSection("traceability", 5, traceabilityItems, ctx),
+    { ...buildListSection("appendix", 6, appendixItems, ctx), status: "ready", content: { items: appendixItems, releaseReview: report.releaseReview || null } },
   ];
 }
 

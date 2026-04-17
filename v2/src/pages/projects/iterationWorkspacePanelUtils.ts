@@ -70,14 +70,17 @@ export function patchHtmlRuntimeForPreview(content: string) {
   return `${fallbackPrelude}\n${guardedContent}`;
 }
 
-export function instrumentHtmlPreview(content: string, enableInteraction: boolean) {
-  const runtimePatchedContent = patchHtmlRuntimeForPreview(content);
-  const script = `
-<script>
-(() => {
-  if (window.__buildwisePreviewInjected) return;
-  window.__buildwisePreviewInjected = true;
-  const interactionEnabled = ${enableInteraction ? "true" : "false"};
+/* ---------------------------------------------------------------------------
+ * instrumentHtmlPreview — injected script fragments
+ *
+ * Each helper returns a raw JavaScript string that will be concatenated into
+ * a single <script> block. Keeping them separate ensures every TypeScript
+ * function stays within the 60-line budget.
+ * --------------------------------------------------------------------------- */
+
+/** Responsive-fit CSS injected into the preview <head>. */
+function buildResponsiveCssSnippet(): string {
+  return `
   const fitStyle = document.createElement("style");
   fitStyle.textContent = [
     "html, body { min-width: 0 !important; }",
@@ -88,7 +91,12 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
     "body > * { max-width: 100% !important; }"
   ].join("\\n");
   if (document.head) document.head.appendChild(fitStyle);
-  else document.addEventListener("DOMContentLoaded", () => document.head && document.head.appendChild(fitStyle), { once: true });
+  else document.addEventListener("DOMContentLoaded", () => document.head && document.head.appendChild(fitStyle), { once: true });`;
+}
+
+/** Content-bounds measurement + responsive scale application. */
+function buildResponsiveFitSnippet(): string {
+  return `
   const getContentBounds = (body) => {
     let rightEdge = 0;
     let bottomEdge = 0;
@@ -124,7 +132,12 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
     body.style.width = contentWidth + "px";
     const contentHeight = Math.max(1, bounds.height, body.scrollHeight, docEl.scrollHeight);
     body.style.minHeight = Math.ceil(contentHeight * scale) + "px";
-  };
+  };`;
+}
+
+/** Event listeners that trigger the responsive-fit recalculation. */
+function buildResponsiveFitListenersSnippet(): string {
+  return `
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => applyResponsiveFit(), { once: true });
   } else {
@@ -135,7 +148,12 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
   if (window.ResizeObserver) {
     const ro = new ResizeObserver(() => applyResponsiveFit());
     ro.observe(document.documentElement);
-  }
+  }`;
+}
+
+/** Selection-overlay element creation and append. */
+function buildOverlaySnippet(): string {
+  return `
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.pointerEvents = "none";
@@ -145,7 +163,12 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
   overlay.style.borderRadius = "8px";
   overlay.style.display = "none";
   document.addEventListener("DOMContentLoaded", () => document.body.appendChild(overlay), { once: true });
-  if (document.body) document.body.appendChild(overlay);
+  if (document.body) document.body.appendChild(overlay);`;
+}
+
+/** CSS-selector helpers and overlay-update. */
+function buildSelectorAndOverlaySnippet(): string {
+  return `
   let selectedEl = null;
   const ignoredTags = new Set(["HTML","BODY","SCRIPT","STYLE","LINK","META"]);
   const cssPath = (node) => {
@@ -179,7 +202,12 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
     overlay.style.top = rect.top + "px";
     overlay.style.width = rect.width + "px";
     overlay.style.height = rect.height + "px";
-  };
+  };`;
+}
+
+/** postMessage send utility for element inspection. */
+function buildPostMessageSendSnippet(): string {
+  return `
   const send = (type, el) => {
     if (!el || ignoredTags.has(el.tagName)) return;
     const rect = el.getBoundingClientRect();
@@ -204,8 +232,13 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
         }
       }
     }, "*");
-  };
-  if (interactionEnabled) {
+  };`;
+}
+
+/** Mouse/click interaction handlers (enabled only when interaction is on). */
+function buildInteractionHandlersSnippet(enableInteraction: boolean): string {
+  return `
+  if (${enableInteraction ? "true" : "false"}) {
     document.addEventListener("mousemove", (event) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -223,7 +256,12 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
     }, true);
   }
   window.addEventListener("scroll", () => selectedEl && updateOverlay(selectedEl), true);
-  window.addEventListener("resize", () => selectedEl && updateOverlay(selectedEl), true);
+  window.addEventListener("resize", () => selectedEl && updateOverlay(selectedEl), true);`;
+}
+
+/** Incoming message handler: resolve target element from selector or selection. */
+function buildMessageResolveTargetSnippet(): string {
+  return `
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent) return;
     if (event.origin !== "null" && event.origin !== location.origin) return;
@@ -245,6 +283,14 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
     };
     const target = resolveTarget();
     if (!target || ignoredTags.has(target.tagName)) return;
+    __bwHandleMessage(data, target, payload);
+  });`;
+}
+
+/** Apply-actions and restore-snapshot message handling logic. */
+function buildMessageActionSnippet(): string {
+  return `
+  const __bwHandleMessage = (data, target, payload) => {
     if (data.type === "apply-actions" && Array.isArray(payload.actions)) {
       for (const action of payload.actions) {
         if (!action || typeof action !== "object") continue;
@@ -282,9 +328,34 @@ export function instrumentHtmlPreview(content: string, enableInteraction: boolea
       updateOverlay(target);
       send("select", target);
     }
-  });
-})();
-</script>`;
+  };`;
+}
+
+/**
+ * Injects a <script> block into the given HTML content that enables:
+ * - responsive scaling to fit any container width
+ * - element selection / hover overlay (when `enableInteraction` is true)
+ * - postMessage bridge for visual-edit commands from the host
+ */
+export function instrumentHtmlPreview(content: string, enableInteraction: boolean): string {
+  const runtimePatchedContent = patchHtmlRuntimeForPreview(content);
+
+  const script = [
+    "\n<script>\n(() => {",
+    "  if (window.__buildwisePreviewInjected) return;",
+    "  window.__buildwisePreviewInjected = true;",
+    buildResponsiveCssSnippet(),
+    buildResponsiveFitSnippet(),
+    buildResponsiveFitListenersSnippet(),
+    buildOverlaySnippet(),
+    buildSelectorAndOverlaySnippet(),
+    buildPostMessageSendSnippet(),
+    buildInteractionHandlersSnippet(enableInteraction),
+    buildMessageActionSnippet(),
+    buildMessageResolveTargetSnippet(),
+    "})();\n</script>",
+  ].join("\n");
+
   if (/<\/body>/i.test(runtimePatchedContent)) {
     return runtimePatchedContent.replace(/<\/body>/i, `${script}</body>`);
   }

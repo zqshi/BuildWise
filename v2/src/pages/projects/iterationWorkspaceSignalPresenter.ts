@@ -16,5 +16,5 @@ export function buildLabeledSignal(label: string, values: string[]): string {
 
 export function buildEvidenceSignal(evidence: string): string {
   const trimmed = evidence.trim();
-  return `evidence：${trimmed || "-"}`;
+  return `依据：${trimmed || "-"}`;
 }

@@ -326,7 +326,7 @@ export function AnalysisReportSections({
           <ul className="history-list findings-list">
             {analysisReport.deepInsights.fileInsights.map((fi, index) => (
               <li key={`fi-${fi.path}-${index}`} className="history-item history-item-stack">
-                <strong>{fi.fileName}{fi.status !== "analyzed" ? `（${{ skipped: "已跳过", truncated: "已截断", error: "分析失败", pending: "待分析" }[fi.status] || fi.status}）` : ""}</strong>
+                <strong>{fi.fileName}{fi.status !== "analyzed" ? `（${{ skipped: "已跳过", truncated: "已截断", error: "分析失败", failed: "分析失败", partial: "部分分析", pending: "待分析" }[fi.status] || fi.status}）` : ""}</strong>
                 <p>{fi.summary || fi.mainContent || "-"}</p>
                 {fi.iterationValue ? <p className="hint">迭代价值：{fi.iterationValue}</p> : null}
                 {fi.risks?.length ? <p className="hint">风险：{fi.risks.join("；")}</p> : null}
@@ -398,7 +398,7 @@ export function AnalysisReportSections({
               ))}
             </ul>
           ) : (
-            <p className="hint">暂无可用三向映射，请先补齐 requirement/component/codePath 边界。</p>
+            <p className="hint">暂无可用三向映射，请先补齐需求、组件、代码路径边界。</p>
           )}
         </div>
       ) : null}

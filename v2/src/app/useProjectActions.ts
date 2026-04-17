@@ -38,177 +38,182 @@ type UseProjectActionsParams = {
   loadIterations: (projectId: number) => Promise<void>;
 };
 
-export function useProjectActions({
-  currentProject,
-  projectName,
-  projectDesc,
-  iterName,
-  iterDesc,
-  iterGoals,
-  iterInScope,
-  iterOutScope,
-  iterAcceptance,
-  iterVersionType,
-  setBusy,
-  setError,
-  setCurrentProjectId,
-  setCurrentIterationId,
-  setProjectPanelMode,
-  setShowCreateProject,
-  setShowCreateIteration,
-  setUploadedFile,
-  setProjectName,
-  setProjectDesc,
-  setIterName,
-  setIterDesc,
-  setIterGoals,
-  setIterInScope,
-  setIterOutScope,
-  setIterAcceptance,
-  setIterVersionType,
-  loadProjects,
-  loadIterations
-}: UseProjectActionsParams) {
-  const resolveProjectApiError = (error: unknown) => {
-    const raw = resolveErrorMessage(error);
-    if (raw.includes("API error: network unavailable")) {
-      return "后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev";
-    }
-    if (raw.includes("API error: request timeout")) {
-      return "请求后端超时，请检查后端服务状态后重试。";
-    }
-    return raw;
-  };
+/* ── module-level helper (no hook state needed) ── */
 
+function resolveProjectApiError(error: unknown): string {
+  const raw = resolveErrorMessage(error);
+  if (raw.includes("API error: network unavailable")) {
+    return "后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev";
+  }
+  if (raw.includes("API error: request timeout")) {
+    return "请求后端超时，请检查后端服务状态后重试。";
+  }
+  return raw;
+}
+
+/* ── creation sub-hook ── */
+
+type CreationParams = Pick<
+  UseProjectActionsParams,
+  | "currentProject" | "projectName" | "projectDesc"
+  | "iterName" | "iterDesc" | "iterGoals" | "iterInScope"
+  | "iterOutScope" | "iterAcceptance" | "iterVersionType"
+  | "setBusy" | "setError" | "setCurrentProjectId" | "setCurrentIterationId"
+  | "setProjectPanelMode" | "setShowCreateProject" | "setShowCreateIteration"
+  | "setUploadedFile" | "setProjectName" | "setProjectDesc"
+  | "setIterName" | "setIterDesc" | "setIterGoals" | "setIterInScope"
+  | "setIterOutScope" | "setIterAcceptance" | "setIterVersionType"
+  | "loadProjects" | "loadIterations"
+>;
+
+function resetIterationForm(p: CreationParams) {
+  p.setIterName("");
+  p.setIterDesc("");
+  p.setIterGoals("");
+  p.setIterInScope("");
+  p.setIterOutScope("");
+  p.setIterAcceptance("");
+  p.setIterVersionType("patch");
+}
+
+function buildIterationPayload(p: CreationParams) {
+  return {
+    name: p.iterName.trim(),
+    description: p.iterDesc.trim() || "暂无描述",
+    versionType: p.iterVersionType,
+    goals: splitLines(p.iterGoals),
+    scope: {
+      inScope: splitLines(p.iterInScope),
+      outOfScope: splitLines(p.iterOutScope),
+      acceptanceCriteria: splitLines(p.iterAcceptance),
+    },
+    aiSummary: `基于${p.currentProject!.name}，${p.iterName.trim()}聚焦${p.iterDesc.trim() || "本轮目标交付"}。`,
+  };
+}
+
+function useProjectCreation(p: CreationParams) {
   const handleCreateProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!projectName.trim()) {
-      return;
-    }
+    if (!p.projectName.trim()) return;
     try {
-      setBusy(true);
+      p.setBusy(true);
       const created = await createProject({
-        name: projectName.trim(),
-        description: projectDesc.trim() || "暂无描述"
+        name: p.projectName.trim(),
+        description: p.projectDesc.trim() || "暂无描述"
       });
-      await loadProjects();
-      setCurrentProjectId(created.id);
-      setProjectPanelMode("project");
-      setShowCreateProject(false);
-      setProjectName("");
-      setProjectDesc("");
+      await p.loadProjects();
+      p.setCurrentProjectId(created.id);
+      p.setProjectPanelMode("project");
+      p.setShowCreateProject(false);
+      p.setProjectName("");
+      p.setProjectDesc("");
     } catch (err) {
-      setError(resolveProjectApiError(err));
+      p.setError(resolveProjectApiError(err));
     } finally {
-      setBusy(false);
+      p.setBusy(false);
     }
   };
 
   const handleCreateIteration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!currentProject) {
-      return;
-    }
-    if (!iterName.trim()) {
-      return;
-    }
-
-    const goals = splitLines(iterGoals);
-    const inScope = splitLines(iterInScope);
-    const outOfScope = splitLines(iterOutScope);
-    const acceptanceCriteria = splitLines(iterAcceptance);
-
+    if (!p.currentProject || !p.iterName.trim()) return;
     try {
-      setBusy(true);
-      const created = await createIteration(currentProject.id, {
-        name: iterName.trim(),
-        description: iterDesc.trim() || "暂无描述",
-        versionType: iterVersionType,
-        goals,
-        scope: {
-          inScope,
-          outOfScope,
-          acceptanceCriteria
-        },
-        aiSummary: `基于${currentProject.name}，${iterName.trim()}聚焦${iterDesc.trim() || "本轮目标交付"}。`
-      });
-      await loadIterations(currentProject.id);
-      setCurrentIterationId(created.id);
-      setUploadedFile(null);
-      setShowCreateIteration(false);
-      setIterName("");
-      setIterDesc("");
-      setIterGoals("");
-      setIterInScope("");
-      setIterOutScope("");
-      setIterAcceptance("");
-      setIterVersionType("patch");
+      p.setBusy(true);
+      const created = await createIteration(p.currentProject.id, buildIterationPayload(p));
+      await p.loadIterations(p.currentProject.id);
+      p.setCurrentIterationId(created.id);
+      p.setUploadedFile(null);
+      p.setShowCreateIteration(false);
+      resetIterationForm(p);
     } catch (err) {
-      setError(resolveProjectApiError(err));
+      p.setError(resolveProjectApiError(err));
     } finally {
-      setBusy(false);
+      p.setBusy(false);
     }
   };
 
-  const handleEnterIteration = (iterationId: number) => {
-    setCurrentIterationId(iterationId);
-    setProjectPanelMode("iteration");
-  };
+  return { handleCreateProject, handleCreateIteration };
+}
 
-  const handleSelectProject = (projectId: number) => {
-    setCurrentProjectId(projectId);
-    setUploadedFile(null);
-    setProjectPanelMode("project");
-  };
+/* ── deletion sub-hook ── */
 
+type DeletionParams = Pick<
+  UseProjectActionsParams,
+  | "currentProject"
+  | "setBusy" | "setError" | "setCurrentProjectId" | "setCurrentIterationId"
+  | "setProjectPanelMode" | "setUploadedFile"
+  | "loadProjects" | "loadIterations"
+>;
+
+function useProjectDeletion(p: DeletionParams) {
   const handleDeleteProject = async (projectId: number) => {
     try {
-      setBusy(true);
+      p.setBusy(true);
       await deleteProject(projectId);
-      const remaining = await loadProjects();
+      const remaining = await p.loadProjects();
       const stillExists = remaining.some((item) => item.id === projectId);
       if (stillExists) {
         throw new Error("项目删除未生效：请检查后端服务是否已更新到最新版本。");
       }
-      setCurrentIterationId(null);
-      setUploadedFile(null);
-      setProjectPanelMode("project");
+      p.setCurrentIterationId(null);
+      p.setUploadedFile(null);
+      p.setProjectPanelMode("project");
       if (remaining.length === 0) {
-        setCurrentProjectId(null);
+        p.setCurrentProjectId(null);
       }
     } catch (err) {
       const message = resolveErrorMessage(err);
       if (/^API error: 404\b/.test(message)) {
-        setError("删除接口不可用（404）。请重启后端服务后重试。");
+        p.setError("删除接口不可用（404）。请重启后端服务后重试。");
       } else if (message.includes("API error: network unavailable")) {
-        setError("后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev");
+        p.setError("后端服务不可达（127.0.0.1:5055）。请先启动后端：npm --prefix v2/backend run dev");
       } else {
-        setError(message);
+        p.setError(message);
       }
     } finally {
-      setBusy(false);
+      p.setBusy(false);
     }
   };
 
   const handleDeleteIteration = async (iterationId: number) => {
-    if (!currentProject) return;
+    if (!p.currentProject) return;
     try {
-      setBusy(true);
-      await deleteIteration(currentProject.id, iterationId);
-      await loadIterations(currentProject.id);
-      if (iterationId === currentProject.id) {
-        setCurrentIterationId(null);
+      p.setBusy(true);
+      await deleteIteration(p.currentProject.id, iterationId);
+      await p.loadIterations(p.currentProject.id);
+      if (iterationId === p.currentProject.id) {
+        p.setCurrentIterationId(null);
       }
     } catch (err) {
       const message = resolveErrorMessage(err);
       if (message.includes("409") || message.includes("iteration_has_data")) {
         alert("该版本已产生迭代数据，不可删除");
       } else {
-        setError(message);
+        p.setError(message);
       }
     } finally {
-      setBusy(false);
+      p.setBusy(false);
     }
+  };
+
+  return { handleDeleteProject, handleDeleteIteration };
+}
+
+/* ── main hook (thin orchestrator) ── */
+
+export function useProjectActions(params: UseProjectActionsParams) {
+  const { handleCreateProject, handleCreateIteration } = useProjectCreation(params);
+  const { handleDeleteProject, handleDeleteIteration } = useProjectDeletion(params);
+
+  const handleEnterIteration = (iterationId: number) => {
+    params.setCurrentIterationId(iterationId);
+    params.setProjectPanelMode("iteration");
+  };
+
+  const handleSelectProject = (projectId: number) => {
+    params.setCurrentProjectId(projectId);
+    params.setUploadedFile(null);
+    params.setProjectPanelMode("project");
   };
 
   return {

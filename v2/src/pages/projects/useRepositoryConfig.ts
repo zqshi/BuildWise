@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useState } from "react";
 import type { Project } from "../../domain/workspace/types";
 import {
@@ -35,7 +36,22 @@ export type RepoMigrationPlanState = {
   }>;
 } | null;
 
-export function useRepositoryConfig(currentProject: Project | null) {
+type RepoConfigState = {
+  showRepoConfigDrawer: boolean; setShowRepoConfigDrawer: React.Dispatch<React.SetStateAction<boolean>>;
+  repoConfigStep: 1 | 2 | 3; setRepoConfigStep: React.Dispatch<React.SetStateAction<1 | 2 | 3>>;
+  repoUrlDraft: string; setRepoUrlDraft: React.Dispatch<React.SetStateAction<string>>;
+  showRepoAdvanced: boolean; setShowRepoAdvanced: React.Dispatch<React.SetStateAction<boolean>>;
+  requireRemoteForProduction: boolean; setRequireRemoteForProduction: React.Dispatch<React.SetStateAction<boolean>>;
+  requireRemoteForStaging: boolean; setRequireRemoteForStaging: React.Dispatch<React.SetStateAction<boolean>>;
+  repoHealth: RepoHealthState; setRepoHealth: React.Dispatch<React.SetStateAction<RepoHealthState>>;
+  repoConfigBusy: boolean; setRepoConfigBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  repoValidationBusy: boolean; setRepoValidationBusy: React.Dispatch<React.SetStateAction<boolean>>;
+  repoValidationError: string; setRepoValidationError: React.Dispatch<React.SetStateAction<string>>;
+  repoConfigNotice: string; setRepoConfigNotice: React.Dispatch<React.SetStateAction<string>>;
+  repoMigrationPlan: RepoMigrationPlanState; setRepoMigrationPlan: React.Dispatch<React.SetStateAction<RepoMigrationPlanState>>;
+};
+
+function useRepoConfigState(currentProject: Project | null): RepoConfigState {
   const [showRepoConfigDrawer, setShowRepoConfigDrawer] = useState(false);
   const [repoConfigStep, setRepoConfigStep] = useState<1 | 2 | 3>(1);
   const [repoUrlDraft, setRepoUrlDraft] = useState(currentProject?.repository?.url || "");
@@ -52,179 +68,158 @@ export function useRepositoryConfig(currentProject: Project | null) {
   const [repoValidationError, setRepoValidationError] = useState("");
   const [repoConfigNotice, setRepoConfigNotice] = useState("");
   const [repoMigrationPlan, setRepoMigrationPlan] = useState<RepoMigrationPlanState>(null);
+  return {
+    showRepoConfigDrawer, setShowRepoConfigDrawer, repoConfigStep, setRepoConfigStep,
+    repoUrlDraft, setRepoUrlDraft, showRepoAdvanced, setShowRepoAdvanced,
+    requireRemoteForProduction, setRequireRemoteForProduction, requireRemoteForStaging, setRequireRemoteForStaging,
+    repoHealth, setRepoHealth, repoConfigBusy, setRepoConfigBusy,
+    repoValidationBusy, setRepoValidationBusy, repoValidationError, setRepoValidationError,
+    repoConfigNotice, setRepoConfigNotice, repoMigrationPlan, setRepoMigrationPlan,
+  };
+}
 
-  // Reset repo state when project changes
+function useRepoConfigEffects(currentProject: Project | null, state: RepoConfigState) {
   useEffect(() => {
-    setRepoUrlDraft(currentProject?.repository?.url || "");
-    setRequireRemoteForProduction(currentProject?.repository?.governance?.requireRemoteForProduction ?? true);
-    setRequireRemoteForStaging(currentProject?.repository?.governance?.requireRemoteForStaging ?? false);
-    setRepoHealth(currentProject?.repository?.health || null);
-    setRepoMigrationPlan(null);
-    setRepoValidationError("");
-    setRepoConfigNotice("");
+    state.setRepoUrlDraft(currentProject?.repository?.url || "");
+    state.setRequireRemoteForProduction(currentProject?.repository?.governance?.requireRemoteForProduction ?? true);
+    state.setRequireRemoteForStaging(currentProject?.repository?.governance?.requireRemoteForStaging ?? false);
+    state.setRepoHealth(currentProject?.repository?.health || null);
+    state.setRepoMigrationPlan(null);
+    state.setRepoValidationError("");
+    state.setRepoConfigNotice("");
   }, [currentProject?.id, currentProject?.repository?.url, currentProject?.repository?.governance?.requireRemoteForProduction, currentProject?.repository?.governance?.requireRemoteForStaging]);
 
-  // Reset config step and handle ESC when drawer opens
   useEffect(() => {
-    if (!showRepoConfigDrawer) return;
-    setRepoConfigStep(1);
+    if (!state.showRepoConfigDrawer) return;
+    state.setRepoConfigStep(1);
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowRepoConfigDrawer(false);
-      }
+      if (event.key === "Escape") state.setShowRepoConfigDrawer(false);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showRepoConfigDrawer]);
+  }, [state.showRepoConfigDrawer]);
 
-  // Clear validation on URL change
   useEffect(() => {
-    setRepoValidationError("");
-    setRepoConfigNotice("");
-  }, [repoUrlDraft]);
+    state.setRepoValidationError("");
+    state.setRepoConfigNotice("");
+  }, [state.repoUrlDraft]);
+}
 
+async function refreshRepositoryStatus(projectId: number, state: RepoConfigState) {
+  try {
+    state.setRepoConfigBusy(true);
+    state.setRepoValidationError("");
+    const status = await fetchProjectRepositoryStatus(projectId);
+    state.setRepoHealth(status?.health || null);
+    state.setRequireRemoteForProduction(status?.governance?.requireRemoteForProduction ?? true);
+    state.setRequireRemoteForStaging(status?.governance?.requireRemoteForStaging ?? false);
+    const migrationPlan = await fetchProjectRepositoryMigrationPlan(projectId);
+    state.setRepoMigrationPlan(migrationPlan);
+    state.setRepoConfigNotice("代码仓连接状态已刷新。");
+  } catch (error) {
+    state.setRepoConfigNotice(error instanceof Error ? error.message : "代码仓状态刷新失败");
+  } finally {
+    state.setRepoConfigBusy(false);
+  }
+}
+
+async function runRemoteValidation(projectId: number, repoUrlDraft: string, state: RepoConfigState): Promise<boolean> {
+  const url = repoUrlDraft.trim();
+  if (!url) { state.setRepoValidationError("请先填写 Git 仓库地址。"); return false; }
+  if (!looksLikeGitUrl(url)) { state.setRepoValidationError("地址格式不正确，请使用 https://、ssh:// 或 git@ 开头。"); return false; }
+  try {
+    state.setRepoValidationBusy(true);
+    state.setRepoValidationError("");
+    await validateProjectRepositoryRemote(projectId, { url });
+    return true;
+  } catch (error) {
+    state.setRepoValidationError(error instanceof Error ? error.message.replace(/^API error:\s*/i, "") : "仓库地址校验失败");
+    return false;
+  } finally {
+    state.setRepoValidationBusy(false);
+  }
+}
+
+async function connectRepository(projectId: number, state: RepoConfigState) {
+  const url = state.repoUrlDraft.trim();
+  if (!url) {
+    state.setRepoConfigStep(1);
+    state.setRepoValidationError("请先填写 Git 仓库地址。");
+    state.setRepoConfigNotice("请先填写 Git 仓库地址。");
+    return;
+  }
+  const repoName = guessRepoName(url) || "project";
+  try {
+    state.setRepoConfigBusy(true);
+    state.setRepoValidationError("");
+    const passed = await runRemoteValidation(projectId, state.repoUrlDraft, state);
+    if (!passed) { state.setRepoConfigStep(1); state.setRepoConfigNotice("仓库地址校验未通过，请修正后再保存。"); return; }
+    await bootstrapProjectRepository(projectId, {
+      provider: inferProviderFromRepoUrl(url), name: repoName, url, defaultBranch: "main",
+      repoMode: "external_git", requireRemoteForProduction: state.requireRemoteForProduction, requireRemoteForStaging: state.requireRemoteForStaging,
+    });
+    await refreshRepositoryStatus(projectId, state);
+    state.setRepoConfigNotice("代码仓地址已保存并完成连接。");
+  } catch (error) {
+    state.setRepoConfigNotice(error instanceof Error ? error.message : "代码仓连接失败");
+  } finally {
+    state.setRepoConfigBusy(false);
+  }
+}
+
+function buildRepoHandlers(currentProject: Project | null, state: RepoConfigState) {
   const handleRefreshRepositoryStatus = async () => {
     if (!currentProject) return;
-    try {
-      setRepoConfigBusy(true);
-      setRepoValidationError("");
-      const status = await fetchProjectRepositoryStatus(currentProject.id);
-      setRepoHealth(status?.health || null);
-      setRequireRemoteForProduction(status?.governance?.requireRemoteForProduction ?? true);
-      setRequireRemoteForStaging(status?.governance?.requireRemoteForStaging ?? false);
-      const migrationPlan = await fetchProjectRepositoryMigrationPlan(currentProject.id);
-      setRepoMigrationPlan(migrationPlan);
-      setRepoConfigNotice("代码仓连接状态已刷新。");
-    } catch (error) {
-      setRepoConfigNotice(error instanceof Error ? error.message : "代码仓状态刷新失败");
-    } finally {
-      setRepoConfigBusy(false);
-    }
-  };
-
-  const runRepositoryRemoteValidation = async () => {
-    if (!currentProject) {
-      return false;
-    }
-    const url = repoUrlDraft.trim();
-    if (!url) {
-      setRepoValidationError("请先填写 Git 仓库地址。");
-      return false;
-    }
-    if (!looksLikeGitUrl(url)) {
-      setRepoValidationError("地址格式不正确，请使用 https://、ssh:// 或 git@ 开头。");
-      return false;
-    }
-    try {
-      setRepoValidationBusy(true);
-      setRepoValidationError("");
-      await validateProjectRepositoryRemote(currentProject.id, { url });
-      return true;
-    } catch (error) {
-      setRepoValidationError(error instanceof Error ? error.message.replace(/^API error:\s*/i, "") : "仓库地址校验失败");
-      return false;
-    } finally {
-      setRepoValidationBusy(false);
-    }
+    await refreshRepositoryStatus(currentProject.id, state);
   };
 
   const handleAdvanceRepositoryStep = async () => {
-    if (repoConfigStep !== 1) {
-      setRepoConfigStep((prev) => (prev < 3 ? ((prev + 1) as 1 | 2 | 3) : prev));
+    if (state.repoConfigStep !== 1) {
+      state.setRepoConfigStep(state.repoConfigStep < 3 ? ((state.repoConfigStep + 1) as 1 | 2 | 3) : state.repoConfigStep);
       return;
     }
-    const passed = await runRepositoryRemoteValidation();
-    if (!passed) {
-      return;
-    }
-    setRepoConfigNotice("仓库地址校验通过，可以继续配置发布规则。");
-    setRepoConfigStep(2);
+    if (!currentProject) return;
+    const passed = await runRemoteValidation(currentProject.id, state.repoUrlDraft, state);
+    if (!passed) return;
+    state.setRepoConfigNotice("仓库地址校验通过，可以继续配置发布规则。");
+    state.setRepoConfigStep(2);
   };
 
   const handleConnectRepository = async () => {
     if (!currentProject) return;
-    const url = repoUrlDraft.trim();
-    if (!url) {
-      setRepoConfigStep(1);
-      setRepoValidationError("请先填写 Git 仓库地址。");
-      setRepoConfigNotice("请先填写 Git 仓库地址。");
-      return;
-    }
-    const repoName = guessRepoName(url) || currentProject.name;
-    try {
-      setRepoConfigBusy(true);
-      setRepoValidationError("");
-      const passed = await runRepositoryRemoteValidation();
-      if (!passed) {
-        setRepoConfigStep(1);
-        setRepoConfigNotice("仓库地址校验未通过，请修正后再保存。");
-        return;
-      }
-      await bootstrapProjectRepository(currentProject.id, {
-        provider: inferProviderFromRepoUrl(url),
-        name: repoName,
-        url,
-        defaultBranch: "main",
-        repoMode: "external_git",
-        requireRemoteForProduction,
-        requireRemoteForStaging
-      });
-      await handleRefreshRepositoryStatus();
-      setRepoConfigNotice("代码仓地址已保存并完成连接。");
-    } catch (error) {
-      setRepoConfigNotice(error instanceof Error ? error.message : "代码仓连接失败");
-    } finally {
-      setRepoConfigBusy(false);
-    }
+    await connectRepository(currentProject.id, state);
   };
 
   const handleSaveRepositoryPolicy = async () => {
     if (!currentProject) return;
     try {
-      setRepoConfigBusy(true);
+      state.setRepoConfigBusy(true);
       await configureProjectRepositoryMode(currentProject.id, {
-        repoMode: repoUrlDraft.trim() ? "external_git" : "hybrid",
-        requireRemoteForProduction,
-        requireRemoteForStaging
+        repoMode: state.repoUrlDraft.trim() ? "external_git" : "hybrid",
+        requireRemoteForProduction: state.requireRemoteForProduction, requireRemoteForStaging: state.requireRemoteForStaging,
       });
-      await handleRefreshRepositoryStatus();
-      setRepoConfigNotice("发布前规则已更新。");
+      await refreshRepositoryStatus(currentProject.id, state);
+      state.setRepoConfigNotice("发布前规则已更新。");
     } catch (error) {
-      setRepoConfigNotice(error instanceof Error ? error.message : "发布前规则更新失败");
+      state.setRepoConfigNotice(error instanceof Error ? error.message : "发布前规则更新失败");
     } finally {
-      setRepoConfigBusy(false);
+      state.setRepoConfigBusy(false);
     }
   };
 
-  const repoUrlValid = looksLikeGitUrl(repoUrlDraft);
-  const repoLastCheckedText = repoHealth?.lastCheckedAt ? new Date(repoHealth.lastCheckedAt).toLocaleString("zh-CN") : "";
-  const canMoveToNextStep = repoConfigStep === 1 ? repoUrlValid : true;
+  return { handleRefreshRepositoryStatus, handleAdvanceRepositoryStep, handleConnectRepository, handleSaveRepositoryPolicy };
+}
+
+export function useRepositoryConfig(currentProject: Project | null) {
+  const state = useRepoConfigState(currentProject);
+  useRepoConfigEffects(currentProject, state);
+  const handlers = buildRepoHandlers(currentProject, state);
 
   return {
-    showRepoConfigDrawer,
-    setShowRepoConfigDrawer,
-    repoConfigStep,
-    setRepoConfigStep,
-    repoUrlDraft,
-    setRepoUrlDraft,
-    showRepoAdvanced,
-    setShowRepoAdvanced,
-    requireRemoteForProduction,
-    setRequireRemoteForProduction,
-    requireRemoteForStaging,
-    setRequireRemoteForStaging,
-    repoHealth,
-    repoConfigBusy,
-    repoValidationBusy,
-    repoValidationError,
-    repoConfigNotice,
-    repoMigrationPlan,
-    repoUrlValid,
-    repoLastCheckedText,
-    canMoveToNextStep,
-    handleRefreshRepositoryStatus,
-    handleAdvanceRepositoryStep,
-    handleConnectRepository,
-    handleSaveRepositoryPolicy
+    ...state,
+    repoUrlValid: looksLikeGitUrl(state.repoUrlDraft),
+    repoLastCheckedText: state.repoHealth?.lastCheckedAt ? new Date(state.repoHealth.lastCheckedAt).toLocaleString("zh-CN") : "",
+    canMoveToNextStep: state.repoConfigStep === 1 ? looksLikeGitUrl(state.repoUrlDraft) : true,
+    ...handlers,
   };
 }

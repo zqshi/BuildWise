@@ -61,7 +61,7 @@ export function TestMatrixExecutionPanel({
             )
           }
         >
-          全部标记为 passed
+          全部标记为已通过
         </button>
         <button
           type="button"
@@ -76,7 +76,7 @@ export function TestMatrixExecutionPanel({
             )
           }
         >
-          全部重置为 pending
+          全部重置为待执行
         </button>
       </div>
       <ul className="history-list">
@@ -85,9 +85,9 @@ export function TestMatrixExecutionPanel({
             <strong>
               [{item.type}] {item.caseId}
             </strong>
-            <p>focus：{item.focus || "-"}</p>
-            <p>expected：{item.expected || "-"}</p>
-            <p className="hint">evidence：{item.evidence || "-"}</p>
+            <p>测试焦点：{item.focus || "-"}</p>
+            <p>预期结果：{item.expected || "-"}</p>
+            <p className="hint">依据：{item.evidence || "-"}</p>
             <div className="chat-tools">
               <select
                 value={testMatrixStatusMap[item.caseId] || "pending"}
@@ -96,11 +96,11 @@ export function TestMatrixExecutionPanel({
                   setTestMatrixStatusMap((prev) => ({ ...prev, [item.caseId]: next }));
                 }}
               >
-                <option value="pending">pending</option>
-                <option value="passed">passed</option>
-                <option value="failed">failed</option>
-                <option value="blocked">blocked</option>
-                <option value="skipped">skipped</option>
+                <option value="pending">待执行</option>
+                <option value="passed">已通过</option>
+                <option value="failed">未通过</option>
+                <option value="blocked">阻塞</option>
+                <option value="skipped">已跳过</option>
               </select>
             </div>
             <label className="hint">

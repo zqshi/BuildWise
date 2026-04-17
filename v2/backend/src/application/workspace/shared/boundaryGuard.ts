@@ -63,6 +63,28 @@ export function assertBoundaryWhitelist(params: {
   } as const;
 }
 
+function visitDirectoryFiles(relativePath: string, repoPath: string, allowedExt: Set<string>, whitelist: string[], result: string[], maxFiles: number) {
+  const status = runGit(["ls-files", "--full-name", relativePath], repoPath);
+  if (status.status !== 0) return;
+  const files = status.stdout.split("\n").map((item) => normalizeRelPath(item)).filter(Boolean);
+  for (const file of files) {
+    if (result.length >= maxFiles) break;
+    const ext = file.includes(".") ? `.${file.split(".").pop() || ""}`.toLowerCase() : "";
+    if (!allowedExt.has(ext)) continue;
+    if (isAllowedByWhitelist(file, whitelist)) result.push(file);
+  }
+}
+
+function visitSingleFile(relativePath: string, repoPath: string, allowedExt: Set<string>, whitelist: string[], result: string[]) {
+  const relPathStatus = runGit(["ls-files", "--full-name", relativePath], repoPath);
+  if (relPathStatus.status !== 0 || !relPathStatus.stdout.trim()) return;
+  const relPath = normalizeRelPath(relPathStatus.stdout.split("\n")[0] || "");
+  if (!relPath) return;
+  const ext = relPath.includes(".") ? `.${relPath.split(".").pop() || ""}`.toLowerCase() : "";
+  if (!allowedExt.has(ext)) return;
+  if (isAllowedByWhitelist(relPath, whitelist)) result.push(relPath);
+}
+
 export function resolveBoundaryFileCandidates(params: {
   repoPath: string;
   whitelist: string[];
@@ -73,67 +95,19 @@ export function resolveBoundaryFileCandidates(params: {
   const allowedExt = new Set(params.allowedExtensions.map((item) => item.toLowerCase()));
   const result: string[] = [];
 
-  const visit = (relativePath: string, absolutePath: string) => {
-    if (result.length >= maxFiles) {
-      return;
-    }
-    if (!existsSync(absolutePath)) {
-      return;
-    }
+  for (const item of whitelist) {
+    if (result.length >= maxFiles) break;
+    const cleaned = normalizeRelPath(item);
+    if (!cleaned) continue;
+    const absolutePath = join(repoPath, cleaned);
+    if (!isPathInside(repoPath, absolutePath)) continue;
+    if (!existsSync(absolutePath)) continue;
     const stat = statSync(absolutePath);
     if (stat.isDirectory()) {
-      const status = runGit(["ls-files", "--full-name", relativePath], repoPath);
-      if (status.status !== 0) {
-        return;
-      }
-      const files = status.stdout
-        .split("\n")
-        .map((item) => normalizeRelPath(item))
-        .filter(Boolean);
-      for (const file of files) {
-        if (result.length >= maxFiles) {
-          break;
-        }
-        const ext = file.includes(".") ? `.${file.split(".").pop() || ""}`.toLowerCase() : "";
-        if (!allowedExt.has(ext)) {
-          continue;
-        }
-        if (isAllowedByWhitelist(file, whitelist)) {
-          result.push(file);
-        }
-      }
-      return;
+      visitDirectoryFiles(cleaned, repoPath, allowedExt, whitelist, result, maxFiles);
+    } else {
+      visitSingleFile(cleaned, repoPath, allowedExt, whitelist, result);
     }
-    const relPathStatus = runGit(["ls-files", "--full-name", relativePath], repoPath);
-    if (relPathStatus.status !== 0 || !relPathStatus.stdout.trim()) {
-      return;
-    }
-    const relPath = normalizeRelPath(relPathStatus.stdout.split("\n")[0] || "");
-    if (!relPath) {
-      return;
-    }
-    const ext = relPath.includes(".") ? `.${relPath.split(".").pop() || ""}`.toLowerCase() : "";
-    if (!allowedExt.has(ext)) {
-      return;
-    }
-    if (isAllowedByWhitelist(relPath, whitelist)) {
-      result.push(relPath);
-    }
-  };
-
-  for (const item of whitelist) {
-    if (result.length >= maxFiles) {
-      break;
-    }
-    const cleaned = normalizeRelPath(item);
-    if (!cleaned) {
-      continue;
-    }
-    const absolutePath = join(repoPath, cleaned);
-    if (!isPathInside(repoPath, absolutePath)) {
-      continue;
-    }
-    visit(cleaned, absolutePath);
   }
 
   return Array.from(new Set(result)).slice(0, maxFiles);

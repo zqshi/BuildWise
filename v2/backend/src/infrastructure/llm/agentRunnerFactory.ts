@@ -348,77 +348,41 @@ export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
   };
 }
 
+function buildProbeRequest(provider: string, baseUrl: string, model: string, apiKey: string, signal: AbortSignal): Promise<Response> {
+  if (provider === "anthropic-compatible") {
+    return fetch(anthropicMessagesEndpoint(baseUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}) },
+      body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "ping" }] }),
+      signal,
+    });
+  }
+  return fetch(`${baseUrl}/models`, { method: "GET", headers: { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) }, signal });
+}
+
+function buildProbeResult(configured: boolean, reachable: boolean, baseUrl: string, model: string, checkedAt: string, error: string): LlmRuntimeStatus {
+  return { configured, reachable, baseUrl, model, checkedAt, error };
+}
+
 export async function probeLlmRuntimeStatus(env: LlmEnv, timeoutMs = 30000): Promise<LlmRuntimeStatus> {
   const provider = resolveLlmProvider(env);
   const checkedAt = new Date().toISOString();
-
   const baseUrl = resolveBaseUrl(env);
   const model = resolveModel(env);
-  if (!baseUrl) {
-    return {
-      configured: false,
-      reachable: false,
-      baseUrl: "",
-      model,
-      checkedAt,
-      error: "LLM_API_BASE is not configured"
-    };
-  }
+  if (!baseUrl) return buildProbeResult(false, false, "", model, checkedAt, "LLM_API_BASE is not configured");
+
   const apiKey = resolveApiKey(env) || "";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res =
-      provider === "anthropic-compatible"
-        ? await fetch(anthropicMessagesEndpoint(baseUrl), {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "anthropic-version": "2023-06-01",
-              ...(apiKey ? { "x-api-key": apiKey } : {})
-            },
-            body: JSON.stringify({
-              model,
-              max_tokens: 1,
-              messages: [{ role: "user", content: "ping" }]
-            }),
-            signal: controller.signal
-          })
-        : await fetch(`${baseUrl}/models`, {
-            method: "GET",
-            headers: {
-              ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-            },
-            signal: controller.signal
-          });
+    const res = await buildProbeRequest(provider, baseUrl, model, apiKey, controller.signal);
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      return {
-        configured: true,
-        reachable: false,
-        baseUrl,
-        model,
-        checkedAt,
-        error: `http_${res.status}${text ? `:${text.slice(0, 120)}` : ""}`
-      };
+      return buildProbeResult(true, false, baseUrl, model, checkedAt, `http_${res.status}${text ? `:${text.slice(0, 120)}` : ""}`);
     }
-    return {
-      configured: true,
-      reachable: true,
-      baseUrl,
-      model,
-      checkedAt,
-      error: ""
-    };
+    return buildProbeResult(true, true, baseUrl, model, checkedAt, "");
   } catch (error) {
-    return {
-      configured: true,
-      reachable: false,
-      baseUrl,
-      model,
-      checkedAt,
-      error: error instanceof Error ? error.message : "probe_failed"
-    };
+    return buildProbeResult(true, false, baseUrl, model, checkedAt, error instanceof Error ? error.message : "probe_failed");
   } finally {
     clearTimeout(timer);
   }

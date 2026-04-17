@@ -1,25 +1,16 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy } from "react";
 import { useAppController } from "./app/useAppController";
-import { resolveSidebarViewState } from "./app/assistantNavigation";
 import { ViewErrorBoundary } from "./components/ViewErrorBoundary";
-import { AppControllerContext } from "./contexts/AppControllerContext";
 import { NavigationProvider } from "./contexts/NavigationContext";
 import { ProjectProvider } from "./contexts/ProjectContext";
 import { IterationProvider } from "./contexts/IterationContext";
 import { ChatProvider } from "./contexts/ChatContext";
 import { AnalysisProvider } from "./contexts/AnalysisContext";
 import { PlatformProvider } from "./contexts/PlatformContext";
-import { DockSidebar } from "./pages/layout/DockSidebar";
-import { GlobalAssistantPanel } from "./pages/layout/GlobalAssistantPanel";
-import { CreateIterationModal } from "./pages/projects/CreateIterationModal";
-import { CreateProjectModal } from "./pages/projects/CreateProjectModal";
-import { ProjectsWorkspace } from "./pages/projects/ProjectsWorkspace";
-
+import { AuthenticatedWorkspace } from "./app/AuthenticatedWorkspace";
 
 const MarketingHomePage = lazy(() => import("./pages/marketing/MarketingHomePage").then((m) => ({ default: m.MarketingHomePage })));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
-const DashboardView = lazy(() => import("./pages/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
-const PermissionSettingsPage = lazy(() => import("./pages/governance/PermissionSettingsPage").then((m) => ({ default: m.PermissionSettingsPage })));
 
 /**
  * Nests all 7 domain-specific Context providers.
@@ -50,265 +41,68 @@ function DomainProviders({ children }: { children: React.ReactNode }) {
  */
 function AppInner() {
   const controller = useAppController();
-  const backendOffline = controller.status?.status === "offline";
-  const isMarketingRoute = controller.route === "marketing" || (!controller.isAuthenticated && !controller.sessionRestoring && controller.route !== "login");
-  const [showAssistantWorkspace, setShowAssistantWorkspace] = useState(false);
-  const openViewFromSidebar = (nextView: "dashboard" | "projects" | "permissions") => {
-    const next = resolveSidebarViewState(nextView);
-    setShowAssistantWorkspace(next.showAssistantWorkspace);
-    controller.setActiveView(next.activeView);
-  };
-  const jumpToGovernance = (entry: "policy" | "assistant") => {
-    controller.setShowUserMenu(false);
-    if (entry === "policy") {
-      openViewFromSidebar("permissions");
-      return;
-    }
-    setShowAssistantWorkspace(true);
-  };
-  if (isMarketingRoute) {
-    return (
-      <ViewErrorBoundary viewKey="marketing" viewLabel="营销首页">
-      <Suspense fallback={<div className="loading-spinner" />}>
-        <MarketingHomePage
-        isAuthenticated={controller.isAuthenticated}
-        onPrimaryAction={() => {
-          window.location.hash = controller.isAuthenticated ? "/dashboard" : "/login";
-        }}
-        onSecondaryAction={() => {
-          window.location.hash = controller.isAuthenticated ? "/dashboard" : "/login";
-        }}
-      />
-      </Suspense>
-      </ViewErrorBoundary>
-    );
-  }
+  const isMarketingRoute =
+    controller.route === "marketing" ||
+    (!controller.isAuthenticated && !controller.sessionRestoring && controller.route !== "login");
 
+  if (isMarketingRoute) {
+    return <MarketingRoute isAuthenticated={controller.isAuthenticated} />;
+  }
   if (controller.sessionRestoring) {
     return <div className="loading-spinner" />;
   }
-
   if (controller.route === "login" || !controller.isAuthenticated) {
-    return (
-      <ViewErrorBoundary viewKey="login" viewLabel="登录页">
+    return <LoginRoute controller={controller} />;
+  }
+  return <AuthenticatedWorkspace controller={controller} />;
+}
+
+function MarketingRoute({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <ViewErrorBoundary viewKey="marketing" viewLabel="营销首页">
+      <Suspense fallback={<div className="loading-spinner" />}>
+        <MarketingHomePage
+          isAuthenticated={isAuthenticated}
+          onPrimaryAction={() => {
+            window.location.hash = isAuthenticated ? "/dashboard" : "/login";
+          }}
+          onSecondaryAction={() => {
+            window.location.hash = isAuthenticated ? "/dashboard" : "/login";
+          }}
+        />
+      </Suspense>
+    </ViewErrorBoundary>
+  );
+}
+
+function LoginRoute({ controller }: { controller: ReturnType<typeof useAppController> }) {
+  return (
+    <ViewErrorBoundary viewKey="login" viewLabel="登录页">
       <Suspense fallback={<div className="loading-spinner" />}>
         <LoginPage
-        loginMode={controller.loginMode}
-        loginPhone={controller.loginPhone}
-        loginCode={controller.loginCode}
-        showPhoneError={controller.showPhoneError}
-        showCodeError={controller.showCodeError}
-        phoneError={controller.phoneError}
-        codeError={controller.codeError}
-        loginError={controller.loginError}
-        debugCodeHint={controller.debugCodeHint}
-        sendingCode={controller.sendingCode}
-        countdown={controller.countdown}
-        phoneRef={controller.loginPhoneRef}
-        codeRef={controller.loginCodeRef}
-        onSubmit={controller.handleLogin}
-        onSwitchMode={controller.setLoginMode}
-        onRequestCode={controller.handleRequestCode}
-        onPhoneChange={controller.setLoginPhone}
-        onCodeChange={controller.setLoginCode}
-        onPhoneBlur={() => controller.setLoginTouched((prev) => ({ ...prev, phone: true }))}
-        onCodeBlur={() => controller.setLoginTouched((prev) => ({ ...prev, code: true }))}
-      />
+          loginMode={controller.loginMode}
+          loginPhone={controller.loginPhone}
+          loginCode={controller.loginCode}
+          showPhoneError={controller.showPhoneError}
+          showCodeError={controller.showCodeError}
+          phoneError={controller.phoneError}
+          codeError={controller.codeError}
+          loginError={controller.loginError}
+          debugCodeHint={controller.debugCodeHint}
+          sendingCode={controller.sendingCode}
+          countdown={controller.countdown}
+          phoneRef={controller.loginPhoneRef}
+          codeRef={controller.loginCodeRef}
+          onSubmit={controller.handleLogin}
+          onSwitchMode={controller.setLoginMode}
+          onRequestCode={controller.handleRequestCode}
+          onPhoneChange={controller.setLoginPhone}
+          onCodeChange={controller.setLoginCode}
+          onPhoneBlur={() => controller.setLoginTouched((prev) => ({ ...prev, phone: true }))}
+          onCodeBlur={() => controller.setLoginTouched((prev) => ({ ...prev, code: true }))}
+        />
       </Suspense>
-      </ViewErrorBoundary>
-    );
-  }
-
-  return (
-    <AppControllerContext.Provider value={controller}>
-    <div className="workspace">
-      <DockSidebar
-        activeView={controller.activeView}
-        currentRole={controller.currentRole}
-        dockUserLabel={controller.dockUserLabel}
-        dockUserAvatar={controller.dockUserAvatar}
-        tenants={controller.tenants}
-        currentTenantId={controller.currentTenantId}
-        showUserMenu={controller.showUserMenu}
-        userMenuRef={controller.userMenuRef}
-        onShowDashboard={() => openViewFromSidebar("dashboard")}
-        onShowProjects={() => openViewFromSidebar("projects")}
-        onToggleUserMenu={() => controller.setShowUserMenu((prev) => !prev)}
-        onOpenPolicyManager={() => jumpToGovernance("policy")}
-        onOpenAssistantDialog={() => jumpToGovernance("assistant")}
-        onSwitchTenant={(tenantId) => {
-          controller.switchTenant(tenantId);
-          controller.setShowUserMenu(false);
-        }}
-        onLogout={controller.handleLogout}
-      />
-
-      <main
-        className={`board ${
-          controller.activeView === "dashboard"
-            ? "dashboard-mode"
-            : controller.activeView === "permissions"
-              ? "permissions-mode"
-              : "projects-mode"
-        }`}
-      >
-        {backendOffline ? (
-          <section className="backend-offline-banner" role="status" aria-live="polite">
-            {import.meta.env.DEV
-              ? "后端服务未启动。请执行：npm --prefix v2/backend run dev"
-              : "服务连接中断，正在尝试重连…"}
-          </section>
-        ) : null}
-        <ViewErrorBoundary
-          viewKey={`${showAssistantWorkspace ? "assistant" : controller.activeView}:${controller.currentProjectId ?? "none"}:${controller.currentIterationId ?? "none"}`}
-          viewLabel={showAssistantWorkspace ? "业务助手工作台" : controller.activeView === "dashboard" ? "仪表盘" : controller.activeView === "permissions" ? "权限设置" : "项目工作台"}
-        >
-          {showAssistantWorkspace ? (
-            <GlobalAssistantPanel
-              isAdmin={controller.currentRole === "owner"}
-              onBack={() => setShowAssistantWorkspace(false)}
-            />
-          ) : controller.activeView === "dashboard" ? (
-            <Suspense fallback={<div className="loading-spinner" />}>
-              <DashboardView
-                projects={controller.projects}
-                projectsHydrated={controller.projectsHydrated}
-                inProgressIterations={controller.inProgressIterations}
-                completedIterations={controller.completedIterations}
-                status={controller.status}
-                progressBuckets={controller.progressBuckets}
-                iterationCount={controller.iterations.length}
-                monthlyTrend={controller.monthlyTrend}
-                currentProjectId={controller.currentProjectId}
-                currentProjectIterations={controller.iterations.length}
-                onViewProjects={() => openViewFromSidebar("projects")}
-              />
-            </Suspense>
-          ) : controller.activeView === "permissions" ? (
-            <Suspense fallback={<div className="loading-spinner" />}>
-              <PermissionSettingsPage currentRole={controller.currentRole} />
-            </Suspense>
-          ) : (
-            <ProjectsWorkspace
-              projects={controller.projects}
-              projectsHydrated={controller.projectsHydrated}
-              currentProjectId={controller.currentProjectId}
-              currentRole={controller.currentRole}
-              currentProject={controller.currentProject}
-              currentIteration={controller.currentIteration}
-              iterations={controller.iterations}
-              projectPanelMode={controller.projectPanelMode}
-              projectProgress={controller.projectProgress}
-              versionSnapshots={controller.versionSnapshots}
-              templateRuns={controller.templateRuns}
-              deployments={controller.deployments}
-              opsMetrics={controller.opsMetrics}
-              status={controller.status}
-              error={controller.error}
-              uploadedFile={controller.uploadedFile}
-              contextData={controller.contextData}
-              stateMachine={controller.stateMachine}
-              chatMessages={controller.chatMessages}
-              chatSendStatus={controller.chatSendStatus}
-              chatInput={controller.chatInput}
-              fileInputRef={controller.fileInputRef}
-              analysisReport={controller.analysisReport}
-              showAnalysisPanel={controller.showAnalysisPanel}
-              isAnalyzingAttachment={controller.isAnalyzingAttachment}
-              lastUploadFailed={controller.lastUploadFailed}
-              uploadAnalysisProgress={controller.uploadAnalysisProgress}
-              uploadToastMessage={controller.uploadToastMessage}
-              onShowCreateProject={() => { controller.setError(null); controller.setShowCreateProject(true); }}
-              onShowCreateIteration={() => { controller.setError(null); controller.setShowCreateIteration(true); }}
-              onDeleteProject={controller.handleDeleteProject}
-              onDeleteIteration={controller.handleDeleteIteration}
-              onUploadClick={controller.handleUploadClick}
-              onOpenAnalysisPanel={() => controller.setShowAnalysisPanel(true)}
-              onCloseAnalysisPanel={() => controller.setShowAnalysisPanel(false)}
-              onClearUploadToast={() => controller.setUploadToastMessage(null)}
-              onSelectProject={controller.handleSelectProject}
-              onEnterIteration={controller.handleEnterIteration}
-              onSwitchToProjectPanel={() => {
-                controller.setShowAnalysisPanel(false);
-                controller.setProjectPanelMode("project");
-              }}
-              onUpload={controller.handleUpload}
-              onUploadFiles={controller.uploadFiles}
-              onRetryUpload={controller.handleRetryUpload}
-              onChatInputChange={controller.setChatInput}
-              onChatSend={controller.handleSend}
-              onUpdateClarificationDraft={controller.handleUpdateClarificationDraft}
-              onConfirmIterationAnalysis={controller.handleConfirmIterationAnalysis}
-              onUpdateIterationBoundary={controller.handleUpdateIterationBoundary}
-              onUpdateTestMatrixExecution={controller.handleUpdateTestMatrixExecution}
-              onGenerateTestArtifacts={controller.handleGenerateTestArtifacts}
-              onRefreshReleaseReview={controller.handleRefreshReleaseReview}
-              onSaveArtifactDraft={controller.handleSaveArtifactDraft}
-              onCommitArtifact={controller.handleCommitArtifact}
-              onConfirmArtifact={controller.handleConfirmArtifact}
-              onAppendArtifactToChat={controller.handleAppendArtifactToChat}
-              onTransitionArtifactStage={controller.handleTransitionArtifactStage}
-              onTransitionState={controller.handleTransitionState}
-              onPatchUploadedHtmlPreview={(path, content) => {
-                controller.setUploadedFile((prev) => {
-                  if (!prev) {
-                    return prev;
-                  }
-                  const nextPreviews = prev.htmlPreviews.map((item) =>
-                    item.path === path
-                      ? {
-                          ...item,
-                          content
-                        }
-                      : item
-                  );
-                  return {
-                    ...prev,
-                    htmlPreviews: nextPreviews
-                  };
-                });
-              }}
-            />
-          )}
-        </ViewErrorBoundary>
-      </main>
-
-      <CreateProjectModal
-        open={controller.showCreateProject}
-        busy={controller.busy}
-        backendUnavailable={backendOffline}
-        projectName={controller.projectName}
-        projectDesc={controller.projectDesc}
-        errorMessage={controller.error}
-        onClose={() => controller.setShowCreateProject(false)}
-        onNameChange={controller.setProjectName}
-        onDescChange={controller.setProjectDesc}
-        onSubmit={controller.handleCreateProject}
-      />
-
-      <CreateIterationModal
-        open={controller.showCreateIteration}
-        busy={controller.busy}
-        backendUnavailable={backendOffline}
-        iterName={controller.iterName}
-        iterDesc={controller.iterDesc}
-        iterGoals={controller.iterGoals}
-        iterInScope={controller.iterInScope}
-        iterOutScope={controller.iterOutScope}
-        iterAcceptance={controller.iterAcceptance}
-        iterVersionType={controller.iterVersionType}
-        onClose={() => controller.setShowCreateIteration(false)}
-        onIterNameChange={controller.setIterName}
-        onIterDescChange={controller.setIterDesc}
-        onIterGoalsChange={controller.setIterGoals}
-        onIterInScopeChange={controller.setIterInScope}
-        onIterOutScopeChange={controller.setIterOutScope}
-        onIterAcceptanceChange={controller.setIterAcceptance}
-        onIterVersionTypeChange={controller.setIterVersionType}
-        onSubmit={controller.handleCreateIteration}
-      />
-    </div>
-    </AppControllerContext.Provider>
+    </ViewErrorBoundary>
   );
 }
 

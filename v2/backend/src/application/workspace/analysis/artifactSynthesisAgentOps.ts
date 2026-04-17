@@ -15,6 +15,7 @@ import { runAnalysisPrompt } from './configOps';
 import type { IterationAgentPrompt } from '../../../domain/workspace/types';
 import { batchArray } from './chunkingOps';
 import { createLogger } from '../../../infrastructure/runtime/logger';
+import { sanitizeDisplayItem } from '../coach/messageSanitizer';
 
 const log = createLogger("artifact-synthesis");
 
@@ -63,18 +64,18 @@ function serializeBusinessContext(biz: ChangeControl["lastBusinessConfirmation"]
 function serializeInsightsAndFindings(cc: ChangeControl, sections: string[]) {
   const prioritized = cc.lastPrioritizedFindings;
   if (Array.isArray(prioritized) && prioritized.length > 0) {
-    sections.push(`优先级发现:\n${prioritized.map((f) => `[${f.priority}] ${f.content}${f.reason ? ` — ${f.reason}` : ""}`).join("\n")}`);
+    sections.push(`优先级发现:\n${prioritized.map((f) => `[${f.priority}] ${sanitizeDisplayItem(f.content)}${f.reason ? ` — ${sanitizeDisplayItem(f.reason)}` : ""}`).join("\n")}`);
   }
   if (Array.isArray(cc.lastMeaningfulFindings) && cc.lastMeaningfulFindings.length > 0) {
-    sections.push(`关键发现:\n${cc.lastMeaningfulFindings.map((f) => `- ${f}`).join("\n")}`);
+    sections.push(`关键发现:\n${cc.lastMeaningfulFindings.map((f) => `- ${sanitizeDisplayItem(f)}`).join("\n")}`);
   }
   const deep = cc.lastDeepInsightsSummary;
   if (deep) {
     const deepLines: string[] = [];
-    if (deep.themes?.length) deepLines.push(`主题: ${deep.themes.join("；")}`);
-    if (deep.gaps?.length) deepLines.push(`差距: ${deep.gaps.join("；")}`);
-    if (deep.rootCauses?.length) deepLines.push(`根因: ${deep.rootCauses.join("；")}`);
-    if (deep.decisionSuggestions?.length) deepLines.push(`决策建议: ${deep.decisionSuggestions.join("；")}`);
+    if (deep.themes?.length) deepLines.push(`主题: ${deep.themes.map(sanitizeDisplayItem).join("；")}`);
+    if (deep.gaps?.length) deepLines.push(`差距: ${deep.gaps.map(sanitizeDisplayItem).join("；")}`);
+    if (deep.rootCauses?.length) deepLines.push(`根因: ${deep.rootCauses.map(sanitizeDisplayItem).join("；")}`);
+    if (deep.decisionSuggestions?.length) deepLines.push(`决策建议: ${deep.decisionSuggestions.map(sanitizeDisplayItem).join("；")}`);
     if (deepLines.length > 0) sections.push(`深度洞察:\n${deepLines.join("\n")}`);
   }
 }

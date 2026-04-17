@@ -146,7 +146,7 @@ function hardSplitWithOverlap(text: string, budget: number, overlap: number): st
  * @param budget   每片最大字符数
  * @param overlap  硬切时的重叠字符数（默认 500）
  */
-function splitExcerptByBoundary(text: string, budget: number, overlap = 500): string[] {
+export function splitExcerptByBoundary(text: string, budget: number, overlap = 500): string[] {
   if (text.length <= budget) {
     return [text];
   }

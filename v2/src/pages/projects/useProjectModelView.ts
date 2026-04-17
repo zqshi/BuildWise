@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 import type { Iteration, Project, ProjectModelViewPayload } from "../../domain/workspace/types";
 import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import { fetchProjectModelView } from "../../app/workspaceApi";
@@ -29,18 +29,7 @@ type UseProjectModelViewParams = {
   recentIterations: Iteration[];
 };
 
-export function useProjectModelView({
-  currentProject,
-  currentIteration,
-  modelPageCount,
-  modelRuleCount,
-  modelEntityCount,
-  modelRelations,
-  projectProgress,
-  repoHealth,
-  status,
-  recentIterations
-}: UseProjectModelViewParams) {
+function useModelViewState() {
   const [showModelDetails, setShowModelDetails] = useState(false);
   const [projectModelView, setProjectModelView] = useState<ProjectModelViewPayload | null>(null);
   const [businessSummaryVersion, setBusinessSummaryVersion] = useState(0);
@@ -51,11 +40,32 @@ export function useProjectModelView({
   const [highlightedEdgeId, setHighlightedEdgeId] = useState<string | null>(null);
   const [graphViewportOffset, setGraphViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Reset projectModelView on project change (handled via the main reset effect in the component,
-  // but we also need to reset when project changes here)
   const resetProjectModelView = () => setProjectModelView(null);
 
-  // Load project model view
+  return {
+    showModelDetails, setShowModelDetails,
+    projectModelView, setProjectModelView, resetProjectModelView,
+    businessSummaryVersion, setBusinessSummaryVersion,
+    modelDetailsView, setModelDetailsView,
+    relationTypeFilter, setRelationTypeFilter,
+    hoveredNodeId, setHoveredNodeId,
+    selectedNodeId, setSelectedNodeId,
+    highlightedEdgeId, setHighlightedEdgeId,
+    graphViewportOffset, setGraphViewportOffset,
+  };
+}
+
+function useModelViewEffects(
+  currentProject: Project | null,
+  currentIteration: Iteration | null,
+  relationTypeFilter: string,
+  highlightedEdgeId: string | null,
+  setProjectModelView: (v: ProjectModelViewPayload | null) => void,
+  setHoveredNodeId: (v: string | null) => void,
+  setSelectedNodeId: (v: string | null) => void,
+  setHighlightedEdgeId: Dispatch<SetStateAction<string | null>>,
+  setGraphViewportOffset: (v: { x: number; y: number }) => void
+) {
   useEffect(() => {
     let cancelled = false;
     if (!currentProject) {
@@ -68,7 +78,8 @@ export function useProjectModelView({
           setProjectModelView(normalizeProjectModelViewPayload(view));
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.debug("[useProjectModelView] 加载失败", err);
         if (!cancelled) {
           setProjectModelView(null);
         }
@@ -78,7 +89,6 @@ export function useProjectModelView({
     };
   }, [currentProject?.id, currentIteration?.id]);
 
-  // Reset graph interaction state when filter changes
   useEffect(() => {
     setHoveredNodeId(null);
     setSelectedNodeId(null);
@@ -86,7 +96,6 @@ export function useProjectModelView({
     setGraphViewportOffset({ x: 0, y: 0 });
   }, [relationTypeFilter]);
 
-  // Auto-dismiss highlighted edge
   useEffect(() => {
     if (!highlightedEdgeId) return;
     const timer = window.setTimeout(() => {
@@ -94,7 +103,15 @@ export function useProjectModelView({
     }, 1200);
     return () => window.clearTimeout(timer);
   }, [highlightedEdgeId]);
+}
 
+function useModelDisplayData(
+  projectModelView: ProjectModelViewPayload | null,
+  modelRelations: ModelRelationPayload[],
+  modelRuleCount: number,
+  modelEntityCount: number,
+  modelPageCount: number
+) {
   const displayedModelRelations = useMemo(
     () => (projectModelView ? toModelRelationsFromView(projectModelView) : modelRelations),
     [modelRelations, projectModelView]
@@ -110,102 +127,23 @@ export function useProjectModelView({
   const ruleMappings = useMemo(() => buildModelRuleMappings(projectModelView), [projectModelView]);
   const relationNarratives = useMemo(() => buildModelRelationNarratives(projectModelView), [projectModelView]);
 
-  const healthScore = useMemo(
-    () =>
-      computeProjectOverviewHealthScore({
-        projectProgress,
-        modelRuleCount: displayedModelRuleCount,
-        modelEntityCount: displayedModelEntityCount,
-        modelRelationCount: displayedModelRelations.length,
-        modelPageCount: displayedModelPageCount,
-        repoHealth,
-        runtimeStatus: status?.status || ""
-      }),
-    [displayedModelEntityCount, displayedModelPageCount, displayedModelRelations.length, displayedModelRuleCount, projectProgress, repoHealth, status?.status]
-  );
+  return {
+    displayedModelRelations,
+    displayedModelRuleCount,
+    displayedModelEntityCount,
+    displayedModelPageCount,
+    entityCards,
+    ruleMappings,
+    relationNarratives,
+  };
+}
 
-  const trendText = useMemo(() => {
-    if (recentIterations.length < 2) {
-      return "样本不足，趋势待形成";
-    }
-    const first = recentIterations[0]?.progress ?? 0;
-    const last = recentIterations[recentIterations.length - 1]?.progress ?? 0;
-    if (last > first) {
-      return "跨迭代沉淀趋势向好";
-    }
-    if (last < first) {
-      return "跨迭代沉淀趋势放缓";
-    }
-    return "跨迭代沉淀趋势平稳";
-  }, [recentIterations]);
-
-  const isUsingMockData = false;
-
-  const relationTypeStats = useMemo(() => {
-    const stats = new Map<string, number>();
-    for (const item of displayedModelRelations) {
-      const key = toFriendlyRelationType(item.type);
-      stats.set(key, (stats.get(key) ?? 0) + 1);
-    }
-    return Array.from(stats.entries()).map(([name, count]) => ({ name, count }));
-  }, [displayedModelRelations]);
-
-  const modelSummaryText = useMemo(() => {
-    const relationBrief = relationTypeStats.length > 0 ? relationTypeStats.map((item) => `${item.name}${item.count}条`).join("，") : "暂无关系类型沉淀";
-    return `当前已沉淀领域规则 ${displayedModelRuleCount} 条、数据实体 ${displayedModelEntityCount} 个、实体关系 ${displayedModelRelations.length} 条；关系结构以${relationBrief}为主。`;
-  }, [displayedModelEntityCount, displayedModelRelations.length, displayedModelRuleCount, relationTypeStats]);
-
-  const relationFocusEntities = useMemo(() => {
-    const entityCounter = new Map<string, number>();
-    for (const relation of displayedModelRelations) {
-      entityCounter.set(relation.fromEntityId, (entityCounter.get(relation.fromEntityId) ?? 0) + 1);
-      entityCounter.set(relation.toEntityId, (entityCounter.get(relation.toEntityId) ?? 0) + 1);
-    }
-    return Array.from(entityCounter.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([entityId, count]) => `${toFriendlyName(entityId)}(${count})`);
-  }, [displayedModelRelations]);
-
-  const businessSummary = useMemo(
-    () =>
-      currentProject && !isUsingMockData
-        ? buildProjectModelBusinessSummaryFromView({
-            projectId: currentProject.id,
-            iterationId: currentIteration?.id ?? null,
-            view: projectModelView,
-            generatedAt: new Date(Date.now() + businessSummaryVersion).toISOString()
-          })
-        : null,
-    [businessSummaryVersion, currentIteration?.id, currentProject, isUsingMockData, projectModelView]
-  );
-
-  const summaryGeneratedAtText = businessSummary?.generatedAt ? new Date(businessSummary.generatedAt).toLocaleString("zh-CN") : "";
-
-  const domainRuleDescriptions = useMemo(() => {
-    const lines: string[] = [];
-    for (const item of displayedModelRelations.slice(0, 4)) {
-      const from = toFriendlyName(item.fromEntityId);
-      const to = toFriendlyName(item.toEntityId);
-      const relation = toFriendlyRelationType(item.type);
-      lines.push(`规则：${from}与${to}之间建立${relation}约束。`);
-    }
-    for (const item of ruleMappings.slice(0, 4)) {
-      lines.push(`规则：${item.name}；映射对象：${item.linkedEntities.join("、") || "待补充实体映射"}`);
-    }
-    return lines;
-  }, [displayedModelRelations, ruleMappings]);
-
-  const modelHighlights = useMemo(() => {
-    const issues: string[] = [];
-    if (displayedModelEntityCount === 0) issues.push("尚未沉淀数据实体");
-    if (displayedModelRuleCount === 0) issues.push("尚未沉淀领域规则");
-    if (displayedModelRelations.length === 0) issues.push("尚未沉淀实体关系");
-    return issues;
-  }, [displayedModelEntityCount, displayedModelRuleCount, displayedModelRelations.length]);
-
-  const summaryHeadline = businessSummary?.summary?.trim() || modelSummaryText;
-
+function useModelGraphBase(
+  displayedModelRelations: ModelRelationPayload[],
+  displayedModelEntityCount: number,
+  projectModelView: ProjectModelViewPayload | null,
+  relationTypeFilter: "all" | "one_to_one" | "one_to_many" | "many_to_many"
+) {
   const relationGraph = useMemo(
     () => buildModelRelationGraph(displayedModelRelations, displayedModelEntityCount, 80, projectModelView?.entities),
     [displayedModelEntityCount, displayedModelRelations, projectModelView?.entities]
@@ -230,6 +168,19 @@ export function useProjectModelView({
     [filteredRelationGraphEdges]
   );
 
+  const showNodeLabels = relationGraph.nodes.length <= 20;
+
+  return { relationGraph, relationGraphNodeById, filteredRelationGraphEdges, filteredRelationGraphEdgeById, showNodeLabels };
+}
+
+function useModelGraphInteraction(
+  filteredRelationGraphEdges: ReturnType<typeof useModelGraphBase>["filteredRelationGraphEdges"],
+  filteredRelationGraphEdgeById: ReturnType<typeof useModelGraphBase>["filteredRelationGraphEdgeById"],
+  relationGraphNodeById: ReturnType<typeof useModelGraphBase>["relationGraphNodeById"],
+  hoveredNodeId: string | null,
+  selectedNodeId: string | null,
+  highlightedEdgeId: string | null
+) {
   const highlightedEdge = highlightedEdgeId ? filteredRelationGraphEdgeById.get(highlightedEdgeId) ?? null : null;
   const activeFocusNodeId = hoveredNodeId ?? selectedNodeId;
   const selectedNode = selectedNodeId ? relationGraphNodeById.get(selectedNodeId) ?? null : null;
@@ -254,16 +205,127 @@ export function useProjectModelView({
     return ids;
   }, [activeFocusNodeId, filteredRelationGraphEdges]);
 
-  const showNodeLabels = relationGraph.nodes.length <= 20;
+  return { highlightedEdge, activeFocusNodeId, selectedNode, selectedNodeOutgoingEdges, selectedNodeIncomingEdges, hoveredConnectedNodeIds };
+}
 
-  const centerGraphOnPoint = (x: number, y: number) => {
-    const clampOffset = (value: number) => Math.max(-18, Math.min(18, value));
-    setGraphViewportOffset({
-      x: clampOffset(50 - x),
-      y: clampOffset(50 - y)
-    });
-  };
+type ModelStatsInput = {
+  displayedModelRelations: ModelRelationPayload[];
+  displayedModelRuleCount: number;
+  displayedModelEntityCount: number;
+  displayedModelPageCount: number;
+  projectProgress: number;
+  repoHealth: RepoHealthState;
+  status: StatusPayload | null;
+  recentIterations: Iteration[];
+};
 
+function computeRelationFocusEntities(relations: ModelRelationPayload[]): string[] {
+  const entityCounter = new Map<string, number>();
+  for (const relation of relations) {
+    entityCounter.set(relation.fromEntityId, (entityCounter.get(relation.fromEntityId) ?? 0) + 1);
+    entityCounter.set(relation.toEntityId, (entityCounter.get(relation.toEntityId) ?? 0) + 1);
+  }
+  return Array.from(entityCounter.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([entityId, count]) => `${toFriendlyName(entityId)}(${count})`);
+}
+
+function useModelStats(p: ModelStatsInput) {
+  const healthScore = useMemo(
+    () =>
+      computeProjectOverviewHealthScore({
+        projectProgress: p.projectProgress,
+        modelRuleCount: p.displayedModelRuleCount,
+        modelEntityCount: p.displayedModelEntityCount,
+        modelRelationCount: p.displayedModelRelations.length,
+        modelPageCount: p.displayedModelPageCount,
+        repoHealth: p.repoHealth,
+        runtimeStatus: p.status?.status || ""
+      }),
+    [p.displayedModelEntityCount, p.displayedModelPageCount, p.displayedModelRelations.length, p.displayedModelRuleCount, p.projectProgress, p.repoHealth, p.status?.status]
+  );
+
+  const trendText = useMemo(() => {
+    if (p.recentIterations.length < 2) return "样本不足，趋势待形成";
+    const first = p.recentIterations[0]?.progress ?? 0;
+    const last = p.recentIterations[p.recentIterations.length - 1]?.progress ?? 0;
+    if (last > first) return "跨迭代沉淀趋势向好";
+    if (last < first) return "跨迭代沉淀趋势放缓";
+    return "跨迭代沉淀趋势平稳";
+  }, [p.recentIterations]);
+
+  const isUsingMockData = false;
+
+  const relationTypeStats = useMemo(() => {
+    const stats = new Map<string, number>();
+    for (const item of p.displayedModelRelations) {
+      const key = toFriendlyRelationType(item.type);
+      stats.set(key, (stats.get(key) ?? 0) + 1);
+    }
+    return Array.from(stats.entries()).map(([name, count]) => ({ name, count }));
+  }, [p.displayedModelRelations]);
+
+  const modelSummaryText = useMemo(() => {
+    const relationBrief = relationTypeStats.length > 0 ? relationTypeStats.map((item) => `${item.name}${item.count}条`).join("，") : "暂无关系类型沉淀";
+    return `当前已沉淀领域规则 ${p.displayedModelRuleCount} 条、数据实体 ${p.displayedModelEntityCount} 个、实体关系 ${p.displayedModelRelations.length} 条；关系结构以${relationBrief}为主。`;
+  }, [p.displayedModelEntityCount, p.displayedModelRelations.length, p.displayedModelRuleCount, relationTypeStats]);
+
+  const relationFocusEntities = useMemo(
+    () => computeRelationFocusEntities(p.displayedModelRelations),
+    [p.displayedModelRelations]
+  );
+
+  return { healthScore, trendText, isUsingMockData, relationTypeStats, modelSummaryText, relationFocusEntities };
+}
+
+type SummaryAssemblyInput = {
+  currentProject: Project | null;
+  currentIteration: Iteration | null;
+  projectModelView: ProjectModelViewPayload | null;
+  businessSummaryVersion: number;
+  displayedModelRelations: ModelRelationPayload[];
+  displayedModelRuleCount: number;
+  displayedModelEntityCount: number;
+  ruleMappings: { name: string; linkedEntities: string[] }[];
+  stats: ReturnType<typeof useModelStats>;
+};
+
+function useModelSummaryAssembly(p: SummaryAssemblyInput) {
+  const { isUsingMockData, relationTypeStats, modelSummaryText, relationFocusEntities, trendText } = p.stats;
+  const businessSummary = useMemo(
+    () =>
+      p.currentProject && !isUsingMockData
+        ? buildProjectModelBusinessSummaryFromView({
+            projectId: p.currentProject.id,
+            iterationId: p.currentIteration?.id ?? null,
+            view: p.projectModelView,
+            generatedAt: new Date(Date.now() + p.businessSummaryVersion).toISOString()
+          })
+        : null,
+    [p.businessSummaryVersion, p.currentIteration?.id, p.currentProject, isUsingMockData, p.projectModelView]
+  );
+  const summaryGeneratedAtText = businessSummary?.generatedAt ? new Date(businessSummary.generatedAt).toLocaleString("zh-CN") : "";
+  const domainRuleDescriptions = useMemo(() => {
+    const lines: string[] = [];
+    for (const item of p.displayedModelRelations.slice(0, 4)) {
+      const from = toFriendlyName(item.fromEntityId);
+      const to = toFriendlyName(item.toEntityId);
+      lines.push(`规则：${from}与${to}之间建立${toFriendlyRelationType(item.type)}约束。`);
+    }
+    for (const item of p.ruleMappings.slice(0, 4)) {
+      lines.push(`规则：${item.name}；映射对象：${item.linkedEntities.join("、") || "待补充实体映射"}`);
+    }
+    return lines;
+  }, [p.displayedModelRelations, p.ruleMappings]);
+  const modelHighlights = useMemo(() => {
+    const issues: string[] = [];
+    if (p.displayedModelEntityCount === 0) issues.push("尚未沉淀数据实体");
+    if (p.displayedModelRuleCount === 0) issues.push("尚未沉淀领域规则");
+    if (p.displayedModelRelations.length === 0) issues.push("尚未沉淀实体关系");
+    return issues;
+  }, [p.displayedModelEntityCount, p.displayedModelRuleCount, p.displayedModelRelations.length]);
+  const summaryHeadline = businessSummary?.summary?.trim() || modelSummaryText;
   const summaryHighlights = useMemo(() => {
     const items: string[] = [];
     if (businessSummary?.focus?.length) {
@@ -271,9 +333,7 @@ export function useProjectModelView({
     } else if (relationTypeStats.length > 0) {
       items.push(`关系结构：${relationTypeStats.slice(0, 3).map((item) => `${item.name}${item.count}条`).join("、")}`);
     }
-    if (relationFocusEntities.length > 0) {
-      items.push(`关键实体：${relationFocusEntities.join("、")}`);
-    }
+    if (relationFocusEntities.length > 0) items.push(`关键实体：${relationFocusEntities.join("、")}`);
     if (businessSummary?.risks?.length) {
       items.push(`风险提示：${normalizeInlineMarkdownText(businessSummary.risks[0])}`);
     } else if (modelHighlights.length > 0) {
@@ -282,54 +342,54 @@ export function useProjectModelView({
     items.push(`迭代趋势：${trendText}`);
     return items.slice(0, 4);
   }, [businessSummary?.focus, businessSummary?.risks, modelHighlights, relationFocusEntities, relationTypeStats, trendText]);
+  return { businessSummary, summaryGeneratedAtText, domainRuleDescriptions, modelHighlights, summaryHeadline, summaryHighlights };
+}
 
+export function useProjectModelView({
+  currentProject, currentIteration, modelPageCount, modelRuleCount,
+  modelEntityCount, modelRelations, projectProgress, repoHealth, status, recentIterations
+}: UseProjectModelViewParams) {
+  const state = useModelViewState();
+  useModelViewEffects(
+    currentProject, currentIteration,
+    state.relationTypeFilter, state.highlightedEdgeId,
+    state.setProjectModelView, state.setHoveredNodeId,
+    state.setSelectedNodeId, state.setHighlightedEdgeId,
+    state.setGraphViewportOffset
+  );
+  const display = useModelDisplayData(
+    state.projectModelView, modelRelations, modelRuleCount, modelEntityCount, modelPageCount
+  );
+  const graphBase = useModelGraphBase(
+    display.displayedModelRelations, display.displayedModelEntityCount,
+    state.projectModelView, state.relationTypeFilter
+  );
+  const graphInteraction = useModelGraphInteraction(
+    graphBase.filteredRelationGraphEdges, graphBase.filteredRelationGraphEdgeById,
+    graphBase.relationGraphNodeById,
+    state.hoveredNodeId, state.selectedNodeId, state.highlightedEdgeId
+  );
+  const stats = useModelStats({
+    displayedModelRelations: display.displayedModelRelations,
+    displayedModelRuleCount: display.displayedModelRuleCount,
+    displayedModelEntityCount: display.displayedModelEntityCount,
+    displayedModelPageCount: display.displayedModelPageCount,
+    projectProgress, repoHealth, status, recentIterations,
+  });
+  const summaryAssembly = useModelSummaryAssembly({
+    currentProject, currentIteration,
+    projectModelView: state.projectModelView,
+    businessSummaryVersion: state.businessSummaryVersion,
+    displayedModelRelations: display.displayedModelRelations,
+    displayedModelRuleCount: display.displayedModelRuleCount,
+    displayedModelEntityCount: display.displayedModelEntityCount,
+    ruleMappings: display.ruleMappings, stats,
+  });
+  const centerGraphOnPoint = (x: number, y: number) => {
+    const clampOffset = (value: number) => Math.max(-18, Math.min(18, value));
+    state.setGraphViewportOffset({ x: clampOffset(50 - x), y: clampOffset(50 - y) });
+  };
   return {
-    showModelDetails,
-    setShowModelDetails,
-    projectModelView,
-    resetProjectModelView,
-    businessSummaryVersion,
-    setBusinessSummaryVersion,
-    modelDetailsView,
-    setModelDetailsView,
-    relationTypeFilter,
-    setRelationTypeFilter,
-    hoveredNodeId,
-    setHoveredNodeId,
-    selectedNodeId,
-    setSelectedNodeId,
-    highlightedEdgeId,
-    setHighlightedEdgeId,
-    graphViewportOffset,
-    displayedModelRelations,
-    displayedModelRuleCount,
-    displayedModelEntityCount,
-    displayedModelPageCount,
-    entityCards,
-    ruleMappings,
-    relationNarratives,
-    healthScore,
-    trendText,
-    isUsingMockData,
-    relationTypeStats,
-    modelSummaryText,
-    relationFocusEntities,
-    businessSummary,
-    summaryGeneratedAtText,
-    domainRuleDescriptions,
-    modelHighlights,
-    summaryHeadline,
-    relationGraph,
-    relationGraphNodeById,
-    filteredRelationGraphEdges,
-    highlightedEdge,
-    activeFocusNodeId,
-    selectedNode,
-    selectedNodeOutgoingEdges,
-    selectedNodeIncomingEdges,
-    hoveredConnectedNodeIds,
-    showNodeLabels,
-    centerGraphOnPoint,
-    summaryHighlights
+    ...state, ...display, ...stats, ...summaryAssembly, ...graphBase, ...graphInteraction, centerGraphOnPoint,
   };
 }

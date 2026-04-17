@@ -4,6 +4,24 @@ import type { Iteration, IterationMessage } from "../domain/workspace/types";
 import { getMsgKind } from "../pages/projects/ChatMessageList";
 import { buildCoachGuidance } from "../app/coachGuidanceBuilder";
 
+type MatrixSummary = { total: number; executed: number; passed: number; failed: number; blocked: number; skipped: number; coverage: number; passRate: number };
+
+function computeMatrixSummary(
+  generatedTestMatrix: { caseId: string; executionStatus: string }[],
+  testMatrixStatusMap: Record<string, string>
+): MatrixSummary {
+  const total = generatedTestMatrix.length;
+  const statuses = generatedTestMatrix.map((item) => testMatrixStatusMap[item.caseId] || item.executionStatus);
+  const passed = statuses.filter((s) => s === "passed").length;
+  const failed = statuses.filter((s) => s === "failed").length;
+  const blocked = statuses.filter((s) => s === "blocked").length;
+  const skipped = statuses.filter((s) => s === "skipped").length;
+  const executed = passed + failed + blocked + skipped;
+  const coverage = total === 0 ? 100 : Math.round((executed / total) * 100);
+  const passRate = executed === 0 ? (total === 0 ? 100 : 0) : Math.round((passed / executed) * 100);
+  return { total, executed, passed, failed, blocked, skipped, coverage, passRate };
+}
+
 export function useAnalysisReportDerived(
   analysisReport: AttachmentAnalysisReport | null,
   currentIteration: Iteration | null,
@@ -41,18 +59,7 @@ export function useAnalysisReportDerived(
       : prioritizedFindings;
     const clarificationQuestions = currentIteration?.changeControl?.clarificationQuestions ?? analysisReport?.clarificationQuestions ?? [];
     const generatedTestMatrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
-    const matrixSummary = (() => {
-      const total = generatedTestMatrix.length;
-      const statuses = generatedTestMatrix.map((item) => testMatrixStatusMap[item.caseId] || item.executionStatus);
-      const passed = statuses.filter((status) => status === "passed").length;
-      const failed = statuses.filter((status) => status === "failed").length;
-      const blocked = statuses.filter((status) => status === "blocked").length;
-      const skipped = statuses.filter((status) => status === "skipped").length;
-      const executed = passed + failed + blocked + skipped;
-      const coverage = total === 0 ? 100 : Math.round((executed / total) * 100);
-      const passRate = executed === 0 ? (total === 0 ? 100 : 0) : Math.round((passed / executed) * 100);
-      return { total, executed, passed, failed, blocked, skipped, coverage, passRate };
-    })();
+    const matrixSummary = computeMatrixSummary(generatedTestMatrix, testMatrixStatusMap);
     const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
     const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
     const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();

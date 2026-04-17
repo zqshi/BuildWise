@@ -289,6 +289,63 @@ export async function fetchLatestAnalysisReport(iterationId: number): Promise<At
   }
 }
 
+function buildProgressMarker(job: AttachmentAnalysisJob): string {
+  return [
+    job.status,
+    job.progress.completedBatches,
+    job.progress.failedBatches,
+    job.progress.retriedBatches,
+    job.progress.processedFiles,
+    job.progress.totalFiles,
+    job.progress.llmCallCount || 0,
+    job.progress.llmSuccessCount || 0,
+    job.progress.llmFailureCount || 0,
+    job.progress.llmInFlightCount || 0,
+    job.progress.currentBatch || 0,
+    job.progress.currentAttempt || 0,
+    job.progress.stageHint || "",
+    job.progress.lastLlmCallAt || ""
+  ].join("|");
+}
+
+function handlePollError(
+  error: unknown,
+  consecutivePollErrors: number,
+  maxConsecutivePollErrors: number,
+  backoffDelays: number[],
+  lastKnownJob: AttachmentAnalysisJob | null,
+  onJobUpdate?: (job: AttachmentAnalysisJob) => void
+): { backoffMs: number } {
+  if (consecutivePollErrors >= maxConsecutivePollErrors) {
+    throw new Error(
+      `analysis job polling failed: ${error instanceof Error ? error.message : "unknown_error"} (consecutive=${consecutivePollErrors})`
+    );
+  }
+  const backoffMs = backoffDelays[Math.min(consecutivePollErrors - 1, backoffDelays.length - 1)];
+  // 通知 UI 正在重连，保持 isAnalyzingAttachment 状态
+  if (lastKnownJob && onJobUpdate) {
+    onJobUpdate({
+      ...lastKnownJob,
+      progress: { ...lastKnownJob.progress, stageHint: `poll-reconnect:attempt-${consecutivePollErrors}` }
+    });
+  }
+  return { backoffMs };
+}
+
+function checkStallTimeout(
+  job: AttachmentAnalysisJob,
+  stallDuration: number,
+  queuedStallTimeoutMs: number,
+  runningStallTimeoutMs: number
+): void {
+  if (job.status === "queued" && stallDuration >= queuedStallTimeoutMs) {
+    throw new Error(`analysis job stalled (${queuedStallTimeoutMs}ms in queued)`);
+  }
+  if (job.status === "running" && stallDuration >= runningStallTimeoutMs) {
+    throw new Error(`analysis job stalled (${runningStallTimeoutMs}ms in running)`);
+  }
+}
+
 export async function waitForAttachmentAnalysisJob(
   iterationId: number,
   jobId: string,
@@ -320,49 +377,19 @@ export async function waitForAttachmentAnalysisJob(
       lastKnownJob = job;
     } catch (error) {
       consecutivePollErrors += 1;
-      if (consecutivePollErrors >= maxConsecutivePollErrors) {
-        throw new Error(
-          `analysis job polling failed: ${error instanceof Error ? error.message : "unknown_error"} (consecutive=${consecutivePollErrors})`
-        );
-      }
-      const backoff = POLL_BACKOFF_DELAYS[Math.min(consecutivePollErrors - 1, POLL_BACKOFF_DELAYS.length - 1)];
-      // 通知 UI 正在重连，保持 isAnalyzingAttachment 状态
-      if (lastKnownJob && options?.onJobUpdate) {
-        options.onJobUpdate({
-          ...lastKnownJob,
-          progress: { ...lastKnownJob.progress, stageHint: `poll-reconnect:attempt-${consecutivePollErrors}` }
-        });
-      }
-      await new Promise<void>((resolve) => setTimeout(resolve, backoff));
+      const { backoffMs } = handlePollError(
+        error, consecutivePollErrors, maxConsecutivePollErrors,
+        POLL_BACKOFF_DELAYS, lastKnownJob, options?.onJobUpdate
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, backoffMs));
       continue;
     }
-    const marker = [
-      job.status,
-      job.progress.completedBatches,
-      job.progress.failedBatches,
-      job.progress.retriedBatches,
-      job.progress.processedFiles,
-      job.progress.totalFiles,
-      job.progress.llmCallCount || 0,
-      job.progress.llmSuccessCount || 0,
-      job.progress.llmFailureCount || 0,
-      job.progress.llmInFlightCount || 0,
-      job.progress.currentBatch || 0,
-      job.progress.currentAttempt || 0,
-      job.progress.stageHint || "",
-      job.progress.lastLlmCallAt || ""
-    ].join("|");
+    const marker = buildProgressMarker(job);
     if (marker !== lastProgressMarker) {
       lastProgressMarker = marker;
       lastProgressAt = Date.now();
     }
-    const stallDuration = Date.now() - lastProgressAt;
-    if (job.status === "queued" && stallDuration >= queuedStallTimeoutMs) {
-      throw new Error(`analysis job stalled (${queuedStallTimeoutMs}ms in queued)`);
-    }
-    if (job.status === "running" && stallDuration >= runningStallTimeoutMs) {
-      throw new Error(`analysis job stalled (${runningStallTimeoutMs}ms in running)`);
-    }
+    checkStallTimeout(job, Date.now() - lastProgressAt, queuedStallTimeoutMs, runningStallTimeoutMs);
     options?.onJobUpdate?.(job);
     if (job.status === "succeeded" || job.status === "partial_succeeded") {
       if (!job.result) {
@@ -427,6 +454,47 @@ export async function analyzeIterationAttachment(
   }
 }
 
+type FileEntry = Awaited<ReturnType<typeof toAttachmentFileEntry>>;
+
+function buildFolderUploadPayload(
+  entries: FileEntry[],
+  folderName: string,
+  options?: {
+    agentScope?: AttachmentUploadInput["agentScope"];
+    forceMultiAgent?: boolean;
+    autoTransition?: boolean;
+  }
+): AttachmentUploadInput {
+  const textEntries = entries.filter((item) => item.excerpt.trim().length > 0);
+  const digest = `strategy=folder-batch;files=${entries.length};textFiles=${textEntries.length};binaryFiles=${entries.length - textEntries.length}`;
+  const preview = textEntries
+    .slice(0, 3)
+    .map((item) => `${item.path}: ${item.excerpt.slice(0, 200)}`)
+    .join("\n\n");
+  return {
+    fileName: folderName,
+    mimeType: "application/x-directory",
+    size: entries.reduce((total, item) => total + item.size, 0),
+    sourceType: "folder",
+    folderName,
+    files: entries,
+    visionPayloads: entries
+      .filter((item) => typeof item.imageDataUrl === "string" && item.imageDataUrl.startsWith("data:image/"))
+      .slice(0, 2)
+      .map((item) => ({
+        path: item.path,
+        mimeType: item.mimeType,
+        dataUrl: item.imageDataUrl || ""
+      })),
+    excerpt: preview.slice(0, 6000),
+    excerptDigest: digest,
+    excerptStrategy: "folder-batch",
+    agentScope: options?.agentScope ?? "full-cycle",
+    forceMultiAgent: options?.forceMultiAgent ?? true,
+    autoTransition: options?.autoTransition ?? false
+  };
+}
+
 export async function analyzeIterationAttachmentFolder(
   iterationId: number,
   files: File[],
@@ -465,35 +533,8 @@ export async function analyzeIterationAttachmentFolder(
   const entries = await Promise.all(
     normalized.map((item) => toAttachmentFileEntry(item, excerptPathSet.has(getFilePath(item))))
   );
-  const textEntries = entries.filter((item) => item.excerpt.trim().length > 0);
   const folderName = options?.folderName?.trim() || "uploaded-folder";
-  const digest = `strategy=folder-batch;files=${entries.length};textFiles=${textEntries.length};binaryFiles=${entries.length - textEntries.length}`;
-  const preview = textEntries
-    .slice(0, 3)
-    .map((item) => `${item.path}: ${item.excerpt.slice(0, 200)}`)
-    .join("\n\n");
-  const payload: AttachmentUploadInput = {
-    fileName: folderName,
-    mimeType: "application/x-directory",
-    size: entries.reduce((total, item) => total + item.size, 0),
-    sourceType: "folder",
-    folderName,
-    files: entries,
-    visionPayloads: entries
-      .filter((item) => typeof item.imageDataUrl === "string" && item.imageDataUrl.startsWith("data:image/"))
-      .slice(0, 2)
-      .map((item) => ({
-        path: item.path,
-        mimeType: item.mimeType,
-        dataUrl: item.imageDataUrl || ""
-      })),
-    excerpt: preview.slice(0, 6000),
-    excerptDigest: digest,
-    excerptStrategy: "folder-batch",
-    agentScope: options?.agentScope ?? "full-cycle",
-    forceMultiAgent: options?.forceMultiAgent ?? true,
-    autoTransition: options?.autoTransition ?? false
-  };
+  const payload = buildFolderUploadPayload(entries, folderName, options);
   try {
     const createdJob = await submitAttachmentAnalysisJob(iterationId, payload);
     options?.onJobUpdate?.(createdJob);

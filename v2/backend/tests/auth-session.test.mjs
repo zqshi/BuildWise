@@ -74,7 +74,7 @@ test("/auth/session rejects unknown platform user", async () => {
   });
 
   assert.equal(response.statusCode, 403);
-  assert.equal(response.json().message, "user is not registered in platform members");
+  assert.equal(response.json().message, "该用户未注册为平台成员");
 
   await app.close();
 });
