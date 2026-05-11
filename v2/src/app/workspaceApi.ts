@@ -11,6 +11,8 @@ export * from "./workspaceApiPlatform";
 export * from "./workspaceApiGovernance";
 export * from "./workspaceApiPolicy";
 export * from "./workspaceApiAuth";
+export * from "./workspaceApiBacklog";
+export * from "./workspaceApiKnowledge";
 
 // Core project-level functions
 

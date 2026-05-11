@@ -26,6 +26,9 @@ import type {
   AttachmentUploadRecord,
   AttachmentIngestJob
 } from "./analysisTypes";
+import type { BacklogItem, CreateBacklogItemInput } from "./backlogTypes";
+import type { KnowledgeEntry, CreateKnowledgeEntryInput } from "./knowledgeTypes";
+import type { KnowledgeGraphCache, KnowledgeGraphData } from "./knowledgeGraphTypes";
 
 // ── Sub-interfaces (ISP) ──
 
@@ -115,6 +118,29 @@ export interface AnalysisPipelineRepository {
   findIngestJob(ingestJobId: string): AttachmentIngestJob | null;
 }
 
+export interface BacklogRepository {
+  listBacklogItems(projectId: number): BacklogItem[];
+  findBacklogItem(itemId: number): BacklogItem | null;
+  createBacklogItem(projectId: number, input: CreateBacklogItemInput, createdBy: string): BacklogItem;
+  updateBacklogItem(item: BacklogItem): void;
+  deleteBacklogItem(itemId: number): boolean;
+  listBacklogItemsByIteration(iterationId: number): BacklogItem[];
+}
+
+export interface KnowledgeRepository {
+  listKnowledgeEntries(projectId: number): KnowledgeEntry[];
+  findKnowledgeEntry(entryId: number): KnowledgeEntry | null;
+  createKnowledgeEntry(projectId: number, input: CreateKnowledgeEntryInput, createdBy: string): KnowledgeEntry;
+  updateKnowledgeEntry(entry: KnowledgeEntry): void;
+  deleteKnowledgeEntry(entryId: number): boolean;
+  searchKnowledgeEntries(projectId: number, query: string, limit?: number): KnowledgeEntry[];
+}
+
+export interface KnowledgeGraphRepository {
+  getKnowledgeGraphCache(projectId: number): KnowledgeGraphCache | null;
+  saveKnowledgeGraphCache(projectId: number, graphData: KnowledgeGraphData, entryCount: number): KnowledgeGraphCache;
+}
+
 // ── Backward-compatible composite ──
 
 export interface WorkspaceRepository
@@ -124,4 +150,7 @@ export interface WorkspaceRepository
     MessageRepository,
     GovernanceRepository,
     CollaborationRepository,
-    AnalysisPipelineRepository {}
+    AnalysisPipelineRepository,
+    BacklogRepository,
+    KnowledgeRepository,
+    KnowledgeGraphRepository {}

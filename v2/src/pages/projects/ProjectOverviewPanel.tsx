@@ -5,6 +5,9 @@ import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes"
 import type { StatusPayload } from "../../domain/workspace/types";
 import { ProjectOverviewPanelModelDetails } from "./ProjectOverviewPanelModelDetails";
 import { ProjectOverviewPanelDrawers } from "./ProjectOverviewPanelDrawers";
+import { BacklogPanel } from "./BacklogPanel";
+import { KnowledgePanel } from "./KnowledgePanel";
+import { KnowledgeWorkspaceView } from "./KnowledgeWorkspaceView";
 import { useRepositoryConfig } from "./useRepositoryConfig";
 import { useProjectModelView } from "./useProjectModelView";
 import { usePolicyManagement } from "./usePolicyManagement";
@@ -62,6 +65,7 @@ export function ProjectOverviewPanel({
   // Drawer visibility states lifted here to break circular dependency between hooks
   const [showPolicyDrawer, setShowPolicyDrawer] = useState(false);
   const [showAssistantDrawer, setShowAssistantDrawer] = useState(false);
+  const [panelView, setPanelView] = useState<"overview" | "knowledge">("overview");
 
   // Hook 1: Repository config
   const repo = useRepositoryConfig(currentProject);
@@ -117,8 +121,12 @@ export function ProjectOverviewPanel({
     <>
       <article className="panel preview-panel context-panel project-overview-panel">
       <div className="panel-head">
-        <h2>项目面板</h2>
+        <div className="panel-view-tabs" role="tablist" aria-label="项目面板视图切换">
+          <button type="button" role="tab" className={`btn ghost mini ${panelView === "overview" ? "active" : ""}`} aria-selected={panelView === "overview"} onClick={() => setPanelView("overview")}>项目总览</button>
+          <button type="button" role="tab" className={`btn ghost mini ${panelView === "knowledge" ? "active" : ""}`} aria-selected={panelView === "knowledge"} onClick={() => setPanelView("knowledge")}>知识库</button>
+        </div>
       </div>
+      {panelView === "overview" ? (
       <div className="preview-scroll project-overview-scroll">
         <section className="project-overview-hero">
           <article className="project-progress-card">
@@ -172,6 +180,8 @@ export function ProjectOverviewPanel({
             )}
           </article>
         </section>
+
+        <BacklogPanel projectId={currentProject?.id ?? null} iterations={iterations} />
 
         <section className="project-versions-card">
           <div className="panel-head tight">
@@ -233,6 +243,8 @@ export function ProjectOverviewPanel({
             </div>
           )}
         </section>
+
+        <KnowledgePanel projectId={currentProject?.id ?? null} onEnterKnowledge={() => setPanelView("knowledge")} />
 
         <ProjectOverviewPanelModelDetails
           showModelDetails={model.showModelDetails}
@@ -302,6 +314,9 @@ export function ProjectOverviewPanel({
           </button>
         </div>
       </div>
+      ) : (
+        <KnowledgeWorkspaceView projectId={currentProject?.id ?? null} />
+      )}
       </article>
 
       <ProjectOverviewPanelDrawers

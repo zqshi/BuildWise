@@ -30,15 +30,21 @@ import type {
 import { nextThreePartVersion } from "../../domain/workspace/versioning";
 import { SqliteWorkspaceCore } from "./sqliteWorkspaceCore";
 import { SqliteWorkspaceAnalysisStore } from "./sqliteWorkspaceAnalysisStore";
+import { SqliteWorkspaceBacklog } from "./sqliteWorkspaceBacklog";
+import { SqliteWorkspaceKnowledge } from "./sqliteWorkspaceKnowledge";
 
 export class SqliteWorkspaceRepository implements WorkspaceRepository {
   private readonly core: SqliteWorkspaceCore;
   private readonly analysisStore: SqliteWorkspaceAnalysisStore;
+  private readonly backlogStore: SqliteWorkspaceBacklog;
+  private readonly knowledgeStore: SqliteWorkspaceKnowledge;
 
   constructor(dbFile: string, seedDataFile?: string, options?: { bootstrapMode?: "seed" | "empty" }) {
     this.core = new SqliteWorkspaceCore(dbFile, seedDataFile, options);
     this.core.readStore();
     this.analysisStore = new SqliteWorkspaceAnalysisStore(this.core.db);
+    this.backlogStore = new SqliteWorkspaceBacklog(this.core.db);
+    this.knowledgeStore = new SqliteWorkspaceKnowledge(this.core.db);
   }
 
   /** Expose the underlying DatabaseSync for cross-cutting concerns (e.g. revoked-token store). */
@@ -567,4 +573,27 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
   listUploads(iterationId: number) { return this.analysisStore.listUploads(iterationId); }
   saveIngestJob(job: AttachmentIngestJob) { this.analysisStore.saveIngestJob(job); }
   findIngestJob(ingestJobId: string) { return this.analysisStore.findIngestJob(ingestJobId); }
+
+  // ── BacklogRepository (delegated to SqliteWorkspaceBacklog) ──
+
+  listBacklogItems(projectId: number) { return this.backlogStore.listBacklogItems(projectId); }
+  findBacklogItem(itemId: number) { return this.backlogStore.findBacklogItem(itemId); }
+  createBacklogItem(projectId: number, input: Parameters<typeof this.backlogStore.createBacklogItem>[1], createdBy: string) { return this.backlogStore.createBacklogItem(projectId, input, createdBy); }
+  updateBacklogItem(item: Parameters<typeof this.backlogStore.updateBacklogItem>[0]) { this.backlogStore.updateBacklogItem(item); }
+  deleteBacklogItem(itemId: number) { return this.backlogStore.deleteBacklogItem(itemId); }
+  listBacklogItemsByIteration(iterationId: number) { return this.backlogStore.listBacklogItemsByIteration(iterationId); }
+
+  // ── KnowledgeRepository (delegated to SqliteWorkspaceKnowledge) ──
+
+  listKnowledgeEntries(projectId: number) { return this.knowledgeStore.listKnowledgeEntries(projectId); }
+  findKnowledgeEntry(entryId: number) { return this.knowledgeStore.findKnowledgeEntry(entryId); }
+  createKnowledgeEntry(projectId: number, input: Parameters<typeof this.knowledgeStore.createKnowledgeEntry>[1], createdBy: string) { return this.knowledgeStore.createKnowledgeEntry(projectId, input, createdBy); }
+  updateKnowledgeEntry(entry: Parameters<typeof this.knowledgeStore.updateKnowledgeEntry>[0]) { this.knowledgeStore.updateKnowledgeEntry(entry); }
+  deleteKnowledgeEntry(entryId: number) { return this.knowledgeStore.deleteKnowledgeEntry(entryId); }
+  searchKnowledgeEntries(projectId: number, query: string, limit?: number) { return this.knowledgeStore.searchKnowledgeEntries(projectId, query, limit); }
+
+  // ── KnowledgeGraphRepository (delegated to SqliteWorkspaceCore) ──
+
+  getKnowledgeGraphCache(projectId: number) { return this.core.getKnowledgeGraphCache(projectId); }
+  saveKnowledgeGraphCache(projectId: number, graphData: Parameters<typeof this.core.saveKnowledgeGraphCache>[1], entryCount: number) { return this.core.saveKnowledgeGraphCache(projectId, graphData, entryCount); }
 }
