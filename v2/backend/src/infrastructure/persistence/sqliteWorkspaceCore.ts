@@ -9,9 +9,13 @@ import type {
   Project,
   WorkspaceStore
 } from "../../domain/workspace/types";
+import type { KnowledgeGraphCache, KnowledgeGraphData } from "../../domain/workspace/knowledgeGraphTypes";
 import { initialSchema } from "./migrations/001_initial_schema";
 import { fixOrphanTenant } from "./migrations/002_fix_orphan_tenant";
 import { analysisPipelinePersistence } from "./migrations/003_analysis_pipeline_persistence";
+import { backlogAndKnowledge } from "./migrations/004_backlog_and_knowledge";
+import { knowledgeGroup } from "./migrations/005_knowledge_group";
+import { knowledgeGraph } from "./migrations/006_knowledge_graph";
 import { runMigrations } from "./migrations/migrationRunner";
 
 const seedStore: WorkspaceStore = {
@@ -104,7 +108,7 @@ export class SqliteWorkspaceCore {
         updated_at TEXT NOT NULL
       );
     `);
-    runMigrations(this.db, [initialSchema, fixOrphanTenant, analysisPipelinePersistence]);
+    runMigrations(this.db, [initialSchema, fixOrphanTenant, analysisPipelinePersistence, backlogAndKnowledge, knowledgeGroup, knowledgeGraph]);
   }
 
   private initialStore(): WorkspaceStore {
@@ -421,5 +425,31 @@ export class SqliteWorkspaceCore {
       (item) => [item.id, item.action, item.resource, item.createdAt, JSON.stringify(item)],
       data.auditLogs
     );
+  }
+
+  // ── Knowledge Graph Cache ──
+
+  getKnowledgeGraphCache(projectId: number): KnowledgeGraphCache | null {
+    const row = this.db.prepare(
+      "SELECT project_id, graph_data, entry_count, generated_at FROM knowledge_graph_cache WHERE project_id = ?"
+    ).get(projectId) as { project_id: number; graph_data: string; entry_count: number; generated_at: string } | undefined;
+    if (!row) return null;
+    return {
+      projectId: row.project_id,
+      graphData: JSON.parse(row.graph_data) as KnowledgeGraphData,
+      entryCount: row.entry_count,
+      generatedAt: row.generated_at,
+    };
+  }
+
+  saveKnowledgeGraphCache(projectId: number, graphData: KnowledgeGraphData, entryCount: number): KnowledgeGraphCache {
+    const now = new Date().toISOString();
+    const json = JSON.stringify(graphData);
+    this.db.prepare(
+      `INSERT INTO knowledge_graph_cache (project_id, graph_data, entry_count, generated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(project_id) DO UPDATE SET graph_data = excluded.graph_data, entry_count = excluded.entry_count, generated_at = excluded.generated_at`
+    ).run(projectId, json, entryCount, now);
+    return { projectId, graphData, entryCount, generatedAt: now };
   }
 }

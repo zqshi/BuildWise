@@ -14,6 +14,8 @@ import { UploadService } from '../upload/uploadService';
 import { coachIterationConversationOp } from '../coach/coachOps';
 import { QualityService } from '../quality/qualityService';
 import { FullCycleService } from '../quality/fullCycleService';
+import { BacklogService } from '../backlog/backlogService';
+import { KnowledgeService } from '../knowledge/knowledgeService';
 import {
   searchProjectWorkspaceKnowledge,
   syncAllProjectWorkspaceKnowledge,
@@ -32,6 +34,8 @@ export class WorkspaceService {
   readonly upload: UploadService;
   readonly quality: QualityService;
   readonly fullCycle: FullCycleService;
+  readonly backlog: BacklogService;
+  readonly knowledge: KnowledgeService;
 
   constructor(
     repo: WorkspaceRepository,
@@ -53,6 +57,7 @@ export class WorkspaceService {
       agentRunner
     );
     this.upload = new UploadService(repo, this.analysis, agentRunner);
+    this.knowledge = new KnowledgeService(repo, agentRunner);
     this.quality = new QualityService(repo, agentRunner, modelingRepo);
     this.fullCycle = new FullCycleService(repo, {
       analyzeAttachment: (id, input) => this.analysis.analyzeAttachment(id, input),
@@ -63,6 +68,7 @@ export class WorkspaceService {
       generateIterationDeliveryPackage: (id, input) => this.quality.generateIterationDeliveryPackage(id, input),
       publishIterationToRemote: (id, input) => this.project.publishIterationToRemote(id, input)
     }, agentRunner);
+    this.backlog = new BacklogService(repo);
   }
 
   // ── Methods with real logic (not pure delegates) ──
