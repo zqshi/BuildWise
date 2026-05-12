@@ -1,6 +1,9 @@
 .project-model-box {
   background:color-mix(in srgb,var(--bg-surface) 86%, var(--bg-surface-muted));
 }
+.project-model-box > .panel-head h3 {
+  font-size:var(--text-lg);
+}
 .project-model-detail-kpis {
   margin-bottom:8px;
 }
