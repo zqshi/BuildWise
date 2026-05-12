@@ -15,6 +15,8 @@ import { toModelRelationsFromView } from "./projectModelViewAdapter";
 import { normalizeProjectModelViewPayload } from "../../app/projectModelViewNormalization.ts";
 import type { RepoHealthState } from "./useRepositoryConfig";
 import type { StatusPayload } from "../../domain/workspace/types";
+import { useKnowledgeGraph } from "../../hooks/useKnowledgeGraph";
+import { mergeToUnifiedGraph } from "./unifiedGraphModel";
 
 type UseProjectModelViewParams = {
   currentProject: Project | null;
@@ -33,7 +35,7 @@ function useModelViewState() {
   const [showModelDetails, setShowModelDetails] = useState(false);
   const [projectModelView, setProjectModelView] = useState<ProjectModelViewPayload | null>(null);
   const [businessSummaryVersion, setBusinessSummaryVersion] = useState(0);
-  const [modelDetailsView, setModelDetailsView] = useState<"summary" | "graph">("summary");
+  const [modelDetailsView, setModelDetailsView] = useState<"unified" | "summary" | "graph">("unified");
   const [relationTypeFilter, setRelationTypeFilter] = useState<"all" | "one_to_one" | "one_to_many" | "many_to_many">("all");
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -389,7 +391,20 @@ export function useProjectModelView({
     const clampOffset = (value: number) => Math.max(-18, Math.min(18, value));
     state.setGraphViewportOffset({ x: clampOffset(50 - x), y: clampOffset(50 - y) });
   };
+
+  const kg = useKnowledgeGraph(currentProject?.id ?? null);
+  const unifiedGraph = useMemo(
+    () => mergeToUnifiedGraph(
+      state.projectModelView,
+      kg.cache?.graphData ?? null,
+      kg.cache?.generatedAt ?? null
+    ),
+    [state.projectModelView, kg.cache]
+  );
+
   return {
     ...state, ...display, ...stats, ...summaryAssembly, ...graphBase, ...graphInteraction, centerGraphOnPoint,
+    knowledgeGraph: kg,
+    unifiedGraph,
   };
 }

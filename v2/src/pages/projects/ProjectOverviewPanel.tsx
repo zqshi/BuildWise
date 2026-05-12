@@ -286,6 +286,9 @@ export function ProjectOverviewPanel({
           displayedModelEntityCount={model.displayedModelEntityCount}
           displayedModelRelations={model.displayedModelRelations}
           displayedModelRuleCount={model.displayedModelRuleCount}
+          unifiedGraph={model.unifiedGraph}
+          knowledgeGenerating={model.knowledgeGraph.generating}
+          onGenerateKnowledgeGraph={model.knowledgeGraph.generate}
         />
         <div className="info-box">
           <div className="panel-head tight">
