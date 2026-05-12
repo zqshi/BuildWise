@@ -4,6 +4,8 @@ import type { RelationGraphEdge, RelationGraphNode, RelationGraphPayload } from 
 import { ProjectOverviewPanelModelGraph } from "./ProjectOverviewPanelModelGraph";
 import { ProjectOverviewPanelModelSummary } from "./ProjectOverviewPanelModelSummary";
 import type { ModelEntityCard, ModelRuleMapping } from "./projectModelBusinessView";
+import type { UnifiedGraphData } from "../../domain/workspace/unifiedGraphTypes";
+import { UnifiedGraphView } from "./UnifiedGraphView";
 type RelationTypeFilter = "all" | "one_to_one" | "one_to_many" | "many_to_many";
 type Props = {
   showModelDetails: boolean;
@@ -11,8 +13,8 @@ type Props = {
   isUsingMockData: boolean;
   setBusinessSummaryVersion: (updater: (prev: number) => number) => void;
   businessSummaryLoading: boolean;
-  modelDetailsView: "summary" | "graph";
-  setModelDetailsView: (view: "summary" | "graph") => void;
+  modelDetailsView: "unified" | "summary" | "graph";
+  setModelDetailsView: (view: "unified" | "summary" | "graph") => void;
   relationTypeFilter: RelationTypeFilter;
   setRelationTypeFilter: (value: RelationTypeFilter) => void;
   relationTypeStats: Array<{ name: string; count: number }>;
@@ -45,6 +47,9 @@ type Props = {
   displayedModelEntityCount: number;
   displayedModelRelations: ModelRelationPayload[];
   displayedModelRuleCount: number;
+  unifiedGraph: UnifiedGraphData;
+  knowledgeGenerating: boolean;
+  onGenerateKnowledgeGraph: () => void;
 };
 export function ProjectOverviewPanelModelDetails({
   showModelDetails,
@@ -83,7 +88,8 @@ export function ProjectOverviewPanelModelDetails({
   entityCards,
   ruleMappings,
   relationNarratives,
-  displayedModelEntityCount, displayedModelRelations, displayedModelRuleCount
+  displayedModelEntityCount, displayedModelRelations, displayedModelRuleCount,
+  unifiedGraph, knowledgeGenerating, onGenerateKnowledgeGraph
 }: Props) {
   const selectedEntityCard = selectedNode ? entityCards.find((item) => item.id === selectedNode.id) || null : null;
   const selectedRuleMappings = selectedNode
@@ -92,7 +98,7 @@ export function ProjectOverviewPanelModelDetails({
   return (
     <div className="info-box project-model-box">
       <div className="panel-head tight">
-        <h3>项目建模与领域建模</h3>
+        <h3>项目全景图谱</h3>
         <div className="chat-tools">
           <button type="button" className="btn ghost mini" onClick={() => setShowModelDetails((prev) => !prev)}>
             {showModelDetails ? "收起详情" : "查看详情"}
@@ -116,6 +122,15 @@ export function ProjectOverviewPanelModelDetails({
           <div className="model-details-view-switch" role="tablist" aria-label="建模详情视图切换">
             <button
               type="button"
+              className={`btn ghost mini ${modelDetailsView === "unified" ? "active" : ""}`}
+              role="tab"
+              aria-selected={modelDetailsView === "unified"}
+              onClick={() => setModelDetailsView("unified")}
+            >
+              全景图谱
+            </button>
+            <button
+              type="button"
               className={`btn ghost mini ${modelDetailsView === "summary" ? "active" : ""}`}
               role="tab"
               aria-selected={modelDetailsView === "summary"}
@@ -130,10 +145,16 @@ export function ProjectOverviewPanelModelDetails({
               aria-selected={modelDetailsView === "graph"}
               onClick={() => setModelDetailsView("graph")}
             >
-              节点关系图
+              关系明细
             </button>
           </div>
-          {modelDetailsView === "summary" ? (
+          {modelDetailsView === "unified" ? (
+            <UnifiedGraphView
+              data={unifiedGraph}
+              generating={knowledgeGenerating}
+              onGenerate={onGenerateKnowledgeGraph}
+            />
+          ) : modelDetailsView === "summary" ? (
             <ProjectOverviewPanelModelSummary
               relationTypeStats={relationTypeStats}
               relationFocusEntities={relationFocusEntities}
