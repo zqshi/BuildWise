@@ -6,7 +6,6 @@ import type { StatusPayload } from "../../domain/workspace/types";
 import { ProjectOverviewPanelModelDetails } from "./ProjectOverviewPanelModelDetails";
 import { ProjectOverviewPanelDrawers } from "./ProjectOverviewPanelDrawers";
 import { BacklogPanel } from "./BacklogPanel";
-import { KnowledgePanel } from "./KnowledgePanel";
 import { KnowledgeWorkspaceView } from "./KnowledgeWorkspaceView";
 import { useRepositoryConfig } from "./useRepositoryConfig";
 import { useProjectModelView } from "./useProjectModelView";
@@ -243,8 +242,6 @@ export function ProjectOverviewPanel({
             </div>
           )}
         </section>
-
-        <KnowledgePanel projectId={currentProject?.id ?? null} onEnterKnowledge={() => setPanelView("knowledge")} />
 
         <ProjectOverviewPanelModelDetails
           showModelDetails={model.showModelDetails}
