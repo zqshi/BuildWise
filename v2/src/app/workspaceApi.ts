@@ -13,6 +13,8 @@ export * from "./workspaceApiPolicy";
 export * from "./workspaceApiAuth";
 export * from "./workspaceApiBacklog";
 export * from "./workspaceApiKnowledge";
+export * from "./workspaceApiExperience";
+export * from "./workspaceApiAssistant";
 
 // Core project-level functions
 

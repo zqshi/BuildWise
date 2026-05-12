@@ -29,6 +29,7 @@ import type {
 import type { BacklogItem, CreateBacklogItemInput } from "./backlogTypes";
 import type { KnowledgeEntry, CreateKnowledgeEntryInput } from "./knowledgeTypes";
 import type { KnowledgeGraphCache, KnowledgeGraphData } from "./knowledgeGraphTypes";
+import type { ExperiencePolicy, ExperienceExtractionRecord } from "./experiencePolicyTypes";
 
 // ── Sub-interfaces (ISP) ──
 
@@ -141,6 +142,32 @@ export interface KnowledgeGraphRepository {
   saveKnowledgeGraphCache(projectId: number, graphData: KnowledgeGraphData, entryCount: number): KnowledgeGraphCache;
 }
 
+export interface ExperienceRepository {
+  listExperiencePolicies(projectId: number): ExperiencePolicy[];
+  findActiveExperiencePolicy(projectId: number): ExperiencePolicy | null;
+  createExperiencePolicy(policy: Omit<ExperiencePolicy, "id">): ExperiencePolicy;
+  updateExperiencePolicy(policy: ExperiencePolicy): void;
+  deleteExperiencePolicy(policyId: number): boolean;
+  listExperienceExtractions(projectId: number): ExperienceExtractionRecord[];
+  appendExperienceExtraction(extraction: Omit<ExperienceExtractionRecord, "id">): ExperienceExtractionRecord;
+  searchKnowledgeAcrossProjects(tenantId: string, query: string, limit?: number): KnowledgeEntry[];
+}
+
+export type AssistantMessage = {
+  id: number;
+  tenantId: string;
+  role: "user" | "assistant";
+  content: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export interface AssistantConversationRepository {
+  listAssistantMessages(tenantId: string, limit?: number): AssistantMessage[];
+  appendAssistantMessage(msg: Omit<AssistantMessage, "id">): AssistantMessage;
+  clearAssistantMessages(tenantId: string): void;
+}
+
 // ── Backward-compatible composite ──
 
 export interface WorkspaceRepository
@@ -153,4 +180,6 @@ export interface WorkspaceRepository
     AnalysisPipelineRepository,
     BacklogRepository,
     KnowledgeRepository,
-    KnowledgeGraphRepository {}
+    KnowledgeGraphRepository,
+    ExperienceRepository,
+    AssistantConversationRepository {}

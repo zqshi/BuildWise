@@ -16,6 +16,8 @@ import { analysisPipelinePersistence } from "./migrations/003_analysis_pipeline_
 import { backlogAndKnowledge } from "./migrations/004_backlog_and_knowledge";
 import { knowledgeGroup } from "./migrations/005_knowledge_group";
 import { knowledgeGraph } from "./migrations/006_knowledge_graph";
+import { experiencePoliciesAndExtractions } from "./migrations/007_experience_policies_and_extractions";
+import { assistantConversations } from "./migrations/008_assistant_conversations";
 import { runMigrations } from "./migrations/migrationRunner";
 
 const seedStore: WorkspaceStore = {
@@ -108,7 +110,7 @@ export class SqliteWorkspaceCore {
         updated_at TEXT NOT NULL
       );
     `);
-    runMigrations(this.db, [initialSchema, fixOrphanTenant, analysisPipelinePersistence, backlogAndKnowledge, knowledgeGroup, knowledgeGraph]);
+    runMigrations(this.db, [initialSchema, fixOrphanTenant, analysisPipelinePersistence, backlogAndKnowledge, knowledgeGroup, knowledgeGraph, experiencePoliciesAndExtractions, assistantConversations]);
   }
 
   private initialStore(): WorkspaceStore {

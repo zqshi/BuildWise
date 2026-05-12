@@ -38,6 +38,7 @@ export function MainContentArea({
       {showAssistantWorkspace ? (
         <GlobalAssistantPanel
           isAdmin={controller.currentRole === "owner"}
+          tenantId={controller.currentTenantId}
           onBack={onCloseAssistantWorkspace}
         />
       ) : controller.activeView === "dashboard" ? (

@@ -16,6 +16,8 @@ import { QualityService } from '../quality/qualityService';
 import { FullCycleService } from '../quality/fullCycleService';
 import { BacklogService } from '../backlog/backlogService';
 import { KnowledgeService } from '../knowledge/knowledgeService';
+import { ExperienceService } from '../experience/experienceService';
+import { assistantChatOp, type AssistantChatResponse } from '../assistant/assistantChatOps';
 import {
   searchProjectWorkspaceKnowledge,
   syncAllProjectWorkspaceKnowledge,
@@ -36,6 +38,7 @@ export class WorkspaceService {
   readonly fullCycle: FullCycleService;
   readonly backlog: BacklogService;
   readonly knowledge: KnowledgeService;
+  readonly experience: ExperienceService;
 
   constructor(
     repo: WorkspaceRepository,
@@ -58,6 +61,7 @@ export class WorkspaceService {
     );
     this.upload = new UploadService(repo, this.analysis, agentRunner);
     this.knowledge = new KnowledgeService(repo, agentRunner);
+    this.experience = new ExperienceService(repo, agentRunner);
     this.quality = new QualityService(repo, agentRunner, modelingRepo);
     this.fullCycle = new FullCycleService(repo, {
       analyzeAttachment: (id, input) => this.analysis.analyzeAttachment(id, input),
@@ -106,6 +110,18 @@ export class WorkspaceService {
 
   coachIterationConversation(iterationId: number, message: string) {
     return coachIterationConversationOp(this.repo, this.agentRunner, iterationId, message);
+  }
+
+  assistantChat(tenantId: string, message: string): Promise<AssistantChatResponse> {
+    return assistantChatOp(this.repo, this.agentRunner, tenantId, message);
+  }
+
+  listAssistantMessages(tenantId: string, limit?: number) {
+    return this.repo.listAssistantMessages(tenantId, limit);
+  }
+
+  clearAssistantMessages(tenantId: string) {
+    this.repo.clearAssistantMessages(tenantId);
   }
 
   private assertWorkspaceBindingIsolation(projectId: number, workspacePath: string) {

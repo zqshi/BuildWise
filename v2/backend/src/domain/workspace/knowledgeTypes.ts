@@ -6,7 +6,9 @@ export type KnowledgeCategory =
   | "customer-experience";
 
 export type KnowledgeStatus = "draft" | "published" | "archived";
-export type KnowledgeSource = "manual" | "analysis" | "coach" | "iteration-review";
+export type KnowledgeSource = "manual" | "analysis" | "coach" | "iteration-review" | "auto-extraction";
+
+export type ExperienceScope = "project" | "cross-project";
 
 export const ALLOWED_KNOWLEDGE_CATEGORIES: ReadonlySet<string> = new Set<KnowledgeCategory>([
   "technical", "business-rule", "pitfall", "architecture-decision", "customer-experience"
@@ -17,7 +19,11 @@ export const ALLOWED_KNOWLEDGE_STATUSES: ReadonlySet<string> = new Set<Knowledge
 ]);
 
 export const ALLOWED_KNOWLEDGE_SOURCES: ReadonlySet<string> = new Set<KnowledgeSource>([
-  "manual", "analysis", "coach", "iteration-review"
+  "manual", "analysis", "coach", "iteration-review", "auto-extraction"
+]);
+
+export const ALLOWED_EXPERIENCE_SCOPES: ReadonlySet<string> = new Set<ExperienceScope>([
+  "project", "cross-project"
 ]);
 
 export type KnowledgeEntry = {
@@ -37,6 +43,9 @@ export type KnowledgeEntry = {
   reviewedBy: string;
   createdAt: string;
   updatedAt: string;
+  experienceScope?: ExperienceScope;
+  confidence?: number;
+  extractionRef?: number;
 };
 
 export type CreateKnowledgeEntryInput = Pick<KnowledgeEntry, "title" | "content" | "category"> & {
