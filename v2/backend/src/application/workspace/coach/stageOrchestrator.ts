@@ -35,6 +35,7 @@ import { isLowSignalText } from '../analysis/extractors';
 import { defaultIterationChangeControl, hasPendingClarification } from '../shared/common';
 import { extractRequirementsFromConversation } from "./conversationRequirementExtractor";
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
+import { maybeExtractExperience } from '../experience/extractionOps';
 import { dedupeActions, parseRecentSuggestedActions } from './replyGuard';
 import { pickString } from '../../../shared/utils';
 import { safeJsonParse } from '../upload/attachmentUtils';
@@ -501,7 +502,8 @@ async function attemptArtifactSynthesis(params: {
 function evaluateAndAdvanceStage(
   repo: WorkspaceRepository,
   iterationId: number,
-  gateResult: ReturnType<typeof evaluateCurrentStageGate>
+  gateResult: ReturnType<typeof evaluateCurrentStageGate>,
+  agentRunner?: AgentRunner
 ): string {
   if (gateResult.blocked) return "";
 
@@ -526,6 +528,16 @@ function evaluateAndAdvanceStage(
 
     advancedStages.push(STAGE_LABELS[currentCheckStage]);
     writeAuditLog(repo, "orchestrator.stage_advanced", `iteration:${iterationId}`, `from=${currentCheckStage};to=${nextStage}`);
+
+    if (agentRunner && freshIteration) {
+      maybeExtractExperience(repo, agentRunner, "stage-gate-passed", {
+        projectId: freshIteration.projectId,
+        iterationId,
+        iteration: freshNormalized,
+        stage: currentCheckStage
+      }).catch((err) => log.error(`经验提取失败: ${err}`));
+    }
+
     currentCheckStage = nextStage;
   }
 
@@ -616,7 +628,7 @@ export async function orchestrateCoachMessage(params: {
     repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts
   });
 
-  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult);
+  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult, agentRunner);
 
   return assembleCoachResponse(iterationId, parsed, continuationResult, stageAdvanceNote, insufficientArtifacts, committedArtifactTitles);
 }

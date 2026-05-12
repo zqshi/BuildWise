@@ -32,12 +32,18 @@ import { SqliteWorkspaceCore } from "./sqliteWorkspaceCore";
 import { SqliteWorkspaceAnalysisStore } from "./sqliteWorkspaceAnalysisStore";
 import { SqliteWorkspaceBacklog } from "./sqliteWorkspaceBacklog";
 import { SqliteWorkspaceKnowledge } from "./sqliteWorkspaceKnowledge";
+import { SqliteWorkspaceExperience } from "./sqliteWorkspaceExperience";
+import { SqliteWorkspaceAssistantConversation } from "./sqliteWorkspaceAssistantConversation";
+import type { ExperiencePolicy, ExperienceExtractionRecord } from "../../domain/workspace/experiencePolicyTypes";
+import type { AssistantMessage } from "../../domain/workspace/repository";
 
 export class SqliteWorkspaceRepository implements WorkspaceRepository {
   private readonly core: SqliteWorkspaceCore;
   private readonly analysisStore: SqliteWorkspaceAnalysisStore;
   private readonly backlogStore: SqliteWorkspaceBacklog;
   private readonly knowledgeStore: SqliteWorkspaceKnowledge;
+  private readonly experienceStore: SqliteWorkspaceExperience;
+  private readonly assistantConversationStore: SqliteWorkspaceAssistantConversation;
 
   constructor(dbFile: string, seedDataFile?: string, options?: { bootstrapMode?: "seed" | "empty" }) {
     this.core = new SqliteWorkspaceCore(dbFile, seedDataFile, options);
@@ -45,6 +51,8 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     this.analysisStore = new SqliteWorkspaceAnalysisStore(this.core.db);
     this.backlogStore = new SqliteWorkspaceBacklog(this.core.db);
     this.knowledgeStore = new SqliteWorkspaceKnowledge(this.core.db);
+    this.experienceStore = new SqliteWorkspaceExperience(this.core.db);
+    this.assistantConversationStore = new SqliteWorkspaceAssistantConversation(this.core.db);
   }
 
   /** Expose the underlying DatabaseSync for cross-cutting concerns (e.g. revoked-token store). */
@@ -596,4 +604,20 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
 
   getKnowledgeGraphCache(projectId: number) { return this.core.getKnowledgeGraphCache(projectId); }
   saveKnowledgeGraphCache(projectId: number, graphData: Parameters<typeof this.core.saveKnowledgeGraphCache>[1], entryCount: number) { return this.core.saveKnowledgeGraphCache(projectId, graphData, entryCount); }
+
+  // ── ExperienceRepository (delegated to SqliteWorkspaceExperience) ──
+
+  listExperiencePolicies(projectId: number) { return this.experienceStore.listExperiencePolicies(projectId); }
+  findActiveExperiencePolicy(projectId: number) { return this.experienceStore.findActiveExperiencePolicy(projectId); }
+  createExperiencePolicy(policy: Omit<ExperiencePolicy, "id">) { return this.experienceStore.createExperiencePolicy(policy); }
+  updateExperiencePolicy(policy: ExperiencePolicy) { this.experienceStore.updateExperiencePolicy(policy); }
+  deleteExperiencePolicy(policyId: number) { return this.experienceStore.deleteExperiencePolicy(policyId); }
+  listExperienceExtractions(projectId: number) { return this.experienceStore.listExperienceExtractions(projectId); }
+  appendExperienceExtraction(extraction: Omit<ExperienceExtractionRecord, "id">) { return this.experienceStore.appendExperienceExtraction(extraction); }
+  searchKnowledgeAcrossProjects(tenantId: string, query: string, limit?: number) { return this.experienceStore.searchKnowledgeAcrossProjects(tenantId, query, limit); }
+
+  // ── Assistant Conversation ──
+  listAssistantMessages(tenantId: string, limit?: number) { return this.assistantConversationStore.listAssistantMessages(tenantId, limit); }
+  appendAssistantMessage(msg: Omit<AssistantMessage, "id">) { return this.assistantConversationStore.appendAssistantMessage(msg); }
+  clearAssistantMessages(tenantId: string) { this.assistantConversationStore.clearAssistantMessages(tenantId); }
 }

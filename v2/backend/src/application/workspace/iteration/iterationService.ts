@@ -21,12 +21,20 @@ import {
 import { recomputeAssessmentOp, restoreSnapshotOp, transitionIterationWithMetaOp } from './assessmentOps';
 import { writeAuditLog } from '../shared/common';
 import { getIterationAccessContext } from '../shared/tenantAccess';
+import type { AgentRunner } from '../shared/agentRunner';
+import { maybeExtractExperience } from '../experience/extractionOps';
 
 export class IterationService {
+  private readonly agentRunner: AgentRunner | null;
+
   constructor(
     private readonly repo: WorkspaceRepository,
-    _agentRunner: unknown = null
-  ) {}
+    agentRunner: AgentRunner | unknown = null
+  ) {
+    this.agentRunner = (agentRunner && typeof agentRunner === "object" && "run" in (agentRunner as Record<string, unknown>))
+      ? agentRunner as AgentRunner
+      : null;
+  }
 
   findIteration(iterationId: number) {
     return this.repo.findIteration(iterationId);
@@ -78,7 +86,18 @@ export class IterationService {
       operatorRole: string;
     }
   ) {
-    return transitionIterationWithMetaOp(this.repo, iterationId, toStatus, input);
+    const result = transitionIterationWithMetaOp(this.repo, iterationId, toStatus, input);
+    if (result.ok && toStatus === "completed" && this.agentRunner) {
+      const iteration = this.repo.findIteration(iterationId);
+      if (iteration) {
+        maybeExtractExperience(this.repo, this.agentRunner, "iteration-completed", {
+          projectId: iteration.projectId,
+          iterationId,
+          iteration
+        }).catch(() => {});
+      }
+    }
+    return result;
   }
 
   recomputeAssessment(iterationId: number): AssessmentPayload | null {

@@ -5,6 +5,8 @@ import { registerWorkspacePolicyRoutes } from "./workspacePolicyRoutes";
 import { registerWorkspaceProjectRoutes } from "./workspaceProjectRoutes";
 import { registerWorkspaceBacklogRoutes } from "./workspaceBacklogRoutes";
 import { registerWorkspaceKnowledgeRoutes } from "./workspaceKnowledgeRoutes";
+import { registerExperienceRoutes } from "./experienceRoutes";
+import { registerAssistantRoutes } from "./assistantRoutes";
 
 export async function registerWorkspaceRoutes(app: FastifyInstance, service: WorkspaceService) {
   registerWorkspaceProjectRoutes(app, service);
@@ -12,4 +14,6 @@ export async function registerWorkspaceRoutes(app: FastifyInstance, service: Wor
   registerWorkspaceIterationRoutes(app, service);
   registerWorkspaceBacklogRoutes(app, service);
   registerWorkspaceKnowledgeRoutes(app, service);
+  registerExperienceRoutes(app, service);
+  registerAssistantRoutes(app, service);
 }
