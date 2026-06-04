@@ -43,7 +43,7 @@
     "fastify": "^5.8.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.0",
+    "@biomejs/biome": "^2.4.16",
     "@types/node": "^22.0.0",
     "c8": "^10.1.0",
     "tsx": "^4.20.5",
