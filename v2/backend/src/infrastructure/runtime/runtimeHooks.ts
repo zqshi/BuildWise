@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyError, FastifyInstance } from "fastify";
 import type { RuntimeState } from "./runtimeState";
 import type { RuntimeConfig } from "./runtimeConfig";
 import { createLogger } from "./logger";
@@ -40,8 +40,12 @@ export function registerRuntimeHooks(app: FastifyInstance, state: RuntimeState, 
     };
   });
 
-  app.setErrorHandler(async (error, request, reply) => {
-    const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
+  app.setErrorHandler(async (error: FastifyError, request, reply) => {
+    // Fastify schema 校验失败抛 ValidationError(statusCode=400)，优先取 error.statusCode 避免误判 500
+    const errorStatus = error.statusCode;
+    const statusCode = typeof errorStatus === "number" && errorStatus >= 400
+      ? errorStatus
+      : (reply.statusCode >= 400 ? reply.statusCode : 500);
     const errorMessage = toErrorMessage(error);
     const isKnown = errorMessage === "too many requests" || errorMessage === "service is shutting down";
     if (!isKnown && statusCode >= 500) {

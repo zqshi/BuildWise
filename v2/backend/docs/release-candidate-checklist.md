@@ -11,7 +11,7 @@
 1. 工作树已清理，发布内容可明确归属。
 2. `npm run check:boundaries` 通过。
 3. `npm run verify:prod-readiness` 通过。
-4. `npm run verify:prod-readiness:sqlite` 在 CI 或真实环境通过。
+4. `npm run verify:prod-release` 在 CI 或真实环境通过（含契约验证，v0.12.0 挂回）。
 5. CI 中 `npm audit --audit-level=high --registry=https://registry.npmjs.org` 前后端均通过。
 6. `AUTH_MODE=jwt`。
 7. `JWT_SECRET` 已替换为生产密钥，长度不少于 32。
