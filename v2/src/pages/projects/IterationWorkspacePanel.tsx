@@ -23,6 +23,7 @@ export function IterationWorkspacePanel(props: IterationWorkspacePanelProps) {
         onUploadClick={props.onUploadClick} onRetryUpload={props.onRetryUpload}
         onChatInputChange={props.onChatInputChange} onTransitionState={props.onTransitionState}
         onCancelFullCycle={props.onCancelFullCycle}
+        onRetryFullCycle={props.onRetryFullCycle}
         onSwitchToProjectPanel={props.onSwitchToProjectPanel} onConfirmArtifact={props.onConfirmArtifact}
         showInteractionPanel={s.showInteractionPanel} interactionDrawerWidth={s.interactionDrawerWidth}
         dragOver={s.dragOver} setDragOver={s.setDragOver} chatBodyRef={s.chatBodyRef}

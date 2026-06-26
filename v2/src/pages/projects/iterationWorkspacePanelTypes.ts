@@ -108,6 +108,7 @@ export type IterationWorkspacePanelProps = {
   onRetryUpload: () => void | Promise<void>;
   onChatInputChange: (value: string) => void;
   onCancelFullCycle: () => void;
+  onRetryFullCycle: () => void;
   onChatSend: (options?: {
     overrideText?: string;
     prototypeTarget?: string | null;

@@ -25,6 +25,7 @@ import {
   handleSend as handleSendFn,
   type ChatActionDeps
 } from "./chatActions";
+import { handleResumeFullCycle as handleResumeFullCycleFn } from "./chatActionFullCycle";
 import {
   handleRecomputeAssessment as handleRecomputeAssessmentFn,
   handleRestoreSnapshot as handleRestoreSnapshotFn,
@@ -265,6 +266,7 @@ function buildIterationActionWrappers(
         if (!res.ok) console.warn("[onCancelFullCycle] 取消请求未生效", res.reason);
       });
     },
+    onRetryFullCycle: () => currentIteration ? handleResumeFullCycleFn(chatDeps, "", currentIteration.id) : null,
     handleRecomputeAssessment: () => handleRecomputeAssessmentFn(assessmentDeps),
     handleRestoreSnapshot: (snapshotId: number) => handleRestoreSnapshotFn(snapshotId, assessmentDeps),
     handleTransitionState: (toStatus: IterationStatus) => handleTransitionStateFn(toStatus, changeControlDeps),
