@@ -69,6 +69,9 @@ export function createInMemoryWorkspaceRepo() {
     platformRoleBindings: [],
     governanceCustomRoles: [],
     backlogItems: [],
+    analysisJobs: [],
+    reportIndexes: [],
+    reportSections: [],
   };
 
   let nextIdCounter = 1;
@@ -138,6 +141,26 @@ export function createInMemoryWorkspaceRepo() {
     // ── GovernanceRepository ──
     listAuditLogs(limit) { return limit ? store.auditLogs.slice(-limit) : store.auditLogs; },
     appendAuditLog(log) { store.auditLogs.push(log); },
+
+    // ── AnalysisRepository ──
+    saveAnalysisJob(job) {
+      const idx = store.analysisJobs.findIndex((j) => j.jobId === job.jobId);
+      if (idx >= 0) store.analysisJobs[idx] = { ...store.analysisJobs[idx], ...job };
+      else store.analysisJobs.push(job);
+    },
+    listAnalysisJobs(iterationId) { return store.analysisJobs.filter((j) => j.iterationId === iterationId); },
+    saveReportIndex(report) {
+      const idx = store.reportIndexes.findIndex((r) => r.jobId === report.jobId);
+      if (idx >= 0) store.reportIndexes[idx] = report; else store.reportIndexes.push(report);
+    },
+    findReportIndexByJob(jobId) { return store.reportIndexes.find((r) => r.jobId === jobId) || null; },
+    saveReportSections(sections) {
+      for (const sec of sections) {
+        const idx = store.reportSections.findIndex((s) => s.sectionId === sec.sectionId);
+        if (idx >= 0) store.reportSections[idx] = sec; else store.reportSections.push(sec);
+      }
+    },
+    listReportSections(reportId) { return store.reportSections.filter((s) => s.reportId === reportId); },
     listProjectPolicies(projectId) { return store.projectPolicies.filter((p) => p.projectId === projectId); },
     appendProjectPolicy(record) { store.projectPolicies.push(record); },
     updateProjectPolicy(record) {
