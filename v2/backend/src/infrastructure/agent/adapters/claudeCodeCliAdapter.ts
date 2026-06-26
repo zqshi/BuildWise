@@ -99,11 +99,12 @@ export class ClaudeCodeCliAdapter implements CodingAgentAdapter {
     let stdoutBuffer = "";
     state.proc.stdout.on("data", (chunk: Buffer) => {
       stdoutBuffer += chunk.toString();
-      let newlineIdx: number;
-      while ((newlineIdx = stdoutBuffer.indexOf("\n")) >= 0) {
+      let newlineIdx = stdoutBuffer.indexOf("\n");
+      while (newlineIdx >= 0) {
         const line = stdoutBuffer.slice(0, newlineIdx).trim();
         stdoutBuffer = stdoutBuffer.slice(newlineIdx + 1);
         if (line) this.handleStreamLine(state, line, repoPath);
+        newlineIdx = stdoutBuffer.indexOf("\n");
       }
     });
     state.proc.stderr.on("data", () => {
@@ -172,7 +173,7 @@ export class ClaudeCodeCliAdapter implements CodingAgentAdapter {
   private toRelPath(absOrRel: string, repoPath: string): string {
     const normalized = absOrRel.replace(/\\/g, "/");
     const repoNorm = repoPath.replace(/\\/g, "/").replace(/\/+$/, "");
-    if (normalized.startsWith(repoNorm + "/")) return normalized.slice(repoNorm.length + 1);
+    if (normalized.startsWith(`${repoNorm}/`)) return normalized.slice(repoNorm.length + 1);
     if (normalized.startsWith("./")) return normalized.slice(2);
     return normalized;
   }

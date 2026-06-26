@@ -17,6 +17,6 @@ export const assistantConversations: Migration = {
     `);
   },
   down(db) {
-    db.exec(`DROP TABLE IF EXISTS assistant_messages;`);
+    db.exec("DROP TABLE IF EXISTS assistant_messages;");
   }
 };

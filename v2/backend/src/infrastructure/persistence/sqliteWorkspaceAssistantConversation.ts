@@ -46,7 +46,7 @@ export class SqliteWorkspaceAssistantConversation implements AssistantConversati
   }
 
   clearAssistantMessages(tenantId: string): void {
-    const stmt = this.db.prepare(`DELETE FROM assistant_messages WHERE tenant_id = ?`);
+    const stmt = this.db.prepare("DELETE FROM assistant_messages WHERE tenant_id = ?");
     stmt.run(tenantId);
   }
 }

@@ -7,6 +7,6 @@ export const knowledgeGroup: Migration = {
     db.exec(`ALTER TABLE knowledge_entries ADD COLUMN group_name TEXT NOT NULL DEFAULT '';`);
   },
   down(db) {
-    db.exec(`ALTER TABLE knowledge_entries DROP COLUMN group_name;`);
+    db.exec("ALTER TABLE knowledge_entries DROP COLUMN group_name;");
   }
 };
