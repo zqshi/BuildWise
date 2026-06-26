@@ -20,7 +20,7 @@
     "test:contract:sqlite": "STORAGE_BACKEND=sqlite node tests/contract.mjs && STORAGE_BACKEND=sqlite node tests/contract.git-intake.mjs",
     "verify:prod-readiness": "npm run check:hygiene && npm run check:boundaries && npm run check:prompts && npm run check:prompts:replay && npm run check:agents && npm run typecheck && npm run build && node --test tests/*.test.mjs",
     "verify:prod-readiness:sqlite": "npm run verify:prod-readiness",
-    "verify:prod-release": "npm run verify:prod-readiness:sqlite && node scripts/verify-production-release.mjs",
+    "verify:prod-release": "npm run verify:prod-readiness && node scripts/verify-production-release.mjs",
     "check:prompts": "node scripts/check-prompt-quality.mjs",
     "check:prompts:replay": "node scripts/check-prompt-replay.mjs",
     "check:agents": "node scripts/check-agent-assets.mjs",

@@ -7,7 +7,6 @@ import {
 } from './gitRequirementIntakeOps';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { ensureArtifactWorkflow } from '../changeControl/artifactWorkflow';
-import { runOpenclawSkillChainForCoach } from './openclawSkillsBridge';
 
 function defaultInteractionState(iteration: Iteration, now: string) {
   return {
@@ -118,6 +117,27 @@ function declinedResponse(input: {
   };
 }
 
+function pendingConfirmationResponse(iterationId: number, gitIntake: { repoUrl: string; branch: string }): IterationCoachChatResponse {
+  return {
+    iterationId,
+    intent: "plan",
+    reply: `检测到本迭代关联了代码仓库（${gitIntake.repoUrl}），是否需要我先读取仓库以了解现有代码结构？`,
+    execution: { action: "none", instruction: "", apply: false },
+    guidance: {
+      uploadRecommended: false,
+      suggestedUploadTypes: [],
+      suggestedActions: ["读取仓库", "暂不读取仓库"],
+      clarificationChecklist: ["是否需要先读取仓库了解现有代码"]
+    },
+    llm: {
+      used: false,
+      model: "",
+      degraded: false,
+      reason: "git-intake-pending-confirmation"
+    }
+  };
+}
+
 function buildAcceptedChangeControl(
   iteration: Iteration,
   currentControl: ReturnType<typeof defaultIterationChangeControl>,
@@ -156,8 +176,7 @@ function handleGitIntakeDeclined(
   repo: WorkspaceRepository,
   iteration: Iteration,
   gitIntake: { status: string; askedAt: string; branch: string; repoUrl: string },
-  now: string,
-  skillChain: ReturnType<typeof runOpenclawSkillChainForCoach>
+  now: string
 ): IterationCoachChatResponse {
   repo.updateIteration({
     ...iteration,
@@ -172,9 +191,9 @@ function handleGitIntakeDeclined(
   writeAuditLog(repo, "iteration_git_intake_declined", `iteration:${iteration.id}`, `repo=${gitIntake.repoUrl}`);
   return declinedResponse({
     iterationId: iteration.id,
-    suggestedActions: skillChain.suggestedActions,
-    checklist: skillChain.checklist,
-    summaries: skillChain.summaries
+    suggestedActions: [],
+    checklist: [],
+    summaries: []
   });
 }
 
@@ -182,8 +201,7 @@ function handleGitIntakeAccepted(
   repo: WorkspaceRepository,
   iteration: Iteration,
   gitIntake: { askedAt: string; branch: string; repoUrl: string },
-  now: string,
-  skillChain: ReturnType<typeof runOpenclawSkillChainForCoach>
+  now: string
 ): IterationCoachChatResponse {
   const snapshot = readGitRepositoryRequirementSnapshot({ repoUrl: gitIntake.repoUrl, branch: gitIntake.branch });
   const currentControl = iteration.changeControl ?? defaultIterationChangeControl();
@@ -213,7 +231,7 @@ function handleGitIntakeAccepted(
   return acceptedResponse({
     iterationId: iteration.id, summary: analysisSummary || snapshot.summary,
     ok: snapshot.ok, error: snapshot.error,
-    suggestedActions: skillChain.suggestedActions, checklist: skillChain.checklist, summaries: skillChain.summaries
+    suggestedActions: [], checklist: [], summaries: []
   });
 }
 
@@ -232,15 +250,12 @@ export function handlePendingGitRequirementIntake(params: {
   if (!pending || !projectRepo || !gitIntake) return null;
 
   const decision = detectGitRequirementReadDecision(userMessage);
-  if (decision === "unknown") return null;
+  if (decision === "unknown") return pendingConfirmationResponse(iteration.id, gitIntake);
 
-  const skillChain = runOpenclawSkillChainForCoach({
-    iteration, previousIterationName: "", userMessage: `[git-intake:${decision}] ${userMessage}`
-  });
   const now = new Date().toISOString();
 
   if (decision === "decline") {
-    return handleGitIntakeDeclined(repo, iteration, gitIntake, now, skillChain);
+    return handleGitIntakeDeclined(repo, iteration, gitIntake, now);
   }
-  return handleGitIntakeAccepted(repo, iteration, gitIntake, now, skillChain);
+  return handleGitIntakeAccepted(repo, iteration, gitIntake, now);
 }

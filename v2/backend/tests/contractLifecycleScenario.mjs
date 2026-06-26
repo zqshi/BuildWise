@@ -4,7 +4,7 @@ export async function runContractLifecycleScenario(context, state) {
   const scopedAcceptanceCriteria = state.scopedAcceptanceCriteria || [];
   assert(Number.isInteger(createdIterationId), "created iteration id must exist before lifecycle scenario");
 
-  const acceptanceConfirmed = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+  const acceptanceConfirmed = await request(`/api/v1/iterations/${createdIterationId}/change-control/confirm`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -26,13 +26,13 @@ export async function runContractLifecycleScenario(context, state) {
     "analysis confirmation should keep scope acceptance criteria in executable constraints"
   );
 
-  const acceptanceBoundaryUpdate = await request(`/api/iterations/${createdIterationId}/change-control/boundary`, {
+  const acceptanceBoundaryUpdate = await request(`/api/v1/iterations/${createdIterationId}/change-control/boundary`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       requirementRefs: ["REQ-acceptance-propagation", "REQ-dashboard-kpi"],
       componentRefs: ["dashboard/kpi-card", "dashboard/distribution-chart"],
-      codePaths: ["apps/web/src/pages/dashboard.tsx", "apps/api/src/dashboard.ts"],
+      codePaths: ["apps/web/src/pages/dashboard.tsx", "apps/api/v1/src/dashboard.ts"],
       note: "expand boundary and keep acceptance checks"
     })
   });
@@ -43,7 +43,7 @@ export async function runContractLifecycleScenario(context, state) {
     "boundary update should not drop scope acceptance criteria from executable constraints"
   );
 
-  const releaseReviewWithAcceptanceGap = await request(`/api/iterations/${createdIterationId}/release-review`);
+  const releaseReviewWithAcceptanceGap = await request(`/api/v1/iterations/${createdIterationId}/release-review`);
   assert(releaseReviewWithAcceptanceGap.res.status === 200, "release review with acceptance gap should return 200");
   assert(releaseReviewWithAcceptanceGap.payload?.decision === "block", "release review should be blocked when acceptance criteria are not fully covered");
   assert(
@@ -52,7 +52,7 @@ export async function runContractLifecycleScenario(context, state) {
     "release review blockers should include acceptance coverage gap"
   );
 
-  const analysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+  const analysisResult = await request(`/api/v1/iterations/${createdIterationId}/analysis`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -78,7 +78,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert(typeof analysisResult.payload?.llmContext?.degradeReason === "string", "analysis llmContext degradeReason must exist");
     assert(Array.isArray(analysisResult.payload?.clarificationQuestions), "analysis clarificationQuestions must exist");
 
-    const chunkedAnalysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+    const chunkedAnalysisResult = await request(`/api/v1/iterations/${createdIterationId}/analysis`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -100,7 +100,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert(chunkedAnalysisResult.payload?.llmContext?.chunkCount === 3, "chunked analysis chunk count should be 3");
     assert(typeof chunkedAnalysisResult.payload?.llmContext?.unknownSignalCount === "number", "unknown signal count must exist");
 
-    const folderAnalysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+    const folderAnalysisResult = await request(`/api/v1/iterations/${createdIterationId}/analysis`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -138,7 +138,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert(Array.isArray(folderAnalysisResult.payload?.meaningfulFindings), "folder analysis meaningful findings should exist");
     assert(Array.isArray(folderAnalysisResult.payload?.prioritizedFindings), "folder analysis prioritized findings should exist");
 
-    const binaryAnalysisResult = await request(`/api/iterations/${createdIterationId}/analysis`, {
+    const binaryAnalysisResult = await request(`/api/v1/iterations/${createdIterationId}/analysis`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -164,12 +164,12 @@ export async function runContractLifecycleScenario(context, state) {
       "binary analysis should generate clarification questions"
     );
 
-    const pendingChangeControl = await getJson(`/api/iterations/${createdIterationId}/change-control`);
+    const pendingChangeControl = await getJson(`/api/v1/iterations/${createdIterationId}/change-control`);
     assert(pendingChangeControl.pendingHumanConfirmation === true, "analysis should require human confirmation");
     assert(Array.isArray(pendingChangeControl.clarificationQuestions) && pendingChangeControl.clarificationQuestions.length >= 1, "change-control should persist clarification questions");
     assert(Array.isArray(pendingChangeControl.clarificationDraftResolvedQuestions), "change-control should include clarification draft field");
 
-    const draftUpdate = await request(`/api/iterations/${createdIterationId}/change-control/draft`, {
+    const draftUpdate = await request(`/api/v1/iterations/${createdIterationId}/change-control/draft`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ resolvedQuestions: [pendingChangeControl.clarificationQuestions[0]] })
@@ -177,7 +177,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert(draftUpdate.res.status === 200, "clarification draft update should return 200");
     assert(Array.isArray(draftUpdate.payload?.clarificationDraftResolvedQuestions) && draftUpdate.payload.clarificationDraftResolvedQuestions.length === 1, "clarification draft should persist resolved question");
 
-    const blockedPublish = await request(`/api/iterations/${createdIterationId}/publish`, {
+    const blockedPublish = await request(`/api/v1/iterations/${createdIterationId}/publish`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -187,7 +187,7 @@ export async function runContractLifecycleScenario(context, state) {
     });
     assert(blockedPublish.res.status === 409, "publish should be blocked before analysis confirmation");
 
-    const clarification = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+    const clarification = await request(`/api/v1/iterations/${createdIterationId}/change-control/confirm`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -204,7 +204,7 @@ export async function runContractLifecycleScenario(context, state) {
       "clarification should keep unresolved clarification resolution"
     );
 
-    const confirmDenied = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+    const confirmDenied = await request(`/api/v1/iterations/${createdIterationId}/change-control/confirm`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -216,7 +216,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert(confirmDenied.res.status === 409, "confirmation should be blocked when clarification questions unresolved");
     assert(Array.isArray(confirmDenied.payload?.unresolvedQuestions) && confirmDenied.payload.unresolvedQuestions.length >= 1, "confirmation block should return unresolved questions");
 
-    const confirmed = await request(`/api/iterations/${createdIterationId}/change-control/confirm`, {
+    const confirmed = await request(`/api/v1/iterations/${createdIterationId}/change-control/confirm`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -238,21 +238,21 @@ export async function runContractLifecycleScenario(context, state) {
     assert(Array.isArray(confirmed.payload?.lastClarificationResolution?.unresolvedQuestions) && confirmed.payload.lastClarificationResolution.unresolvedQuestions.length === 0, "confirmation should clear unresolved clarification items");
     assert(Array.isArray(confirmed.payload?.boundary?.componentRefs), "confirmed boundary component refs should exist");
 
-    const updatedBoundary = await request(`/api/iterations/${createdIterationId}/change-control/boundary`, {
+    const updatedBoundary = await request(`/api/v1/iterations/${createdIterationId}/change-control/boundary`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         requirementRefs: ["REQ-dashboard-kpi", "REQ-dashboard-distribution"],
         componentRefs: ["dashboard/kpi-card", "dashboard/distribution-chart"],
-        codePaths: ["apps/web/src/pages/dashboard.tsx", "apps/api/src/dashboard.ts"],
+        codePaths: ["apps/web/src/pages/dashboard.tsx", "apps/api/v1/src/dashboard.ts"],
         note: "expanded to distribution chart and api"
       })
     });
     assert(updatedBoundary.res.status === 200, "boundary update should return 200");
     assert(updatedBoundary.payload?.boundary?.codePaths?.length >= 2, "boundary code paths should update");
 
-    const messagesBeforeArtifactCommit = await getJson(`/api/iterations/${createdIterationId}/messages`);
-    const analysisDraftSave = await request(`/api/iterations/${createdIterationId}/change-control/artifacts/analysis-report/draft`, {
+    const messagesBeforeArtifactCommit = await getJson(`/api/v1/iterations/${createdIterationId}/messages`);
+    const analysisDraftSave = await request(`/api/v1/iterations/${createdIterationId}/change-control/artifacts/analysis-report/draft`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -262,7 +262,7 @@ export async function runContractLifecycleScenario(context, state) {
     });
     assert(analysisDraftSave.res.status === 200, "artifact draft save should return 200");
 
-    const analysisCommit = await request(`/api/iterations/${createdIterationId}/change-control/artifacts/analysis-report/commit`, {
+    const analysisCommit = await request(`/api/v1/iterations/${createdIterationId}/change-control/artifacts/analysis-report/commit`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -273,13 +273,13 @@ export async function runContractLifecycleScenario(context, state) {
       })
     });
     assert(analysisCommit.res.status === 200, "artifact commit should return 200");
-    const messagesAfterArtifactCommit = await getJson(`/api/iterations/${createdIterationId}/messages`);
+    const messagesAfterArtifactCommit = await getJson(`/api/v1/iterations/${createdIterationId}/messages`);
     assert(messagesAfterArtifactCommit.length > messagesBeforeArtifactCommit.length, "artifact commit should append a deliverable reference message");
     const lastArtifactRefMessage = [...messagesAfterArtifactCommit].reverse().find((item) => typeof item?.content === "string" && item.content.includes("【交付物引用】附件分析报告"));
     assert(Boolean(lastArtifactRefMessage), "artifact commit should write deliverable reference card");
     assert(typeof lastArtifactRefMessage?.content === "string" && lastArtifactRefMessage.content.includes("摘要："), "deliverable reference card should include a user-facing summary");
 
-    const blockedArtifactConfirm = await request(`/api/iterations/${createdIterationId}/change-control/artifacts/test-matrix/confirm`, {
+    const blockedArtifactConfirm = await request(`/api/v1/iterations/${createdIterationId}/change-control/artifacts/test-matrix/confirm`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -289,13 +289,13 @@ export async function runContractLifecycleScenario(context, state) {
       })
     });
     assert(blockedArtifactConfirm.res.status === 200, "artifact blocked confirm should return 200");
-    const messagesAfterBlockedConfirm = await getJson(`/api/iterations/${createdIterationId}/messages`);
+    const messagesAfterBlockedConfirm = await getJson(`/api/v1/iterations/${createdIterationId}/messages`);
     const adminConfirmRequest = [...messagesAfterBlockedConfirm].reverse().find((item) => typeof item?.content === "string" && item.content.includes("【管理员确认请求】"));
     assert(Boolean(adminConfirmRequest), "blocked artifact confirm should create admin confirmation notification");
 
     if (Array.isArray(updatedBoundary.payload?.generatedTestMatrix) && updatedBoundary.payload.generatedTestMatrix.length > 0) {
       const firstCase = updatedBoundary.payload.generatedTestMatrix[0];
-      const executionUpdate = await request(`/api/iterations/${createdIterationId}/change-control/test-matrix/execution`, {
+      const executionUpdate = await request(`/api/v1/iterations/${createdIterationId}/change-control/test-matrix/execution`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -307,13 +307,13 @@ export async function runContractLifecycleScenario(context, state) {
       assert(typeof executionUpdate.payload?.summary?.coverage === "number", "test matrix execution should return coverage summary");
     }
 
-    const releaseReview = await request(`/api/iterations/${createdIterationId}/release-review`);
+    const releaseReview = await request(`/api/v1/iterations/${createdIterationId}/release-review`);
     assert(releaseReview.res.status === 200, "release review should return 200");
     assert(["go", "caution", "block"].includes(releaseReview.payload?.decision), "release review decision must be go/caution/block");
     assert(typeof releaseReview.payload?.score === "number", "release review score should exist");
     assert(Array.isArray(releaseReview.payload?.recommendations), "release review recommendations should exist");
 
-    const testArtifacts = await request(`/api/iterations/${createdIterationId}/change-control/test-artifacts/generate`, {
+    const testArtifacts = await request(`/api/v1/iterations/${createdIterationId}/change-control/test-artifacts/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ dryRun: true })
@@ -322,7 +322,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert(Array.isArray(testArtifacts.payload?.generatedFiles), "test artifacts generatedFiles should exist");
     assert(testArtifacts.payload?.generatedFiles?.length >= 1, "test artifacts should include at least one file");
 
-    const fullCycle = await request(`/api/iterations/${createdIterationId}/full-cycle`, {
+    const fullCycle = await request(`/api/v1/iterations/${createdIterationId}/full-cycle`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -355,7 +355,7 @@ export async function runContractLifecycleScenario(context, state) {
     assert((fullCycle.payload?.deliveryPackageResult?.reviewReportFiles?.length ?? 0) >= 1, "delivery review report files should include at least one item");
     assert((fullCycle.payload?.deliveryPackageResult?.packageFiles?.length ?? 0) >= 1, "delivery package files should include at least one item");
 
-    const publishAfterConfirm = await request(`/api/iterations/${createdIterationId}/publish`, {
+    const publishAfterConfirm = await request(`/api/v1/iterations/${createdIterationId}/publish`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -372,15 +372,15 @@ export async function runContractLifecycleScenario(context, state) {
     assert(typeof analysisResult.payload?.message === "string", "analysis failure message should exist");
   }
 
-  const invalidIterationId = await request("/api/iterations/abc/context");
+  const invalidIterationId = await request("/api/v1/iterations/abc/context");
   assert(invalidIterationId.res.status === 400, "Invalid iteration id should return 400");
 
-  const stateMachine = await getJson("/api/iterations/1/state-machine");
+  const stateMachine = await getJson("/api/v1/iterations/1/state-machine");
   assert(typeof stateMachine.currentStatus === "string", "state machine currentStatus must exist");
   assert(Array.isArray(stateMachine.allowedTransitions), "state machine allowedTransitions must be array");
   assert(Array.isArray(stateMachine.transitionHistory), "state machine transitionHistory must be array");
 
-  const invalidTransitionPayload = await request("/api/iterations/1/state/transition", {
+  const invalidTransitionPayload = await request("/api/v1/iterations/1/state/transition", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({})
@@ -393,7 +393,7 @@ export async function runContractLifecycleScenario(context, state) {
     const allStatuses = ["planned", "in-progress", "review", "blocked", "completed"];
     const invalidTarget = allStatuses.find((item) => !allowed.includes(item) && item !== currentStatus);
     if (invalidTarget) {
-      const invalidTransition = await request("/api/iterations/1/state/transition", {
+      const invalidTransition = await request("/api/v1/iterations/1/state/transition", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ toStatus: invalidTarget, reason: "manual transition for contract test" })
@@ -402,7 +402,7 @@ export async function runContractLifecycleScenario(context, state) {
     }
 
     const validTarget = allowed[0];
-    const validTransition = await request("/api/iterations/1/state/transition", {
+    const validTransition = await request("/api/v1/iterations/1/state/transition", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ toStatus: validTarget, reason: "contract test transition reason" })
@@ -412,6 +412,6 @@ export async function runContractLifecycleScenario(context, state) {
     assert(validTransition.payload?.source === "manual", "transition source should be manual");
   }
 
-  const auditAfterTransition = await getJson("/api/governance/audit-logs?limit=80");
+  const auditAfterTransition = await getJson("/api/v1/governance/audit-logs?limit=80");
   assert(Array.isArray(auditAfterTransition), "audit logs should be array");
 }

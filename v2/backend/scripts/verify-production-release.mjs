@@ -35,6 +35,9 @@ function buildReleaseEnv() {
     LLM_API_BASE: "",
     LLM_API_KEY: "",
     LLM_MODEL: "",
+    ANTHROPIC_BASE_URL: "",
+    ANTHROPIC_AUTH_TOKEN: "",
+    ANTHROPIC_MODEL: "",
     BUILDWISE_PREFER_PROCESS_ENV: "1",
     BACKUP_ROOT: path.join(tempRoot, "backups"),
     ALERT_MIN_DEPLOYMENT_SUCCESS_RATE: "0",
@@ -108,7 +111,7 @@ try {
 
   const seedData = JSON.parse(readFileSync(path.join(backendRoot, "data.json"), "utf-8"));
   appContext.workspaceRepo.write(seedData);
-  appContext.workspaceService.upsertPlatformRoleBinding({ userId: "18800000000", role: "owner" });
+  appContext.workspaceService.governance.upsertPlatformRoleBinding({ userId: "18800000000", role: "owner" });
   const tokenByRole = Object.fromEntries(
     ["owner", "viewer", "qa", "pm"].map((role) => [
       role,

@@ -84,7 +84,7 @@ export async function runContractGitIntakeScenario(options = {}) {
   try {
     await waitForHealth();
 
-    const createdProjectDecline = await request("/api/projects", {
+    const createdProjectDecline = await request("/api/v1/projects", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Git Intake Decline Contract Project", description: "decline flow" })
@@ -93,7 +93,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     const declineProjectId = createdProjectDecline.payload?.id;
     assert(Number.isInteger(declineProjectId), "decline project id must be integer");
 
-    const declineBootstrap = await request(`/api/projects/${declineProjectId}/repository/bootstrap`, {
+    const declineBootstrap = await request(`/api/v1/projects/${declineProjectId}/repository/bootstrap`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -109,7 +109,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     });
     assert(declineBootstrap.res.status === 200, "bootstrap decline project repository should return 200");
 
-    const createdDeclineIteration = await request(`/api/projects/${declineProjectId}/iterations`, {
+    const createdDeclineIteration = await request(`/api/v1/projects/${declineProjectId}/iterations`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Decline Iteration", description: "first iteration with git intake prompt" })
@@ -122,7 +122,7 @@ export async function runContractGitIntakeScenario(options = {}) {
       "first iteration should enter pending-confirmation when git repository exists"
     );
 
-    const declineMessages = await getJson(`/api/iterations/${declineIterationId}/messages`);
+    const declineMessages = await getJson(`/api/v1/iterations/${declineIterationId}/messages`);
     assert(Array.isArray(declineMessages), "iteration messages should be array");
     assert(
       declineMessages.some(
@@ -134,7 +134,7 @@ export async function runContractGitIntakeScenario(options = {}) {
       "first iteration should include git requirement intake confirmation prompt"
     );
 
-    const pendingReply = await request(`/api/iterations/${declineIterationId}/agent-chat`, {
+    const pendingReply = await request(`/api/v1/iterations/${declineIterationId}/agent-chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ message: "继续" })
@@ -146,7 +146,7 @@ export async function runContractGitIntakeScenario(options = {}) {
       "pending decision should return actionable guidance"
     );
 
-  const declineReply = await request(`/api/iterations/${declineIterationId}/agent-chat`, {
+  const declineReply = await request(`/api/v1/iterations/${declineIterationId}/agent-chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ message: "暂不读取仓库" })
@@ -162,12 +162,12 @@ export async function runContractGitIntakeScenario(options = {}) {
     assert(typeof declineReply.payload?.reply === "string", "decline decision should return a coach reply");
   }
 
-    const declineContext = await getJson(`/api/iterations/${declineIterationId}/context`);
+    const declineContext = await getJson(`/api/v1/iterations/${declineIterationId}/context`);
     assert(
       declineContext?.iteration?.interactionState?.gitRequirementIntake?.status === "declined",
       "decline decision should persist declined status in iteration context"
     );
-    const createdFollowupIteration = await request(`/api/projects/${declineProjectId}/iterations`, {
+    const createdFollowupIteration = await request(`/api/v1/projects/${declineProjectId}/iterations`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Decline Iteration Followup", description: "should not inject static onboarding copy" })
@@ -175,7 +175,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     assert(createdFollowupIteration.res.status === 200, "create followup iteration should return 200");
     const followupIterationId = createdFollowupIteration.payload?.id;
     assert(Number.isInteger(followupIterationId), "followup iteration id must be integer");
-    const followupMessages = await getJson(`/api/iterations/${followupIterationId}/messages`);
+    const followupMessages = await getJson(`/api/v1/iterations/${followupIterationId}/messages`);
     assert(Array.isArray(followupMessages), "followup messages should be array");
     assert(
       followupMessages.every(
@@ -185,7 +185,7 @@ export async function runContractGitIntakeScenario(options = {}) {
       "followup iteration should not include static onboarding script"
     );
 
-    const createdProjectAccept = await request("/api/projects", {
+    const createdProjectAccept = await request("/api/v1/projects", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Git Intake Accept Contract Project", description: "accept flow" })
@@ -194,7 +194,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     const acceptProjectId = createdProjectAccept.payload?.id;
     assert(Number.isInteger(acceptProjectId), "accept project id must be integer");
 
-    const acceptBootstrap = await request(`/api/projects/${acceptProjectId}/repository/bootstrap`, {
+    const acceptBootstrap = await request(`/api/v1/projects/${acceptProjectId}/repository/bootstrap`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -210,7 +210,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     });
     assert(acceptBootstrap.res.status === 200, "bootstrap accept project repository should return 200");
 
-    const createdAcceptIteration = await request(`/api/projects/${acceptProjectId}/iterations`, {
+    const createdAcceptIteration = await request(`/api/v1/projects/${acceptProjectId}/iterations`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Accept Iteration", description: "first iteration read repository" })
@@ -219,7 +219,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     const acceptIterationId = createdAcceptIteration.payload?.id;
     assert(Number.isInteger(acceptIterationId), "accept iteration id must be integer");
 
-  const acceptReply = await request(`/api/iterations/${acceptIterationId}/agent-chat`, {
+  const acceptReply = await request(`/api/v1/iterations/${acceptIterationId}/agent-chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ message: "读取仓库" })
@@ -238,7 +238,7 @@ export async function runContractGitIntakeScenario(options = {}) {
       "invalid remote should return deterministic read-failed prompt"
     );
 
-    const acceptContext = await getJson(`/api/iterations/${acceptIterationId}/context`);
+    const acceptContext = await getJson(`/api/v1/iterations/${acceptIterationId}/context`);
     assert(
       acceptContext?.iteration?.interactionState?.gitRequirementIntake?.status === "read-failed",
       "failed git read should persist read-failed status in iteration context"
@@ -249,7 +249,7 @@ export async function runContractGitIntakeScenario(options = {}) {
       "failed git read should include error details"
     );
 
-    const createdProjectSync = await request("/api/projects", {
+    const createdProjectSync = await request("/api/v1/projects", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Repo Sync Alert Contract Project", description: "periodic sync failure alert" })
@@ -258,7 +258,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     const syncProjectId = createdProjectSync.payload?.id;
     assert(Number.isInteger(syncProjectId), "sync project id must be integer");
 
-    const syncBootstrap = await request(`/api/projects/${syncProjectId}/repository/bootstrap`, {
+    const syncBootstrap = await request(`/api/v1/projects/${syncProjectId}/repository/bootstrap`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -274,7 +274,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     });
     assert(syncBootstrap.res.status === 200, "bootstrap sync project repository should return 200");
 
-    const scaffoldSyncRepo = await request(`/api/projects/${syncProjectId}/repository/scaffold`, {
+    const scaffoldSyncRepo = await request(`/api/v1/projects/${syncProjectId}/repository/scaffold`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -286,7 +286,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     });
     assert(scaffoldSyncRepo.res.status === 200, "scaffold sync project repository should return 200");
 
-    const createdSyncIteration = await request(`/api/projects/${syncProjectId}/iterations`, {
+    const createdSyncIteration = await request(`/api/v1/projects/${syncProjectId}/iterations`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "Sync Alert Iteration", description: "sync failure should be surfaced in chat" })
@@ -295,7 +295,7 @@ export async function runContractGitIntakeScenario(options = {}) {
     const syncIterationId = createdSyncIteration.payload?.id;
     assert(Number.isInteger(syncIterationId), "sync iteration id must be integer");
 
-  const syncAlert = await request(`/api/iterations/${syncIterationId}/agent-chat`, {
+  const syncAlert = await request(`/api/v1/iterations/${syncIterationId}/agent-chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ message: "继续" })

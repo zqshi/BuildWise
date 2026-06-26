@@ -61,7 +61,7 @@ export function createIterationOp(repo: WorkspaceRepository, projectId: number, 
         lastUpdatedAt: now,
         lastAttachmentName: normalized.interactionState?.lastAttachmentName || "",
         gitRequirementIntake: {
-          status: "available",
+          status: "pending-confirmation",
           askedAt: now,
           decidedAt: "",
           branch: projectRepo.defaultBranch || "main",
@@ -72,7 +72,13 @@ export function createIterationOp(repo: WorkspaceRepository, projectId: number, 
       }
     });
     repo.updateIteration(normalized);
-    writeAuditLog(repo, "iteration_git_intake_available", `iteration:${normalized.id}`, `repo=${projectRepo.url};branch=${projectRepo.defaultBranch}`);
+    writeAuditLog(repo, "iteration_git_intake_pending", `iteration:${normalized.id}`, `repo=${projectRepo.url};branch=${projectRepo.defaultBranch}`);
+    createMessageOp(
+      repo,
+      normalized.id,
+      "assistant",
+      `检测到本迭代关联了代码仓库（${projectRepo.url}），是否需要我先读取仓库以了解现有代码结构？`
+    );
   }
   return normalized;
 }

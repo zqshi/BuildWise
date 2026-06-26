@@ -20,11 +20,13 @@ test("backend npm test builds dist before executing dist-based tests", () => {
   assert.equal(pkg.scripts.test, "npm run build && c8 node --test tests/*.test.mjs");
 });
 
-test("backend production release verify script includes sqlite and ops checks", () => {
+test("backend production release verify runs readiness then production contract release", () => {
   const pkg = JSON.parse(readFileSync(join(repoRoot, "backend/package.json"), "utf-8"));
+  // verify:prod-release = 就绪检查(卫生/边界/Prompt/Agent/typecheck/build/单测) + 生产契约验证(三 scenario 端到端)
+  // v0.12.0 重写契约脚本 /api→/api/v1 路径后挂回，恢复生产发布门禁
   assert.equal(
     pkg.scripts["verify:prod-release"],
-    "npm run verify:prod-readiness:sqlite && node scripts/verify-production-release.mjs"
+    "npm run verify:prod-readiness && node scripts/verify-production-release.mjs"
   );
 });
 
