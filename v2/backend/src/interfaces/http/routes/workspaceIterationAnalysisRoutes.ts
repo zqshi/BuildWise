@@ -42,9 +42,45 @@ async function handleFullCycle(service: WorkspaceService, request: FastifyReques
   const opts = buildFullCycleOptions(body);
   if (typeof opts === "string") { reply.code(400); return { message: opts }; }
   try {
-    const result = await service.fullCycle.runIterationFullCycle(iterationId, opts);
-    if (!result) { reply.code(404); return { message: "迭代不存在" }; }
-    return result;
+    const started = service.fullCycle.startFullCycleJob(iterationId, opts);
+    if ("error" in started) { reply.code(500); return { message: started.error }; }
+    reply.code(202);
+    return { jobId: started.jobId, status: "running", iterationId };
+  } catch (error) {
+    const handled = handleRouteError(error);
+    if (handled) { reply.code(handled.code); return { message: handled.message }; }
+    throw error;
+  }
+}
+
+async function handleFullCycleJobStatus(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
+  const iterationId = parsePositiveInt((request.params as { id: string }).id);
+  if (iterationId === null) { reply.code(400); return { message: "无效的迭代 ID" }; }
+  const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+  if (!access) return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
+  const jobId = (request.params as { jobId: string }).jobId;
+  const status = service.fullCycle.buildFullCycleJobStatus(jobId, iterationId);
+  if (!status) { reply.code(404); return { message: "任务不存在或已过期" }; }
+  return status;
+}
+
+async function handleFullCycleInterrupted(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
+  const iterationId = parsePositiveInt((request.params as { id: string }).id);
+  if (iterationId === null) { reply.code(400); return { message: "无效的迭代 ID" }; }
+  const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+  if (!access) return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
+  return service.fullCycle.getInterruptedFullCycle(iterationId);
+}
+
+async function handleDetectChangeImpact(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
+  const iterationId = parsePositiveInt((request.params as { id: string }).id);
+  if (iterationId === null) { reply.code(400); return { message: "无效的迭代 ID" }; }
+  const access = ensureIterationAccess(service, request, reply, iterationId, "read");
+  if (!access) return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
+  const body = request.body as { message?: string } | null;
+  const message = typeof body?.message === "string" ? body.message : "";
+  try {
+    return service.changeImpact.detectChangeImpact(iterationId, message);
   } catch (error) {
     const handled = handleRouteError(error);
     if (handled) { reply.code(handled.code); return { message: handled.message }; }
@@ -94,4 +130,16 @@ export function registerIterationAnalysisRoutes(app: FastifyInstance, service: W
   app.post("/iterations/:id/full-cycle", {
     schema: { params: ITER_PARAM_SCHEMA, body: { type: "object" } }
   }, (req, rep) => handleFullCycle(service, req, rep));
+
+  app.get("/iterations/:id/full-cycle/jobs/:jobId", {
+    schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, jobId: { type: "string" as const } }, required: ["id" as const, "jobId" as const] } }
+  }, (req, rep) => handleFullCycleJobStatus(service, req, rep));
+
+  app.get("/iterations/:id/full-cycle/interrupted", {
+    schema: { params: ITER_PARAM_SCHEMA }
+  }, (req, rep) => handleFullCycleInterrupted(service, req, rep));
+
+  app.post("/iterations/:id/detect-change-impact", {
+    schema: { params: ITER_PARAM_SCHEMA, body: { type: "object" } }
+  }, (req, rep) => handleDetectChangeImpact(service, req, rep));
 }
