@@ -3,6 +3,7 @@ import type { IterationMessage, ChatSendStatus, IterationContextPayload } from "
 
 type ChangeImpact = {
   hasImpact: boolean;
+  affectedTerms: string[];
   affectedArtifacts: string[];
   affectedEntities: string[];
   affectedRules: string[];
