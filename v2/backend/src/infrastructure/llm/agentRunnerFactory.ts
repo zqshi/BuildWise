@@ -10,6 +10,7 @@ import {
   resolveModel,
   type LlmEnv
 } from './agentRunnerConfig';
+import { registerLlmProvider, resolveLlmRunner } from './llmProviderRegistry';
 const log = createLogger("llm-run");
 
 // ── In-memory LLM call stats ring buffer ──
@@ -325,23 +326,38 @@ class AnthropicCompatibleAgentRunner implements AgentRunner {
   }
 }
 
+function resolveTimeoutMs(env: LlmEnv): number {
+  const raw = Number(env.LLM_REQUEST_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 60000;
+}
+
+function resolveMaxOutputTokens(env: LlmEnv): number {
+  const raw = Number(env.LLM_MAX_OUTPUT_TOKENS);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 4096;
+}
+
+// 注册默认 LLM provider（模块加载时）。未来加 provider 只需 registerLlmProvider，不改 createAgentRunnerFromEnv。
+registerLlmProvider("openai-compatible", (env) => {
+  const baseUrl = resolveBaseUrl(env);
+  if (!baseUrl) return null;
+  return new OpenAICompatibleAgentRunner(baseUrl, resolveModel(env), resolveApiKey(env), resolveTimeoutMs(env), resolveMaxOutputTokens(env));
+});
+registerLlmProvider("anthropic-compatible", (env) => {
+  const baseUrl = resolveBaseUrl(env);
+  if (!baseUrl) return null;
+  return new AnthropicCompatibleAgentRunner(baseUrl, resolveModel(env), resolveApiKey(env), resolveTimeoutMs(env), resolveMaxOutputTokens(env));
+});
+
 export function createAgentRunnerFromEnv(env: LlmEnv): AgentRunner | null {
   const provider = resolveLlmProvider(env);
-
   const baseUrl = resolveBaseUrl(env);
   if (!baseUrl) {
     return null;
   }
-  const model = resolveModel(env);
-  const apiKey = resolveApiKey(env);
-  const timeoutMsRaw = Number(env.LLM_REQUEST_TIMEOUT_MS);
-  const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 60000;
-  const maxTokensRaw = Number(env.LLM_MAX_OUTPUT_TOKENS);
-  const maxOutputTokens = Number.isFinite(maxTokensRaw) && maxTokensRaw > 0 ? Math.floor(maxTokensRaw) : 4096;
-  const inner: AgentRunner = provider === "anthropic-compatible"
-    ? new AnthropicCompatibleAgentRunner(baseUrl, model, apiKey, timeoutMs, maxOutputTokens)
-    : new OpenAICompatibleAgentRunner(baseUrl, model, apiKey, timeoutMs, maxOutputTokens);
-
+  const inner = resolveLlmRunner(provider, env);
+  if (!inner) {
+    return null;
+  }
   return {
     run: (prompt, options) => withRetry(() => inner.run(prompt, options), `run:${prompt.role}`),
     runWithHistory: (sys, msgs, options) => withRetry(() => inner.runWithHistory(sys, msgs, options), "runWithHistory")
