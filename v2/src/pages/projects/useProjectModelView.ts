@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import type { Iteration, Project, ProjectModelViewPayload } from "../../domain/workspace/types";
 import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import { fetchProjectModelView } from "../../app/workspaceApi";
@@ -393,14 +393,20 @@ export function useProjectModelView({
   };
 
   const kg = useKnowledgeGraph(currentProject?.id ?? null);
+  // V4 本体 diff：缓存上一版本图谱节点 id，用于标记新增节点 isNew（黄色高亮）
+  const previousNodeIdsRef = useRef<Set<string> | undefined>(undefined);
   const unifiedGraph = useMemo(
     () => mergeToUnifiedGraph(
       state.projectModelView,
       kg.cache?.graphData ?? null,
-      kg.cache?.generatedAt ?? null
+      kg.cache?.generatedAt ?? null,
+      previousNodeIdsRef.current
     ),
     [state.projectModelView, kg.cache]
   );
+  useEffect(() => {
+    previousNodeIdsRef.current = new Set(unifiedGraph.nodes.map((n) => n.id));
+  }, [unifiedGraph.nodes]);
 
   return {
     ...state, ...display, ...stats, ...summaryAssembly, ...graphBase, ...graphInteraction, centerGraphOnPoint,

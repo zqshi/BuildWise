@@ -50,6 +50,10 @@ function NodeShape({ node, r, isConnected, isSelected, onEnter, onLeave, onClick
   const color = nodeColor(node);
   const opacity = isConnected ? 1 : 0.2;
   const showLabel = true;
+  const isNew = node.isNew === true;
+  const nodeStroke = isNew ? "var(--warning-500, #f0a020)" : "var(--bg-surface)";
+  const nodeStrokeWidth = isNew ? 1.2 : 0.5;
+  const newBadge = isNew ? " · 新增" : "";
 
   return (
     <g
@@ -62,19 +66,19 @@ function NodeShape({ node, r, isConnected, isSelected, onEnter, onLeave, onClick
       className={isSelected ? "unified-node-selected" : ""}
     >
       {node.source === "model" ? (
-        <rect x={-r} y={-r} width={r * 2} height={r * 2} rx={0.8} fill={color} stroke="var(--bg-surface)" strokeWidth={0.5} />
+        <rect x={-r} y={-r} width={r * 2} height={r * 2} rx={0.8} fill={color} stroke={nodeStroke} strokeWidth={nodeStrokeWidth} />
       ) : node.source === "both" ? (
         <>
           <rect x={-r - 1} y={-r - 1} width={(r + 1) * 2} height={(r + 1) * 2} rx={1} fill="none" stroke={MODEL_NODE_COLOR} strokeWidth={0.5} strokeDasharray="1.5 0.8" />
-          <circle r={r} fill={color} stroke="var(--bg-surface)" strokeWidth={0.5} />
+          <circle r={r} fill={color} stroke={nodeStroke} strokeWidth={nodeStrokeWidth} />
         </>
       ) : (
-        <circle r={r} fill={color} stroke="var(--bg-surface)" strokeWidth={0.5} />
+        <circle r={r} fill={color} stroke={nodeStroke} strokeWidth={nodeStrokeWidth} />
       )}
       {showLabel ? (
         <text y={r + 3.4} textAnchor="middle" className="unified-graph-label">{node.label}</text>
       ) : null}
-      <title>{node.label} ({friendlyNodeSource(node.source)}{node.knowledgeNodeType ? ` · ${friendlyNodeType(node.knowledgeNodeType)}` : ""}) · 关联 {node.degree} 条</title>
+      <title>{node.label} ({friendlyNodeSource(node.source)}{node.knowledgeNodeType ? ` · ${friendlyNodeType(node.knowledgeNodeType)}` : ""}) · 关联 {node.degree} 条{newBadge}</title>
     </g>
   );
 }
