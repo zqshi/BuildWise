@@ -92,7 +92,7 @@ export function KnowledgeGraphView({ data, generating, generatedAt, onGenerate }
           </svg>
           {hoveredNodeId && layout.nodeById.get(hoveredNodeId) ? (
             <p className="hint">
-              已高亮「{layout.nodeById.get(hoveredNodeId)!.label}」及其直接关联节点
+              已高亮「{layout.nodeById.get(hoveredNodeId)?.label}」及其直接关联节点
             </p>
           ) : null}
           <div className="knowledge-graph-legend">

@@ -165,7 +165,7 @@ export function UnifiedGraphView({ data, generating, onGenerate }: Props) {
           </div>
 
           {hoveredNodeId && nodeById.get(hoveredNodeId) ? (
-            <p className="hint">已高亮「{nodeById.get(hoveredNodeId)!.label}」及其直接关联节点</p>
+            <p className="hint">已高亮「{nodeById.get(hoveredNodeId)?.label}」及其直接关联节点</p>
           ) : null}
           {data.truncated ? <p className="hint">当前图谱仅展示高关联度前 {data.nodes.length} 个节点，另有 {data.hiddenNodeCount} 个节点未展开。</p> : null}
         </div>

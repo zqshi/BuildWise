@@ -168,7 +168,7 @@ export const handleSend = async (
     }
 
     // ── coach 对话 ──
-    let coach;
+    let coach: Awaited<ReturnType<typeof coachIterationMessage>>;
     try {
       coach = await coachIterationMessage(currentIteration.id, text);
     } catch (firstErr) {

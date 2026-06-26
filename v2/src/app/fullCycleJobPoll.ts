@@ -11,7 +11,7 @@ import type { IterationFullCycleRunResponse } from "../domain/workspace/types";
 export type FullCycleJobStatusResponse = {
   jobId: string;
   iterationId: number;
-  status: "running" | "completed" | "failed" | "interrupted";
+  status: "running" | "completed" | "failed" | "interrupted" | "cancelled";
   createdAt: string;
   startedAt: string;
   finishedAt: string;
@@ -74,6 +74,7 @@ export async function waitForFullCycleJob(options: {
       return status.finalResponse;
     }
     if (status.status === "failed") throw new Error(status.error || "全流程执行失败");
+    if (status.status === "cancelled") throw new Error("fullcycle_cancelled");
     if (status.status === "interrupted") throw new Error("fullcycle_interrupted");
     await new Promise<void>((r) => setTimeout(r, pollIntervalMs));
   }
