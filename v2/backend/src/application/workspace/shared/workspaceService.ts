@@ -1,6 +1,8 @@
 import type { ContinuousModelingRepository } from '../../../domain/continuousModeling/repository';
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type { AgentRunner } from "./agentRunner";
+import type { AgentRegistry } from '../../../infrastructure/agent/agentRegistry';
+import type { CodeRewriteJobStore } from '../quality/codeRewriteJobOps';
 import { resolve as resolvePath } from "node:path";
 import { WorkspaceBindingConflictError } from './errors';
 
@@ -43,7 +45,9 @@ export class WorkspaceService {
   constructor(
     repo: WorkspaceRepository,
     agentRunner: AgentRunner | null = null,
-    modelingRepo: ContinuousModelingRepository | null = null
+    modelingRepo: ContinuousModelingRepository | null = null,
+    codingAgentRegistry: AgentRegistry | null = null,
+    codeRewriteJobStore: CodeRewriteJobStore | null = null
   ) {
     this.repo = repo;
     this.agentRunner = agentRunner;
@@ -62,7 +66,7 @@ export class WorkspaceService {
     this.upload = new UploadService(repo, this.analysis, agentRunner);
     this.knowledge = new KnowledgeService(repo, agentRunner);
     this.experience = new ExperienceService(repo, agentRunner);
-    this.quality = new QualityService(repo, agentRunner, modelingRepo);
+    this.quality = new QualityService(repo, agentRunner, modelingRepo, codingAgentRegistry, codeRewriteJobStore);
     this.fullCycle = new FullCycleService(repo, {
       analyzeAttachment: (id, input) => this.analysis.analyzeAttachment(id, input),
       confirmIterationAnalysis: (id, input) => this.changeControl.confirmIterationAnalysis(id, input),
