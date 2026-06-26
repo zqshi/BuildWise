@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AssessmentPayload,

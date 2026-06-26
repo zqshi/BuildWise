@@ -178,7 +178,7 @@ export function buildIterationGuidance(input: IterationGuidanceInput): Iteration
     parts.push(`${input.materialRisks.length} 项风险待处理`);
   }
 
-  const narrative = parts.length > 0 ? parts.join("；") + "。" : "当前迭代进展正常。";
+  const narrative = parts.length > 0 ? `${parts.join("；")}。` : "当前迭代进展正常。";
 
   return { narrative, quickActions, checkpoints };
 }

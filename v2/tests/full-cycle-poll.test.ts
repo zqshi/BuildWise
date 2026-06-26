@@ -104,3 +104,14 @@ test("waitForFullCycleJob: running 停滞（无进度）超时抛错", async () 
     /执行停滞/
   );
 });
+
+test("waitForFullCycleJob: cancelled 抛 fullcycle_cancelled 供调用方识别取消", async () => {
+  await assert.rejects(
+    waitForFullCycleJob({
+      timeoutMs: 2000,
+      pollIntervalMs: 0,
+      fetchJob: async () => makeStatus({ status: "cancelled" }),
+    }),
+    /fullcycle_cancelled/
+  );
+});

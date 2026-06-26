@@ -64,9 +64,12 @@ async function runFullCycleWithPolling(deps: ChatActionDeps, iterationId: number
     await createMessage(iterationId, "assistant", buildCheckpointMessage(fullCycle), deps.setChatMessages);
   } catch (err) {
     const interrupted = err instanceof Error && err.message === "fullcycle_interrupted";
-    const message = interrupted
-      ? "全流程执行被中断（可能是服务重启）。满足前置条件后可再次触发继续执行，已完成的步骤会自动跳过。"
-      : `全流程执行失败：${resolveCoachErrorMessage(err)}`;
+    const cancelled = err instanceof Error && err.message === "fullcycle_cancelled";
+    const message = cancelled
+      ? "全流程执行已取消，已完成的步骤已保存，满足前置条件后可再次触发继续执行。"
+      : interrupted
+        ? "全流程执行被中断（可能是服务重启）。满足前置条件后可再次触发继续执行，已完成的步骤会自动跳过。"
+        : `全流程执行失败：${resolveCoachErrorMessage(err)}`;
     await createMessage(iterationId, "assistant", message, deps.setChatMessages);
   }
 }
@@ -79,7 +82,6 @@ export async function handleResumeFullCycle(
   await runFullCycleWithPolling(deps, iterationId, {
     runAnalysis: false,
     autoConfirmAnalysis: true,
-    autoResolveClarifications: true,
     generateTestArtifacts: true,
     testArtifactsDryRun: false,
     refreshReleaseReview: true,
@@ -100,7 +102,6 @@ export async function handleRunFullCycle(
     analysisInput: autoAnalysisInput ?? undefined,
     runAnalysis: Boolean(autoAnalysisInput),
     autoConfirmAnalysis: true,
-    autoResolveClarifications: true,
     rewriteInstruction: text.trim() || undefined,
     rewriteDryRun: false,
     generateTestArtifacts: true,

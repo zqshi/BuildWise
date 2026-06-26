@@ -32,7 +32,7 @@ export function KnowledgeNavTree({ entries, selectedId, onSelect, onCreateEntry,
       for (const entry of catEntries) {
         const gn = entry.groupName || "";
         if (!groups.has(gn)) groups.set(gn, []);
-        groups.get(gn)!.push(entry);
+        groups.get(gn)?.push(entry);
       }
       return { category: cat, label: CATEGORY_LABELS[cat] || cat, groups, count: catEntries.length };
     });
@@ -87,7 +87,6 @@ export function KnowledgeNavTree({ entries, selectedId, onSelect, onCreateEntry,
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleAddGroup(node.category); if (e.key === "Escape") setAddingGroupFor(null); }}
-                    autoFocus
                   />
                 </div>
               ) : (

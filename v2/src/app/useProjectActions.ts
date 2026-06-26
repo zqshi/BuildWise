@@ -87,7 +87,7 @@ function buildIterationPayload(p: CreationParams) {
       outOfScope: splitLines(p.iterOutScope),
       acceptanceCriteria: splitLines(p.iterAcceptance),
     },
-    aiSummary: `基于${p.currentProject!.name}，${p.iterName.trim()}聚焦${p.iterDesc.trim() || "本轮目标交付"}。`,
+    aiSummary: `基于${p.currentProject?.name}，${p.iterName.trim()}聚焦${p.iterDesc.trim() || "本轮目标交付"}。`,
   };
 }
 

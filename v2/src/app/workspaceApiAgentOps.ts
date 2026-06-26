@@ -128,6 +128,20 @@ export async function fetchInterruptedFullCycle(iterationId: number): Promise<In
   );
 }
 
+/** 请求取消运行中的全流程任务（后端在下一个步骤边界停止，checkpoint 保留可续跑）。
+ *  对已终态或不存在的任务（409）返回 ok=false 而非抛错，供 UI 平静处理。 */
+export async function cancelFullCycleJob(iterationId: number, jobId: string): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    await fetchJSON<{ ok: boolean; status: string }>(
+      `${API_BASE}${API_PREFIX}/iterations/${iterationId}/full-cycle/jobs/${encodeURIComponent(jobId)}`,
+      { method: "DELETE" }
+    );
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "取消请求失败" };
+  }
+}
+
 /**
  * 触发后的轮询 wrapper：用运行时配置（getRuntimeConfig）覆盖退避/超时，
  * fetchJob 默认走 fetchFullCycleJob。纯逻辑见 fullCycleJobPoll.waitForFullCycleJob。

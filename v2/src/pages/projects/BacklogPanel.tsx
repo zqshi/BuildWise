@@ -95,7 +95,7 @@ export function BacklogPanel({ projectId, iterations }: BacklogPanelProps) {
 
       {showCreate ? (
         <div className="backlog-create-form">
-          <input type="text" placeholder="需求标题" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }} autoFocus />
+          <input type="text" placeholder="需求标题" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }} />
           <div className="backlog-create-row">
             <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)}>
               {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

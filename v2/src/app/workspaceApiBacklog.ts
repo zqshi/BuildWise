@@ -3,7 +3,7 @@ import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { API_BASE, API_PREFIX } from "../shared/apiConfig";
 
 export async function fetchBacklogItems(projectId: number, params?: Record<string, string>) {
-  const query = params ? "?" + new URLSearchParams(params).toString() : "";
+  const query = params ? `?${new URLSearchParams(params).toString()}` : "";
   return fetchJSON<BacklogItem[]>(`${API_BASE}${API_PREFIX}/projects/${projectId}/backlog${query}`);
 }
 
