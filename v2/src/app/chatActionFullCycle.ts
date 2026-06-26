@@ -1,7 +1,7 @@
 import type { ChatActionDeps } from "./chatActions";
 import { createMessage, resolveCoachErrorMessage } from "./chatActions";
-import { runIterationFullCycle } from "./workspaceApi";
-import type { AttachmentUploadInput } from "../domain/workspace/types";
+import { startFullCycleJob, runFullCycleJob } from "./workspaceApi";
+import type { AttachmentUploadInput, IterationFullCycleRunInput } from "../domain/workspace/types";
 
 const LABELS: Record<string, string> = {
   "analysis": "材料分析", "confirmation": "分析确认", "ux-guidance": "UX 执行指引",
@@ -9,7 +9,7 @@ const LABELS: Record<string, string> = {
   "test-artifacts": "测试产物", "release-review": "发布评审", "delivery-package": "交付包生成", "publish": "发布"
 };
 
-const STATUS_ICONS: Record<string, string> = { completed: "\u2713", failed: "\u2717", blocked: "\u2298", pending: "\u00B7" };
+const STATUS_ICONS: Record<string, string> = { completed: "✓", failed: "✗", blocked: "⊘", pending: "·" };
 
 function buildCheckpointMessage(fullCycle: { status: string; warnings: string[]; blockers: string[]; checkpoint?: Record<string, unknown> | null }): string {
   const cp = fullCycle.checkpoint as { resumable?: boolean; steps: Record<string, { status: string; note?: string; missingPreconditions?: string[] }> } | undefined;
@@ -50,28 +50,43 @@ function buildCheckpointMessage(fullCycle: { status: string; warnings: string[];
   return parts.join("");
 }
 
+/**
+ * 触发全流程异步任务并轮询至终态，把结果以聊天消息呈现。
+ * 后端进程重启等导致任务被中断时，提示用户可续跑（checkpoint 已落盘，重触发即跳过已完成步骤）。
+ */
+async function runFullCycleWithPolling(deps: ChatActionDeps, iterationId: number, payload: IterationFullCycleRunInput): Promise<void> {
+  deps.setChatSendStatus("processing-full-cycle");
+  try {
+    const { jobId } = await startFullCycleJob(iterationId, payload);
+    const fullCycle = await runFullCycleJob(iterationId, jobId, {
+      onProgress: () => deps.setChatSendStatus("processing-full-cycle")
+    });
+    await createMessage(iterationId, "assistant", buildCheckpointMessage(fullCycle), deps.setChatMessages);
+  } catch (err) {
+    const interrupted = err instanceof Error && err.message === "fullcycle_interrupted";
+    const message = interrupted
+      ? "全流程执行被中断（可能是服务重启）。满足前置条件后可再次触发继续执行，已完成的步骤会自动跳过。"
+      : `全流程执行失败：${resolveCoachErrorMessage(err)}`;
+    await createMessage(iterationId, "assistant", message, deps.setChatMessages);
+  }
+}
+
 export async function handleResumeFullCycle(
   deps: ChatActionDeps,
   _text: string,
   iterationId: number
 ): Promise<void> {
-  deps.setChatSendStatus("processing-full-cycle");
-  try {
-    const fullCycle = await runIterationFullCycle(iterationId, {
-      runAnalysis: false,
-      autoConfirmAnalysis: true,
-      autoResolveClarifications: true,
-      generateTestArtifacts: true,
-      testArtifactsDryRun: false,
-      refreshReleaseReview: true,
-      generateDeliveryPackage: true,
-      deliveryPackageDryRun: false,
-      publish: { enabled: true, dryRun: false }
-    });
-    await createMessage(iterationId, "assistant", buildCheckpointMessage(fullCycle), deps.setChatMessages);
-  } catch (err) {
-    await createMessage(iterationId, "assistant", `全流程恢复失败：${resolveCoachErrorMessage(err)}`, deps.setChatMessages);
-  }
+  await runFullCycleWithPolling(deps, iterationId, {
+    runAnalysis: false,
+    autoConfirmAnalysis: true,
+    autoResolveClarifications: true,
+    generateTestArtifacts: true,
+    testArtifactsDryRun: false,
+    refreshReleaseReview: true,
+    generateDeliveryPackage: true,
+    deliveryPackageDryRun: false,
+    publish: { enabled: true, dryRun: false }
+  });
   await deps.loadIterationDetail(iterationId);
 }
 
@@ -81,24 +96,18 @@ export async function handleRunFullCycle(
   iterationId: number,
   autoAnalysisInput: AttachmentUploadInput | null
 ): Promise<void> {
-  deps.setChatSendStatus("processing-full-cycle");
-  try {
-    const fullCycle = await runIterationFullCycle(iterationId, {
-      analysisInput: autoAnalysisInput ?? undefined,
-      runAnalysis: Boolean(autoAnalysisInput),
-      autoConfirmAnalysis: true,
-      autoResolveClarifications: true,
-      rewriteInstruction: text.trim() || undefined,
-      rewriteDryRun: false,
-      generateTestArtifacts: true,
-      testArtifactsDryRun: false,
-      refreshReleaseReview: true,
-      generateDeliveryPackage: true,
-      deliveryPackageDryRun: false,
-      publish: { enabled: true, dryRun: false }
-    });
-    await createMessage(iterationId, "assistant", buildCheckpointMessage(fullCycle), deps.setChatMessages);
-  } catch (err) {
-    await createMessage(iterationId, "assistant", `全流程执行失败：${resolveCoachErrorMessage(err)}`, deps.setChatMessages);
-  }
+  await runFullCycleWithPolling(deps, iterationId, {
+    analysisInput: autoAnalysisInput ?? undefined,
+    runAnalysis: Boolean(autoAnalysisInput),
+    autoConfirmAnalysis: true,
+    autoResolveClarifications: true,
+    rewriteInstruction: text.trim() || undefined,
+    rewriteDryRun: false,
+    generateTestArtifacts: true,
+    testArtifactsDryRun: false,
+    refreshReleaseReview: true,
+    generateDeliveryPackage: true,
+    deliveryPackageDryRun: false,
+    publish: { enabled: true, dryRun: false }
+  });
 }

@@ -8,7 +8,7 @@ import type {
   IterationVisualEditResponse
 } from "../domain/workspace/types";
 import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
-import { coachIterationMessage, createIterationMessage } from "./workspaceApi";
+import { coachIterationMessage, createIterationMessage, detectIterationChangeImpact } from "./workspaceApi";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import { normalizeUserChatInput } from "./workspaceChatMessagePresentation";
 import { presentCoachReply } from "./workspaceChatReplyPresenter";
@@ -140,6 +140,23 @@ export const handleSend = async (
     await createMessage(currentIteration.id, "user", text, deps.setChatMessages);
     userMessagePersisted = true;
     deps.setChatSendStatus("processing");
+
+    // ── 影响范围前置检测（以本体为基础，前置提示非阻断；命中则追加【变更影响】系统消息）──
+    try {
+      const impact = await detectIterationChangeImpact(currentIteration.id, text);
+      if (impact.hasImpact) {
+        const items = [...impact.affectedTerms, ...impact.affectedEntities, ...impact.affectedRules];
+        if (items.length > 0) {
+          await createMessage(
+            currentIteration.id, "system",
+            `【变更影响】${items.join("·")}｜${impact.summary}`,
+            deps.setChatMessages
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("[chatActions] 影响范围检测失败，跳过提示", err);
+    }
 
     // ── prototype 交互 ──
     if (options?.prototypeTarget) {

@@ -14,6 +14,7 @@ import type {
   IterationCoachChatResponse
 } from "../domain/workspace/types";
 import { fetchJSON, getRuntimeConfig } from "../infrastructure/http/fetchJSON";
+import { waitForFullCycleJob, type FullCycleJobStatusResponse } from "./fullCycleJobPoll";
 import { API_BASE, API_PREFIX, isApiNotFound } from "./workspaceApiCore";
 import { type FileWithPath, getFilePath } from "../shared/fileTypes";
 
@@ -50,7 +51,7 @@ export async function detectIterationChangeImpact(iterationId: number, userMessa
   return fetchJSON<ChangeImpactResult>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/detect-change-impact`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userMessage })
+    body: JSON.stringify({ message: userMessage })
   }, 15000);
 }
 
@@ -93,12 +94,62 @@ export async function rewriteIterationCode(
   );
 }
 
-export async function runIterationFullCycle(iterationId: number, payload: IterationFullCycleRunInput) {
-  return fetchJSON<IterationFullCycleRunResponse>(`${API_BASE}${API_PREFIX}/iterations/${iterationId}/full-cycle`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  }, 180000);
+export { waitForFullCycleJob, type FullCycleJobStatusResponse };
+
+/** 触发全流程，立即返回 jobId（后端 POST /full-cycle 异步，不阻塞管道）。 */
+export async function startFullCycleJob(iterationId: number, payload: IterationFullCycleRunInput): Promise<{ jobId: string }> {
+  const res = await fetchJSON<{ jobId: string; status: string }>(
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/full-cycle`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
+  );
+  if (!res?.jobId) throw new Error("全流程启动失败：未返回任务 ID");
+  return { jobId: res.jobId };
+}
+
+/** 查询全流程任务进度（轮询用）。 */
+export async function fetchFullCycleJob(iterationId: number, jobId: string): Promise<FullCycleJobStatusResponse> {
+  return fetchJSON<FullCycleJobStatusResponse>(
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/full-cycle/jobs/${encodeURIComponent(jobId)}`
+  );
+}
+
+export type InterruptedFullCycleStatus = {
+  interrupted: boolean;
+  checkpoint: Record<string, unknown> | null;
+  completedStepCount: number;
+  totalStepCount: number;
+  currentStep: string | null;
+};
+
+/** 查询某迭代是否有中断可续的全流程任务（刷新页面后主动感知，前端展示续跑入口）。 */
+export async function fetchInterruptedFullCycle(iterationId: number): Promise<InterruptedFullCycleStatus | null> {
+  return fetchJSON<InterruptedFullCycleStatus>(
+    `${API_BASE}${API_PREFIX}/iterations/${iterationId}/full-cycle/interrupted`
+  );
+}
+
+/**
+ * 触发后的轮询 wrapper：用运行时配置（getRuntimeConfig）覆盖退避/超时，
+ * fetchJob 默认走 fetchFullCycleJob。纯逻辑见 fullCycleJobPoll.waitForFullCycleJob。
+ */
+export async function runFullCycleJob(
+  iterationId: number,
+  jobId: string,
+  options?: {
+    timeoutMs?: number;
+    onProgress?: (status: FullCycleJobStatusResponse) => void;
+  }
+): Promise<IterationFullCycleRunResponse> {
+  const config = getRuntimeConfig();
+  return waitForFullCycleJob({
+    fetchJob: () => fetchFullCycleJob(iterationId, jobId),
+    onProgress: options?.onProgress,
+    timeoutMs: options?.timeoutMs ?? 1800000,
+    pollIntervalMs: config.pollIntervalMs,
+    runningStallTimeoutMs: config.analysisRunningStallTimeoutMs,
+    maxConsecutivePollErrors: config.pollMaxConsecutiveErrors,
+    backoffDelays: [config.pollBackoffInitialMs, 2000, 3000, 5000, 8000, 12000, 15000, 20000, 25000, config.pollMaxBackoffMs]
+  });
 }
 
 async function readFileExcerpt(file: File, maxLength = 4000) {

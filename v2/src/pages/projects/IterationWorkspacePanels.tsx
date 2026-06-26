@@ -1,9 +1,10 @@
-import type { CSSProperties, DragEvent, RefObject } from "react";
+import { useState, useEffect, type CSSProperties, type DragEvent, type RefObject } from "react";
 import { IterationStatusStrip } from "./IterationStatusStrip";
 import { ChatMessageList } from "./ChatMessageList";
 import { UploadProgressBar } from "./UploadProgressBar";
 import { LlmProcessingBar } from "./LlmProcessingBar";
 import { ChatComposer } from "./ChatComposer";
+import { fetchInterruptedFullCycle } from "../../app/workspaceApiAgentOps";
 import type { UploadFileEntry } from "./UploadFileCard";
 import type {
   IterationWorkspacePanelProps,
@@ -54,10 +55,33 @@ export function ChatPanelArticle(p: ChatPanelArticleProps) {
       {p.error ? <div className="inline-error-banner" role="alert" aria-live="assertive">{p.error}</div> : null}
       <IterationStatusStrip currentIteration={p.currentIteration} stateMachine={p.stateMachine}
         contextData={p.contextData} onTransitionState={p.onTransitionState} />
+      {p.currentIteration ? <InterruptedFullCycleBanner iterationId={p.currentIteration.id} /> : null}
       <div className="iteration-workbench-grid">
         <ChatMainColumn p={p} />
       </div>
     </article>
+  );
+}
+
+/**
+ * 中断的全流程任务提示横幅：进程重启等致 fullCycle 中断时（内存句柄丢失但 checkpoint
+ * 落盘），提示用户在下方聊天框输入「继续全流程」续跑，已完成的步骤会自动跳过。
+ * 自包含 fetch，不桥接聊天动作 deps——续跑复用现有聊天输入触发路径（chatActions）。
+ */
+function InterruptedFullCycleBanner({ iterationId }: { iterationId: number }) {
+  const [status, setStatus] = useState<{ interrupted: boolean; completedStepCount: number; totalStepCount: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchInterruptedFullCycle(iterationId)
+      .then((s) => { if (!cancelled) setStatus(s); })
+      .catch(() => { if (!cancelled) setStatus(null); });
+    return () => { cancelled = true; };
+  }, [iterationId]);
+  if (!status || !status.interrupted) return null;
+  return (
+    <div className="inline-error-banner" role="status" aria-live="polite">
+      该迭代有中断的全流程任务（已完成 {status.completedStepCount}/{status.totalStepCount} 步），在下方聊天框输入「继续全流程」即可续跑，已完成的步骤会自动跳过。
+    </div>
   );
 }
 
