@@ -163,6 +163,7 @@ function buildIterationActionParams(
     uploadedFile: state.uploadedFile, chatInput: state.chatInput,
     fileInputRef: state.fileInputRef,
     setChatInput: state.setChatInput, setChatSendStatus: state.setChatSendStatus,
+    fullCycleJob: state.fullCycleJob, setFullCycleJob: state.setFullCycleJob,
     setBusy: state.setBusy, setError: state.setError,
     setUploadedFile: state.setUploadedFile,
     setChatMessages: state.setChatMessages,

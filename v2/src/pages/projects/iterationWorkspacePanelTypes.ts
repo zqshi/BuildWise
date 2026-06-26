@@ -12,6 +12,7 @@ import type {
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { OpsTriageTemplate } from "../../domain/workspace/platformTypes";
 import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
+import type { FullCycleJobRef } from "../../contexts/ChatContext";
 
 export type PrototypeElement = {
   id: string;
@@ -88,6 +89,7 @@ export type IterationWorkspacePanelProps = {
   stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
   chatSendStatus: ChatSendStatus;
+  fullCycleJob: FullCycleJobRef | null;
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
   uploadedFile: UploadedAttachmentMeta | null;
@@ -105,6 +107,7 @@ export type IterationWorkspacePanelProps = {
   onUploadFiles: (files: File[]) => void | Promise<void>;
   onRetryUpload: () => void | Promise<void>;
   onChatInputChange: (value: string) => void;
+  onCancelFullCycle: () => void;
   onChatSend: (options?: {
     overrideText?: string;
     prototypeTarget?: string | null;

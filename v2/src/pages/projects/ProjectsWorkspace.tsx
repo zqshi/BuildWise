@@ -15,6 +15,7 @@ import type {
 import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
 import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
+import type { FullCycleJobRef } from "../../contexts/ChatContext";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
 import { ProjectsWorkspaceEmptyState } from "./ProjectsWorkspaceEmptyState";
 import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
@@ -50,6 +51,7 @@ type ProjectsWorkspaceProps = {
   stateMachine: IterationStateMachinePayload | null;
   chatMessages: IterationMessage[];
   chatSendStatus: ChatSendStatus;
+  fullCycleJob: FullCycleJobRef | null;
   chatInput: string;
   fileInputRef: RefObject<HTMLInputElement>;
   onShowCreateProject: () => void;
@@ -83,6 +85,7 @@ type ProjectsWorkspaceProps = {
       };
     };
   }) => Promise<IterationVisualEditResponse | null>;
+  onCancelFullCycle: () => void;
   onUpdateClarificationDraft: (resolvedQuestions: string[]) => Promise<void> | void;
   onConfirmIterationAnalysis: (payload: {
     accurate: boolean;
@@ -149,6 +152,7 @@ export function ProjectsWorkspace({
   stateMachine,
   chatMessages,
   chatSendStatus,
+  fullCycleJob,
   chatInput,
   fileInputRef,
   onShowCreateProject,
@@ -167,6 +171,7 @@ export function ProjectsWorkspace({
   onRetryUpload,
   onChatInputChange,
   onChatSend,
+  onCancelFullCycle,
   onUpdateClarificationDraft,
   onConfirmIterationAnalysis,
   onUpdateIterationBoundary,
@@ -284,6 +289,7 @@ export function ProjectsWorkspace({
               stateMachine={stateMachine}
               chatMessages={chatMessages}
               chatSendStatus={chatSendStatus}
+              fullCycleJob={fullCycleJob}
               chatInput={chatInput}
               fileInputRef={fileInputRef}
               uploadedFile={uploadedFile}
@@ -303,6 +309,7 @@ export function ProjectsWorkspace({
               onRetryUpload={onRetryUpload}
               onChatInputChange={onChatInputChange}
               onChatSend={onChatSend}
+              onCancelFullCycle={onCancelFullCycle}
               onUpdateClarificationDraft={onUpdateClarificationDraft}
               onConfirmIterationAnalysis={onConfirmIterationAnalysis}
               onUpdateIterationBoundary={onUpdateIterationBoundary}
