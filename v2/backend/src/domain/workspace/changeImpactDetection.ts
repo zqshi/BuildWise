@@ -50,20 +50,21 @@ function tokenize(message: string): string[] {
     // 中文段：取 2-gram 与 3-gram
     const chars = [...seg];
     for (let i = 0; i < chars.length; i += 1) {
-      if (i + 2 <= chars.length) tokens.add(chars.slice(i, i + 2).join(""));
+      // T7b: 只取 3-gram（去 2-gram 减少短词误报；2 字术语由 fieldsHit 精确匹配覆盖）
       if (i + 3 <= chars.length) tokens.add(chars.slice(i, i + 3).join(""));
     }
   }
   return Array.from(tokens);
 }
 
-/** token 是否命中某本体字段值（子串包含，双向兜底） */
-function hitsAny(token: string, fields: string[]): boolean {
-  const t = token;
+/** 字段是否命中: 精确匹配(message 段含术语全词, 覆盖 2 字短术语召回) || n-gram 正向(术语含 message 长片段)。
+ *  T7b: 去 2-gram + 去反向包含(tok.includes(fv))减少误报, 精确匹配补短术语召回。 */
+function fieldsHit(fields: string[], segments: string[], tokens: string[]): boolean {
   for (const f of fields) {
     const fv = (f || "").toLowerCase();
-    if (!fv) continue;
-    if (fv.includes(t) || t.includes(fv)) return true;
+    if (!fv || fv.length < 2) continue;
+    if (segments.some((seg) => seg.includes(fv))) return true;
+    if (tokens.some((tok) => fv.includes(tok))) return true;
   }
   return false;
 }
@@ -73,23 +74,25 @@ export function detectChangeImpactOp(input: {
   knowledgeBase?: ProjectKnowledgeBase | null;
 }): ChangeImpactResult {
   const kb = input.knowledgeBase ?? EMPTY_KB;
+  const messageText = (input.userMessage || "").toLowerCase();
+  const segments = messageText.split(STOP_CHARS).filter((s) => s.length > 0);
   const tokens = tokenize(input.userMessage);
   const affectedTerms: string[] = [];
   const affectedEntities: string[] = [];
   const affectedRules: string[] = [];
   const affectedArtifacts: string[] = [];
 
-  if (tokens.length > 0) {
+  if (segments.length > 0 || tokens.length > 0) {
     for (const term of kb.ontologyTerms ?? []) {
       const fields = [term.term, ...(term.aliases ?? [])];
-      if (tokens.some((tok) => hitsAny(tok, fields))) {
+      if (fieldsHit(fields, segments, tokens)) {
         if (!affectedTerms.includes(term.term)) affectedTerms.push(term.term);
       }
     }
 
     for (const comp of kb.componentInventory ?? []) {
       const fields = [comp.component, comp.responsibility, ...(comp.relatedRequirements ?? [])];
-      if (tokens.some((tok) => hitsAny(tok, fields))) {
+      if (fieldsHit(fields, segments, tokens)) {
         if (!affectedEntities.includes(comp.component)) affectedEntities.push(comp.component);
         for (const path of comp.relatedCodePaths ?? []) {
           if (path && !affectedArtifacts.includes(path)) affectedArtifacts.push(path);
@@ -99,7 +102,7 @@ export function detectChangeImpactOp(input: {
 
     for (const rule of kb.stableRules ?? []) {
       const fields = [rule.rule, rule.rationale];
-      if (tokens.some((tok) => hitsAny(tok, fields))) {
+      if (fieldsHit(fields, segments, tokens)) {
         if (!affectedRules.includes(rule.rule)) affectedRules.push(rule.rule);
       }
     }

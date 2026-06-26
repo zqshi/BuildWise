@@ -13,8 +13,9 @@ import type { FullCycleCheckpoint, FullCycleStepId, FullCycleStepState } from '.
 import type { AgentRunner } from '../shared/agentRunner';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { evaluatePolicyGateForFullCycleOp, appendPolicyExecutionLogOp } from '../governance/policyOps';
-import { syncArtifactForFullCycleStepOp } from '../changeControl/artifactOps';
+import { syncArtifactForFullCycleStepOp, markCodeArtifactsStaleOp } from '../changeControl/artifactOps';
 import type { ProjectPolicyRecord } from '../../../domain/workspace/types';
+import type { ChangeImpactResult } from '../../../domain/workspace/changeImpactDetection';
 import { executeStep, type FullCycleStepResults } from './fullCycleSteps';
 
 type PublishResult = {
@@ -390,6 +391,8 @@ export type FullCycleRunParams = {
   shouldCancel?: () => boolean;
   /** 项目生效策略，供 fullCycle 步骤推进前做分级门禁评估；null/缺省则仅查 stale 制品 */
   activePolicy?: ProjectPolicyRecord | null;
+  /** T7b: changeImpact 检测 delegate（改写步骤后检测对本体的实时影响）；缺省则不检测 */
+  detectChangeImpact?: (iterationId: number, message: string) => ChangeImpactResult;
 };
 
 type FullCycleFlags = {
@@ -505,6 +508,16 @@ async function executeStepLoop(
 
     // T6 正向同步：步骤完成后同步对应 artifact 状态（产出标记+门禁通过），与 checkpoint 双状态一致
     syncArtifactForStep(repo, iterationId, stepId);
+
+    // T7b: 改写步骤后检测 changeImpact, 命中标代码 artifact stale 联动 T5 阻断下游
+    if (params.detectChangeImpact && input.rewriteInstruction
+      && (stepId === "frontend-rewrite" || stepId === "backend-rewrite" || stepId === "merge-rewrite")) {
+      const impact = params.detectChangeImpact(iterationId, input.rewriteInstruction);
+      if (impact.hasImpact && impact.affectedArtifacts.length > 0) {
+        markCodeArtifactsStaleOp(repo, iterationId, impact.affectedArtifacts);
+        warnings.push(`改写检测到变更影响：${impact.summary}`);
+      }
+    }
 
     checkpoint.lastUpdatedAt = new Date().toISOString();
     persistCheckpoint(repo, iterationId, checkpoint);
