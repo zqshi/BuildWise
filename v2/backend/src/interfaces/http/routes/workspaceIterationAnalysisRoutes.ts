@@ -64,6 +64,18 @@ async function handleFullCycleJobStatus(service: WorkspaceService, request: Fast
   return status;
 }
 
+async function handleCancelFullCycleJob(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
+  if (currentRole(request.authRole) === "viewer") { reply.code(403); return { message: "没有权限" }; }
+  const iterationId = parsePositiveInt((request.params as { id: string }).id);
+  if (iterationId === null) { reply.code(400); return { message: "无效的迭代 ID" }; }
+  const access = ensureIterationAccess(service, request, reply, iterationId, "write");
+  if (!access) return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
+  const jobId = (request.params as { jobId: string }).jobId;
+  const result = service.fullCycle.cancelFullCycleJob(jobId);
+  if (!result.ok) { reply.code(409); return { message: result.reason || "任务不存在或已结束" }; }
+  return { jobId, status: "cancelling", iterationId };
+}
+
 async function handleFullCycleInterrupted(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
   const iterationId = parsePositiveInt((request.params as { id: string }).id);
   if (iterationId === null) { reply.code(400); return { message: "无效的迭代 ID" }; }
@@ -134,6 +146,10 @@ export function registerIterationAnalysisRoutes(app: FastifyInstance, service: W
   app.get("/iterations/:id/full-cycle/jobs/:jobId", {
     schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, jobId: { type: "string" as const } }, required: ["id" as const, "jobId" as const] } }
   }, (req, rep) => handleFullCycleJobStatus(service, req, rep));
+
+  app.delete("/iterations/:id/full-cycle/jobs/:jobId", {
+    schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, jobId: { type: "string" as const } }, required: ["id" as const, "jobId" as const] } }
+  }, (req, rep) => handleCancelFullCycleJob(service, req, rep));
 
   app.get("/iterations/:id/full-cycle/interrupted", {
     schema: { params: ITER_PARAM_SCHEMA }

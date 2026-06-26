@@ -18,7 +18,7 @@ async function handleAssistantChat(service: WorkspaceService, request: FastifyRe
 
 async function handleListMessages(service: WorkspaceService, request: FastifyRequest, _reply: FastifyReply) {
   const tenantId = (request.query as Record<string, string>).tenantId || "default";
-  const limit = parseInt((request.query as Record<string, string>).limit || "50", 10);
+  const limit = Number.parseInt((request.query as Record<string, string>).limit || "50", 10);
   return service.listAssistantMessages(tenantId, Math.min(limit, 100));
 }
 
