@@ -10,7 +10,7 @@ function createHeadersAdapter(headers) {
   };
 }
 
-function versionedPath(routePath) {
+export function versionedPath(routePath) {
   if (routePath.startsWith("/api/v1/")) {
     return routePath;
   }
