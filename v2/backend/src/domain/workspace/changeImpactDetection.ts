@@ -1,0 +1,122 @@
+/**
+ * changeImpactDetection — 需求影响范围前置检测（domain 纯函数）
+ *
+ * 在用户提交需求文本时，以已构建的本体（knowledgeBase）为基础，做反向匹配，
+ * 输出可能受影响的本体项与代码/交付物，供前端前置提示（非阻断）。
+ *
+ * 纯函数、零外部依赖、无 LLM。本体不全或无命中时 hasImpact=false（诚实，不造假）。
+ * 匹配策略：需求文本 token 化后，对本体四向（terms/components/rules）做包含匹配。
+ */
+
+import type { ProjectKnowledgeBase } from './projectTypes';
+
+export type ChangeImpactResult = {
+  hasImpact: boolean;
+  affectedTerms: string[];
+  affectedEntities: string[];
+  affectedRules: string[];
+  affectedArtifacts: string[];
+  summary: string;
+};
+
+const EMPTY_KB: ProjectKnowledgeBase = {
+  ontologyTerms: [],
+  componentInventory: [],
+  stableRules: [],
+  codeMap: [],
+  decisionLog: [],
+  knownRisks: [],
+  changePatterns: [],
+  updatedAt: "",
+};
+
+// 最小停用词/标点集合（中英），匹配时忽略以降噪
+const STOP_CHARS = /[\s，。、,.!?;:（）()【】\[\]""''`'""\n\r\t]+/;
+
+/**
+ * 把需求文本切分为用于匹配的候选 token。
+ * 英文按词、中文按 2-3 字 n-gram，去标点与单字符噪声。
+ */
+function tokenize(message: string): string[] {
+  const text = (message || "").toLowerCase();
+  const segments = text.split(STOP_CHARS).filter((s) => s.length > 0);
+  const tokens = new Set<string>();
+  for (const seg of segments) {
+    // 英文/数字词整体作为一个 token
+    if (/^[a-z0-9_\-]+$/.test(seg)) {
+      if (seg.length >= 2) tokens.add(seg);
+      continue;
+    }
+    // 中文段：取 2-gram 与 3-gram
+    const chars = [...seg];
+    for (let i = 0; i < chars.length; i += 1) {
+      if (i + 2 <= chars.length) tokens.add(chars.slice(i, i + 2).join(""));
+      if (i + 3 <= chars.length) tokens.add(chars.slice(i, i + 3).join(""));
+    }
+  }
+  return Array.from(tokens);
+}
+
+/** token 是否命中某本体字段值（子串包含，双向兜底） */
+function hitsAny(token: string, fields: string[]): boolean {
+  const t = token;
+  for (const f of fields) {
+    const fv = (f || "").toLowerCase();
+    if (!fv) continue;
+    if (fv.includes(t) || t.includes(fv)) return true;
+  }
+  return false;
+}
+
+export function detectChangeImpactOp(input: {
+  userMessage: string;
+  knowledgeBase?: ProjectKnowledgeBase | null;
+}): ChangeImpactResult {
+  const kb = input.knowledgeBase ?? EMPTY_KB;
+  const tokens = tokenize(input.userMessage);
+  const affectedTerms: string[] = [];
+  const affectedEntities: string[] = [];
+  const affectedRules: string[] = [];
+  const affectedArtifacts: string[] = [];
+
+  if (tokens.length > 0) {
+    for (const term of kb.ontologyTerms ?? []) {
+      const fields = [term.term, ...(term.aliases ?? [])];
+      if (tokens.some((tok) => hitsAny(tok, fields))) {
+        if (!affectedTerms.includes(term.term)) affectedTerms.push(term.term);
+      }
+    }
+
+    for (const comp of kb.componentInventory ?? []) {
+      const fields = [comp.component, comp.responsibility, ...(comp.relatedRequirements ?? [])];
+      if (tokens.some((tok) => hitsAny(tok, fields))) {
+        if (!affectedEntities.includes(comp.component)) affectedEntities.push(comp.component);
+        for (const path of comp.relatedCodePaths ?? []) {
+          if (path && !affectedArtifacts.includes(path)) affectedArtifacts.push(path);
+        }
+      }
+    }
+
+    for (const rule of kb.stableRules ?? []) {
+      const fields = [rule.rule, rule.rationale];
+      if (tokens.some((tok) => hitsAny(tok, fields))) {
+        if (!affectedRules.includes(rule.rule)) affectedRules.push(rule.rule);
+      }
+    }
+  }
+
+  const total = affectedTerms.length + affectedEntities.length + affectedRules.length;
+  const hasImpact = total > 0;
+  const summary = hasImpact
+    ? `检测到 ${total} 个本体项可能受影响（术语 ${affectedTerms.length}、组件 ${affectedEntities.length}、规则 ${affectedRules.length}）。`
+    : "本体中未匹配到与该需求相关的项。";
+
+  return {
+    hasImpact,
+    affectedTerms,
+    affectedEntities,
+    affectedRules,
+    affectedArtifacts,
+    summary,
+  };
+}
