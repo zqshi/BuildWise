@@ -17,7 +17,9 @@ export {
 export {
   listPolicyExecutionLogsOp,
   appendPolicyExecutionLogOp,
-  evaluatePolicyGateForCoachOp
+  evaluatePolicyGateForCoachOp,
+  collectPolicyGateResults,
+  evaluatePolicyGateForFullCycleOp
 } from "./policyGateOps";
 
 export {
