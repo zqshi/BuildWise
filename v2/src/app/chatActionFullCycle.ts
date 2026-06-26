@@ -58,6 +58,7 @@ async function runFullCycleWithPolling(deps: ChatActionDeps, iterationId: number
   deps.setChatSendStatus("processing-full-cycle");
   try {
     const { jobId } = await startFullCycleJob(iterationId, payload);
+    deps.setFullCycleJob({ iterationId, jobId });
     const fullCycle = await runFullCycleJob(iterationId, jobId, {
       onProgress: () => deps.setChatSendStatus("processing-full-cycle")
     });
@@ -71,6 +72,8 @@ async function runFullCycleWithPolling(deps: ChatActionDeps, iterationId: number
         ? "全流程执行被中断（可能是服务重启）。满足前置条件后可再次触发继续执行，已完成的步骤会自动跳过。"
         : `全流程执行失败：${resolveCoachErrorMessage(err)}`;
     await createMessage(iterationId, "assistant", message, deps.setChatMessages);
+  } finally {
+    deps.setFullCycleJob(null);
   }
 }
 

@@ -15,12 +15,14 @@ export function IterationWorkspacePanel(props: IterationWorkspacePanelProps) {
         currentIteration={props.currentIteration} error={props.error}
         contextData={props.contextData} stateMachine={props.stateMachine}
         chatMessages={props.chatMessages} chatSendStatus={props.chatSendStatus}
+        fullCycleJob={props.fullCycleJob}
         chatInput={props.chatInput} fileInputRef={props.fileInputRef}
         isAnalyzingAttachment={props.isAnalyzingAttachment}
         uploadAnalysisProgress={props.uploadAnalysisProgress} lastUploadFailed={props.lastUploadFailed}
         onUpload={props.onUpload} onUploadFiles={props.onUploadFiles}
         onUploadClick={props.onUploadClick} onRetryUpload={props.onRetryUpload}
         onChatInputChange={props.onChatInputChange} onTransitionState={props.onTransitionState}
+        onCancelFullCycle={props.onCancelFullCycle}
         onSwitchToProjectPanel={props.onSwitchToProjectPanel} onConfirmArtifact={props.onConfirmArtifact}
         showInteractionPanel={s.showInteractionPanel} interactionDrawerWidth={s.interactionDrawerWidth}
         dragOver={s.dragOver} setDragOver={s.setDragOver} chatBodyRef={s.chatBodyRef}

@@ -10,6 +10,9 @@ type ChangeImpact = {
   summary: string;
 };
 
+/** 运行中的全流程任务句柄：供停止按钮取 jobId 调取消 API。 */
+export type FullCycleJobRef = { iterationId: number; jobId: string };
+
 type ChatContextValue = {
   chatInput: string;
   setChatInput: React.Dispatch<React.SetStateAction<string>>;
@@ -21,6 +24,8 @@ type ChatContextValue = {
   setContextData: React.Dispatch<React.SetStateAction<IterationContextPayload | null>>;
   changeImpact: ChangeImpact | null;
   setChangeImpact: React.Dispatch<React.SetStateAction<ChangeImpact | null>>;
+  fullCycleJob: FullCycleJobRef | null;
+  setFullCycleJob: React.Dispatch<React.SetStateAction<FullCycleJobRef | null>>;
 };
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -31,6 +36,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [chatSendStatus, setChatSendStatus] = useState<ChatSendStatus>("idle");
   const [contextData, setContextData] = useState<IterationContextPayload | null>(null);
   const [changeImpact, setChangeImpact] = useState<ChangeImpact | null>(null);
+  const [fullCycleJob, setFullCycleJob] = useState<FullCycleJobRef | null>(null);
 
   const value = useMemo(
     () => ({
@@ -44,8 +50,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setContextData,
       changeImpact,
       setChangeImpact,
+      fullCycleJob,
+      setFullCycleJob,
     }),
-    [chatInput, chatMessages, chatSendStatus, contextData, changeImpact]
+    [chatInput, chatMessages, chatSendStatus, contextData, changeImpact, fullCycleJob]
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

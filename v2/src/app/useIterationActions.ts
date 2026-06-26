@@ -11,6 +11,8 @@ import type {
   IterationVisualEditResponse
 } from "../domain/workspace/types";
 import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
+import { cancelFullCycleJob } from "./workspaceApi";
+import type { FullCycleJobRef } from "../contexts/ChatContext";
 
 import {
   handleUploadClick as handleUploadClickFn,
@@ -61,6 +63,8 @@ type UseIterationActionsParams = {
   fileInputRef: RefObject<HTMLInputElement>;
   setChatInput: Dispatch<SetStateAction<string>>;
   setChatSendStatus: Dispatch<SetStateAction<ChatSendStatus>>;
+  fullCycleJob: FullCycleJobRef | null;
+  setFullCycleJob: Dispatch<SetStateAction<FullCycleJobRef | null>>;
   setBusy: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setUploadedFile: Dispatch<SetStateAction<UploadedAttachmentMeta | null>>;
@@ -110,7 +114,8 @@ function buildChatDeps(
     "currentIteration" | "currentProjectId" | "currentRole" | "chatInput" |
     "analysisReport" | "uploadedFile" | "setChatInput" | "setChatSendStatus" |
     "setError" | "setChatMessages" | "setShowAnalysisPanel" |
-    "loadIterationDetail" | "loadIterations" | "loadGovernance">
+    "loadIterationDetail" | "loadIterations" | "loadGovernance" |
+    "fullCycleJob" | "setFullCycleJob">
 ): ChatActionDeps {
   return {
     currentIteration: p.currentIteration,
@@ -124,6 +129,8 @@ function buildChatDeps(
     setError: p.setError,
     setChatMessages: p.setChatMessages,
     setShowAnalysisPanel: p.setShowAnalysisPanel,
+    fullCycleJob: p.fullCycleJob,
+    setFullCycleJob: p.setFullCycleJob,
     loadIterationDetail: p.loadIterationDetail,
     loadIterations: p.loadIterations,
     loadGovernance: p.loadGovernance
@@ -251,6 +258,13 @@ function buildIterationActionWrappers(
     uploadFiles: (files: File[]) => uploadFilesFn(files, uploadDeps),
     handleRetryUpload: () => handleRetryUploadFn(uploadDeps),
     handleSend: (options?: SendOptions): Promise<IterationVisualEditResponse | null> => handleSendFn(chatDeps, options),
+    onCancelFullCycle: () => {
+      const job = chatDeps.fullCycleJob;
+      if (!job) return;
+      void cancelFullCycleJob(job.iterationId, job.jobId).then((res) => {
+        if (!res.ok) console.warn("[onCancelFullCycle] 取消请求未生效", res.reason);
+      });
+    },
     handleRecomputeAssessment: () => handleRecomputeAssessmentFn(assessmentDeps),
     handleRestoreSnapshot: (snapshotId: number) => handleRestoreSnapshotFn(snapshotId, assessmentDeps),
     handleTransitionState: (toStatus: IterationStatus) => handleTransitionStateFn(toStatus, changeControlDeps),

@@ -8,6 +8,7 @@ import type {
   IterationVisualEditResponse
 } from "../domain/workspace/types";
 import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
+import type { FullCycleJobRef } from "../contexts/ChatContext";
 import { coachIterationMessage, createIterationMessage, detectIterationChangeImpact } from "./workspaceApi";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 import { normalizeUserChatInput } from "./workspaceChatMessagePresentation";
@@ -74,6 +75,8 @@ export type ChatActionDeps = {
   setError: Dispatch<SetStateAction<string | null>>;
   setChatMessages: Dispatch<SetStateAction<IterationMessage[]>>;
   setShowAnalysisPanel: Dispatch<SetStateAction<boolean>>;
+  fullCycleJob: FullCycleJobRef | null;
+  setFullCycleJob: Dispatch<SetStateAction<FullCycleJobRef | null>>;
   loadIterationDetail: (iterationId: number) => Promise<void>;
   loadIterations: (projectId: number) => Promise<void>;
   loadGovernance: () => Promise<void>;

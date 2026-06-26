@@ -5,6 +5,7 @@ import { UploadProgressBar } from "./UploadProgressBar";
 import { LlmProcessingBar } from "./LlmProcessingBar";
 import { ChatComposer } from "./ChatComposer";
 import { fetchInterruptedFullCycle } from "../../app/workspaceApiAgentOps";
+import { shouldShowStopButton } from "../../app/fullCycleStopButton";
 import type { UploadFileEntry } from "./UploadFileCard";
 import type {
   IterationWorkspacePanelProps,
@@ -16,10 +17,10 @@ import type { IterationArtifactWorkflowItem } from "../../domain/workspace/itera
 type ChatPanelArticleProps = Pick<
   IterationWorkspacePanelProps,
   | "currentIteration" | "error" | "contextData" | "stateMachine"
-  | "chatMessages" | "chatSendStatus" | "chatInput" | "fileInputRef"
+  | "chatMessages" | "chatSendStatus" | "fullCycleJob" | "chatInput" | "fileInputRef"
   | "isAnalyzingAttachment" | "uploadAnalysisProgress" | "lastUploadFailed"
   | "onUpload" | "onUploadFiles" | "onUploadClick" | "onRetryUpload"
-  | "onChatInputChange" | "onTransitionState" | "onSwitchToProjectPanel"
+  | "onChatInputChange" | "onCancelFullCycle" | "onTransitionState" | "onSwitchToProjectPanel"
   | "onConfirmArtifact"
 > & {
   showInteractionPanel: boolean;
@@ -86,6 +87,8 @@ function InterruptedFullCycleBanner({ iterationId }: { iterationId: number }) {
 }
 
 function ChatMainColumn({ p }: { p: ChatPanelArticleProps }) {
+  const [cancelling, setCancelling] = useState(false);
+  useEffect(() => { if (!p.fullCycleJob) setCancelling(false); }, [p.fullCycleJob]);
   return (
     <div className="iteration-chat-main">
       <ChatBodyArea
@@ -103,6 +106,14 @@ function ChatMainColumn({ p }: { p: ChatPanelArticleProps }) {
         isAnalyzingAttachment={p.isAnalyzingAttachment} artifactGenDeclared={p.artifactGenDeclared}
         artifactGenCompleted={p.artifactGenCompleted} artifactGenInProgress={p.artifactGenInProgress}
         artifactGenAllDone={p.artifactGenAllDone} chatLlmPercent={p.chatLlmPercent} />
+      {shouldShowStopButton(p.chatSendStatus, p.fullCycleJob) ? (
+        <div className="chat-input-row">
+          <button type="button" className="btn ghost mini" disabled={cancelling}
+            onClick={() => { setCancelling(true); p.onCancelFullCycle(); }}>
+            {cancelling ? "正在停止…" : "停止全流程"}
+          </button>
+        </div>
+      ) : null}
       <ChatComposer
         currentIteration={p.currentIteration} chatInput={p.chatInput} chatSendStatus={p.chatSendStatus}
         fileInputRef={p.fileInputRef} isAnalyzingAttachment={p.isAnalyzingAttachment}
