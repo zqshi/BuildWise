@@ -215,3 +215,21 @@ test("DELETE /full-cycle/jobs/:jobId viewer 角色被拒（403）", async () => 
   assert.equal(res.statusCode, 403);
   await app.close();
 });
+
+// ─── T7a: retry 续跑入口（复用 handleFullCycle + checkpoint 续跑）───
+
+test("POST /full-cycle/retry 返回 202 + jobId（T7a 续跑入口）", async () => {
+  const { app } = await createApp();
+  const { iteration } = await setupIteration(app);
+  const res = await app.inject({
+    method: "POST",
+    url: `/api/v1/iterations/${iteration.id}/full-cycle/retry`,
+    headers: headers(),
+    payload: { runAnalysis: false }
+  });
+  assert.equal(res.statusCode, 202);
+  const body = res.json();
+  assert.equal(body.status, "running");
+  assert.ok(body.jobId.startsWith("fc-"));
+  await app.close();
+});

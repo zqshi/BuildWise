@@ -143,6 +143,11 @@ export function registerIterationAnalysisRoutes(app: FastifyInstance, service: W
     schema: { params: ITER_PARAM_SCHEMA, body: { type: "object" } }
   }, (req, rep) => handleFullCycle(service, req, rep));
 
+  // T7a: 明确的重试入口（复用 handleFullCycle，body 传续跑参数即复用 checkpoint 续跑）
+  app.post("/iterations/:id/full-cycle/retry", {
+    schema: { params: ITER_PARAM_SCHEMA, body: { type: "object" } }
+  }, (req, rep) => handleFullCycle(service, req, rep));
+
   app.get("/iterations/:id/full-cycle/jobs/:jobId", {
     schema: { params: { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" }, jobId: { type: "string" as const } }, required: ["id" as const, "jobId" as const] } }
   }, (req, rep) => handleFullCycleJobStatus(service, req, rep));

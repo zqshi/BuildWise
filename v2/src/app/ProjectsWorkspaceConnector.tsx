@@ -88,6 +88,7 @@ function buildCallbacks(
     onChatInputChange: c.setChatInput,
     onChatSend: c.handleSend,
     onCancelFullCycle: c.onCancelFullCycle,
+    onRetryFullCycle: c.onRetryFullCycle,
     onUpdateClarificationDraft: c.handleUpdateClarificationDraft,
     onConfirmIterationAnalysis: c.handleConfirmIterationAnalysis,
     onUpdateIterationBoundary: c.handleUpdateIterationBoundary,

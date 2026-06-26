@@ -86,6 +86,7 @@ type ProjectsWorkspaceProps = {
     };
   }) => Promise<IterationVisualEditResponse | null>;
   onCancelFullCycle: () => void;
+  onRetryFullCycle: () => void;
   onUpdateClarificationDraft: (resolvedQuestions: string[]) => Promise<void> | void;
   onConfirmIterationAnalysis: (payload: {
     accurate: boolean;
@@ -172,6 +173,7 @@ export function ProjectsWorkspace({
   onChatInputChange,
   onChatSend,
   onCancelFullCycle,
+  onRetryFullCycle,
   onUpdateClarificationDraft,
   onConfirmIterationAnalysis,
   onUpdateIterationBoundary,
@@ -310,6 +312,7 @@ export function ProjectsWorkspace({
               onChatInputChange={onChatInputChange}
               onChatSend={onChatSend}
               onCancelFullCycle={onCancelFullCycle}
+              onRetryFullCycle={onRetryFullCycle}
               onUpdateClarificationDraft={onUpdateClarificationDraft}
               onConfirmIterationAnalysis={onConfirmIterationAnalysis}
               onUpdateIterationBoundary={onUpdateIterationBoundary}

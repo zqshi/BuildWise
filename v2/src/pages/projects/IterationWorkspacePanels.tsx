@@ -20,7 +20,7 @@ type ChatPanelArticleProps = Pick<
   | "chatMessages" | "chatSendStatus" | "fullCycleJob" | "chatInput" | "fileInputRef"
   | "isAnalyzingAttachment" | "uploadAnalysisProgress" | "lastUploadFailed"
   | "onUpload" | "onUploadFiles" | "onUploadClick" | "onRetryUpload"
-  | "onChatInputChange" | "onCancelFullCycle" | "onTransitionState" | "onSwitchToProjectPanel"
+  | "onChatInputChange" | "onCancelFullCycle" | "onRetryFullCycle" | "onTransitionState" | "onSwitchToProjectPanel"
   | "onConfirmArtifact"
 > & {
   showInteractionPanel: boolean;
@@ -56,7 +56,7 @@ export function ChatPanelArticle(p: ChatPanelArticleProps) {
       {p.error ? <div className="inline-error-banner" role="alert" aria-live="assertive">{p.error}</div> : null}
       <IterationStatusStrip currentIteration={p.currentIteration} stateMachine={p.stateMachine}
         contextData={p.contextData} onTransitionState={p.onTransitionState} />
-      {p.currentIteration ? <InterruptedFullCycleBanner iterationId={p.currentIteration.id} /> : null}
+      {p.currentIteration ? <InterruptedFullCycleBanner iterationId={p.currentIteration.id} onRetryFullCycle={p.onRetryFullCycle} /> : null}
       <div className="iteration-workbench-grid">
         <ChatMainColumn p={p} />
       </div>
@@ -69,7 +69,7 @@ export function ChatPanelArticle(p: ChatPanelArticleProps) {
  * 落盘），提示用户在下方聊天框输入「继续全流程」续跑，已完成的步骤会自动跳过。
  * 自包含 fetch，不桥接聊天动作 deps——续跑复用现有聊天输入触发路径（chatActions）。
  */
-function InterruptedFullCycleBanner({ iterationId }: { iterationId: number }) {
+function InterruptedFullCycleBanner({ iterationId, onRetryFullCycle }: { iterationId: number; onRetryFullCycle: () => void }) {
   const [status, setStatus] = useState<{ interrupted: boolean; completedStepCount: number; totalStepCount: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +81,8 @@ function InterruptedFullCycleBanner({ iterationId }: { iterationId: number }) {
   if (!status || !status.interrupted) return null;
   return (
     <div className="inline-error-banner" role="status" aria-live="polite">
-      该迭代有中断的全流程任务（已完成 {status.completedStepCount}/{status.totalStepCount} 步），在下方聊天框输入「继续全流程」即可续跑，已完成的步骤会自动跳过。
+      该迭代有中断的全流程任务（已完成 {status.completedStepCount}/{status.totalStepCount} 步），已完成的步骤会自动跳过。
+      <button type="button" className="btn ghost mini" onClick={() => { onRetryFullCycle(); setStatus(null); }} style={{ marginLeft: "8px" }}>一键续跑</button>
     </div>
   );
 }
