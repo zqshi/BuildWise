@@ -105,7 +105,7 @@ async function handleTriggerScan(service: WorkspaceService, request: FastifyRequ
 async function handleSearchAcrossProjects(service: WorkspaceService, request: FastifyRequest, _reply: FastifyReply) {
   const query = (request.query as Record<string, string>).q || "";
   const tenantId = (request.query as Record<string, string>).tenantId || "";
-  const limit = parseInt((request.query as Record<string, string>).limit || "20", 10);
+  const limit = Number.parseInt((request.query as Record<string, string>).limit || "20", 10);
   return service.experience.searchAcrossProjects(query, tenantId, Math.min(limit, 50));
 }
 

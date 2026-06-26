@@ -10,8 +10,8 @@ async function handleListMessages(service: WorkspaceService, request: FastifyReq
   const access = ensureIterationAccess(service, request, reply, iterationId, "read");
   if (!access) return { message: reply.statusCode === 404 ? "迭代不存在" : "没有权限" };
   const query = request.query as { limit?: string; offset?: string };
-  const limit = query.limit ? parseInt(query.limit, 10) : undefined;
-  const offset = query.offset ? parseInt(query.offset, 10) : undefined;
+  const limit = query.limit ? Number.parseInt(query.limit, 10) : undefined;
+  const offset = query.offset ? Number.parseInt(query.offset, 10) : undefined;
   return service.iteration.listMessages(iterationId, { limit, offset });
 }
 
