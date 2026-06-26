@@ -42,7 +42,7 @@ function suggestNextTransition(status: IterationStatus, risks: string[], diffCou
 
 function defaultPromptTemplate(_roleKey: string): AgentPromptTemplate {
   return {
-    systemPrompt: `你是 BuildWise 的{{role}}，负责范围为{{scope}}。输出必须结构化、可执行、可追溯。`,
+    systemPrompt: "你是 BuildWise 的{{role}}，负责范围为{{scope}}。输出必须结构化、可执行、可追溯。",
     userPrompt: "目标：{{goal}}\n上下文：{{context}}\n请严格输出：{{expectedOutput}}"
   };
 }

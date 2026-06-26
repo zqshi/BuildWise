@@ -66,8 +66,8 @@ function findMatchingCodeMapIndex(
     const item = codeMap[i]!;
     for (const existing of item.codePaths) {
       if (path === existing) return i;
-      if (path.startsWith(existing.replace(/\/$/, "") + "/")) return i;
-      if (existing.startsWith(path.replace(/\/$/, "") + "/")) return i;
+      if (path.startsWith(`${existing.replace(/\/$/, "")}/`)) return i;
+      if (existing.startsWith(`${path.replace(/\/$/, "")}/`)) return i;
     }
   }
   return -1;

@@ -16,6 +16,8 @@ import {
   createFullCycleJob,
   markFullCycleCompleted,
   markFullCycleFailed,
+  markFullCycleCancelled,
+  requestFullCycleCancellation,
   getFullCycleJob,
   listFullCycleJobsByIteration,
   scanInterruptedFullCyclesOp,
@@ -85,12 +87,13 @@ export class FullCycleService {
     private readonly fullCycleJobStore: FullCycleJobStore | null = null
   ) {}
 
-  async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput): Promise<IterationFullCycleRunResponse | null> {
+  async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput, shouldCancel?: () => boolean): Promise<IterationFullCycleRunResponse | null> {
     return runIterationFullCycleOp({
       repo: this.repo,
       agentRunner: this.agentRunner,
       iterationId,
       input,
+      shouldCancel,
       analyzeAttachment: (targetIterationId, analysisInput) => this.delegates.analyzeAttachment(targetIterationId, analysisInput),
       confirmIterationAnalysis: (targetIterationId, confirmInput) => this.delegates.confirmIterationAnalysis(targetIterationId, confirmInput),
       rewriteCodeInBoundary: (targetIterationId, rewriteInput) => this.delegates.rewriteCodeInBoundary(targetIterationId, rewriteInput),
@@ -139,7 +142,7 @@ export class FullCycleService {
         finalResponse: handle.finalResponse, error: handle.error, checkpoint,
       };
     }
-    if (checkpoint && checkpoint.resumable) {
+    if (checkpoint?.resumable) {
       return {
         jobId, iterationId, status: "interrupted",
         createdAt: checkpoint.startedAt, startedAt: checkpoint.startedAt,
@@ -172,6 +175,16 @@ export class FullCycleService {
   }
 
   /**
+   * 请求取消 running 态 fullCycle job：仅置标志，后台任务在下一个步骤边界停止，
+   * 已完成步骤的 checkpoint 保留可续跑。已终态（completed/failed/cancelled）或不存在时返回 ok=false。
+   */
+  cancelFullCycleJob(jobId: string): { ok: boolean; reason?: string } {
+    if (!this.fullCycleJobStore) return { ok: false, reason: "全流程任务未配置" };
+    const ok = requestFullCycleCancellation(this.fullCycleJobStore, jobId);
+    return ok ? { ok: true } : { ok: false, reason: "任务不存在或已结束" };
+  }
+
+  /**
    * 重启恢复：扫描所有 iteration 的 resumable fullCycleCheckpoint，对中断的全流程
    * 任务写审计日志。不预写内存句柄（GET 已动态返回 interrupted）、不自动续跑
    * （后续 step 含改代码/推远程副作用，由用户手动触发 handleResumeFullCycle）。
@@ -193,12 +206,16 @@ export class FullCycleService {
 
   private async runFullCycleJobInBackground(jobId: string, iterationId: number, input: IterationFullCycleRunInput): Promise<void> {
     if (!this.fullCycleJobStore) return;
+    const shouldCancel = () => this.fullCycleJobStore?.jobs.get(jobId)?.cancelRequested === true;
     try {
-      const result = await this.runIterationFullCycle(iterationId, input);
-      markFullCycleCompleted(this.fullCycleJobStore, jobId, {
-        finishedAt: new Date().toISOString(),
-        finalResponse: result,
-      });
+      const result = await this.runIterationFullCycle(iterationId, input, shouldCancel);
+      const handle = this.getFullCycleJob(jobId);
+      const finishedAt = new Date().toISOString();
+      if (handle?.cancelRequested && result?.status !== "completed") {
+        markFullCycleCancelled(this.fullCycleJobStore, jobId, { finishedAt, finalResponse: result });
+      } else {
+        markFullCycleCompleted(this.fullCycleJobStore, jobId, { finishedAt, finalResponse: result });
+      }
     } catch (error) {
       markFullCycleFailed(this.fullCycleJobStore, jobId, {
         finishedAt: new Date().toISOString(),

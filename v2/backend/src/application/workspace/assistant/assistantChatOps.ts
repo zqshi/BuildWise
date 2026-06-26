@@ -156,7 +156,7 @@ function handleUpdatePolicy(repo: WorkspaceRepository, field: string, value: unk
   switch (field) {
     case "minConfidence": {
       const num = Number(value);
-      if (isNaN(num) || num < 0 || num > 100) return "置信度阈值必须在 0-100 之间。";
+      if (Number.isNaN(num) || num < 0 || num > 100) return "置信度阈值必须在 0-100 之间。";
       const newRules = policy.rules.map((r) => ({ ...r, minConfidence: num }));
       updateExperiencePolicyOp(repo, policy.id, { rules: newRules });
       return `已将所有规则的最低置信度阈值调整为 ${num}。`;
@@ -174,7 +174,7 @@ function handleUpdatePolicy(repo: WorkspaceRepository, field: string, value: unk
     }
     case "scheduleScanIntervalDays": {
       const days = Number(value);
-      if (isNaN(days) || days < 1 || days > 90) return "扫描间隔必须在 1-90 天之间。";
+      if (Number.isNaN(days) || days < 1 || days > 90) return "扫描间隔必须在 1-90 天之间。";
       updateExperiencePolicyOp(repo, policy.id, { scheduleScanIntervalDays: days });
       return `已将定期扫描间隔调整为每 ${days} 天。`;
     }
@@ -187,7 +187,7 @@ async function handleGeneralChat(agentRunner: AgentRunner, question: string): Pr
   try {
     return await runLlm(
       agentRunner,
-      `你是 BuildWise 业务助手（项目大管家）。用简洁的中文回答用户关于项目管理、经验沉淀、流程编排方面的问题。如果问题超出你的能力范围，坦诚告知。回复控制在 200 字以内。`,
+      "你是 BuildWise 业务助手（项目大管家）。用简洁的中文回答用户关于项目管理、经验沉淀、流程编排方面的问题。如果问题超出你的能力范围，坦诚告知。回复控制在 200 字以内。",
       question
     );
   } catch {

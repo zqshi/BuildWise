@@ -346,6 +346,8 @@ export type FullCycleRunParams = {
     iterationId: number,
     input: { dryRun?: boolean; openPr?: boolean; commitMessage?: string; prTitle?: string; prBody?: string }
   ) => Promise<PublishResult>;
+  /** 可选取消信号：步骤边界检查，true 时停止后续步骤并保留 checkpoint 供续跑 */
+  shouldCancel?: () => boolean;
 };
 
 type FullCycleFlags = {
@@ -381,6 +383,15 @@ async function executeStepLoop(
     const stepId = STEP_ORDER[i]!;
     const stepState = checkpoint.steps[stepId];
     if (stepState.status === "completed") continue;
+
+    if (params.shouldCancel?.()) {
+      checkpoint.currentStep = stepId;
+      checkpoint.resumable = true;
+      checkpoint.lastUpdatedAt = new Date().toISOString();
+      persistCheckpoint(repo, iterationId, checkpoint);
+      writeAuditLog(repo, "fullcycle.cancelled", `iteration:${iterationId}`, `cancelled_at=${stepId}`);
+      return buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
+    }
 
     const skipReason = shouldSkipStep(stepId, flags);
     if (skipReason) {
@@ -460,12 +471,12 @@ export async function runIterationFullCycleOp(params: FullCycleRunParams): Promi
   const warnings: string[] = [];
   const flags = resolveFullCycleFlags(input);
   const results: FullCycleResultAccumulator = {
-    analysisReport: null, rewriteResult: null, testArtifactsResult: null,
+    analysisReport: null, rewriteResult: null, rewriteRuns: [], testArtifactsResult: null,
     releaseReview: null, deliveryPackageResult: null, publishResult: null
   };
 
   const existingCheckpoint = iteration.changeControl?.fullCycleCheckpoint;
-  const checkpoint: FullCycleCheckpoint = (existingCheckpoint && existingCheckpoint.resumable)
+  const checkpoint: FullCycleCheckpoint = (existingCheckpoint?.resumable)
     ? { ...existingCheckpoint, lastUpdatedAt: now }
     : initCheckpoint(now);
 

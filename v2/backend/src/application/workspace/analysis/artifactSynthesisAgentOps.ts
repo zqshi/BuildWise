@@ -10,7 +10,7 @@
 
 import { LlmUnavailableError, type AgentRunner } from '../shared/agentRunner';
 import type { Iteration } from '../../../domain/workspace/types';
-import { defaultIterationChangeControl } from '../shared/common';
+import type { defaultIterationChangeControl } from '../shared/common';
 import { runAnalysisPrompt } from './configOps';
 import type { IterationAgentPrompt } from '../../../domain/workspace/types';
 import { batchArray } from './chunkingOps';
@@ -175,7 +175,7 @@ function serializeAvailableData(iteration: Iteration, cc: ChangeControl): string
 
   serializeQualityAndTestSignals(cc, sections);
   const result = sections.join("\n\n");
-  return result.length > 8000 ? result.slice(0, 8000) + "\n…（上下文已截断）" : result;
+  return result.length > 8000 ? `${result.slice(0, 8000)}\n…（上下文已截断）` : result;
 }
 
 // ── Artifact Prompt 定义 ──
@@ -414,11 +414,11 @@ async function synthesizeSingleArtifact(
       "clarifications 中的每一条必须是具体的、可操作的问题，不是笼统的「请补充更多信息」"
     ].join("\n"),
     userPrompt: [
-      `=== 迭代信息 ===`,
+      "=== 迭代信息 ===",
       `名称: ${iteration.name}`,
       `描述: ${iteration.description}`,
       "",
-      `=== 分析数据 ===`,
+      "=== 分析数据 ===",
       availableData,
       "",
       `请输出${config.documentType}。`

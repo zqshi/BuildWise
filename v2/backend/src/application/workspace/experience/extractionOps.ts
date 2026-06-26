@@ -249,8 +249,8 @@ export async function maybeExtractExperience(
       if (cc) {
         contextText = [
           cc.lastReportQualitySummary ? `质量摘要：${cc.lastReportQualitySummary}` : "",
-          (cc.lastMeaningfulFindings ?? []).length > 0 ? `关键发现：${cc.lastMeaningfulFindings!.join("；")}` : "",
-          (cc.lastPrioritizedFindings ?? []).length > 0 ? `优先级发现：${cc.lastPrioritizedFindings!.join("；")}` : ""
+          (cc.lastMeaningfulFindings ?? []).length > 0 ? `关键发现：${cc.lastMeaningfulFindings?.join("；")}` : "",
+          (cc.lastPrioritizedFindings ?? []).length > 0 ? `优先级发现：${cc.lastPrioritizedFindings?.join("；")}` : ""
         ].filter(Boolean).join("\n");
       }
       break;
