@@ -26,7 +26,7 @@
     "dev:stack:stop": "bash scripts/stop-dev-stack.sh",
     "install:all": "npm install && npm --prefix backend install",
     "build:all": "npm run build && npm --prefix backend run build",
-    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run check:version-discipline && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
+    "verify:all": "npm run check:hygiene && npm run lint && npm run check:boundaries && npm run check:version-discipline && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
   },
   "dependencies": {
     "@tiptap/extension-code-block-lowlight": "^3.23.1",
