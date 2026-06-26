@@ -37,6 +37,7 @@ import { extractRequirementsFromConversation } from "./conversationRequirementEx
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
 import { maybeExtractExperience } from '../experience/extractionOps';
 import { dedupeActions, parseRecentSuggestedActions } from './replyGuard';
+import { sanitizeAction, sanitizeIntent } from './postExecutionVerifier';
 import { pickString } from '../../../shared/utils';
 import { safeJsonParse } from '../upload/attachmentUtils';
 import { writeAuditLog } from '../shared/common';
@@ -330,9 +331,8 @@ function processAgentResponse(
   const declaredArtifacts = pickStringList(executionRaw.artifacts, 5)
     .filter((id) => agentDef.allowedArtifacts.includes(id));
 
-  const validActionSet = new Set(["none", "rewrite", "confirm-accurate", "confirm-inaccurate", "enter-clarify-mode", "run-full-cycle", "capture-business-rule"]);
-  const actionRaw = pickString(executionRaw.action);
-  const executionAction = validActionSet.has(actionRaw) ? actionRaw : "none";
+  // action/intent 白名单校验上提到 postExecutionVerifier（V3 统一后验）
+  const executionAction = sanitizeAction(executionRaw.action);
 
   const suggestedActionsRaw = pickStringList(guidance.suggestedActions, 8);
   const clarificationChecklistRaw = pickStringList(guidance.clarificationChecklist, 8);
@@ -344,9 +344,7 @@ function processAgentResponse(
     .map((item) => sanitizeDisplayItem(item))
     .filter(Boolean);
 
-  const validIntentSet = new Set(["collect-attachment", "clarify", "confirm-boundary", "plan", "qa", "release", "full-cycle", "general"]);
-  const modelIntent = pickString(parsed?.intent);
-  const finalIntent = validIntentSet.has(modelIntent) ? modelIntent : "general";
+  const finalIntent = sanitizeIntent(parsed?.intent);
 
   return { reply, declaredArtifacts, executionAction, sanitizedActions, clarificationChecklist, finalIntent, guidance, executionRaw };
 }
@@ -441,8 +439,9 @@ async function attemptArtifactSynthesis(params: {
   gateResult: ReturnType<typeof evaluateCurrentStageGate>;
   agentDef: ReturnType<typeof getStageAgent>;
   declaredArtifacts: string[];
+  policyGate?: { blocked: boolean; reason: string; requiredActions: string[] } | null;
 }) {
-  const { repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts } = params;
+  const { repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts, policyGate } = params;
   const freshIteration = repo.findIteration(iterationId);
   if (!freshIteration) return { insufficientArtifacts: [] as string[], committedArtifactTitles: [] as string[] };
   const normalized = normalizeIteration(freshIteration);
@@ -450,7 +449,8 @@ async function attemptArtifactSynthesis(params: {
   const insufficientArtifacts: string[] = [];
   const committedArtifactTitles: string[] = [];
 
-  if (gateResult.blocked || !workflow) return { insufficientArtifacts, committedArtifactTitles };
+  // 硬阻断：stage gate 或 policy gate 阻断时不自动合成/提交/确认交付物
+  if (gateResult.blocked || policyGate?.blocked || !workflow) return { insufficientArtifacts, committedArtifactTitles };
 
   const artifactsToAttempt = new Set(declaredArtifacts);
   for (const id of agentDef.allowedArtifacts) {
@@ -503,9 +503,11 @@ function evaluateAndAdvanceStage(
   repo: WorkspaceRepository,
   iterationId: number,
   gateResult: ReturnType<typeof evaluateCurrentStageGate>,
-  agentRunner?: AgentRunner
+  agentRunner?: AgentRunner,
+  policyGate?: { blocked: boolean; reason: string; requiredActions: string[] } | null
 ): string {
-  if (gateResult.blocked) return "";
+  // 硬阻断：stage gate 或 policy gate 任一阻断都不推进阶段（但 LLM 对话回复不受影响，由 routeToStageAgent 保证）
+  if (gateResult.blocked || policyGate?.blocked) return "";
 
   let currentCheckStage = gateResult.currentStage;
   const advancedStages: string[] = [];
@@ -625,10 +627,10 @@ export async function orchestrateCoachMessage(params: {
   if (!parsed.reply) return buildDegradedResponse(iterationId, "empty_reply", continuationResult.model);
 
   const { insufficientArtifacts, committedArtifactTitles } = await attemptArtifactSynthesis({
-    repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts
+    repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts, policyGate: params.policyGate
   });
 
-  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult, agentRunner);
+  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult, agentRunner, params.policyGate);
 
   return assembleCoachResponse(iterationId, parsed, continuationResult, stageAdvanceNote, insufficientArtifacts, committedArtifactTitles);
 }
