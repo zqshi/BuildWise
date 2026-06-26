@@ -6,6 +6,7 @@ import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 const { registerRuntimeAuth } = await import("../dist/infrastructure/runtime/runtimeAuth.js");
 const { registerWorkspaceRoutes } = await import("../dist/interfaces/http/routes/workspaceRoutes.js");
 const { WorkspaceService } = await import("../dist/application/workspace/shared/workspaceService.js");
+const { createFullCycleJob } = await import("../dist/application/workspace/quality/fullCycleJobOps.js");
 
 async function createApp() {
   const repo = createInMemoryWorkspaceRepo();
@@ -21,6 +22,11 @@ async function createApp() {
 
 function headers(userId = "u1", role = "owner") {
   return { "content-type": "application/json", "x-user-id": userId, "x-role": role };
+}
+
+// DELETE 无 body，不带 content-type（否则 Fastify 尝试解析空 body 致 400）
+function deleteHeaders(userId = "u1", role = "owner") {
+  return { "x-user-id": userId, "x-role": role };
 }
 
 async function setupIteration(app) {
@@ -160,5 +166,52 @@ test("GET /full-cycle/interrupted 无中断 checkpoint 时返回 interrupted=fal
   const body = res.json();
   assert.equal(body.interrupted, false);
   assert.equal(body.checkpoint, null);
+  await app.close();
+});
+
+// ─── DELETE 取消 ───
+
+test("DELETE /full-cycle/jobs/:jobId 对 running job 返回 200 + cancelling", async () => {
+  const { app, fullCycleJobStore } = await createApp();
+  const { iteration } = await setupIteration(app);
+  createFullCycleJob(fullCycleJobStore, { jobId: "fc-manual", iterationId: iteration.id, now: "t1" });
+  const res = await app.inject({
+    method: "DELETE",
+    url: `/api/v1/iterations/${iteration.id}/full-cycle/jobs/fc-manual`,
+    headers: deleteHeaders()
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.status, "cancelling");
+  assert.equal(body.jobId, "fc-manual");
+  await app.close();
+});
+
+test("DELETE /full-cycle/jobs/:jobId 对已终态 job 返回 409", async () => {
+  const { app } = await createApp();
+  const { iteration } = await setupIteration(app);
+  const started = (await app.inject({
+    method: "POST", url: `/api/v1/iterations/${iteration.id}/full-cycle`,
+    headers: headers(), payload: { runAnalysis: false }
+  })).json();
+  await pollJobStatus(app, iteration.id, started.jobId);
+  const res = await app.inject({
+    method: "DELETE",
+    url: `/api/v1/iterations/${iteration.id}/full-cycle/jobs/${started.jobId}`,
+    headers: deleteHeaders()
+  });
+  assert.equal(res.statusCode, 409);
+  await app.close();
+});
+
+test("DELETE /full-cycle/jobs/:jobId viewer 角色被拒（403）", async () => {
+  const { app } = await createApp();
+  const { iteration } = await setupIteration(app);
+  const res = await app.inject({
+    method: "DELETE",
+    url: `/api/v1/iterations/${iteration.id}/full-cycle/jobs/fc-x`,
+    headers: deleteHeaders("u1", "viewer")
+  });
+  assert.equal(res.statusCode, 403);
   await app.close();
 });
