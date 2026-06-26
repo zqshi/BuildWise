@@ -12,6 +12,9 @@ import { extractKnowledgeBaseUpdateOp } from './application/workspace/project/on
 import { buildModelingInputFromAnalysis, buildTraceabilityMapFromDomainEntries } from './application/workspace/project/ontologyModelingBridge';
 import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from './application/workspace/project/projectWorkspaceKnowledgeService';
 import { WorkspaceService } from './application/workspace/shared/workspaceService';
+import { AgentRegistry } from "./infrastructure/agent/agentRegistry";
+import { ClaudeCodeCliAdapter } from "./infrastructure/agent/adapters/claudeCodeCliAdapter";
+import type { CodeRewriteJobStore } from "./application/workspace/quality/codeRewriteJobOps";
 import type { WorkspaceRepository } from "./domain/workspace/repository";
 import { JsonContinuousModelingRepository } from "./infrastructure/persistence/jsonContinuousModelingRepository";
 import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevokedTokenStore";
@@ -90,6 +93,35 @@ function scheduleDailyProjectWorkspaceRefresh(workspaceRepo: WorkspaceRepository
         log.info("daily project workspace memory refresh completed", { projects: results.length });
       } catch (error) {
         log.error("daily project workspace memory refresh failed", { error: error instanceof Error ? error.message : String(error) });
+      } finally {
+        scheduleNext();
+      }
+    }, delayMs).unref();
+  };
+  scheduleNext();
+}
+
+/**
+ * V4 经验沉淀定时扫描：定时跑 runExperienceScan 扫所有项目，补漏未触发的经验提取。
+ * 受 BUILDWISE_EXPERIENCE_SCAN_ENABLED 控制（默认关，因消耗 LLM 额度）；runExperienceScan 内部再检查 scheduleScanEnabled policy。
+ */
+function schedulePeriodicExperienceScan(workspaceRepo: WorkspaceRepository, workspaceService: WorkspaceService, env: Record<string, string | undefined>) {
+  const scanLog = createLogger("experience-scan-scheduler");
+  const enabled = (env.BUILDWISE_EXPERIENCE_SCAN_ENABLED || "0").trim() === "1";
+  if (!enabled) return;
+  const intervalHours = Math.max(1, Number.parseInt(env.BUILDWISE_EXPERIENCE_SCAN_INTERVAL_HOURS || "6", 10) || 6);
+  const scheduleNext = () => {
+    const delayMs = intervalHours * 60 * 60 * 1000;
+    setTimeout(async () => {
+      try {
+        for (const project of workspaceRepo.listProjects()) {
+          const result = await workspaceService.experience.runFullScan(project.id);
+          if (result.newEntries > 0) {
+            scanLog.info("experience scan extracted new entries", { projectId: project.id, newEntries: result.newEntries });
+          }
+        }
+      } catch (error) {
+        scanLog.error("periodic experience scan failed", { error: error instanceof Error ? error.message : String(error) });
       } finally {
         scheduleNext();
       }
@@ -241,7 +273,19 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   });
   setRevokedTokenStore(new SqliteRevokedTokenStore(workspaceRepo.getDb()));
   const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
-  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo);
+  // 编码 agent 注册表 + codeRewrite job store（V2.2）：当启用时走编码 agent 真实改代码路径
+  const codingAgentEnabled = (options.env?.BUILDWISE_CODING_AGENT_ENABLED || "1").trim() !== "0";
+  let codingAgentRegistry: AgentRegistry | null = null;
+  if (codingAgentEnabled) {
+    codingAgentRegistry = new AgentRegistry();
+    const claudeAdapter = new ClaudeCodeCliAdapter();
+    if (claudeAdapter.implemented) {
+      codingAgentRegistry.register("claude-code-cli", () => new ClaudeCodeCliAdapter());
+      log.info("coding agent registered", { type: claudeAdapter.agentType });
+    }
+  }
+  const codeRewriteJobStore: CodeRewriteJobStore = { jobs: new Map() };
+  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo, codingAgentRegistry, codeRewriteJobStore);
 
   const bootstrapAdminPhone = (options.env?.BOOTSTRAP_ADMIN_PHONE || "").trim();
   if (bootstrapAdminPhone && /^1\d{10}$/.test(bootstrapAdminPhone)) {
@@ -283,6 +327,7 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     }
     if (options.scheduleWorkspaceRefresh !== false) {
       scheduleDailyProjectWorkspaceRefresh(workspaceRepo);
+      schedulePeriodicExperienceScan(workspaceRepo, workspaceService, options.env ?? {});
     }
   };
 
