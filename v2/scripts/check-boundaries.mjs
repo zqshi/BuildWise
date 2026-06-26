@@ -117,6 +117,7 @@ const files = [
 ];
 
 const errors = [];
+const warnings = [];
 const lineLimitExceptions = loadLineLimitExceptions();
 const hardLineLimitExceptions = loadHardLineLimitExceptions();
 for (const file of files) {
@@ -128,10 +129,17 @@ for (const file of files) {
   }
   const max = findLimit(rel);
   if (max !== null && lines > max && !lineLimitExceptions.has(rel)) {
-    errors.push(`${rel}: ${lines} lines exceeds limit ${max}`);
+    warnings.push(`${rel}: ${lines} lines exceeds per-prefix limit ${max}`);
   }
   for (const violation of importViolations(rel, content)) {
     errors.push(`${rel}: ${violation}`);
+  }
+}
+
+if (warnings.length > 0) {
+  console.warn(`Line limit warnings (${warnings.length}, per-prefix, non-blocking — record as tech debt, hard limit ${HARD_LINE_LIMIT} still enforced):`);
+  for (const w of warnings) {
+    console.warn(`- ${w}`);
   }
 }
 

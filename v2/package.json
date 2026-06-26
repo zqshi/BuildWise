@@ -21,11 +21,12 @@
     "reset:business-env": "node scripts/reset-business-environment.mjs",
     "clean:workspace": "bash scripts/clean-workspace.sh",
     "report:readiness": "node scripts/report-readiness.mjs",
+    "check:version-discipline": "node scripts/check-version-discipline.mjs",
     "dev:stack:start": "bash scripts/start-dev-stack.sh",
     "dev:stack:stop": "bash scripts/stop-dev-stack.sh",
     "install:all": "npm install && npm --prefix backend install",
     "build:all": "npm run build && npm --prefix backend run build",
-    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
+    "verify:all": "npm run check:hygiene && npm run check:boundaries && npm run check:version-discipline && npm run typecheck && npm run build && npm test && npm run report:readiness && npm --prefix backend run verify:prod-release"
   },
   "dependencies": {
     "@tiptap/extension-code-block-lowlight": "^3.23.1",
