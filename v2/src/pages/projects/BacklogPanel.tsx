@@ -1,7 +1,9 @@
 import { useState } from "react";
+import type { DragEvent } from "react";
 import type { BacklogItem } from "../../domain/workspace/backlogTypes";
 import type { Iteration } from "../../domain/workspace/types";
 import { useBacklogState } from "../../hooks/useBacklogState";
+import { groupBacklogByIteration } from "../../domain/workspace/backlogGrouping";
 
 type BacklogPanelProps = {
   projectId: number | null;
@@ -12,13 +14,21 @@ const PRIORITY_LABELS: Record<string, string> = { critical: "紧急", high: "高
 const STATUS_LABELS: Record<string, string> = { open: "待规划", planned: "已排期", "in-progress": "进行中", done: "已完成", cancelled: "已取消" };
 const SOURCE_LABELS: Record<string, string> = { customer: "客户", internal: "内部", analysis: "分析报告", coach: "教练对话" };
 
+/** 拖拽传输的需求 id MIME，避免与文件上传拖拽混淆 */
+const DRAG_MIME = "text/backlog-item-id";
+
+type DropZoneKey = number | "unassigned";
+
 export function BacklogPanel({ projectId, iterations }: BacklogPanelProps) {
   const { items, loading, filter, setFilter, create, remove, assign } = useBacklogState(projectId);
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newPriority, setNewPriority] = useState("medium");
   const [newSource, setNewSource] = useState("internal");
-  const [viewMode, setViewMode] = useState<"list" | "version">("list");
+  // 默认版本分组视图：归属后需求自动归入版本组，视觉即时闭环
+  const [viewMode, setViewMode] = useState<"list" | "version">("version");
+  // 拖拽高亮区：number=版本组 id，"unassigned"=未分配组，null=未拖入
+  const [dragOverZone, setDragOverZone] = useState<DropZoneKey | null>(null);
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
@@ -31,11 +41,31 @@ export function BacklogPanel({ projectId, iterations }: BacklogPanelProps) {
     await assign([item.id], iterationId);
   };
 
-  const unassigned = items.filter((i) => i.iterationId === null);
-  const grouped = iterations.map((iter) => ({
-    iteration: iter,
-    items: items.filter((i) => i.iterationId === iter.id)
-  })).filter((g) => g.items.length > 0);
+  // 版本组/未分配组作为 drop zone：拖入需求即归属到该版本（未分配=移回需求池）
+  const dropHandlers = (zoneKey: DropZoneKey, iterationId: number | null) => ({
+    onDragOver: (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setDragOverZone(zoneKey);
+    },
+    onDragLeave: (e: DragEvent<HTMLDivElement>) => {
+      // 仅当真正离开整个组容器时清除高亮（子元素切换不触发）
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+        setDragOverZone((z) => (z === zoneKey ? null : z));
+      }
+    },
+    onDrop: async (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setDragOverZone(null);
+      const raw = e.dataTransfer.getData(DRAG_MIME);
+      const id = Number(raw);
+      if (raw && !Number.isNaN(id)) {
+        await assign([id], iterationId);
+      }
+    },
+  });
+
+  const grouping = groupBacklogByIteration(items, iterations);
 
   return (
     <section className="backlog-panel">
@@ -80,32 +110,39 @@ export function BacklogPanel({ projectId, iterations }: BacklogPanelProps) {
       ) : null}
 
       {loading ? <p className="hint">加载中...</p> : null}
+      {viewMode === "version" && !loading && items.length === 0 ? <p className="hint">暂无需求条目，点击「新建」添加</p> : null}
 
       {viewMode === "list" ? (
         <div className="backlog-list">
-          {items.length === 0 && !loading ? <p className="hint">暂无需求条目</p> : null}
           {items.map((item) => (
             <BacklogItemRow key={item.id} item={item} iterations={iterations} onDelete={remove} onAssign={handleAssign} />
           ))}
         </div>
       ) : (
         <div className="backlog-version-view">
-          {unassigned.length > 0 ? (
-            <div className="backlog-version-group">
-              <h4>未分配</h4>
-              {unassigned.map((item) => (
-                <BacklogItemRow key={item.id} item={item} iterations={iterations} onDelete={remove} onAssign={handleAssign} />
-              ))}
-            </div>
-          ) : null}
-          {grouped.map((g) => (
-            <div key={g.iteration.id} className="backlog-version-group">
-              <h4>{g.iteration.version || g.iteration.name}</h4>
+          <div
+            className={`backlog-version-group ${dragOverZone === "unassigned" ? "drop-active" : ""}`}
+            {...dropHandlers("unassigned", null)}
+          >
+            <h4>未分配 <span className="count-badge">{grouping.unassigned.length}</span></h4>
+            {grouping.unassigned.length === 0 ? <p className="hint zone-hint">将需求拖到下方版本组进行归属</p> : null}
+            {grouping.unassigned.map((item) => (
+              <BacklogItemRow key={item.id} item={item} iterations={iterations} onDelete={remove} onAssign={handleAssign} />
+            ))}
+          </div>
+          {grouping.groups.map((g) => (
+            <div
+              key={g.iteration.id}
+              className={`backlog-version-group ${dragOverZone === g.iteration.id ? "drop-active" : ""}`}
+              {...dropHandlers(g.iteration.id, g.iteration.id)}
+            >
+              <h4>{g.iteration.version || g.iteration.name} <span className="count-badge">{g.items.length}</span></h4>
               {g.items.map((item) => (
                 <BacklogItemRow key={item.id} item={item} iterations={iterations} onDelete={remove} onAssign={handleAssign} />
               ))}
             </div>
           ))}
+          {grouping.groups.length === 0 && grouping.unassigned.length === 0 && !loading ? null : null}
         </div>
       )}
     </section>
@@ -118,8 +155,13 @@ function BacklogItemRow({ item, iterations, onDelete, onAssign }: {
   onDelete: (id: number) => Promise<void>;
   onAssign: (item: BacklogItem, iterationId: number | null) => Promise<void>;
 }) {
+  const handleDragStart = (e: DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData(DRAG_MIME, String(item.id));
+    e.dataTransfer.effectAllowed = "move";
+  };
+
   return (
-    <div className="backlog-item-row">
+    <div className="backlog-item-row" draggable onDragStart={handleDragStart}>
       <span className={`priority-badge ${item.priority}`}>{PRIORITY_LABELS[item.priority] || item.priority}</span>
       <span className="backlog-item-title">{item.title}</span>
       <span className={`status-pill ${item.status}`}>{STATUS_LABELS[item.status] || item.status}</span>

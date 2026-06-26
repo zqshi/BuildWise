@@ -387,3 +387,40 @@
   background:var(--bg-control);
   border:1px solid var(--border-default);
 }
+
+/* ──── Backlog 拖拽归属：卡片可拖 + 版本组作 drop zone ──── */
+
+.backlog-item-row[draggable] {
+  cursor: grab;
+}
+.backlog-item-row[draggable]:active {
+  cursor: grabbing;
+}
+.backlog-version-view .backlog-version-group {
+  border:1px dashed transparent;
+  border-radius:var(--radius-sm);
+  transition:border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
+}
+.backlog-version-view .backlog-version-group.drop-active {
+  border-color:var(--border-brand);
+  background:color-mix(in srgb,var(--brand-50) 35%, transparent);
+}
+.backlog-version-group .count-badge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:16px;
+  padding:0 5px;
+  margin-left:6px;
+  border-radius:999px;
+  font-size:var(--text-2xs);
+  font-weight:var(--font-weight-semibold);
+  color:var(--text-secondary);
+  background:var(--bg-control);
+  border:1px solid var(--border-default);
+}
+.backlog-version-group .zone-hint {
+  padding:6px 12px;
+  margin:0;
+}
