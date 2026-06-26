@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { createHttpTestClient } from "./httpTestClient.mjs";
+import { createHttpTestClient, versionedPath } from "./httpTestClient.mjs";
 
 export async function createContractHarness(options = {}) {
   const defaultPorts =
@@ -107,6 +107,10 @@ export async function createContractHarness(options = {}) {
         AUTH_MODE: "off",
         WORKSPACE_DATA_FILE: dataFixture,
         WORKSPACE_DB_FILE: sqliteFixture,
+        // 契约 fixture sqlite 为空 db，必须显式 seed data.json 的迭代/项目等基础数据，
+        // 否则 policy-execute 等依赖迭代1 的断言会 404。.env 默认 ALLOW_SEED_DATA_BOOTSTRAP=false
+        // （避免 dev 覆盖已有 workspace.db），此处针对空 fixture db 显式开启。
+        ALLOW_SEED_DATA_BOOTSTRAP: "true",
         BUILDWISE_PREFER_PROCESS_ENV: "1",
         LLM_REQUEST_TIMEOUT_MS: "15000"
       };
@@ -160,7 +164,7 @@ export async function createContractHarness(options = {}) {
     ? createHttpTestClient({ app, defaultHeaders, requestTimeoutMs, tokenByRole: options.tokenByRole })
     : {
         async getJson(routePath) {
-          const response = await fetchWithRetry(`${base}${routePath.startsWith("/api/") ? `/api/v1/${routePath.slice(5)}` : routePath}`, {
+          const response = await fetchWithRetry(`${base}${versionedPath(routePath)}`, {
             headers: defaultHeaders
           });
           assert(response.ok, `Request failed: ${routePath} -> ${response.status}`);
@@ -172,7 +176,7 @@ export async function createContractHarness(options = {}) {
             ...(requestOptions?.headers || {})
           };
           const response = await fetchWithRetry(
-            `${base}${routePath.startsWith("/api/") ? `/api/v1/${routePath.slice(5)}` : routePath}`,
+            `${base}${versionedPath(routePath)}`,
             {
               ...requestOptions,
               headers
