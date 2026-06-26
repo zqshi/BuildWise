@@ -13,6 +13,7 @@ import type { FullCycleCheckpoint, FullCycleStepId, FullCycleStepState } from '.
 import type { AgentRunner } from '../shared/agentRunner';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { evaluatePolicyGateForFullCycleOp, appendPolicyExecutionLogOp } from '../governance/policyOps';
+import { syncArtifactForFullCycleStepOp } from '../changeControl/artifactOps';
 import type { ProjectPolicyRecord } from '../../../domain/workspace/types';
 import { executeStep, type FullCycleStepResults } from './fullCycleSteps';
 
@@ -52,6 +53,21 @@ const STEP_ORDER: FullCycleStepId[] = [
   "delivery-package",
   "publish"
 ];
+
+/** fullCycle 步骤 → 对应 artifact id 映射（基于 defaultArtifactWorkflow item source + step 产出）。
+ *  空数组：该步无直接 artifact（confirmation 由 coreOps 写 analysis-report；merge-rewrite/publish 无直接制品）。 */
+const STEP_ARTIFACT_MAP: Record<FullCycleStepId, string[]> = {
+  "analysis": ["analysis-report"],
+  "confirmation": [],
+  "ux-guidance": ["design-spec"],
+  "frontend-rewrite": ["frontend-code"],
+  "backend-rewrite": ["backend-code"],
+  "merge-rewrite": [],
+  "test-artifacts": ["test-matrix"],
+  "release-review": ["release-review"],
+  "delivery-package": ["delivery-package"],
+  "publish": []
+};
 
 // ── Preconditions for each step ──
 
@@ -213,6 +229,27 @@ function checkPreconditions(
   return preconditions
     .filter(p => !p.check(iteration, checkpoint))
     .map(p => p.description);
+}
+
+/** T6 反向互查：coach 手动标 blocked 的 artifact，fullCycle 推进该步时尊重阻断。返回阻断原因或 null。 */
+function checkBlockedArtifactForStep(stepId: FullCycleStepId, iteration: Iteration): string | null {
+  const artifactIds = STEP_ARTIFACT_MAP[stepId] ?? [];
+  if (artifactIds.length === 0) return null;
+  const items = iteration.changeControl?.artifactWorkflow?.items ?? [];
+  for (const id of artifactIds) {
+    const item = items.find((i) => i.id === id);
+    if (item?.gateStatus === "blocked") {
+      return `制品「${item.title || id}」被门禁阻断`;
+    }
+  }
+  return null;
+}
+
+/** T6 正向同步：步骤完成后同步对应 artifact 状态（产出标记+门禁通过），与 checkpoint 双状态一致。 */
+function syncArtifactForStep(repo: WorkspaceRepository, iterationId: number, stepId: FullCycleStepId): void {
+  const artifactIds = STEP_ARTIFACT_MAP[stepId] ?? [];
+  if (artifactIds.length === 0) return;
+  syncArtifactForFullCycleStepOp(repo, iterationId, artifactIds);
 }
 
 /**
@@ -444,11 +481,30 @@ async function executeStepLoop(
       );
     }
 
+    // T6 反向互查：coach 手动标 blocked 的 artifact，fullCycle 推进时尊重阻断（全自动场景 gateStatus 多 passed，blocked 仅 coach 手动标）
+    const blockedArtifactReason = checkBlockedArtifactForStep(stepId, freshIteration);
+    if (blockedArtifactReason) {
+      appendPolicyExecutionLogOp(repo, {
+        projectId: freshIteration.projectId,
+        iterationId,
+        policyVersion: params.activePolicy?.version ?? 0,
+        stage: freshIteration.changeControl?.artifactWorkflow?.activeStage || "clarification",
+        action: "fullcycle_artifact_gate_check",
+        result: "blocked",
+        evidence: [blockedArtifactReason]
+      });
+      blockers.push(`制品门禁阻断：${blockedArtifactReason}`);
+      return handleBlockedStep(stepId, stepState, [blockedArtifactReason], checkpoint, repo, iterationId, blockers, warnings, results, "制品门禁阻断");
+    }
+
     checkpoint.currentStep = stepId;
     checkpoint.lastUpdatedAt = new Date().toISOString();
 
     const earlyReturn = await executeSingleStep(stepId, stepState, params, input, checkpoint, results, blockers, warnings);
     if (earlyReturn) return earlyReturn;
+
+    // T6 正向同步：步骤完成后同步对应 artifact 状态（产出标记+门禁通过），与 checkpoint 双状态一致
+    syncArtifactForStep(repo, iterationId, stepId);
 
     checkpoint.lastUpdatedAt = new Date().toISOString();
     persistCheckpoint(repo, iterationId, checkpoint);
