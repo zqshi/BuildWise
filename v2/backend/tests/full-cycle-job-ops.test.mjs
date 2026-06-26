@@ -7,6 +7,8 @@ const {
   listFullCycleJobsByIteration,
   markFullCycleCompleted,
   markFullCycleFailed,
+  requestFullCycleCancellation,
+  markFullCycleCancelled,
 } = await import("../dist/application/workspace/quality/fullCycleJobOps.js");
 
 function newStore() {
@@ -85,4 +87,50 @@ test("listFullCycleJobsByIteration 按 iterationId 过滤", () => {
   const jobs = listFullCycleJobsByIteration(store, 10);
   assert.equal(jobs.length, 2);
   assert.ok(jobs.every((j) => j.iterationId === 10));
+});
+
+// ─── 取消（cancel）状态机 ───
+
+test("createFullCycleJob 初始 cancelRequested=false", () => {
+  const store = newStore();
+  const job = createFullCycleJob(store, { jobId: "fc-1", iterationId: 10, now: "t1" });
+  assert.equal(job.cancelRequested, false);
+});
+
+test("requestFullCycleCancellation: running job 设 cancelRequested=true 并返回生效", () => {
+  const store = newStore();
+  createFullCycleJob(store, { jobId: "fc-1", iterationId: 10, now: "t1" });
+  const ok = requestFullCycleCancellation(store, "fc-1");
+  assert.equal(ok, true, "running 时应生效");
+  assert.equal(getFullCycleJob(store, "fc-1").cancelRequested, true);
+});
+
+test("requestFullCycleCancellation: 已终态 job 返回 false（不生效）", () => {
+  const store = newStore();
+  createFullCycleJob(store, { jobId: "fc-1", iterationId: 10, now: "t1" });
+  markFullCycleCompleted(store, "fc-1", { finishedAt: "t2", finalResponse: null });
+  assert.equal(requestFullCycleCancellation(store, "fc-1"), false, "已完成不应再取消");
+});
+
+test("requestFullCycleCancellation: 不存在的 job 返回 false", () => {
+  const store = newStore();
+  assert.equal(requestFullCycleCancellation(store, "nope"), false);
+});
+
+test("markFullCycleCancelled: running → cancelled，记录 finishedAt", () => {
+  const store = newStore();
+  createFullCycleJob(store, { jobId: "fc-1", iterationId: 10, now: "t1" });
+  const job = markFullCycleCancelled(store, "fc-1", { finishedAt: "t2", finalResponse: null });
+  assert.equal(job.status, "cancelled");
+  assert.equal(job.finishedAt, "t2");
+});
+
+test("markFullCycleCancelled 在非 running job 上抛错", () => {
+  const store = newStore();
+  createFullCycleJob(store, { jobId: "fc-1", iterationId: 10, now: "t1" });
+  markFullCycleCancelled(store, "fc-1", { finishedAt: "t2", finalResponse: null });
+  assert.throws(
+    () => markFullCycleCancelled(store, "fc-1", { finishedAt: "t3", finalResponse: null }),
+    /cannot transition/
+  );
 });
