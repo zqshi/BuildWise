@@ -29,7 +29,7 @@ function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>
     role: compact ? "requirements-analyst" : "orchestrator",
     scope: "release",
     goal: "同时评审报告质量和发布就绪度",
-    expectedOutput: "JSON: 包含 quality（报告质量评审）和 release（发布就绪评审）两部分",
+    expectedOutput: "JSON: {quality:{publishable(bool),score(0-100),summary,missingItems[],actionRequired[]}, release:{decision(go/caution/block),reason,score(0-100),blockers[],releaseGates[],recommendations[],rollback:{shouldRollback,reason,trigger,actions[]},qualitySignals}}",
     systemPrompt: [
       "你同时担任报告质量审计官和发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。",
       "quality.summary 必须用业务决策者可理解的语言，说明当前报告能支撑做出什么层面的决策。",
@@ -60,8 +60,8 @@ function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>
       `附件节选：${params.excerpt.slice(0, compact ? 1200 : 1800) || "无"}`,
       "",
       "输出要求：",
-      "quality 部分：publishable(bool), score(0-100), summary(1-2句), missingItems[], actionRequired[]",
-      "release 部分：decision(go/caution/block), reason, score(0-100), blockers[], releaseGates[], recommendations[], rollback({shouldRollback,reason,trigger,actions[]}), qualitySignals"
+      "quality 部分：给出是否可发布、质量评分（0-100）、摘要、缺失项与所需动作。",
+      "release 部分：给出发布决策（通过/谨慎/阻断）、理由、评分、阻断项、门禁、建议与回滚方案。"
     ].join("\n")
   };
 }

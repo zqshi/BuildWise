@@ -46,7 +46,7 @@ export async function generateUxExecutionGuidanceOp(params: {
       goal: "输出可用于开发执行的 UX 约束与交互流程",
       expectedOutput: "JSON: {uxConstraints[],interactionFlows[],uiStates[],informationArchitecture[]}",
       systemPrompt: "你是 BuildWise 的 UX 设计Agent。仅输出 JSON，重点给出可执行 UX 约束。",
-      userPrompt: `${context}\n请严格输出 JSON: {uxConstraints[],interactionFlows[],uiStates[],informationArchitecture[]}`
+      userPrompt: `${context}\n请基于上述上下文，输出可执行的 UX 约束、交互流程、界面状态与信息架构。`
     });
     const parsed = safeJsonParse(result.content);
     if (!parsed) {

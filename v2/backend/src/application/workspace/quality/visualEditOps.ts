@@ -114,8 +114,7 @@ async function inferActionsByLlm(
         `内容摘要：${target?.summary || "无"}`,
         target?.html ? `页面内容：选择器 ${target.html.selector || "无"}，标签 ${target.html.tag || "无"}，文本 ${target.html.text || "无"}` : ""
       ].filter(Boolean).join("\n"),
-      optimizeIntent ? "补充要求：这是优化类指令，请给出可直接执行的保守样式优化动作，不要返回空 actions。" : "",
-      "请输出：JSON {actions:[{op,property?,value?}], reasoning}"
+      optimizeIntent ? "补充要求：这是优化类指令，请给出可直接执行的保守样式优化动作，不要返回空 actions。" : ""
     ].join("\n\n")
   };
   const result = await agentRunner.run(prompt);

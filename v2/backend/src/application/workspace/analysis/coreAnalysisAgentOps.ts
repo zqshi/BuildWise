@@ -78,8 +78,8 @@ function buildCoreAnalysisUserPrompt(
     "",
     "输出要求：",
     isCompact
-      ? "projectDetection(evidence≤3) + meaningfulFindings(2-4条) + prioritizedFindings(≤4) + nextActions(≤3) + attachmentInsights(keyCharacteristics 1-4) + deepInsights(fileInsights逐文件) + traceabilityMap + executableConstraints + domainKnowledge(terms≤6) + versionDiffDetailed + clarificationQuestions + risks + suggestions"
-      : "projectDetection(evidence≤6) + meaningfulFindings(2-8条) + prioritizedFindings(≤8) + nextActions(≤6) + attachmentInsights(keyCharacteristics 1-8) + deepInsights(fileInsights逐文件) + traceabilityMap + executableConstraints + domainKnowledge(terms≤12) + versionDiffDetailed + clarificationQuestions + risks + suggestions"
+      ? "请输出项目识别（证据不超过 3 条）、关键发现（2-4 条）、优先级排序（不超过 4 项）、下一步行动（不超过 3 项）、附件洞察（关键特征 1-4 项）、深度洞察（逐文件分析）、追溯映射、可执行约束、领域知识（术语不超过 6 个）、版本差异、待澄清问题、风险与建议。"
+      : "请输出项目识别（证据不超过 6 条）、关键发现（2-8 条）、优先级排序（不超过 8 项）、下一步行动（不超过 6 项）、附件洞察（关键特征 1-8 项）、深度洞察（逐文件分析）、追溯映射、可执行约束、领域知识（术语不超过 12 个）、版本差异、待澄清问题、风险与建议。"
   );
 
   return lines.join("\n\n");

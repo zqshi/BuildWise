@@ -121,7 +121,7 @@ function buildRewritePrompt(
       `候选文件：${ctx.candidateFiles.join("；")}`,
       "文件片段：",
       ...ctx.fileSnippets.map((item) => `---\n文件：${item.path}\n${item.preview}`),
-      "请输出 JSON: {summary,warnings[],edits:[{path,reason,content}]}"
+      "请基于以上信息，按边界白名单生成增量改写结果。"
     ].join("\n\n")
   };
 }
