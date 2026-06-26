@@ -531,6 +531,7 @@ export type IterationCodeRewriteResponse = {
   appliedFiles: string[];
   skippedFiles: string[];
   outOfBoundaryFiles: string[];
+  rolledBackFiles: string[];
   edits: Array<{
     path: string;
     reason: string;
