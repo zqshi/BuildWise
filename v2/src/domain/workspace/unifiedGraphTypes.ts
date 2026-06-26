@@ -11,6 +11,8 @@ export type UnifiedGraphNode = {
   degree: number;
   x: number;
   y: number;
+  /** V4 本体 diff：节点在上一版本不存在（新增），前端高亮 */
+  isNew?: boolean;
 };
 
 export type UnifiedEdgeSource = "model" | "knowledge";

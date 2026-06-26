@@ -140,9 +140,16 @@ function applyLayout(nodes: UnifiedGraphNode[], edges: UnifiedGraphEdge[]) {
 export function mergeToUnifiedGraph(
   modelView: ProjectModelViewPayload | null,
   knowledgeGraph: KnowledgeGraphData | null,
-  knowledgeGeneratedAt: string | null
+  knowledgeGeneratedAt: string | null,
+  previousNodeIds?: Set<string>
 ): UnifiedGraphData {
   const { nodes, knowledgeIdRemap, modelCount, knowledgeCount, mergedCount } = buildMergedNodes(modelView, knowledgeGraph);
+  // V4 本体 diff：标记上一版本不存在的新增节点
+  if (previousNodeIds) {
+    for (const node of nodes) {
+      node.isNew = !previousNodeIds.has(node.id);
+    }
+  }
   const nodeIdSet = new Set(nodes.map((n) => n.id));
   const edges = buildMergedEdges(modelView, knowledgeGraph, knowledgeIdRemap, nodeIdSet);
   const layout = applyLayout(nodes, edges);
