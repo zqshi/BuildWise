@@ -121,3 +121,33 @@ export function triggerAnalysisQueueOp(params: {
       });
   }
 }
+
+/**
+ * 重启恢复：进程重启后，DB 读回内存的 running/queued 分析任务已无 worker 执行
+ * （runningAnalysisWorkers 归零、队列丢失），形成「幽灵 running」——前端轮询要等
+ * 25min 超时才看到 failed。本函数在启动恢复阶段把这些任务立即标 failed（带中断原因），
+ * 并通过 onMarkFailed 记录失败输入快照供用户手动 retry，onPersist 写回 DB。
+ * 已 succeeded/failed 的任务保持原状。返回标记数量供审计。
+ */
+export function markAnalysisJobInterruptedOnRestartOp(params: {
+  analysisJobs: Map<string, AttachmentAnalysisJobRuntime>;
+  onMarkFailed: (iterationId: number, input: AttachmentUploadInput, errorMessage: string, at: string) => void;
+  onPersist: (job: AttachmentAnalysisJobRuntime) => void;
+  nowIso?: string;
+}): number {
+  const { analysisJobs, onMarkFailed, onPersist } = params;
+  const now = params.nowIso || new Date().toISOString();
+  const errorMessage = "进程重启致任务中断，请重试";
+  let marked = 0;
+  for (const job of analysisJobs.values()) {
+    if (job.status !== "running" && job.status !== "queued") continue;
+    job.status = "failed";
+    job.finishedAt = now;
+    job.error = errorMessage;
+    job.progress.stageHint = "failed:restart_interrupted";
+    onMarkFailed(job.iterationId, job.input, errorMessage, now);
+    onPersist(job);
+    marked += 1;
+  }
+  return marked;
+}

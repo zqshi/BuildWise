@@ -16,6 +16,7 @@ import { analyzeAttachmentOp } from './analysisOps';
 import { buildAttachmentReportSections, getAttachmentReportSectionPage } from './reportOps';
 import {
   createQueuedAnalysisJobOp,
+  markAnalysisJobInterruptedOnRestartOp,
   reconcileAnalysisJobsOp,
   triggerAnalysisQueueOp,
   type AttachmentAnalysisJobRuntime
@@ -40,7 +41,7 @@ import {
   shortId,
   summarizeInput
 } from '../upload/attachmentUtils';
-import { defaultIterationChangeControl } from '../shared/common';
+import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { DuplicateAttachmentUploadError } from '../shared/errors';
 
 export type AnalysisCompletedCallback = (iterationId: number, report: AttachmentAnalysisReport) => void;
@@ -99,6 +100,7 @@ export class AnalysisService {
     this.analysisQueuedStallTimeoutMs = readPositiveMs(processEnv.ANALYSIS_JOB_QUEUED_STALL_TIMEOUT_MS, 10 * 60 * 1000);
     this.transitionIteration = transitionIteration;
     this.restoreFromDb();
+    this.restoreInterruptedAnalysisJobs();
   }
 
   private restoreFromDb() {
@@ -135,6 +137,25 @@ export class AnalysisService {
       }
     } catch (err) {
       log.error("failed to restore from DB, starting fresh", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  /**
+   * 重启恢复：restoreFromDb 把 DB 任务读回内存后，running/queued 的任务已无 worker
+   * 执行（幽灵 running）。本方法把它们立即标 failed（带中断原因），并记录失败输入快照
+   * 供用户手动 retry，避免前端轮询空等 25min 超时。与现有超时失败路径语义一致：
+   * 不回退 iteration 主状态，只标 job 失败 + 记录 lastFailedAnalysisInput。
+   */
+  private restoreInterruptedAnalysisJobs() {
+    const marked = markAnalysisJobInterruptedOnRestartOp({
+      analysisJobs: this.analysisJobs,
+      onMarkFailed: (iterationId, input, errorMessage, at) =>
+        markFailedAnalysisOp(this.repo, iterationId, input, errorMessage, at),
+      onPersist: (job) => this.persistJob(job),
+    });
+    if (marked > 0) {
+      log.info("重启恢复：识别到中断的分析任务并标记失败", { count: marked });
+      writeAuditLog(this.repo, "analysis.restart_recovery", "analysis", `重启识别到 ${marked} 个中断的分析任务，已标记失败待重试`);
     }
   }
 

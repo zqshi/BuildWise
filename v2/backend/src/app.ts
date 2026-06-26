@@ -15,6 +15,7 @@ import { WorkspaceService } from './application/workspace/shared/workspaceServic
 import { AgentRegistry } from "./infrastructure/agent/agentRegistry";
 import { ClaudeCodeCliAdapter } from "./infrastructure/agent/adapters/claudeCodeCliAdapter";
 import type { CodeRewriteJobStore } from "./application/workspace/quality/codeRewriteJobOps";
+import type { FullCycleJobStore } from "./application/workspace/quality/fullCycleJobOps";
 import type { WorkspaceRepository } from "./domain/workspace/repository";
 import { JsonContinuousModelingRepository } from "./infrastructure/persistence/jsonContinuousModelingRepository";
 import { SqliteRevokedTokenStore } from "./infrastructure/persistence/sqliteRevokedTokenStore";
@@ -272,7 +273,8 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     bootstrapMode: config.allowSeedDataBootstrap ? "seed" : "empty"
   });
   setRevokedTokenStore(new SqliteRevokedTokenStore(workspaceRepo.getDb()));
-  const continuousModelingRepo = new JsonContinuousModelingRepository(join(backendRoot, "continuous-modeling.runtime.json"));
+  const continuousModelingDataFile = (options.env?.CONTINUOUS_MODELING_DATA_FILE || "").trim() || join(backendRoot, "continuous-modeling.runtime.json");
+  const continuousModelingRepo = new JsonContinuousModelingRepository(continuousModelingDataFile);
   // 编码 agent 注册表 + codeRewrite job store（V2.2）：当启用时走编码 agent 真实改代码路径
   const codingAgentEnabled = (options.env?.BUILDWISE_CODING_AGENT_ENABLED || "1").trim() !== "0";
   let codingAgentRegistry: AgentRegistry | null = null;
@@ -285,7 +287,8 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     }
   }
   const codeRewriteJobStore: CodeRewriteJobStore = { jobs: new Map() };
-  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo, codingAgentRegistry, codeRewriteJobStore);
+  const fullCycleJobStore: FullCycleJobStore = { jobs: new Map() };
+  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo, codingAgentRegistry, codeRewriteJobStore, fullCycleJobStore);
 
   const bootstrapAdminPhone = (options.env?.BOOTSTRAP_ADMIN_PHONE || "").trim();
   if (bootstrapAdminPhone && /^1\d{10}$/.test(bootstrapAdminPhone)) {

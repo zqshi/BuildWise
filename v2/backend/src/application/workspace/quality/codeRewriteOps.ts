@@ -126,16 +126,40 @@ function buildRewritePrompt(
   };
 }
 
-function validateAndApplyRewriteEdits(
-  rawEdits: unknown[], ctx: RewriteContext, dryRun: boolean
-) {
+type RewritePlan = { path: string; reason: string; content: string; before: string };
+
+/**
+ * 原子化写入改写结果：第一遍校验收集「待写清单」(含完整 before)，第二遍逐个写盘。
+ * 任一写盘抛错 → 回滚已写盘文件为 before 内容，再向上抛错（不留下半改写）。
+ * fs 注入以便测试；生产用真实 readFileSync/writeFileSync。
+ */
+export function applyRewriteEditsAtomic(params: {
+  rawEdits: unknown[];
+  ctx: RewriteContext;
+  dryRun: boolean;
+  maxFiles: number;
+  fs?: {
+    read: (absPath: string) => string;
+    write: (absPath: string, content: string) => void;
+  };
+}): {
+  edits: Array<{ path: string; reason: string; beforePreview: string; afterPreview: string }>;
+  appliedFiles: string[];
+  skippedFiles: string[];
+  outOfBoundaryFiles: string[];
+  outOfCandidateFiles: string[];
+  rolledBackFiles: string[];
+} {
+  const { rawEdits, ctx, dryRun, maxFiles } = params;
+  const fs = params.fs ?? { read: (p) => readFileSync(p, "utf-8"), write: (p, c) => writeFileSync(p, c, "utf-8") };
   const outOfBoundaryFiles: string[] = [];
   const outOfCandidateFiles: string[] = [];
-  const appliedFiles: string[] = [];
   const skippedFiles: string[] = [];
-  const edits: IterationCodeRewriteResponse["edits"] = [];
   const candidateSet = new Set(ctx.candidateFiles.map((item) => normalizeRelPath(item)));
-  for (const item of rawEdits.slice(0, ctx.maxFiles)) {
+
+  // 第一遍：校验 + 收集待写清单（保留完整 before）
+  const plan: RewritePlan[] = [];
+  for (const item of rawEdits.slice(0, maxFiles)) {
     const row = item as Record<string, unknown>;
     const path = normalizeRelPath(pickString(row.path));
     const reason = pickString(row.reason) || "LLM rewrite";
@@ -144,12 +168,44 @@ function validateAndApplyRewriteEdits(
     if (!candidateSet.has(path)) { outOfCandidateFiles.push(path); continue; }
     const boundaryCheck = assertBoundaryWhitelist({ repoPath: ctx.repoPath, whitelist: ctx.boundaryCodePaths, changedPaths: [path] });
     if (!boundaryCheck.ok) { outOfBoundaryFiles.push(path); continue; }
-    const before = readFileSync(join(ctx.repoPath, path), "utf-8");
+    const before = fs.read(join(ctx.repoPath, path));
     if (before === content) { skippedFiles.push(path); continue; }
-    if (!dryRun) { writeFileSync(join(ctx.repoPath, path), content, "utf-8"); appliedFiles.push(path); }
-    edits.push({ path, reason, beforePreview: previewText(before), afterPreview: previewText(content) });
+    plan.push({ path, reason, content, before });
   }
-  return { edits, appliedFiles, skippedFiles, outOfBoundaryFiles, outOfCandidateFiles };
+
+  // 第二遍：逐个写盘，失败回滚已写文件（原子化）
+  const appliedFiles: string[] = [];
+  const writtenLog: RewritePlan[] = [];
+  let rolledBackFiles: string[] = [];
+  if (!dryRun) {
+    for (const p of plan) {
+      try {
+        fs.write(join(ctx.repoPath, p.path), p.content);
+        appliedFiles.push(p.path);
+        writtenLog.push(p);
+      } catch (writeErr) {
+        // 回滚已写盘文件为 before 内容（best-effort，回滚失败不掩盖原错）
+        rolledBackFiles = writtenLog.map((w) => w.path);
+        for (const w of writtenLog) {
+          try { fs.write(join(ctx.repoPath, w.path), w.before); } catch { /* best-effort */ }
+        }
+        throw new Error(`改写写盘失败（${p.path}），已回滚 ${writtenLog.length} 个已写文件：${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
+      }
+    }
+  }
+
+  const edits = plan.map((p) => ({
+    path: p.path, reason: p.reason,
+    beforePreview: previewText(p.before), afterPreview: previewText(p.content),
+  }));
+  return { edits, appliedFiles, skippedFiles, outOfBoundaryFiles, outOfCandidateFiles, rolledBackFiles };
+}
+
+function validateAndApplyRewriteEdits(
+  rawEdits: unknown[], ctx: RewriteContext, dryRun: boolean
+) {
+  const result = applyRewriteEditsAtomic({ rawEdits, ctx, dryRun, maxFiles: ctx.maxFiles });
+  return result;
 }
 
 export async function rewriteCodeInBoundaryOp(
@@ -178,6 +234,7 @@ export async function rewriteCodeInBoundaryOp(
   if (rawEdits.length === 0) throw new Error("改写结果为空：未生成任何编辑内容");
   const result = validateAndApplyRewriteEdits(rawEdits, ctx, dryRun);
   if (result.edits.length === 0) throw new Error("改写结果经边界校验后无有效编辑");
+  const rolledBackFiles = Array.from(new Set(result.rolledBackFiles));
   return {
     iterationId, dryRun, summary,
     warnings: result.outOfCandidateFiles.length > 0
@@ -186,6 +243,7 @@ export async function rewriteCodeInBoundaryOp(
     appliedFiles: Array.from(new Set(result.appliedFiles)),
     skippedFiles: Array.from(new Set(result.skippedFiles)),
     outOfBoundaryFiles: Array.from(new Set(result.outOfBoundaryFiles)),
+    rolledBackFiles,
     edits: result.edits
   };
 }

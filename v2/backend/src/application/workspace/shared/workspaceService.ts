@@ -3,6 +3,7 @@ import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type { AgentRunner } from "./agentRunner";
 import type { AgentRegistry } from '../../../infrastructure/agent/agentRegistry';
 import type { CodeRewriteJobStore } from '../quality/codeRewriteJobOps';
+import type { FullCycleJobStore } from '../quality/fullCycleJobOps';
 import { resolve as resolvePath } from "node:path";
 import { WorkspaceBindingConflictError } from './errors';
 
@@ -16,6 +17,7 @@ import { UploadService } from '../upload/uploadService';
 import { coachIterationConversationOp } from '../coach/coachOps';
 import { QualityService } from '../quality/qualityService';
 import { FullCycleService } from '../quality/fullCycleService';
+import { ChangeImpactService } from '../changeControl/changeImpactService';
 import { BacklogService } from '../backlog/backlogService';
 import { KnowledgeService } from '../knowledge/knowledgeService';
 import { ExperienceService } from '../experience/experienceService';
@@ -38,6 +40,7 @@ export class WorkspaceService {
   readonly upload: UploadService;
   readonly quality: QualityService;
   readonly fullCycle: FullCycleService;
+  readonly changeImpact: ChangeImpactService;
   readonly backlog: BacklogService;
   readonly knowledge: KnowledgeService;
   readonly experience: ExperienceService;
@@ -47,7 +50,8 @@ export class WorkspaceService {
     agentRunner: AgentRunner | null = null,
     modelingRepo: ContinuousModelingRepository | null = null,
     codingAgentRegistry: AgentRegistry | null = null,
-    codeRewriteJobStore: CodeRewriteJobStore | null = null
+    codeRewriteJobStore: CodeRewriteJobStore | null = null,
+    fullCycleJobStore: FullCycleJobStore | null = null
   ) {
     this.repo = repo;
     this.agentRunner = agentRunner;
@@ -75,7 +79,9 @@ export class WorkspaceService {
       getIterationReleaseReview: (id) => this.quality.getIterationReleaseReview(id),
       generateIterationDeliveryPackage: (id, input) => this.quality.generateIterationDeliveryPackage(id, input),
       publishIterationToRemote: (id, input) => this.project.publishIterationToRemote(id, input)
-    }, agentRunner);
+    }, agentRunner, fullCycleJobStore);
+    this.fullCycle.restoreInterruptedFullCycles();
+    this.changeImpact = new ChangeImpactService(repo);
     this.backlog = new BacklogService(repo);
   }
 
