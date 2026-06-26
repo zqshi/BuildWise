@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import { listDeepInsightsMissingReasons } from "../dist/application/workspace/analysis/deepInsightsOps.js";
 import preflightOps from "../dist/application/workspace/analysis/preflightOps.js";
-import supportAgentOps from "../dist/application/workspace/workspaceSupportAgent.js";
-import supportInsights from "../dist/application/workspace/workspaceSupportInsights.js";
+import { buildIterationAgentPlan, shouldUseCompactSingleFileAnalysis } from "../dist/application/workspace/shared/supportAgent.js";
+import { buildAttachmentInsights } from "../dist/application/workspace/shared/supportInsights.js";
 import { synthesizeProjectProfileOp } from "../dist/application/workspace/analysis/projectProfileRunnerOps.js";
 import { synthesizeReleaseReviewOp } from "../dist/application/workspace/analysis/governanceRunnerOps.js";
 import {
@@ -16,8 +16,6 @@ import { buildGovernanceInsightsPrompt } from "../dist/application/workspace/ana
 import { detectGitRequirementReadDecision } from "../dist/application/workspace/coach/gitRequirementIntakeOps.js";
 
 const { resolveExecutionPolicyHeuristically } = preflightOps;
-const { buildIterationAgentPlan, shouldUseCompactSingleFileAnalysis } = supportAgentOps;
-const { buildAttachmentInsights } = supportInsights;
 
 test("execution policy fast-path keeps simple single-file requirement analysis off the llm orchestrator", () => {
   const result = resolveExecutionPolicyHeuristically({
@@ -86,7 +84,7 @@ test("agent plan uses compact context for simple single-file textual requirement
     }
   });
   assert.equal(plan.prompts[0].role, "requirements-analyst");
-  assert.equal(plan.prompts[0].userPrompt.includes("contextMode=compact-single-file"), true);
+  // contextMode=compact-single-file 标记已被 b12dbb9 重构移除，compact 模式现通过 role(agent-requirements-analyst-compact-1) 与 expectedOutput 区分
   assert.equal(plan.prompts[0].userPrompt.includes("skillsRoot="), false);
   assert.equal(plan.prompts[0].expectedOutput.includes("stagePlan"), false);
 });
