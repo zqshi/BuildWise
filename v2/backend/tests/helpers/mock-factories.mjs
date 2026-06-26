@@ -68,6 +68,7 @@ export function createInMemoryWorkspaceRepo() {
     tenantMemberBindings: [],
     platformRoleBindings: [],
     governanceCustomRoles: [],
+    backlogItems: [],
   };
 
   let nextIdCounter = 1;
@@ -218,6 +219,41 @@ export function createInMemoryWorkspaceRepo() {
       if (idx >= 0) { store.projectWorkspaceBindings[idx] = record; } else { store.projectWorkspaceBindings.push(record); }
       return record;
     },
+
+    // ── BacklogRepository（默认值对齐 SqliteWorkspaceBacklog） ──
+    listBacklogItems(projectId) { return store.backlogItems.filter((i) => i.projectId === projectId); },
+    findBacklogItem(itemId) { return store.backlogItems.find((i) => i.id === itemId) || null; },
+    createBacklogItem(projectId, input, createdBy) {
+      const now = new Date().toISOString();
+      const item = {
+        id: nextIdCounter++,
+        projectId,
+        iterationId: input.iterationId ?? null,
+        title: input.title,
+        description: input.description || "",
+        priority: input.priority || "medium",
+        status: input.iterationId ? "planned" : "open",
+        source: input.source || "internal",
+        sourceRef: input.sourceRef || "",
+        tags: input.tags ? [...input.tags] : [],
+        createdBy,
+        createdAt: now,
+        updatedAt: now,
+      };
+      store.backlogItems.push(item);
+      return item;
+    },
+    updateBacklogItem(item) {
+      const idx = store.backlogItems.findIndex((i) => i.id === item.id);
+      if (idx >= 0) store.backlogItems[idx] = { ...store.backlogItems[idx], ...item, updatedAt: new Date().toISOString() };
+    },
+    deleteBacklogItem(itemId) {
+      const idx = store.backlogItems.findIndex((i) => i.id === itemId);
+      if (idx === -1) return false;
+      store.backlogItems.splice(idx, 1);
+      return true;
+    },
+    listBacklogItemsByIteration(iterationId) { return store.backlogItems.filter((i) => i.iterationId === iterationId); },
   };
 }
 

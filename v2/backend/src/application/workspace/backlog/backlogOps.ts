@@ -75,7 +75,10 @@ export function assignBacklogItemsToIterationOp(
   for (const id of itemIds) {
     const item = repo.findBacklogItem(id);
     if (!item || item.projectId !== projectId) { skipped++; continue; }
-    repo.updateBacklogItem({ ...item, iterationId, status: iterationId ? "planned" : item.status });
+    // 归属版本：status → planned；取消归属（拖回需求池）：仅 planned 回退为 open，
+    // in-progress/done 等已进入执行/完成的状态保持不变，避免误改工作进度。
+    const nextStatus = iterationId ? "planned" : (item.status === "planned" ? "open" : item.status);
+    repo.updateBacklogItem({ ...item, iterationId, status: nextStatus });
     updated++;
   }
   if (updated > 0) {
