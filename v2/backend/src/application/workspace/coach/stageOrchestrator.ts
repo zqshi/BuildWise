@@ -121,8 +121,7 @@ function serializeIterationScopeContext(
   parts: string[]
 ) {
   parts.push(
-    `当前迭代「${iteration.name}」处于「${STAGE_LABELS[stage]}」阶段。` +
-    (previous ? `上一轮迭代是「${previous.name}」。` : "这是第一轮迭代。")
+    `当前迭代「${iteration.name}」处于「${STAGE_LABELS[stage]}」阶段。${previous ? `上一轮迭代是「${previous.name}」。` : "这是第一轮迭代。"}`
   );
   if (iteration.scope.inScope.length > 0) {
     parts.push(`本轮范围：${iteration.scope.inScope.join("、")}。`);
@@ -287,7 +286,7 @@ async function routeToStageAgent(params: {
     expectedOutput: "先用自然语言直接回复用户，最后一行附带 <!-- coach:{...} --> 结构化标记",
     systemPrompt: agentDef.systemPrompt,
     userPrompt: [
-      `用户说：${message}`, "", `当前情况：`, context, ...blockedLines, "",
+      `用户说：${message}`, "", "当前情况：", context, ...blockedLines, "",
       recentConversation,
       recentSuggestedActions.length > 0 ? `上轮已建议的行动（避免重复）：${recentSuggestedActions.join("、")}` : "",
       "", "请先用自然语言回复用户，然后在末尾附带 <!-- coach:{...} --> 控制标记。"

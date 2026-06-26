@@ -65,7 +65,7 @@ function buildDeepInsightsFileManifest(input: AttachmentUploadInput) {
       return `[${index + 1}] 路径：${path}；文件名：${fileName}；类型：${mimeType}\n摘要：${excerpt || "（空）"}`;
     })
     .join("\n\n---\n\n");
-  return manifest.length > 12000 ? manifest.slice(0, 12000) + `\n…（还有文件未列出，共 ${sourceFiles.length} 个）` : manifest;
+  return manifest.length > 12000 ? `${manifest.slice(0, 12000)}\n…（还有文件未列出，共 ${sourceFiles.length} 个）` : manifest;
 }
 import type { IterationAgentPrompt } from '../../../domain/workspace/types';
 import type { composeAttachmentExcerpt } from './inputOps';

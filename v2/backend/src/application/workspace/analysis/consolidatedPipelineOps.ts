@@ -17,7 +17,7 @@ import type {
 import {
   buildDiffLocations,
   buildIterationAgentPlan,
-  normalizeIteration,
+  type normalizeIteration,
 } from '../shared/workspaceSupport';
 import { composeAttachmentExcerpt, resolveVisionPayloads } from './inputOps';
 import { CONTEXT_GUARDRAILS, CHUNK_CONFIG } from './configOps';

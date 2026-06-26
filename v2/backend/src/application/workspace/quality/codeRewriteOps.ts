@@ -101,7 +101,7 @@ function buildRewritePrompt(
     agentId: `agent-bounded-rewrite-${role}-1`,
     role: role as "delivery-engineer" | "frontend-developer" | "backend-developer",
     scope: "iteration" as const,
-    goal: `按白名单路径生成增量改写结果`,
+    goal: "按白名单路径生成增量改写结果",
     expectedOutput: "JSON: {summary,warnings[],edits:[{path,reason,content}]}",
     systemPrompt: [
       "你是 BuildWise 增量改写器。",

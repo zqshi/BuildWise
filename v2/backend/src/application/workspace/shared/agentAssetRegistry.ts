@@ -64,7 +64,7 @@ export function loadWorkflowTemplate(params: {
   const { scope, fallback } = params;
   const candidates = [
     resolve(AGENT_ASSET_ROOT, "workflows", "fixed", `${scope}.json`),
-    resolve(AGENT_ASSET_ROOT, "workflows", "fixed", `default.json`)
+    resolve(AGENT_ASSET_ROOT, "workflows", "fixed", "default.json")
   ];
   for (const filePath of candidates) {
     if (!existsSync(filePath)) {

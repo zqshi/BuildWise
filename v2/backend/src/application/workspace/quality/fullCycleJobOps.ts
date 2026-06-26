@@ -17,12 +17,13 @@ import type { FullCycleCheckpoint, FullCycleStepId } from '../../../domain/works
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 
 /** 内存句柄的实际状态：创建即 running，终态 completed/failed。 */
-export type FullCycleJobStatus = "running" | "completed" | "failed";
+export type FullCycleJobStatus = "running" | "completed" | "failed" | "cancelled";
 
 export type FullCycleJobHandle = {
   jobId: string;
   iterationId: number;
   status: FullCycleJobStatus;
+  cancelRequested: boolean;
   createdAt: string;
   startedAt: string;
   finishedAt: string;
@@ -59,6 +60,7 @@ export function createFullCycleJob(
     jobId: params.jobId,
     iterationId: params.iterationId,
     status: "running",
+    cancelRequested: false,
     createdAt: params.now,
     startedAt: params.now,
     finishedAt: "",
@@ -108,6 +110,32 @@ export function markFullCycleFailed(
   job.status = "failed";
   job.finishedAt = params.finishedAt;
   job.error = params.error;
+  return job;
+}
+
+/**
+ * 请求取消 running 态 job：仅置 cancelRequested 标志，后台任务在下一个步骤边界
+ * 检查该标志后停止。已终态（completed/failed/cancelled）或不存在时返回 false。
+ */
+export function requestFullCycleCancellation(store: FullCycleJobStore, jobId: string): boolean {
+  const job = store.jobs.get(jobId);
+  if (!job || job.status !== "running") return false;
+  job.cancelRequested = true;
+  return true;
+}
+
+export function markFullCycleCancelled(
+  store: FullCycleJobStore,
+  jobId: string,
+  params: { finishedAt: string; finalResponse: IterationFullCycleRunResponse | null }
+): FullCycleJobHandle {
+  const job = requireJob(store, jobId);
+  if (job.status !== "running") {
+    throw new Error(`cannot transition ${jobId} from ${job.status} to cancelled`);
+  }
+  job.status = "cancelled";
+  job.finishedAt = params.finishedAt;
+  job.finalResponse = params.finalResponse;
   return job;
 }
 

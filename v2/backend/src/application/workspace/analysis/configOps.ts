@@ -89,7 +89,7 @@ export const CHUNK_CONFIG = loadChunkConfigFromEnv();
 
 /** true → 走新的 3+1 Agent 整合管道；false → 走现有 14-Agent 管道 */
 export const USE_CONSOLIDATED_AGENTS: boolean = readBoolean(
-  ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}).BW_CONSOLIDATED_AGENTS,
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.BW_CONSOLIDATED_AGENTS,
   false
 );
 

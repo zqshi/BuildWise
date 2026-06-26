@@ -17,6 +17,7 @@ import { generateUxExecutionGuidanceOp } from './uxGuidanceOps';
 export type FullCycleStepResults = {
   analysisReport: AttachmentAnalysisReport | null;
   rewriteResult: IterationFullCycleRunResponse["rewriteResult"];
+  rewriteRuns: Array<{ label: string; result: IterationFullCycleRunResponse["rewriteResult"] }>;
   testArtifactsResult: IterationTestArtifactsGenerationResponse | null;
   releaseReview: IterationReleaseReviewResponse | null;
   deliveryPackageResult: IterationDeliveryPackageResult | null;
@@ -62,7 +63,7 @@ async function executeStepConfirmation(ctx: StepContext): Promise<void> {
   const currentIteration = repo.findIteration(iterationId);
   const currentCC = currentIteration?.changeControl ?? defaultIterationChangeControl();
   const unresolvedClarifications = Array.isArray(currentCC.clarificationQuestions) ? currentCC.clarificationQuestions : [];
-  const autoResolveClarifications = ctx.input.autoResolveClarifications !== false;
+  const autoResolveClarifications = ctx.input.autoResolveClarifications === true;
   const resolvedClarificationQuestions = autoResolveClarifications ? unresolvedClarifications : [];
   const autoBoundarySource = results.analysisReport?.executableConstraints;
   const autoBoundary = autoBoundarySource
@@ -183,6 +184,7 @@ async function executeStepRewrite(
     return;
   }
   stepState.note = result.dryRun ? "模拟执行完成" : `${label}改写完成，修改 ${result.edits.length} 处，跳过 ${result.skippedFiles.length} 个文件`;
+  ctx.results.rewriteRuns.push({ label, result });
 }
 
 async function executeStepTestArtifacts(ctx: StepContext): Promise<void> {
@@ -253,7 +255,7 @@ export async function executeStep(
     case "backend-rewrite": return executeStepRewrite("backend-developer", "后端", ctx);
     case "merge-rewrite": {
       const rewriteDryRun = input.rewriteDryRun === true;
-      results.rewriteResult = mergeRewriteResults(params.iterationId, rewriteDryRun, []);
+      results.rewriteResult = mergeRewriteResults(params.iterationId, rewriteDryRun, results.rewriteRuns);
       stepState.note = "改写结果已合并。";
       return;
     }

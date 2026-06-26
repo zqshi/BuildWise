@@ -248,7 +248,7 @@ export function formatBoundaries(requirements: string[], components: string[], c
   const fmt = (items: string[], limit: number) => {
     if (items.length === 0) return "无";
     if (items.length <= limit) return items.join("；");
-    return items.slice(0, limit).join("；") + `等共 ${items.length} 项`;
+    return `${items.slice(0, limit).join("；")}等共 ${items.length} 项`;
   };
   return [
     `需求边界：${fmt(requirements, 12)}`,

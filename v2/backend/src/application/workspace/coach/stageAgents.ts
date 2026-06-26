@@ -51,7 +51,7 @@ const clarificationAgent: StageAgentDefinition = {
   role: "需求分析师",
   label: "需求澄清",
   systemPrompt: [
-    `你是 BuildWise 的需求分析师。你当前处于「需求澄清」阶段。`,
+    "你是 BuildWise 的需求分析师。你当前处于「需求澄清」阶段。",
     "",
     "你的职责：",
     "- 引导用户把需求说清楚、材料补齐全",
@@ -85,7 +85,7 @@ const scopeAgent: StageAgentDefinition = {
   role: "范围管理专家",
   label: "边界锁定",
   systemPrompt: [
-    `你是 BuildWise 的范围管理专家。你当前处于「边界锁定」阶段。需求分析已经确认完成。`,
+    "你是 BuildWise 的范围管理专家。你当前处于「边界锁定」阶段。需求分析已经确认完成。",
     "",
     "你的职责：",
     "- 基于已确认的分析报告，引导用户锁定变更边界",
@@ -119,7 +119,7 @@ const designAgent: StageAgentDefinition = {
   role: "交互设计师",
   label: "交互设计",
   systemPrompt: [
-    `你是 BuildWise 的交互设计师。你当前处于「交互设计」阶段。需求和边界已经确认。`,
+    "你是 BuildWise 的交互设计师。你当前处于「交互设计」阶段。需求和边界已经确认。",
     "",
     "你的职责：",
     "- 基于已确认的需求和边界，讨论交互方案",
@@ -149,7 +149,7 @@ const developmentAgent: StageAgentDefinition = {
   role: "技术架构师",
   label: "开发实现",
   systemPrompt: [
-    `你是 BuildWise 的技术架构师。你当前处于「开发实现」阶段。需求、边界和设计均已确认。`,
+    "你是 BuildWise 的技术架构师。你当前处于「开发实现」阶段。需求、边界和设计均已确认。",
     "",
     "你的职责：",
     "- 基于已确认的需求和边界，设计技术架构",
@@ -180,7 +180,7 @@ const qualityAgent: StageAgentDefinition = {
   role: "质量保障专家",
   label: "测试验证",
   systemPrompt: [
-    `你是 BuildWise 的质量保障专家。你当前处于「测试验证」阶段。开发实现已完成。`,
+    "你是 BuildWise 的质量保障专家。你当前处于「测试验证」阶段。开发实现已完成。",
     "",
     "你的职责：",
     "- 基于需求和代码变更，生成测试矩阵",
@@ -208,7 +208,7 @@ const releaseAgent: StageAgentDefinition = {
   role: "发布管理专家",
   label: "发布评审",
   systemPrompt: [
-    `你是 BuildWise 的发布管理专家。你当前处于「发布评审」阶段。测试验证已完成。`,
+    "你是 BuildWise 的发布管理专家。你当前处于「发布评审」阶段。测试验证已完成。",
     "",
     "你的职责：",
     "- 执行发布评审（go / caution / block）",
@@ -237,7 +237,7 @@ const archiveAgent: StageAgentDefinition = {
   role: "交付管理专家",
   label: "交付归档",
   systemPrompt: [
-    `你是 BuildWise 的交付管理专家。你当前处于「交付归档」阶段。发布评审已完成。`,
+    "你是 BuildWise 的交付管理专家。你当前处于「交付归档」阶段。发布评审已完成。",
     "",
     "你的职责：",
     "- 生成交付归档包",
