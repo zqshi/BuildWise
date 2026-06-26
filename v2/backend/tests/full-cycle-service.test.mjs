@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
+import { createInMemoryWorkspaceRepo, buildMinimalPolicyRecord } from "./helpers/mock-factories.mjs";
 
 const { FullCycleService } = await import(
   "../dist/application/workspace/quality/fullCycleService.js"
@@ -236,4 +236,46 @@ test("startFullCycleJob 后 cancelFullCycleJob 使后台任务停止并标记 ca
   assert.equal(final.status, "cancelled");
   const cp = repo.findIteration(iteration.id).changeControl?.fullCycleCheckpoint;
   assert.equal(cp.resumable, true, "取消后 checkpoint 应可续跑");
+});
+
+// ─── policyGate 门禁接入 fullCycle（T5：①②阻断 ③记审计不阻断）───
+
+test("fullCycle 遇 stale 制品门禁 → 该步 blocked + 审计 + checkpoint 可续跑", async () => {
+  const { repo, service, iteration } = setup();
+  const iter = repo.findIteration(iteration.id);
+  iter.changeControl = {
+    lastAnalysisAt: new Date().toISOString(),
+    confirmedAt: new Date().toISOString(),
+    confirmedBy: "user",
+    artifactWorkflow: { activeStage: "release", items: [{ id: "release-review", stage: "release", status: "ready", stale: true, outputVersion: 1, lastConfirmedAt: "", lastConfirmedBy: "" }] }
+  };
+  repo.updateIteration(iter);
+  const { jobId } = service.startFullCycleJob(iteration.id, { runAnalysis: false, autoConfirmAnalysis: true });
+  const final = await waitForJobSettled(service, jobId);
+  assert.ok(final.finalResponse, "应有最终响应");
+  assert.equal(final.finalResponse.status, "blocked", "门禁阻断应使整体状态 blocked");
+  assert.equal(final.finalResponse.steps.confirmation.status, "blocked", "confirmation 步应被 stale 门禁阻断");
+  assert.equal(final.finalResponse.checkpoint.resumable, true, "阻断后 checkpoint 可续跑");
+  const logs = repo.listPolicyExecutionLogs(iteration.id);
+  assert.ok(logs.some((l) => l.action === "fullcycle_gate_check" && l.result === "blocked"), "应有门禁阻断审计");
+});
+
+test("fullCycle 遇 缺人工确认门禁 → 记 advisory 审计, 不阻断该步继续推进", async () => {
+  const { repo, project, service, iteration } = setup();
+  repo._store.projectPolicies.push(buildMinimalPolicyRecord(project.id, {
+    strategy: { stages: ["scope"], gates: [{ stage: "scope", requiredArtifacts: [], requireHumanConfirmation: true }], requiredConfirmations: { firstIterationGitReport: false }, exceptions: [], skillsPlan: [] }
+  }));
+  const iter = repo.findIteration(iteration.id);
+  iter.changeControl = {
+    lastAnalysisAt: new Date().toISOString(),
+    confirmedAt: new Date().toISOString(),
+    confirmedBy: "user",
+    artifactWorkflow: { activeStage: "scope", items: [] }
+  };
+  repo.updateIteration(iter);
+  const { jobId } = service.startFullCycleJob(iteration.id, { runAnalysis: false, autoConfirmAnalysis: true });
+  const final = await waitForJobSettled(service, jobId);
+  const logs = repo.listPolicyExecutionLogs(iteration.id);
+  assert.ok(logs.some((l) => l.action === "fullcycle_gate_check" && l.result === "advisory_skipped"), "应有门禁建议审计(不阻断)");
+  assert.notEqual(final.finalResponse.steps.confirmation.status, "blocked", "advisory 不应阻断 confirmation 步");
 });

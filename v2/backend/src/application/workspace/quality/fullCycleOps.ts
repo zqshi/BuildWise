@@ -12,6 +12,8 @@ import type {
 import type { FullCycleCheckpoint, FullCycleStepId, FullCycleStepState } from '../../../domain/workspace/iterationTypes';
 import type { AgentRunner } from '../shared/agentRunner';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
+import { evaluatePolicyGateForFullCycleOp, appendPolicyExecutionLogOp } from '../governance/policyOps';
+import type { ProjectPolicyRecord } from '../../../domain/workspace/types';
 import { executeStep, type FullCycleStepResults } from './fullCycleSteps';
 
 type PublishResult = {
@@ -297,10 +299,11 @@ function handleBlockedStep(
   iterationId: number,
   blockers: string[],
   warnings: string[],
-  results: FullCycleResultAccumulator
+  results: FullCycleResultAccumulator,
+  notePrefix = "前置条件不满足"
 ): IterationFullCycleRunResponse {
   stepState.status = "blocked";
-  stepState.note = `前置条件不满足：${missing.join("；")}`;
+  stepState.note = `${notePrefix}：${missing.join("；")}`;
   stepState.missingPreconditions = missing;
   stepState.retryable = true;
   checkpoint.currentStep = stepId;
@@ -348,6 +351,8 @@ export type FullCycleRunParams = {
   ) => Promise<PublishResult>;
   /** 可选取消信号：步骤边界检查，true 时停止后续步骤并保留 checkpoint 供续跑 */
   shouldCancel?: () => boolean;
+  /** 项目生效策略，供 fullCycle 步骤推进前做分级门禁评估；null/缺省则仅查 stale 制品 */
+  activePolicy?: ProjectPolicyRecord | null;
 };
 
 type FullCycleFlags = {
@@ -406,6 +411,37 @@ async function executeStepLoop(
     const missing = checkPreconditions(stepId, freshIteration, checkpoint);
     if (missing.length > 0) {
       return handleBlockedStep(stepId, stepState, missing, checkpoint, repo, iterationId, blockers, warnings, results);
+    }
+
+    // policyGate 分级门禁：blocking(stale/缺必要制品/首版报告未确认)阻断该步；advisory(缺人工确认)记审计不阻断，与 fullCycle 全自动模式定位一致
+    const gateEval = evaluatePolicyGateForFullCycleOp(repo, freshIteration, params.activePolicy ?? null);
+    for (const advisory of gateEval.advisory) {
+      appendPolicyExecutionLogOp(repo, {
+        projectId: freshIteration.projectId,
+        iterationId,
+        policyVersion: params.activePolicy?.version ?? 0,
+        stage: advisory.stage,
+        action: "fullcycle_gate_check",
+        result: "advisory_skipped",
+        evidence: [advisory.reason, ...advisory.requiredActions]
+      });
+    }
+    if (gateEval.blocking) {
+      const blocking = gateEval.blocking;
+      appendPolicyExecutionLogOp(repo, {
+        projectId: freshIteration.projectId,
+        iterationId,
+        policyVersion: params.activePolicy?.version ?? 0,
+        stage: blocking.stage,
+        action: "fullcycle_gate_check",
+        result: "blocked",
+        evidence: [blocking.reason, ...blocking.requiredActions]
+      });
+      blockers.push(`门禁阻断：${blocking.reason}`);
+      return handleBlockedStep(
+        stepId, stepState, [blocking.reason, ...blocking.requiredActions],
+        checkpoint, repo, iterationId, blockers, warnings, results, "门禁阻断"
+      );
     }
 
     checkpoint.currentStep = stepId;

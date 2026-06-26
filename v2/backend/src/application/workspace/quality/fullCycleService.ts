@@ -12,6 +12,7 @@ import type {
 } from '../../../domain/workspace/types';
 import type { AgentRunner } from '../shared/agentRunner';
 import { runIterationFullCycleOp } from './fullCycleOps';
+import { getEffectiveOrchestrationPolicyForProjectOp } from '../governance/policyOps';
 import {
   createFullCycleJob,
   markFullCycleCompleted,
@@ -88,12 +89,15 @@ export class FullCycleService {
   ) {}
 
   async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput, shouldCancel?: () => boolean): Promise<IterationFullCycleRunResponse | null> {
+    const iteration = this.repo.findIteration(iterationId);
+    const activePolicy = iteration ? getEffectiveOrchestrationPolicyForProjectOp(this.repo, iteration.projectId) : null;
     return runIterationFullCycleOp({
       repo: this.repo,
       agentRunner: this.agentRunner,
       iterationId,
       input,
       shouldCancel,
+      activePolicy,
       analyzeAttachment: (targetIterationId, analysisInput) => this.delegates.analyzeAttachment(targetIterationId, analysisInput),
       confirmIterationAnalysis: (targetIterationId, confirmInput) => this.delegates.confirmIterationAnalysis(targetIterationId, confirmInput),
       rewriteCodeInBoundary: (targetIterationId, rewriteInput) => this.delegates.rewriteCodeInBoundary(targetIterationId, rewriteInput),

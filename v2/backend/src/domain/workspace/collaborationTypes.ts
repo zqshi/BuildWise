@@ -132,7 +132,7 @@ export type PolicyExecutionLogRecord = {
   policyVersion: number;
   stage: string;
   action: string;
-  result: "success" | "blocked" | "error";
+  result: "success" | "blocked" | "error" | "advisory_skipped";
   evidence: string[];
   createdAt: string;
 };
