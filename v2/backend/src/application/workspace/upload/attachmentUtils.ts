@@ -148,6 +148,7 @@ function createEmptyRewriteResponse(iterationId: number, dryRun: boolean, summar
     appliedFiles: [],
     skippedFiles: [],
     outOfBoundaryFiles: [],
+    rolledBackFiles: [],
     edits: []
   };
 }
@@ -172,6 +173,7 @@ export function mergeRewriteResults(
     appliedFiles: Array.from(new Set(validRuns.flatMap((item) => item.result.appliedFiles))),
     skippedFiles: Array.from(new Set(validRuns.flatMap((item) => item.result.skippedFiles))),
     outOfBoundaryFiles: Array.from(new Set(validRuns.flatMap((item) => item.result.outOfBoundaryFiles))),
+    rolledBackFiles: Array.from(new Set(validRuns.flatMap((item) => item.result.rolledBackFiles ?? []))),
     edits: validRuns.flatMap((item) => item.result.edits)
   };
 }

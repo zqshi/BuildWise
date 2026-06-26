@@ -12,6 +12,23 @@ import type {
 } from '../../../domain/workspace/types';
 import type { AgentRunner } from '../shared/agentRunner';
 import { runIterationFullCycleOp } from './fullCycleOps';
+import {
+  createFullCycleJob,
+  markFullCycleCompleted,
+  markFullCycleFailed,
+  getFullCycleJob,
+  listFullCycleJobsByIteration,
+  scanInterruptedFullCyclesOp,
+  isInterruptedCheckpoint,
+  buildInterruptedSummary,
+  type FullCycleJobStore,
+  type FullCycleJobStatusResponse,
+  type InterruptedFullCycleStatusResponse,
+} from './fullCycleJobOps';
+import { createLogger } from '../../../infrastructure/runtime/logger';
+import { writeAuditLog } from '../shared/common';
+
+const log = createLogger("fullcycle-svc");
 
 export type FullCycleDelegates = {
   analyzeAttachment: (iterationId: number, input: AttachmentUploadInput) => Promise<AttachmentAnalysisReport | null>;
@@ -64,7 +81,8 @@ export class FullCycleService {
   constructor(
     private readonly repo: WorkspaceRepository,
     private readonly delegates: FullCycleDelegates,
-    private readonly agentRunner: AgentRunner | null = null
+    private readonly agentRunner: AgentRunner | null = null,
+    private readonly fullCycleJobStore: FullCycleJobStore | null = null
   ) {}
 
   async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput): Promise<IterationFullCycleRunResponse | null> {
@@ -81,5 +99,111 @@ export class FullCycleService {
       generateIterationDeliveryPackage: (targetIterationId, deliveryInput) => this.delegates.generateIterationDeliveryPackage(targetIterationId, deliveryInput),
       publishIterationToRemote: (targetIterationId, publishInput) => this.delegates.publishIterationToRemote(targetIterationId, publishInput)
     });
+  }
+
+  /**
+   * 异步启动 fullCycle 全管道。立即返回 jobId 供前端轮询，后台 fire-and-forget
+   * 跑完整管道（runIterationFullCycleOp 自带 checkpoint 持久化与续跑）。
+   * 同 iteration 已有 running job 则复用其 jobId（并发锁，幂等）。
+   */
+  startFullCycleJob(iterationId: number, input: IterationFullCycleRunInput): { jobId: string } | { error: string } {
+    if (!this.fullCycleJobStore) return { error: "全流程任务未配置" };
+    const existing = listFullCycleJobsByIteration(this.fullCycleJobStore, iterationId)
+      .find((j) => j.status === "running");
+    if (existing) return { jobId: existing.jobId };
+    const jobId = `fc-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const now = new Date().toISOString();
+    createFullCycleJob(this.fullCycleJobStore, { jobId, iterationId, now });
+    void this.runFullCycleJobInBackground(jobId, iterationId, input);
+    return { jobId };
+  }
+
+  getFullCycleJob(jobId: string) {
+    if (!this.fullCycleJobStore) return null;
+    return getFullCycleJob(this.fullCycleJobStore, jobId);
+  }
+
+  /**
+   * 构建 GET 进度查询响应。内存句柄在时镜像句柄并附带当前 checkpoint 进度；
+   * 内存句柄丢失（进程重启过）但 iteration 落盘 checkpoint 可续跑时，
+   * 返回 status=interrupted + checkpoint 快照；否则返回 null（路由 404）。
+   */
+  buildFullCycleJobStatus(jobId: string, iterationId: number): FullCycleJobStatusResponse | null {
+    const handle = this.getFullCycleJob(jobId);
+    const iteration = this.repo.findIteration(iterationId);
+    const checkpoint = iteration?.changeControl?.fullCycleCheckpoint ?? null;
+    if (handle) {
+      return {
+        jobId: handle.jobId, iterationId: handle.iterationId, status: handle.status,
+        createdAt: handle.createdAt, startedAt: handle.startedAt, finishedAt: handle.finishedAt,
+        finalResponse: handle.finalResponse, error: handle.error, checkpoint,
+      };
+    }
+    if (checkpoint && checkpoint.resumable) {
+      return {
+        jobId, iterationId, status: "interrupted",
+        createdAt: checkpoint.startedAt, startedAt: checkpoint.startedAt,
+        finishedAt: checkpoint.lastUpdatedAt, finalResponse: null, error: "",
+        checkpoint,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * 查询某 iteration 是否有中断可续的全流程任务（供前端刷新页面后主动感知）。
+   * 复用 isInterruptedCheckpoint 判定 + buildInterruptedSummary 统计步数。无中断时
+   * 返回 interrupted=false。不自动续跑，仅提供状态供前端展示续跑入口。
+   */
+  getInterruptedFullCycle(iterationId: number): InterruptedFullCycleStatusResponse {
+    const iteration = this.repo.findIteration(iterationId);
+    const checkpoint = iteration?.changeControl?.fullCycleCheckpoint ?? null;
+    if (!isInterruptedCheckpoint(checkpoint)) {
+      return { interrupted: false, checkpoint: null, completedStepCount: 0, totalStepCount: 0, currentStep: null };
+    }
+    const summary = buildInterruptedSummary(iterationId, checkpoint);
+    return {
+      interrupted: true,
+      checkpoint,
+      completedStepCount: summary.completedStepCount,
+      totalStepCount: summary.totalStepCount,
+      currentStep: summary.currentStep
+    };
+  }
+
+  /**
+   * 重启恢复：扫描所有 iteration 的 resumable fullCycleCheckpoint，对中断的全流程
+   * 任务写审计日志。不预写内存句柄（GET 已动态返回 interrupted）、不自动续跑
+   * （后续 step 含改代码/推远程副作用，由用户手动触发 handleResumeFullCycle）。
+   */
+  restoreInterruptedFullCycles() {
+    const summaries = scanInterruptedFullCyclesOp(this.repo);
+    for (const s of summaries) {
+      writeAuditLog(
+        this.repo,
+        "fullcycle.restart_recovery",
+        `iteration:${s.iterationId}`,
+        `重启识别到中断的全流程任务：已完成 ${s.completedStepCount}/${s.totalStepCount} 步，当前停在${s.currentStep ?? "未知"}，可手动续跑`
+      );
+    }
+    if (summaries.length > 0) {
+      log.info("重启恢复：识别到中断的全流程任务", { count: summaries.length });
+    }
+  }
+
+  private async runFullCycleJobInBackground(jobId: string, iterationId: number, input: IterationFullCycleRunInput): Promise<void> {
+    if (!this.fullCycleJobStore) return;
+    try {
+      const result = await this.runIterationFullCycle(iterationId, input);
+      markFullCycleCompleted(this.fullCycleJobStore, jobId, {
+        finishedAt: new Date().toISOString(),
+        finalResponse: result,
+      });
+    } catch (error) {
+      markFullCycleFailed(this.fullCycleJobStore, jobId, {
+        finishedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
