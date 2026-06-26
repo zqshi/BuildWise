@@ -107,6 +107,8 @@ export async function createContractHarness(options = {}) {
         AUTH_MODE: "off",
         WORKSPACE_DATA_FILE: dataFixture,
         WORKSPACE_DB_FILE: sqliteFixture,
+        // 隔离 continuous modeling 到 fixture，避免 contract 写入 backend/continuous-modeling.runtime.json 污染工作区
+        CONTINUOUS_MODELING_DATA_FILE: path.join(fixtureDir, "continuous-modeling.runtime.json"),
         // 契约 fixture sqlite 为空 db，必须显式 seed data.json 的迭代/项目等基础数据，
         // 否则 policy-execute 等依赖迭代1 的断言会 404。.env 默认 ALLOW_SEED_DATA_BOOTSTRAP=false
         // （避免 dev 覆盖已有 workspace.db），此处针对空 fixture db 显式开启。

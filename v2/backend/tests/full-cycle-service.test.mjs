@@ -1,0 +1,166 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
+
+const { FullCycleService } = await import(
+  "../dist/application/workspace/quality/fullCycleService.js"
+);
+const { createFullCycleJob, scanInterruptedFullCyclesOp } = await import(
+  "../dist/application/workspace/quality/fullCycleJobOps.js"
+);
+
+function makeStubDelegates() {
+  return {
+    analyzeAttachment: async () => null,
+    confirmIterationAnalysis: () => ({ ok: true }),
+    rewriteCodeInBoundary: async () => null,
+    generateIterationTestArtifacts: async () => null,
+    getIterationReleaseReview: () => null,
+    generateIterationDeliveryPackage: async () => null,
+    publishIterationToRemote: async () => ({ ok: true }),
+  };
+}
+
+function setup({ withStore = true } = {}) {
+  const repo = createInMemoryWorkspaceRepo();
+  const project = repo.createProject({ name: "t", description: "d", tenantId: "t1", ownerUserId: "u1" });
+  const iteration = repo.createIteration(project.id, { name: "iter", description: "d" });
+  const store = { jobs: new Map() };
+  const service = new FullCycleService(repo, makeStubDelegates(), null, withStore ? store : null);
+  return { repo, project, iteration, store, service };
+}
+
+async function waitForJobSettled(service, jobId, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const job = service.getFullCycleJob(jobId);
+    if (job && job.status !== "running") return job;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  return service.getFullCycleJob(jobId);
+}
+
+// ─── fire-and-forget ───
+
+test("startFullCycleJob 立即返回 jobId，句柄初始 running", () => {
+  const { service, iteration } = setup();
+  const result = service.startFullCycleJob(iteration.id, { runAnalysis: false });
+  assert.ok("jobId" in result, "应返回 jobId 而非 error");
+  assert.ok(result.jobId.startsWith("fc-"));
+  assert.equal(service.getFullCycleJob(result.jobId).status, "running");
+});
+
+test("startFullCycleJob 后台跑完后句柄变 completed 且带最终响应", async () => {
+  const { service, iteration } = setup();
+  const { jobId } = service.startFullCycleJob(iteration.id, { runAnalysis: false });
+  const final = await waitForJobSettled(service, jobId);
+  assert.ok(final, "job 不应消失");
+  assert.equal(final.status, "completed");
+  assert.ok(final.finalResponse, "应有最终响应（即便管道 blocked 也返回 response）");
+});
+
+test("startFullCycleJob 未注入 jobStore 时返回 error（调用方回退）", () => {
+  const { service, iteration } = setup({ withStore: false });
+  const result = service.startFullCycleJob(iteration.id, { runAnalysis: false });
+  assert.ok("error" in result, "无 store 应返回 error");
+});
+
+// ─── 并发锁 ───
+
+test("startFullCycleJob 同 iteration 已有 running job 时复用其 jobId（并发锁，不新建）", () => {
+  const { service, store, iteration } = setup();
+  createFullCycleJob(store, { jobId: "existing-fc", iterationId: iteration.id, now: "t1" });
+  const result = service.startFullCycleJob(iteration.id, { runAnalysis: false });
+  assert.equal(result.jobId, "existing-fc", "应复用已有 running job 的 jobId");
+  assert.equal(store.jobs.size, 1, "不应新建 job");
+});
+
+// ─── buildFullCycleJobStatus ───
+
+test("buildFullCycleJobStatus 句柄在内存时镜像句柄状态 + 附带当前 checkpoint", () => {
+  const { service, store, iteration } = setup();
+  createFullCycleJob(store, { jobId: "fc-1", iterationId: iteration.id, now: "t1" });
+  const status = service.buildFullCycleJobStatus("fc-1", iteration.id);
+  assert.equal(status.status, "running");
+  assert.equal(status.jobId, "fc-1");
+  assert.equal(status.checkpoint, null, "iteration 无 checkpoint 时为 null");
+});
+
+test("buildFullCycleJobStatus 内存无句柄但 checkpoint 可续跑时返回 interrupted", () => {
+  const { repo, service, iteration } = setup();
+  const checkpoint = {
+    startedAt: "t1", lastUpdatedAt: "t2", steps: {}, currentStep: "frontend-rewrite",
+    resumable: true, completedAt: "",
+  };
+  // 模拟进程重启：内存 store 空，但 iteration 落盘了 resumable checkpoint
+  repo.updateIteration({ ...repo.findIteration(iteration.id), changeControl: { fullCycleCheckpoint: checkpoint } });
+  const status = service.buildFullCycleJobStatus("fc-old", iteration.id);
+  assert.equal(status.status, "interrupted");
+  assert.equal(status.checkpoint, checkpoint, "应回退返回 checkpoint 快照");
+});
+
+test("buildFullCycleJobStatus 内存无句柄且无 checkpoint 时返回 null（路由 404）", () => {
+  const { service, iteration } = setup();
+  assert.equal(service.buildFullCycleJobStatus("nonexistent", iteration.id), null);
+});
+
+// ─── 重启恢复：扫描中断 fullCycle ───
+
+test("scanInterruptedFullCyclesOp 识别 resumable 未完成的 checkpoint，跳过已完成和不可续的", () => {
+  const repo = createInMemoryWorkspaceRepo();
+  const project = repo.createProject({ name: "t", description: "d", tenantId: "t1", ownerUserId: "u1" });
+  const iter1 = repo.createIteration(project.id, { name: "i1", description: "d" });
+  const iter2 = repo.createIteration(project.id, { name: "i2", description: "d" });
+  const iter3 = repo.createIteration(project.id, { name: "i3", description: "d" });
+
+  // iter1: resumable 且未完成（2/3 步完成）→ 应被扫描到
+  repo.updateIteration({ ...repo.findIteration(iter1.id), changeControl: { fullCycleCheckpoint: {
+    startedAt: "t1", lastUpdatedAt: "t2",
+    steps: { "analysis": { status: "completed" }, "confirmation": { status: "completed" }, "ux-guidance": { status: "pending" } },
+    currentStep: "ux-guidance", resumable: true, completedAt: ""
+  } } });
+  // iter2: 已完成（completedAt 非空）→ 跳过
+  repo.updateIteration({ ...repo.findIteration(iter2.id), changeControl: { fullCycleCheckpoint: {
+    startedAt: "t1", lastUpdatedAt: "t2", steps: {}, currentStep: null, resumable: true, completedAt: "t3"
+  } } });
+  // iter3: 不可续 → 跳过
+  repo.updateIteration({ ...repo.findIteration(iter3.id), changeControl: { fullCycleCheckpoint: {
+    startedAt: "t1", lastUpdatedAt: "t2", steps: {}, currentStep: null, resumable: false, completedAt: ""
+  } } });
+
+  const summaries = scanInterruptedFullCyclesOp(repo);
+  assert.equal(summaries.length, 1, "只有 iter1 是中断未完成");
+  assert.equal(summaries[0].iterationId, iter1.id);
+  assert.equal(summaries[0].completedStepCount, 2);
+  assert.equal(summaries[0].totalStepCount, 3);
+  assert.equal(summaries[0].currentStep, "ux-guidance");
+});
+
+test("restoreInterruptedFullCycles 对中断的全流程任务写审计日志，不修改 checkpoint", () => {
+  const { repo, service, iteration } = setup();
+  const checkpoint = {
+    startedAt: "t1", lastUpdatedAt: "t2",
+    steps: { "analysis": { status: "completed" }, "confirmation": { status: "pending" } },
+    currentStep: "confirmation", resumable: true, completedAt: ""
+  };
+  repo.updateIteration({ ...repo.findIteration(iteration.id), changeControl: { fullCycleCheckpoint: checkpoint } });
+
+  service.restoreInterruptedFullCycles();
+
+  const logs = repo.listAuditLogs();
+  const entry = logs.find((l) => l.action === "fullcycle.restart_recovery");
+  assert.ok(entry, "应写重启恢复审计日志");
+  assert.ok(entry.detail.includes("1/2"), "审计日志应含已完成步数");
+  assert.ok(entry.detail.includes("confirmation"), "审计日志应含当前停留步骤");
+  assert.ok(entry.detail.includes("续跑"), "审计日志应提示可手动续跑");
+  // 不自动续跑、不修改 checkpoint
+  const after = repo.findIteration(iteration.id).changeControl.fullCycleCheckpoint;
+  assert.equal(after.resumable, true, "checkpoint 不被修改");
+  assert.equal(after.completedAt, "", "不自动标记完成");
+});
+
+test("restoreInterruptedFullCycles 无中断任务时不写恢复日志", () => {
+  const { repo, service } = setup();
+  service.restoreInterruptedFullCycles();
+  assert.ok(!repo.listAuditLogs().some((l) => l.action === "fullcycle.restart_recovery"));
+});
