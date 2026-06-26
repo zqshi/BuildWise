@@ -260,3 +260,43 @@ export function transitionIterationArtifactStageOp(
   );
   return { ok: true as const, workflow };
 }
+
+/**
+ * fullCycle 步骤完成后的制品状态同步：直接更新 item（outputVersion/gateStatus=passed/stale=false/status=ready），
+ * 幂等（gateStatus 已 passed 跳过该 item），不触发 markDownstreamStale（避免标下游 stale 致 fullCycle 自阻断）+ 不发制品消息。
+ * lastConfirmedBy="full-cycle" 区分全自动确认来源（区别于人工 confirm）。
+ * 返回同步的 item 数。
+ */
+export function syncArtifactForFullCycleStepOp(
+  repo: WorkspaceRepository,
+  iterationId: number,
+  artifactIds: string[]
+): number {
+  if (artifactIds.length === 0) return 0;
+  const iteration = repo.findIteration(iterationId);
+  if (!iteration) return 0;
+  const normalized = normalizeIteration(iteration);
+  const current = normalized.changeControl ?? defaultIterationChangeControl();
+  const now = new Date().toISOString();
+  const workflow = ensureArtifactWorkflow(normalized, current, now);
+  let synced = 0;
+  for (const artifactId of artifactIds) {
+    const item = workflow.items.find((entry) => entry.id === artifactId);
+    if (!item) continue;
+    if (item.gateStatus === "passed") continue;
+    if (item.outputVersion === 0) item.outputVersion += 1;
+    item.gateStatus = "passed";
+    item.lastConfirmedBy = "full-cycle";
+    item.lastConfirmedAt = now;
+    item.status = "ready";
+    item.stale = false;
+    item.updatedAt = now;
+    synced += 1;
+  }
+  if (synced > 0) {
+    normalized.changeControl = { ...current, artifactWorkflow: workflow };
+    repo.updateIteration(normalized);
+    writeAuditLog(repo, "fullcycle.artifact_synced", `iteration:${iterationId}`, `synced=${synced};artifacts=${artifactIds.join(",")}`);
+  }
+  return synced;
+}

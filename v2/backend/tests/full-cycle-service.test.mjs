@@ -9,6 +9,7 @@ const { createFullCycleJob, scanInterruptedFullCyclesOp } = await import(
   "../dist/application/workspace/quality/fullCycleJobOps.js"
 );
 const { runIterationFullCycleOp } = await import("../dist/application/workspace/quality/fullCycleOps.js");
+const { syncArtifactForFullCycleStepOp } = await import("../dist/application/workspace/changeControl/artifactOps.js");
 
 function makeStubDelegates() {
   return {
@@ -278,4 +279,46 @@ test("fullCycle 遇 缺人工确认门禁 → 记 advisory 审计, 不阻断该�
   const logs = repo.listPolicyExecutionLogs(iteration.id);
   assert.ok(logs.some((l) => l.action === "fullcycle_gate_check" && l.result === "advisory_skipped"), "应有门禁建议审计(不阻断)");
   assert.notEqual(final.finalResponse.steps.confirmation.status, "blocked", "advisory 不应阻断 confirmation 步");
+});
+
+// ─── T6: changeControl 与 fullCycle checkpoint 双状态互查 ───
+
+test("syncArtifactForFullCycleStepOp: 同步 artifact 状态(产出+门禁通过+stale清除)", () => {
+  const { repo, iteration } = setup();
+  const synced = syncArtifactForFullCycleStepOp(repo, iteration.id, ["release-review"]);
+  assert.equal(synced, 1);
+  const item = repo.findIteration(iteration.id).changeControl.artifactWorkflow.items.find((i) => i.id === "release-review");
+  assert.equal(item.gateStatus, "passed");
+  assert.equal(item.outputVersion, 1);
+  assert.equal(item.stale, false);
+  assert.equal(item.lastConfirmedBy, "full-cycle");
+  assert.equal(item.status, "ready");
+});
+
+test("syncArtifactForFullCycleStepOp: 幂等(已 passed 不重复+1)", () => {
+  const { repo, iteration } = setup();
+  syncArtifactForFullCycleStepOp(repo, iteration.id, ["release-review"]);
+  const synced2 = syncArtifactForFullCycleStepOp(repo, iteration.id, ["release-review"]);
+  assert.equal(synced2, 0, "已 passed 跳过");
+  const item = repo.findIteration(iteration.id).changeControl.artifactWorkflow.items.find((i) => i.id === "release-review");
+  assert.equal(item.outputVersion, 1, "不重复+1");
+});
+
+test("syncArtifactForFullCycleStepOp: 空数组跳过", () => {
+  const { repo, iteration } = setup();
+  assert.equal(syncArtifactForFullCycleStepOp(repo, iteration.id, []), 0);
+});
+
+test("fullCycle 推进遇 artifact gateStatus blocked → 反向互查阻断该步", async () => {
+  const { repo, service, iteration } = setup();
+  const iter = repo.findIteration(iteration.id);
+  iter.changeControl = {
+    artifactWorkflow: { activeStage: "clarification", items: [{ id: "analysis-report", stage: "clarification", status: "ready", gateStatus: "blocked", outputVersion: 1, title: "分析报告", lastConfirmedAt: "", lastConfirmedBy: "" }] }
+  };
+  repo.updateIteration(iter);
+  const { jobId } = service.startFullCycleJob(iteration.id, { runAnalysis: true });
+  const final = await waitForJobSettled(service, jobId);
+  assert.equal(final.finalResponse.status, "blocked", "整体应被反向互查阻断");
+  const logs = repo.listPolicyExecutionLogs(iteration.id);
+  assert.ok(logs.some((l) => l.action === "fullcycle_artifact_gate_check" && l.result === "blocked"), "应有反向互查阻断审计");
 });
