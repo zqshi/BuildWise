@@ -81,9 +81,23 @@ export function createHttpTestClient(options = {}) {
     return response.payload;
   }
 
-  async function waitForHealth() {
-    const response = await request("/health");
-    assert(response.res.ok, "Backend did not become healthy in time");
+  async function waitForHealth(timeoutMs = 8000) {
+    // 子进程 server 启动有延迟（node 启动 + bootstrap 依赖探测），需轮询等待就绪；
+    // 单次 fetch 会在 server 未监听时 ECONNREFUSED。in-process 模式 app.inject 同步，
+    // 第一次即成功，轮询对其无影响。
+    const start = Date.now();
+    let lastError = null;
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const response = await request("/health");
+        if (response.res.ok) return;
+        lastError = new Error(`health check returned ${response.res.status}`);
+      } catch (error) {
+        lastError = error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw lastError || new Error("Backend did not become healthy in time");
   }
 
   return {
