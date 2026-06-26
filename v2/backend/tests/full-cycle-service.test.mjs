@@ -9,7 +9,7 @@ const { createFullCycleJob, scanInterruptedFullCyclesOp } = await import(
   "../dist/application/workspace/quality/fullCycleJobOps.js"
 );
 const { runIterationFullCycleOp } = await import("../dist/application/workspace/quality/fullCycleOps.js");
-const { syncArtifactForFullCycleStepOp } = await import("../dist/application/workspace/changeControl/artifactOps.js");
+const { syncArtifactForFullCycleStepOp, markCodeArtifactsStaleOp } = await import("../dist/application/workspace/changeControl/artifactOps.js");
 
 function makeStubDelegates() {
   return {
@@ -321,4 +321,22 @@ test("fullCycle 推进遇 artifact gateStatus blocked → 反向互查阻断该�
   assert.equal(final.finalResponse.status, "blocked", "整体应被反向互查阻断");
   const logs = repo.listPolicyExecutionLogs(iteration.id);
   assert.ok(logs.some((l) => l.action === "fullcycle_artifact_gate_check" && l.result === "blocked"), "应有反向互查阻断审计");
+});
+
+// ─── T7b: changeImpact 集成（改写后检测→标 stale 联动 T5 阻断）───
+
+test("markCodeArtifactsStaleOp: 标记已产出的代码 artifact stale（联动 T5 阻断下游）", () => {
+  const { repo, iteration } = setup();
+  syncArtifactForFullCycleStepOp(repo, iteration.id, ["frontend-code", "backend-code"]);
+  const marked = markCodeArtifactsStaleOp(repo, iteration.id, ["src/x.ts"]);
+  assert.equal(marked, 2);
+  const items = repo.findIteration(iteration.id).changeControl.artifactWorkflow.items;
+  assert.equal(items.find((i) => i.id === "frontend-code").stale, true);
+  assert.equal(items.find((i) => i.id === "backend-code").stale, true);
+});
+
+test("markCodeArtifactsStaleOp: 未产出的不标（outputVersion=0 跳过）", () => {
+  const { repo, iteration } = setup();
+  const marked = markCodeArtifactsStaleOp(repo, iteration.id, ["src/x.ts"]);
+  assert.equal(marked, 0, "默认 outputVersion=0 不标 stale");
 });

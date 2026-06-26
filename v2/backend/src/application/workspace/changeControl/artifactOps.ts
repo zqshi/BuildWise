@@ -300,3 +300,35 @@ export function syncArtifactForFullCycleStepOp(
   }
   return synced;
 }
+
+/**
+ * T7b: changeImpact 检测到改写影响本体后, 标记代码 artifact(frontend-code/backend-code) stale,
+ * 联动 T5 policyGate stale 检查阻断下游(提示改写影响需重新确认)。仅标已产出(outputVersion>0)的。
+ */
+export function markCodeArtifactsStaleOp(
+  repo: WorkspaceRepository,
+  iterationId: number,
+  affectedPaths: string[]
+): number {
+  const iteration = repo.findIteration(iterationId);
+  if (!iteration) return 0;
+  const normalized = normalizeIteration(iteration);
+  const current = normalized.changeControl ?? defaultIterationChangeControl();
+  const now = new Date().toISOString();
+  const workflow = ensureArtifactWorkflow(normalized, current, now);
+  let marked = 0;
+  for (const id of ["frontend-code", "backend-code"]) {
+    const item = workflow.items.find((i) => i.id === id);
+    if (item && item.outputVersion > 0 && !item.stale) {
+      item.stale = true;
+      item.updatedAt = now;
+      marked += 1;
+    }
+  }
+  if (marked > 0) {
+    normalized.changeControl = { ...current, artifactWorkflow: workflow };
+    repo.updateIteration(normalized);
+    writeAuditLog(repo, "fullcycle.change_impact_stale", `iteration:${iterationId}`, `marked=${marked};paths=${affectedPaths.length}`);
+  }
+  return marked;
+}

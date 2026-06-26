@@ -122,4 +122,24 @@ describe("detectChangeImpactOp — 需求影响范围前置检测", () => {
     });
     assert.equal(result.hasImpact, false);
   });
+
+  // ─── T7b: 修检测（去 2-gram 减误报 + 精确匹配补短术语召回）───
+
+  test("T7b: 2 字术语由精确匹配命中（去 2-gram 后仍召回）", () => {
+    const result = detectChangeImpactOp({
+      userMessage: "修改订单流程",
+      knowledgeBase: kb({ ontologyTerms: [{ term: "订单", aliases: [], definition: "d", evidence: "e" }] }),
+    });
+    assert.equal(result.hasImpact, true);
+    assert.deepEqual(result.affectedTerms, ["订单"]);
+  });
+
+  test("T7b: 短词 n-gram 不误命中无关术语（减误报）", () => {
+    const result = detectChangeImpactOp({
+      userMessage: "用户登录系统",
+      knowledgeBase: kb({ ontologyTerms: [{ term: "订单", aliases: [], definition: "d", evidence: "e" }] }),
+    });
+    assert.equal(result.hasImpact, false);
+    assert.deepEqual(result.affectedTerms, []);
+  });
 });

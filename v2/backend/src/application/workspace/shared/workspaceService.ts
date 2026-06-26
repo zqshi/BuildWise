@@ -78,7 +78,8 @@ export class WorkspaceService {
       generateIterationTestArtifacts: (id, input) => this.quality.generateIterationTestArtifacts(id, input),
       getIterationReleaseReview: (id) => this.quality.getIterationReleaseReview(id),
       generateIterationDeliveryPackage: (id, input) => this.quality.generateIterationDeliveryPackage(id, input),
-      publishIterationToRemote: (id, input) => this.project.publishIterationToRemote(id, input)
+      publishIterationToRemote: (id, input) => this.project.publishIterationToRemote(id, input),
+      detectChangeImpact: (id, msg) => this.changeImpact.detectChangeImpact(id, msg)
     }, agentRunner, fullCycleJobStore);
     this.fullCycle.restoreInterruptedFullCycles();
     this.changeImpact = new ChangeImpactService(repo);

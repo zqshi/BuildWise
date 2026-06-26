@@ -13,6 +13,7 @@ import type {
 import type { AgentRunner } from '../shared/agentRunner';
 import { runIterationFullCycleOp } from './fullCycleOps';
 import { getEffectiveOrchestrationPolicyForProjectOp } from '../governance/policyOps';
+import type { ChangeImpactResult } from '../../../domain/workspace/changeImpactDetection';
 import {
   createFullCycleJob,
   markFullCycleCompleted,
@@ -78,6 +79,8 @@ export type FullCycleDelegates = {
       dryRun?: boolean;
     }
   ) => Promise<{ ok: boolean; reason?: string; message?: string; blockers?: string[] }>;
+  /** T7b: changeImpact 检测（改写步骤后检测对本体的实时影响）；缺省则 fullCycle 不检测 */
+  detectChangeImpact?: (iterationId: number, message: string) => ChangeImpactResult;
 };
 
 export class FullCycleService {
@@ -98,6 +101,9 @@ export class FullCycleService {
       input,
       shouldCancel,
       activePolicy,
+      detectChangeImpact: this.delegates.detectChangeImpact
+        ? (id, msg) => this.delegates.detectChangeImpact!(id, msg)
+        : undefined,
       analyzeAttachment: (targetIterationId, analysisInput) => this.delegates.analyzeAttachment(targetIterationId, analysisInput),
       confirmIterationAnalysis: (targetIterationId, confirmInput) => this.delegates.confirmIterationAnalysis(targetIterationId, confirmInput),
       rewriteCodeInBoundary: (targetIterationId, rewriteInput) => this.delegates.rewriteCodeInBoundary(targetIterationId, rewriteInput),
