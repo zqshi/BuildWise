@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 const {
   inferCyclePhase,
   shouldUseCompactSingleFileAnalysis,
-} = await import("../dist/application/workspace/workspaceSupportAgent.js");
+} = await import("../dist/application/workspace/shared/supportAgent.js");
 
 // ─── 1. inferCyclePhase ─────────────────────────────────────────────
 

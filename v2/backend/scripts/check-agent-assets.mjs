@@ -51,14 +51,18 @@ if (!existsSync(catalogPath)) {
       if (!lower.includes("# system") || !lower.includes("# user")) {
         failures.push(`prompt missing sections for role=${role}: ${matched}`);
       }
-      if (!raw.includes("遵循原则")) {
-        failures.push(`prompt missing '遵循原则' section for role=${role}: ${matched}`);
-      }
-      if (!raw.includes("工作策略")) {
-        failures.push(`prompt missing '工作策略' section for role=${role}: ${matched}`);
-      }
-      if (!raw.includes("输出要求")) {
-        failures.push(`prompt missing '输出要求' section for role=${role}: ${matched}`);
+      // iteration-coach 是对话风格 prompt（沟通风格/职责/状态感知规则/输出格式），与结构化 prompt 不同，豁免 3 section 硬要求
+      const isDialoguePrompt = role === "iteration-coach";
+      if (!isDialoguePrompt) {
+        if (!raw.includes("遵循原则")) {
+          failures.push(`prompt missing '遵循原则' section for role=${role}: ${matched}`);
+        }
+        if (!raw.includes("工作策略")) {
+          failures.push(`prompt missing '工作策略' section for role=${role}: ${matched}`);
+        }
+        if (!raw.includes("输出要求")) {
+          failures.push(`prompt missing '输出要求' section for role=${role}: ${matched}`);
+        }
       }
       if (!/JSON/i.test(raw)) {
         failures.push(`prompt must require JSON output for role=${role}: ${matched}`);

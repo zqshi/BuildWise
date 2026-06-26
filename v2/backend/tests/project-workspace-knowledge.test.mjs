@@ -8,7 +8,7 @@ import { createInMemoryWorkspaceRepo } from "./helpers/mock-factories.mjs";
 const {
   syncProjectWorkspaceKnowledge,
   searchProjectWorkspaceKnowledge
-} = await import("../dist/application/workspace/projectWorkspaceKnowledgeService.js");
+} = await import("../dist/application/workspace/project/projectWorkspaceKnowledgeService.js");
 
 function buildProject() {
   return {
