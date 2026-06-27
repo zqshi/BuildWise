@@ -14,6 +14,7 @@ import { syncAllProjectWorkspaceKnowledge, syncProjectWorkspaceKnowledge } from 
 import { WorkspaceService } from './application/workspace/shared/workspaceService';
 import { AgentRegistry } from "./infrastructure/agent/agentRegistry";
 import { ClaudeCodeCliAdapter } from "./infrastructure/agent/adapters/claudeCodeCliAdapter";
+import { OpenHandsAdapter } from "./infrastructure/agent/adapters/openHandsAdapter";
 import type { CodeRewriteJobStore } from "./application/workspace/quality/codeRewriteJobOps";
 import type { FullCycleJobStore } from "./application/workspace/quality/fullCycleJobOps";
 import type { WorkspaceRepository } from "./domain/workspace/repository";
@@ -284,6 +285,11 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
     if (claudeAdapter.implemented) {
       codingAgentRegistry.register("claude-code-cli", () => new ClaudeCodeCliAdapter());
       log.info("coding agent registered", { type: claudeAdapter.agentType });
+    }
+    const openhandsAdapter = new OpenHandsAdapter({ env: options.env });
+    if (openhandsAdapter.implemented) {
+      codingAgentRegistry.register("openhands", () => new OpenHandsAdapter({ env: options.env }));
+      log.info("coding agent registered", { type: openhandsAdapter.agentType });
     }
   }
   const codeRewriteJobStore: CodeRewriteJobStore = { jobs: new Map() };
