@@ -22,7 +22,7 @@ export const VALID_ACTIONS = new Set([
 ]);
 
 export const VALID_INTENTS = new Set([
-  "collect-attachment", "clarify", "confirm-boundary", "plan", "qa", "release", "full-cycle", "general",
+  "collect-attachment", "clarify", "confirm-boundary", "plan", "qa", "release", "full-cycle", "general", "question",
 ]);
 
 /**

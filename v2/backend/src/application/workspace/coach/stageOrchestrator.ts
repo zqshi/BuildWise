@@ -242,11 +242,17 @@ export async function orchestrateCoachMessage(params: {
   const parsed = processAgentResponse(continuationResult, agentDef, recentSuggestedActions);
   if (!parsed.reply) return buildDegradedResponse(iterationId, "empty_reply", continuationResult.model);
 
-  const { insufficientArtifacts, committedArtifactTitles } = await attemptArtifactSynthesis({
-    repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts, policyGate: params.policyGate
-  });
-
-  const stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult, agentRunner, params.policyGate);
+  // T1 运行/执行态分离：纯对话意图（询问/普通讨论）只回应对话，不产交付物、不推进阶段
+  const isConversational = parsed.finalIntent === "general" || parsed.finalIntent === "question";
+  let insufficientArtifacts: string[] = [];
+  let committedArtifactTitles: string[] = [];
+  let stageAdvanceNote = "";
+  if (!isConversational) {
+    ({ insufficientArtifacts, committedArtifactTitles } = await attemptArtifactSynthesis({
+      repo, agentRunner, iterationId, gateResult, agentDef, declaredArtifacts: parsed.declaredArtifacts, policyGate: params.policyGate
+    }));
+    stageAdvanceNote = evaluateAndAdvanceStage(repo, iterationId, gateResult, agentRunner, params.policyGate);
+  }
 
   return assembleCoachResponse(iterationId, parsed, continuationResult, stageAdvanceNote, insufficientArtifacts, committedArtifactTitles);
 }

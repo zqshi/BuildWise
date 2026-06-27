@@ -40,7 +40,8 @@ const SHARED_OUTPUT_FORMAT = [
   "系统会基于当前分析数据自动合成该交付物的完整内容。",
   "对话正文只需简要说明要点和下一步建议（2-4句话），不要在正文中输出大段文档内容。",
   "",
-  "intent 可选值：collect-attachment / clarify / confirm-boundary / plan / qa / release / full-cycle / general",
+  "intent 可选值：collect-attachment / clarify / confirm-boundary / plan / qa / release / full-cycle / general / question",
+  "判断要点：用户在询问、讨论或确认理解（非推进）时标 question，系统只回应对话不产交付物、不推进阶段；只有需要合成交付物或推进阶段时才用对应推进类 intent。",
   "注意：自然语言回复部分不要包含任何 JSON、markdown 标记或结构化格式。coach 标记必须在回复最后一行，独占一行。"
 ].join("\n");
 
