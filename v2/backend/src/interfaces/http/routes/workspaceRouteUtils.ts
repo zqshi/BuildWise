@@ -33,6 +33,14 @@ export function currentTenantId(request: import("fastify").FastifyRequest) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
+/**
+ * 解析请求的租户身份：认证态(authTenantId) 优先，其次用户标识(x-user-id)，最后兜底值。
+ * 用于禁止从 query/body 取 tenantId 的场景（防租户间数据串），租户身份只能来自认证上下文。
+ */
+export function resolveAuthTenantId(request: import("fastify").FastifyRequest, fallback = "default"): string {
+  return currentTenantId(request) || currentUserId(request) || fallback;
+}
+
 function ensureAuthenticatedUser(request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) {
   const userId = currentUserId(request);
   if (!userId) {
