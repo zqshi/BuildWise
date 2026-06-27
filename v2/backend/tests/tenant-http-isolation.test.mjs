@@ -265,7 +265,10 @@ test("single account can switch between multiple tenants", async () => {
     url: "/api/v1/projects",
     headers: { ...authHeaders("shared-user", "pm"), "x-tenant-id": "owner-c" }
   });
-  assert.equal(invalidTenantSelection.response.statusCode, 403);
+  // v0.18.0: 读列表不应被 tenantId 门禁阻断——无权租户返回空列表而非 403
+  // (前端 localStorage 残留/失效 tenantId 时降级为空,不报「项目数据加载失败」)
+  assert.equal(invalidTenantSelection.response.statusCode, 200);
+  assert.deepEqual(invalidTenantSelection.payload, []);
 
   await app.close();
 });
@@ -311,6 +314,29 @@ test("assistant routes reject query/body tenantId forgery (auth tenant only)", a
   });
   const contentsB = msgsB.payload.map((m) => m.content).join("");
   assert.ok(contentsB.includes("secret-from-tenant-b"), "userA 伪造 body tenantId 的 clear 不得清掉 userB 的消息");
+
+  await app.close();
+});
+
+test("GET /projects tolerates foreign tenant id without 403 (returns empty list)", async () => {
+  const { app } = await createTenantApp();
+
+  await requestJson(app, {
+    method: "POST",
+    url: "/api/v1/projects",
+    headers: authHeaders("owner-a"),
+    payload: JSON.stringify({ name: "Owner A Project", description: "private" })
+  });
+
+  // 普通用户 user-x 带 owner-a 的 tenantId(残留/伪造),对 owner-a 无读权限
+  // 读列表应降级为空列表,不报 403 阻断用户(v0.18.0 缺陷 B 止血)
+  const res = await requestJson(app, {
+    method: "GET",
+    url: "/api/v1/projects",
+    headers: { ...authHeaders("user-x", "pm"), "x-tenant-id": "owner-a" }
+  });
+  assert.equal(res.response.statusCode, 200);
+  assert.deepEqual(res.payload, []);
 
   await app.close();
 });

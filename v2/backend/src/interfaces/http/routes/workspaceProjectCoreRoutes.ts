@@ -19,11 +19,10 @@ const ID_ITER_PARAM_SCHEMA = {
 async function handleListProjects(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
   const userId = currentUserId(request);
   if (!userId) { reply.code(401); return { message: "请先登录" }; }
+  // v0.18.0 缺陷B止血: 读列表不因 tenantId 门禁阻断。脏/失效 tenantId 经
+  // listProjectsForUser 内部 canRead(走具体 projectId 的 resolveTenantRole) 过滤后
+  // 自然降级为空列表,不越权、不阻断用户(避免「项目数据加载失败 403」)。
   const tenantId = currentTenantId(request);
-  if (tenantId) {
-    const tenantAccess = service.project.getTenantAccess(userId, tenantId);
-    if (!tenantAccess.canRead) { reply.code(403); return { message: "没有权限" }; }
-  }
   return service.project.listProjectsForUser(userId, tenantId || undefined);
 }
 
