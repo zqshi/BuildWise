@@ -1,4 +1,4 @@
-import type { AuthTenantSummary } from "./authTenantSession";
+import type { AuthTenantSummary } from "../infrastructure/auth/tenantSession";
 import { fetchJSON } from "../infrastructure/http/fetchJSON";
 import { API_BASE, API_PREFIX } from "./workspaceApiCore";
 

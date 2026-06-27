@@ -15,7 +15,7 @@ import {
   resolveCurrentTenant,
   resolveCurrentTenantId,
   type AuthTenantSummary
-} from "./authTenantSession";
+} from "../infrastructure/auth/tenantSession";
 
 /* ── helpers ── */
 
@@ -259,6 +259,13 @@ function useAuthEffects(
     window.addEventListener("buildwise:auth-expired", handleExpired);
     return () => window.removeEventListener("buildwise:auth-expired", handleExpired);
   }, [resetAuthState]);
+
+  // 租户状态可能失效(403): 拉最新 tenants 修正本地缓存的脏 tenantId (v0.18.0 缺陷B治本)
+  useEffect(() => {
+    const handleStale = () => { refreshSession().catch(() => { /* refreshSession 内部已处理失败 */ }); };
+    window.addEventListener("buildwise:tenant-stale", handleStale);
+    return () => window.removeEventListener("buildwise:tenant-stale", handleStale);
+  }, [refreshSession]);
 }
 
 /* ── sub-hook: login handlers ── */

@@ -1,6 +1,6 @@
 import { memo, type RefObject } from "react";
 import { canAccessGovernanceEntries } from "../governance/permissionSettingsModel";
-import type { AuthTenantSummary } from "../../app/authTenantSession";
+import type { AuthTenantSummary } from "../../infrastructure/auth/tenantSession";
 
 type DockSidebarProps = {
   activeView: "dashboard" | "projects" | "permissions";
