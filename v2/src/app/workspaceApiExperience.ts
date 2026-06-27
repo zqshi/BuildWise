@@ -43,11 +43,11 @@ export async function triggerExperienceScan(projectId: number) {
   });
 }
 
-export async function searchExperienceAcrossProjects(query: string, tenantId: string) {
-  const params = new URLSearchParams({ q: query, tenantId });
+export async function searchExperienceAcrossProjects(query: string) {
+  const params = new URLSearchParams({ q: query });
   return fetchJSON<ExperienceSearchResult[]>(`${API_BASE}${API_PREFIX}/experience/search?${params}`);
 }
 
-export async function fetchCrossProjectInsights(tenantId: string) {
-  return fetchJSON<CrossProjectInsightsReport>(`${API_BASE}${API_PREFIX}/experience/insights?tenantId=${tenantId}`);
+export async function fetchCrossProjectInsights() {
+  return fetchJSON<CrossProjectInsightsReport>(`${API_BASE}${API_PREFIX}/experience/insights`);
 }
