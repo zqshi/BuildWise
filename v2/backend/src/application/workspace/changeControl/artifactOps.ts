@@ -4,6 +4,7 @@ import { normalizeIteration } from '../shared/workspaceSupport';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { artifactStageOrder, ensureArtifactWorkflow, markDownstreamStale } from './artifactWorkflow';
 import { publishArtifactReferenceMessage, publishChangeImpactMessage } from './conversationPolicy';
+import { resolveAffectedCodeArtifactIds } from '../../../domain/workspace/changeImpactDetection';
 
 
 function notifyAdminConfirmation(
@@ -316,8 +317,10 @@ export function markCodeArtifactsStaleOp(
   const current = normalized.changeControl ?? defaultIterationChangeControl();
   const now = new Date().toISOString();
   const workflow = ensureArtifactWorkflow(normalized, current, now);
+  const artifactIds = resolveAffectedCodeArtifactIds(affectedPaths);
+  const targets = artifactIds.length > 0 ? artifactIds : ["frontend-code", "backend-code"];
   let marked = 0;
-  for (const id of ["frontend-code", "backend-code"]) {
+  for (const id of targets) {
     const item = workflow.items.find((i) => i.id === id);
     if (item && item.outputVersion > 0 && !item.stale) {
       item.stale = true;

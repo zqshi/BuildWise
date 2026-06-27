@@ -1,22 +1,34 @@
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type {
-  AttachmentUploadInput,
   AttachmentAnalysisReport,
-  Iteration,
-  IterationDeliveryPackageResult,
+  AttachmentUploadInput,
   IterationFullCycleRunInput,
   IterationFullCycleRunResponse,
   IterationReleaseReviewResponse,
-  IterationTestArtifactsGenerationResponse
+  IterationTestArtifactsGenerationResponse,
+  IterationDeliveryPackageResult
 } from '../../../domain/workspace/types';
 import type { FullCycleCheckpoint, FullCycleStepId, FullCycleStepState } from '../../../domain/workspace/iterationTypes';
 import type { AgentRunner } from '../shared/agentRunner';
-import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
+import { writeAuditLog } from '../shared/common';
 import { evaluatePolicyGateForFullCycleOp, appendPolicyExecutionLogOp } from '../governance/policyOps';
-import { syncArtifactForFullCycleStepOp, markCodeArtifactsStaleOp } from '../changeControl/artifactOps';
+import { markCodeArtifactsStaleOp } from '../changeControl/artifactOps';
 import type { ProjectPolicyRecord } from '../../../domain/workspace/types';
 import type { ChangeImpactResult } from '../../../domain/workspace/changeImpactDetection';
-import { executeStep, type FullCycleStepResults } from './fullCycleSteps';
+import { executeStep } from './fullCycleSteps';
+import { STEP_ORDER, STEP_LABELS } from './fullCycleStepConfig';
+import {
+  initCheckpoint,
+  persistCheckpoint,
+  checkPreconditions,
+  checkBlockedArtifactForStep,
+  syncArtifactForStep,
+  buildResponseFromCheckpoint,
+  shouldSkipStep,
+  handleBlockedStep,
+  type FullCycleResultAccumulator,
+  type FullCycleFlags
+} from './fullCycleCheckpointOps';
 
 type PublishResult = {
   ok: boolean;
@@ -25,336 +37,8 @@ type PublishResult = {
   blockers?: string[];
 };
 
-// ── Step labels for user-facing messages ──
-
-const STEP_LABELS: Record<FullCycleStepId, string> = {
-  "analysis": "材料分析",
-  "confirmation": "分析确认",
-  "ux-guidance": "UX 执行指引",
-  "frontend-rewrite": "前端改写",
-  "backend-rewrite": "后端改写",
-  "merge-rewrite": "改写合并",
-  "test-artifacts": "测试产物",
-  "release-review": "发布评审",
-  "delivery-package": "交付包生成",
-  "publish": "发布"
-};
-
-// ── Step execution order ──
-
-const STEP_ORDER: FullCycleStepId[] = [
-  "analysis",
-  "confirmation",
-  "ux-guidance",
-  "frontend-rewrite",
-  "backend-rewrite",
-  "merge-rewrite",
-  "test-artifacts",
-  "release-review",
-  "delivery-package",
-  "publish"
-];
-
-/** fullCycle 步骤 → 对应 artifact id 映射（基于 defaultArtifactWorkflow item source + step 产出）。
- *  空数组：该步无直接 artifact（confirmation 由 coreOps 写 analysis-report；merge-rewrite/publish 无直接制品）。 */
-const STEP_ARTIFACT_MAP: Record<FullCycleStepId, string[]> = {
-  "analysis": ["analysis-report"],
-  "confirmation": [],
-  "ux-guidance": ["design-spec"],
-  "frontend-rewrite": ["frontend-code"],
-  "backend-rewrite": ["backend-code"],
-  "merge-rewrite": [],
-  "test-artifacts": ["test-matrix"],
-  "release-review": ["release-review"],
-  "delivery-package": ["delivery-package"],
-  "publish": []
-};
-
-// ── Preconditions for each step ──
-
-type StepPrecondition = {
-  check: (iteration: Iteration, checkpoint: FullCycleCheckpoint) => boolean;
-  description: string;
-};
-
-const STEP_PRECONDITIONS: Record<FullCycleStepId, StepPrecondition[]> = {
-  "analysis": [
-    // analysis 需要有上传材料或继承基线；如果调用方指定 runAnalysis=false 则跳过，不在此处检查
-  ],
-  "confirmation": [
-    {
-      check: (it) => !!it.changeControl?.lastAnalysisAt,
-      description: "分析尚未完成"
-    }
-  ],
-  "ux-guidance": [
-    {
-      check: (it) => !!it.changeControl?.confirmedAt,
-      description: "分析尚未确认"
-    },
-    {
-      check: (it) => {
-        // 检查分析中是否已提取出领域知识（本体非空才能生成有意义的 UX 指引）
-        const entries = it.changeControl?.domainKnowledgeEntries;
-        return Array.isArray(entries) && entries.length > 0;
-      },
-      description: "本体中无领域知识条目，无法生成有意义的 UX 指引"
-    }
-  ],
-  "frontend-rewrite": [
-    {
-      check: (it) => !!it.changeControl?.confirmedAt,
-      description: "分析尚未确认"
-    },
-    {
-      check: (it) => !!(it.changeControl?.boundary?.requirementRefs?.length),
-      description: "边界尚未锁定"
-    },
-    {
-      check: (it) => !!(it.changeControl?.boundary?.codePaths?.length),
-      description: "边界中无代码路径"
-    }
-  ],
-  "backend-rewrite": [
-    {
-      check: (it) => !!it.changeControl?.confirmedAt,
-      description: "分析尚未确认"
-    },
-    {
-      check: (it) => !!(it.changeControl?.boundary?.requirementRefs?.length),
-      description: "边界尚未锁定"
-    },
-    {
-      check: (it) => !!(it.changeControl?.boundary?.codePaths?.length),
-      description: "边界中无代码路径"
-    }
-  ],
-  "merge-rewrite": [
-    {
-      check: (_it, cp) => {
-        return cp.steps["frontend-rewrite"].status === "completed"
-            || cp.steps["backend-rewrite"].status === "completed";
-      },
-      description: "前端和后端改写均未完成"
-    }
-  ],
-  "test-artifacts": [
-    {
-      check: (it) => !!it.changeControl?.confirmedAt,
-      description: "分析尚未确认"
-    },
-    {
-      check: (it) => {
-        const ts = it.changeControl?.traceabilitySnapshot;
-        if (!ts) return false;
-        const coverage = ts.requirementCoverage ?? 0;
-        return coverage > 0;
-      },
-      description: "需求追溯覆盖率为 0，无法生成有效测试产物"
-    }
-  ],
-  "release-review": [
-    {
-      check: (it) => !!it.changeControl?.lastAnalysisAt,
-      description: "分析尚未完成"
-    },
-    {
-      check: (it) => {
-        const matrix = it.changeControl?.generatedTestMatrix;
-        if (!Array.isArray(matrix) || matrix.length === 0) return true; // 无测试矩阵时不阻断
-        return matrix.some((tc) => tc.executionStatus === "passed");
-      },
-      description: "测试矩阵中无通过用例，发布评审缺少质量证据"
-    }
-  ],
-  "delivery-package": [
-    {
-      check: (_it, cp) => cp.steps["release-review"].status === "completed",
-      description: "发布评审尚未完成"
-    },
-    {
-      check: (it) => it.changeControl?.lastReleaseReviewDecision !== "block",
-      description: "发布评审结论为阻塞，不允许生成交付包"
-    }
-  ],
-  "publish": [
-    {
-      check: (_it, cp) => cp.steps["delivery-package"].status === "completed",
-      description: "交付包尚未生成"
-    }
-  ]
-};
-
-// ── Checkpoint helpers ──
-
-function initStepState(): FullCycleStepState {
-  return {
-    status: "pending",
-    note: "",
-    completedAt: "",
-    failedAt: "",
-    missingPreconditions: [],
-    retryable: false
-  };
-}
-
-function initCheckpoint(now: string): FullCycleCheckpoint {
-  const steps = {} as Record<FullCycleStepId, FullCycleStepState>;
-  for (const stepId of STEP_ORDER) {
-    steps[stepId] = initStepState();
-  }
-  return {
-    startedAt: now,
-    lastUpdatedAt: now,
-    steps,
-    currentStep: null,
-    resumable: false,
-    completedAt: ""
-  };
-}
-
-function persistCheckpoint(repo: WorkspaceRepository, iterationId: number, checkpoint: FullCycleCheckpoint) {
-  const iteration = repo.findIteration(iterationId);
-  if (!iteration) return;
-  const cc = iteration.changeControl ?? defaultIterationChangeControl();
-  iteration.changeControl = { ...cc, fullCycleCheckpoint: checkpoint };
-  repo.updateIteration(iteration);
-}
-
-function checkPreconditions(
-  stepId: FullCycleStepId,
-  iteration: Iteration,
-  checkpoint: FullCycleCheckpoint
-): string[] {
-  const preconditions = STEP_PRECONDITIONS[stepId];
-  return preconditions
-    .filter(p => !p.check(iteration, checkpoint))
-    .map(p => p.description);
-}
-
-/** T6 反向互查：coach 手动标 blocked 的 artifact，fullCycle 推进该步时尊重阻断。返回阻断原因或 null。 */
-function checkBlockedArtifactForStep(stepId: FullCycleStepId, iteration: Iteration): string | null {
-  const artifactIds = STEP_ARTIFACT_MAP[stepId] ?? [];
-  if (artifactIds.length === 0) return null;
-  const items = iteration.changeControl?.artifactWorkflow?.items ?? [];
-  for (const id of artifactIds) {
-    const item = items.find((i) => i.id === id);
-    if (item?.gateStatus === "blocked") {
-      return `制品「${item.title || id}」被门禁阻断`;
-    }
-  }
-  return null;
-}
-
-/** T6 正向同步：步骤完成后同步对应 artifact 状态（产出标记+门禁通过），与 checkpoint 双状态一致。 */
-function syncArtifactForStep(repo: WorkspaceRepository, iterationId: number, stepId: FullCycleStepId): void {
-  const artifactIds = STEP_ARTIFACT_MAP[stepId] ?? [];
-  if (artifactIds.length === 0) return;
-  syncArtifactForFullCycleStepOp(repo, iterationId, artifactIds);
-}
-
-/**
- * Map checkpoint state to the legacy IterationFullCycleRunResponse format
- * so the frontend can consume it without breaking changes.
- */
-function buildResponseFromCheckpoint(
-  iterationId: number,
-  checkpoint: FullCycleCheckpoint,
-  blockers: string[],
-  warnings: string[],
-  results: {
-    analysisReport: AttachmentAnalysisReport | null;
-    rewriteResult: IterationFullCycleRunResponse["rewriteResult"];
-    testArtifactsResult: IterationTestArtifactsGenerationResponse | null;
-    releaseReview: IterationReleaseReviewResponse | null;
-    deliveryPackageResult: IterationDeliveryPackageResult | null;
-    publishResult: IterationFullCycleRunResponse["publishResult"];
-  }
-): IterationFullCycleRunResponse {
-  const mapStatus = (state: FullCycleStepState): "completed" | "skipped" | "failed" | "blocked" => {
-    if (state.status === "pending") return "skipped";
-    return state.status;
-  };
-  const mapStatusNoBlock = (state: FullCycleStepState): "completed" | "skipped" | "failed" => {
-    if (state.status === "pending") return "skipped";
-    if (state.status === "blocked") return "failed";
-    return state.status;
-  };
-
-  const hasFailed = STEP_ORDER.some(s => checkpoint.steps[s].status === "failed");
-  const hasBlocked = STEP_ORDER.some(s => checkpoint.steps[s].status === "blocked");
-  const hasPending = STEP_ORDER.some(s => checkpoint.steps[s].status === "pending");
-  let status: IterationFullCycleRunResponse["status"];
-  if (hasFailed) status = "failed";
-  else if (hasBlocked) status = "blocked";
-  else if (hasPending || warnings.length > 0) status = "partial";
-  else status = "completed";
-
-  return {
-    iterationId,
-    startedAt: checkpoint.startedAt,
-    finishedAt: checkpoint.lastUpdatedAt,
-    status,
-    steps: {
-      analysis: { status: mapStatusNoBlock(checkpoint.steps.analysis), note: checkpoint.steps.analysis.note },
-      confirmation: { status: mapStatus(checkpoint.steps.confirmation), note: checkpoint.steps.confirmation.note },
-      frontendRewrite: { status: mapStatus(checkpoint.steps["frontend-rewrite"]), note: checkpoint.steps["frontend-rewrite"].note },
-      backendRewrite: { status: mapStatus(checkpoint.steps["backend-rewrite"]), note: checkpoint.steps["backend-rewrite"].note },
-      rewrite: { status: mapStatus(checkpoint.steps["merge-rewrite"]), note: checkpoint.steps["merge-rewrite"].note },
-      testArtifacts: { status: mapStatusNoBlock(checkpoint.steps["test-artifacts"]), note: checkpoint.steps["test-artifacts"].note },
-      releaseReview: { status: mapStatusNoBlock(checkpoint.steps["release-review"]), note: checkpoint.steps["release-review"].note },
-      deliveryPackage: { status: mapStatusNoBlock(checkpoint.steps["delivery-package"]), note: checkpoint.steps["delivery-package"].note },
-      publish: { status: mapStatus(checkpoint.steps.publish), note: checkpoint.steps.publish.note }
-    },
-    blockers,
-    warnings,
-    analysisReport: results.analysisReport,
-    rewriteResult: results.rewriteResult,
-    testArtifactsResult: results.testArtifactsResult,
-    releaseReview: results.releaseReview,
-    deliveryPackageResult: results.deliveryPackageResult,
-    publishResult: results.publishResult,
-    checkpoint
-  };
-}
-
-function shouldSkipStep(stepId: FullCycleStepId, flags: FullCycleFlags): string | null {
-  if (stepId === "analysis" && !flags.runAnalysis) return "按参数跳过分析。";
-  if (stepId === "confirmation" && !flags.autoConfirm) return "按参数跳过自动确认。";
-  if (stepId === "test-artifacts" && !flags.generateTestArtifacts) return "按参数跳过测试产物生成。";
-  if (stepId === "release-review" && !flags.refreshReleaseReview) return "按参数跳过发布评审刷新。";
-  if (stepId === "delivery-package" && !flags.generateDeliveryPackage) return "按参数跳过交付包生成。";
-  if (stepId === "publish" && !flags.publishEnabled) return "按参数跳过发布。";
-  return null;
-}
-
-function handleBlockedStep(
-  stepId: FullCycleStepId,
-  stepState: FullCycleStepState,
-  missing: string[],
-  checkpoint: FullCycleCheckpoint,
-  repo: WorkspaceRepository,
-  iterationId: number,
-  blockers: string[],
-  warnings: string[],
-  results: FullCycleResultAccumulator,
-  notePrefix = "前置条件不满足"
-): IterationFullCycleRunResponse {
-  stepState.status = "blocked";
-  stepState.note = `${notePrefix}：${missing.join("；")}`;
-  stepState.missingPreconditions = missing;
-  stepState.retryable = true;
-  checkpoint.currentStep = stepId;
-  checkpoint.resumable = true;
-  checkpoint.lastUpdatedAt = new Date().toISOString();
-  persistCheckpoint(repo, iterationId, checkpoint);
-  writeAuditLog(repo, "fullcycle.checkpoint", `iteration:${iterationId}`, `blocked_at=${stepId};missing=${missing.join(",")}`);
-  return buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
-}
-
-type FullCycleResultAccumulator = FullCycleStepResults;
-
-export type BuildResponseFn = typeof buildResponseFromCheckpoint;
+export type { BuildResponseFn, FullCycleFlags } from './fullCycleCheckpointOps';
+export { STEP_LABELS } from './fullCycleStepConfig';
 
 export type FullCycleRunParams = {
   repo: WorkspaceRepository;
@@ -393,15 +77,6 @@ export type FullCycleRunParams = {
   activePolicy?: ProjectPolicyRecord | null;
   /** T7b: changeImpact 检测 delegate（改写步骤后检测对本体的实时影响）；缺省则不检测 */
   detectChangeImpact?: (iterationId: number, message: string) => ChangeImpactResult;
-};
-
-type FullCycleFlags = {
-  runAnalysis: boolean;
-  autoConfirm: boolean;
-  generateTestArtifacts: boolean;
-  refreshReleaseReview: boolean;
-  generateDeliveryPackage: boolean;
-  publishEnabled: boolean;
 };
 
 function resolveFullCycleFlags(input: IterationFullCycleRunInput): FullCycleFlags {
@@ -564,8 +239,6 @@ async function executeSingleStep(
 
 // ── Main entry point ──
 
-export { STEP_LABELS };
-
 export async function runIterationFullCycleOp(params: FullCycleRunParams): Promise<IterationFullCycleRunResponse | null> {
   const { repo, iterationId, input } = params;
   const iteration = repo.findIteration(iterationId);
@@ -606,4 +279,3 @@ export async function runIterationFullCycleOp(params: FullCycleRunParams): Promi
     return buildResponseFromCheckpoint(iterationId, checkpoint, blockers, warnings, results);
   }
 }
-
