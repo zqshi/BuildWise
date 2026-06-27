@@ -269,3 +269,48 @@ test("single account can switch between multiple tenants", async () => {
 
   await app.close();
 });
+
+test("assistant routes reject query/body tenantId forgery (auth tenant only)", async () => {
+  const { app } = await createTenantApp();
+
+  const chatA = await requestJson(app, {
+    method: "POST",
+    url: "/api/v1/assistant/chat",
+    headers: authHeaders("userA"),
+    payload: JSON.stringify({ message: "secret-from-tenant-a" })
+  });
+  assert.equal(chatA.response.statusCode, 200);
+
+  const chatB = await requestJson(app, {
+    method: "POST",
+    url: "/api/v1/assistant/chat",
+    headers: authHeaders("userB"),
+    payload: JSON.stringify({ message: "secret-from-tenant-b" })
+  });
+  assert.equal(chatB.response.statusCode, 200);
+
+  const msgsForged = await requestJson(app, {
+    method: "GET",
+    url: "/api/v1/assistant/messages?tenantId=userB",
+    headers: authHeaders("userA")
+  });
+  const forgedContents = msgsForged.payload.map((m) => m.content).join("");
+  assert.ok(forgedContents.includes("secret-from-tenant-a"), "应包含租户A自己的消息");
+  assert.ok(!forgedContents.includes("secret-from-tenant-b"), "不得返回租户B的消息（query 伪造 tenantId 应被忽略）");
+
+  await requestJson(app, {
+    method: "POST",
+    url: "/api/v1/assistant/clear",
+    headers: authHeaders("userA"),
+    payload: JSON.stringify({ tenantId: "userB" })
+  });
+  const msgsB = await requestJson(app, {
+    method: "GET",
+    url: "/api/v1/assistant/messages?tenantId=userB",
+    headers: authHeaders("userB")
+  });
+  const contentsB = msgsB.payload.map((m) => m.content).join("");
+  assert.ok(contentsB.includes("secret-from-tenant-b"), "userA 伪造 body tenantId 的 clear 不得清掉 userB 的消息");
+
+  await app.close();
+});
