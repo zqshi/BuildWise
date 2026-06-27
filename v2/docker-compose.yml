@@ -11,8 +11,17 @@ services:
       - NODE_ENV=production
       - HOST=0.0.0.0
       - PORT=5055
+      # T2.3: 项目 repo 与 OpenHands agent 共享 repo-data 卷（/buildwise-repos），
+      # agent 在此路径改代码，BuildWise 后端 git diff 同路径访问
+      - PROJECT_REPO_ROOT=/buildwise-repos
+      - OPENHANDS_BASE_URL=http://openhands:8000
+      - OPENHANDS_API_KEY=${OPENHANDS_API_KEY}
     volumes:
       - backend-data:/app/data
+      - repo-data:/buildwise-repos
+    depends_on:
+      openhands:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5055/ready"]
@@ -31,6 +40,40 @@ services:
         limits:
           memory: 1g
           cpus: "1.0"
+
+  # T2.3: OpenHands agent-server（常驻 REST，编码 agent 后端）
+  # 镜像含 backend+frontend 全栈，adapter 调 http://openhands:8000 REST API。
+  # LLM 配置通过 adapter 请求体 agent.llm 传（非 env），见 openHandsAdapter.ts。
+  # 健康检查 /api/alive（接续点调研；若镜像无此端点，启动时调整）。
+  openhands:
+    image: ghcr.io/openhands/agent-canvas:latest
+    ports:
+      - "${OPENHANDS_PORT:-8000}:8000"
+    environment:
+      - LOCAL_BACKEND_API_KEY=${OPENHANDS_API_KEY}
+      - OH_SECRET_KEY=${OH_SECRET_KEY:-}
+    volumes:
+      - openhands-state:/home/openhands/.openhands
+      - repo-data:/buildwise-repos
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/api/alive"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
 
   frontend:
     build:
@@ -59,6 +102,8 @@ services:
 
 volumes:
   backend-data:
+  openhands-state:
+  repo-data:
 
 networks:
   internal:
