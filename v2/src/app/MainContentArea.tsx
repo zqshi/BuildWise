@@ -38,7 +38,6 @@ export function MainContentArea({
       {showAssistantWorkspace ? (
         <GlobalAssistantPanel
           isAdmin={controller.currentRole === "owner"}
-          tenantId={controller.currentTenantId}
           onBack={onCloseAssistantWorkspace}
         />
       ) : controller.activeView === "dashboard" ? (
@@ -48,12 +47,7 @@ export function MainContentArea({
           <PermissionSettingsPage currentRole={controller.currentRole} />
         </Suspense>
       ) : (
-        <ProjectsWorkspaceConnector
-          controller={controller}
-          showAnalysisPanel={controller.showAnalysisPanel}
-          onOpenAnalysisPanel={() => controller.setShowAnalysisPanel(true)}
-          onCloseAnalysisPanel={() => controller.setShowAnalysisPanel(false)}
-        />
+        <ProjectsWorkspaceConnector />
       )}
     </ViewErrorBoundary>
   );

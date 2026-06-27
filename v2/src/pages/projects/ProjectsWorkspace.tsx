@@ -1,35 +1,20 @@
-import { useMemo, useState, type ChangeEvent, type RefObject } from "react";
+import { useMemo, useState } from "react";
 import type { DeploymentRecord, OpsMetricsPayload, TemplateRunHistory, VersionSnapshot } from "../../domain/workspace/platformTypes";
-import type {
-  AttachmentAnalysisReport,
-  ChatSendStatus,
-  Iteration,
-  IterationContextPayload,
-  IterationMessage,
-  IterationVisualEditResponse,
-  IterationStateMachinePayload,
-  IterationStatus,
-  Project,
-  StatusPayload
-} from "../../domain/workspace/types";
 import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
-import type { UploadAnalysisProgress, UploadedAttachmentMeta } from "../../domain/workspace/analysisTypes";
-import type { IterationArtifactStage } from "../../domain/workspace/iterationTypes";
-import type { FullCycleJobRef } from "../../contexts/ChatContext";
+import { useAppControllerContext } from "../../contexts/AppControllerContext";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
 import { ProjectsWorkspaceEmptyState } from "./ProjectsWorkspaceEmptyState";
 import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
 
+/**
+ * ProjectsWorkspaceProps — 收窄到 controller 无法提供的少数可选展示字段。
+ *
+ * 其余状态/回调全部从 AppControllerContext 获取（见 useAppControllerContext）。
+ * modelPageCount/modelRuleCount/modelEntityCount/modelRelations 来自本体元数据视图，
+ * 当前上层未传入（使用默认值），保留可选以备后续接入。
+ * onCreateDeployment/onTransitionDeployment 同理保留可选。
+ */
 type ProjectsWorkspaceProps = {
-  projects: Project[];
-  projectsHydrated: boolean;
-  currentProjectId: number | null;
-  currentRole: "owner" | "pm" | "developer" | "qa" | "viewer";
-  currentProject: Project | null;
-  currentIteration: Iteration | null;
-  iterations: Iteration[];
-  projectPanelMode: "project" | "iteration";
-  projectProgress: number;
   modelPageCount?: number;
   modelRuleCount?: number;
   modelEntityCount?: number;
@@ -38,100 +23,11 @@ type ProjectsWorkspaceProps = {
   templateRuns?: TemplateRunHistory[];
   deployments?: DeploymentRecord[];
   opsMetrics?: OpsMetricsPayload | null;
-  status: StatusPayload | null;
-  error: string | null;
-  uploadedFile: UploadedAttachmentMeta | null;
-  analysisReport: AttachmentAnalysisReport | null;
-  showAnalysisPanel: boolean;
-  isAnalyzingAttachment: boolean;
-  lastUploadFailed: boolean;
-  uploadAnalysisProgress: UploadAnalysisProgress | null;
-  uploadToastMessage: string | null;
-  contextData: IterationContextPayload | null;
-  stateMachine: IterationStateMachinePayload | null;
-  chatMessages: IterationMessage[];
-  chatSendStatus: ChatSendStatus;
-  fullCycleJob: FullCycleJobRef | null;
-  chatInput: string;
-  fileInputRef: RefObject<HTMLInputElement>;
-  onShowCreateProject: () => void;
-  onShowCreateIteration: () => void;
-  onDeleteProject: (projectId: number) => Promise<void>;
-  onDeleteIteration: (iterationId: number) => Promise<void>;
-  onUploadClick: () => void;
-  onOpenAnalysisPanel: () => void;
-  onCloseAnalysisPanel: () => void;
-  onClearUploadToast: () => void;
-  onSelectProject: (projectId: number) => void;
-  onEnterIteration: (iterationId: number) => void;
-  onSwitchToProjectPanel: () => void;
-  onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
-  onUploadFiles: (files: File[]) => void;
-  onRetryUpload: () => void | Promise<void>;
-  onChatInputChange: (value: string) => void;
-  onChatSend: (options?: {
-    overrideText?: string;
-    prototypeTarget?: string | null;
-    prototypeSummary?: string;
-    interactionContext?: {
-      mode?: "html" | "image" | "prototype";
-      target?: string;
-      summary?: string;
-      html?: {
-        selector?: string;
-        tag?: string;
-        text?: string;
-        styles?: Record<string, string>;
-      };
-    };
-  }) => Promise<IterationVisualEditResponse | null>;
-  onCancelFullCycle: () => void;
-  onRetryFullCycle: () => void;
-  onUpdateClarificationDraft: (resolvedQuestions: string[]) => Promise<void> | void;
-  onConfirmIterationAnalysis: (payload: {
-    accurate: boolean;
-    note?: string;
-    decisionEvent?: "understanding-accurate" | "understanding-inaccurate";
-    resolvedClarificationQuestions?: string[];
-    boundary?: {
-      requirementRefs?: string[];
-      componentRefs?: string[];
-      codePaths?: string[];
-      note?: string;
-    };
-  }) => Promise<void> | void;
-  onUpdateIterationBoundary: (payload: {
-    requirementRefs?: string[];
-    componentRefs?: string[];
-    codePaths?: string[];
-    note?: string;
-  }) => Promise<void> | void;
-  onUpdateTestMatrixExecution: (
-    updates: Array<{ caseId: string; status: "pending" | "passed" | "failed" | "blocked" | "skipped"; by?: string; note?: string }>
-  ) => Promise<void> | void;
-  onGenerateTestArtifacts: () => Promise<void> | void;
-  onRefreshReleaseReview: () => Promise<void> | void;
-  onSaveArtifactDraft: (artifactId: string, payload: { content: string; media?: string[]; actor?: string }) => Promise<void> | void;
-  onCommitArtifact: (artifactId: string, payload: { actor?: string; summary?: string; evidence?: string[]; source?: string }) => Promise<void> | void;
-  onConfirmArtifact: (artifactId: string, payload: { actor?: string; passed?: boolean; note?: string }) => Promise<void> | void;
-  onAppendArtifactToChat: (artifactId: string, payload?: { actor?: string; prompt?: string }) => Promise<void> | void;
-  onTransitionArtifactStage: (payload: { toStage: IterationArtifactStage; actor?: string; note?: string }) => Promise<void> | void;
-  onTransitionState: (toStatus: IterationStatus) => void;
   onCreateDeployment?: (environment: "staging" | "production") => Promise<void>;
   onTransitionDeployment?: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
-  onPatchUploadedHtmlPreview?: (path: string, content: string) => void;
 };
 
 export function ProjectsWorkspace({
-  projects,
-  projectsHydrated,
-  currentProjectId,
-  currentRole,
-  currentProject,
-  currentIteration,
-  iterations,
-  projectPanelMode,
-  projectProgress,
   modelPageCount = 0,
   modelRuleCount = 0,
   modelEntityCount = 0,
@@ -140,56 +36,86 @@ export function ProjectsWorkspace({
   templateRuns: _templateRuns = [],
   deployments: _deployments = [],
   opsMetrics = null,
-  status,
-  error,
-  uploadedFile,
-  analysisReport,
-  showAnalysisPanel,
-  isAnalyzingAttachment,
-  lastUploadFailed,
-  uploadAnalysisProgress,
-  uploadToastMessage,
-  contextData,
-  stateMachine,
-  chatMessages,
-  chatSendStatus,
-  fullCycleJob,
-  chatInput,
-  fileInputRef,
-  onShowCreateProject,
-  onShowCreateIteration,
-  onDeleteProject,
-  onDeleteIteration,
-  onUploadClick,
-  onOpenAnalysisPanel,
-  onCloseAnalysisPanel,
-  onClearUploadToast,
-  onSelectProject,
-  onEnterIteration,
-  onSwitchToProjectPanel,
-  onUpload,
-  onUploadFiles,
-  onRetryUpload,
-  onChatInputChange,
-  onChatSend,
-  onCancelFullCycle,
-  onRetryFullCycle,
-  onUpdateClarificationDraft,
-  onConfirmIterationAnalysis,
-  onUpdateIterationBoundary,
-  onUpdateTestMatrixExecution,
-  onGenerateTestArtifacts,
-  onRefreshReleaseReview,
-  onSaveArtifactDraft,
-  onCommitArtifact,
-  onConfirmArtifact,
-  onAppendArtifactToChat,
-  onTransitionArtifactStage,
-  onTransitionState,
   onCreateDeployment: _onCreateDeployment,
   onTransitionDeployment: _onTransitionDeployment,
-  onPatchUploadedHtmlPreview
 }: ProjectsWorkspaceProps) {
+  const c = useAppControllerContext();
+
+  const projects = c.projects;
+  const projectsHydrated = c.projectsHydrated;
+  const currentProjectId = c.currentProjectId;
+  const currentRole = c.currentRole;
+  const currentProject = c.currentProject;
+  const currentIteration = c.currentIteration;
+  const iterations = c.iterations;
+  const projectPanelMode = c.projectPanelMode;
+  const projectProgress = c.projectProgress;
+  const status = c.status;
+  const error = c.error;
+  const uploadedFile = c.uploadedFile;
+  const analysisReport = c.analysisReport;
+  const showAnalysisPanel = c.showAnalysisPanel;
+  const isAnalyzingAttachment = c.isAnalyzingAttachment;
+  const lastUploadFailed = c.lastUploadFailed;
+  const uploadAnalysisProgress = c.uploadAnalysisProgress;
+  const uploadToastMessage = c.uploadToastMessage;
+  const contextData = c.contextData;
+  const stateMachine = c.stateMachine;
+  const chatMessages = c.chatMessages;
+  const chatSendStatus = c.chatSendStatus;
+  const fullCycleJob = c.fullCycleJob;
+  const chatInput = c.chatInput;
+  const fileInputRef = c.fileInputRef;
+
+  const onShowCreateProject = () => {
+    c.setError(null);
+    c.setShowCreateProject(true);
+  };
+  const onShowCreateIteration = () => {
+    c.setError(null);
+    c.setShowCreateIteration(true);
+  };
+  const onDeleteProject = c.handleDeleteProject;
+  const onDeleteIteration = c.handleDeleteIteration;
+  const onUploadClick = c.handleUploadClick;
+  const onOpenAnalysisPanel = () => c.setShowAnalysisPanel(true);
+  const onCloseAnalysisPanel = () => c.setShowAnalysisPanel(false);
+  const onClearUploadToast = () => c.setUploadToastMessage(null);
+  const onSelectProject = c.handleSelectProject;
+  const onEnterIteration = c.handleEnterIteration;
+  const onSwitchToProjectPanel = () => {
+    c.setShowAnalysisPanel(false);
+    c.setProjectPanelMode("project");
+  };
+  const onUpload = c.handleUpload;
+  const onUploadFiles = c.uploadFiles;
+  const onRetryUpload = c.handleRetryUpload;
+  const onChatInputChange = c.setChatInput;
+  const onChatSend = c.handleSend;
+  const onCancelFullCycle = c.onCancelFullCycle;
+  const onRetryFullCycle = c.onRetryFullCycle;
+  const onUpdateClarificationDraft = c.handleUpdateClarificationDraft;
+  const onConfirmIterationAnalysis = c.handleConfirmIterationAnalysis;
+  const onUpdateIterationBoundary = c.handleUpdateIterationBoundary;
+  const onUpdateTestMatrixExecution = c.handleUpdateTestMatrixExecution;
+  const onGenerateTestArtifacts = c.handleGenerateTestArtifacts;
+  const onRefreshReleaseReview = c.handleRefreshReleaseReview;
+  const onSaveArtifactDraft = c.handleSaveArtifactDraft;
+  const onCommitArtifact = c.handleCommitArtifact;
+  const onConfirmArtifact = c.handleConfirmArtifact;
+  const onAppendArtifactToChat = c.handleAppendArtifactToChat;
+  const onTransitionArtifactStage = c.handleTransitionArtifactStage;
+  const onTransitionState = c.handleTransitionState;
+  const onPatchUploadedHtmlPreview = (path: string, content: string) => {
+    c.setUploadedFile((prev) => {
+      if (!prev) return prev;
+      const nextPreviews = prev.htmlPreviews.map((item) =>
+        item.path === path ? { ...item, content } : item
+      );
+      return { ...prev, htmlPreviews: nextPreviews };
+    });
+  };
+
   const hasProjects = projects.length > 0;
   const [projectSearch, setProjectSearch] = useState("");
   const showProjectsLoading = !projectsHydrated && !hasProjects;

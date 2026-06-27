@@ -15,22 +15,21 @@ export type AssistantChatResponse = {
   messages: AssistantMessage[];
 };
 
-export async function sendAssistantMessage(tenantId: string, message: string) {
+export async function sendAssistantMessage(message: string) {
   return fetchJSON<AssistantChatResponse>(`${API_BASE}${API_PREFIX}/assistant/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tenantId, message })
+    body: JSON.stringify({ message })
   }, 60000);
 }
 
-export async function fetchAssistantMessages(tenantId: string, limit = 50) {
-  return fetchJSON<AssistantMessage[]>(`${API_BASE}${API_PREFIX}/assistant/messages?tenantId=${encodeURIComponent(tenantId)}&limit=${limit}`);
+export async function fetchAssistantMessages(limit = 50) {
+  return fetchJSON<AssistantMessage[]>(`${API_BASE}${API_PREFIX}/assistant/messages?limit=${limit}`);
 }
 
-export async function clearAssistantMessages(tenantId: string) {
+export async function clearAssistantMessages() {
   return fetchJSON<{ ok: boolean }>(`${API_BASE}${API_PREFIX}/assistant/clear`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tenantId })
+    headers: { "Content-Type": "application/json" }
   });
 }

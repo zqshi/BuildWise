@@ -1,0 +1,18 @@
+.msg-meta {
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:var(--text-2xs);
+  color:var(--text-muted);
+  margin-bottom:4px
+}
+
+.msg-user .msg-meta {
+  justify-content:flex-end
+}
+
+.msg.event-upload,.msg.event-analysis {
+  border-style:dashed
+}
+
+/* ── upload file card ──────────────────────────────────────────────── */

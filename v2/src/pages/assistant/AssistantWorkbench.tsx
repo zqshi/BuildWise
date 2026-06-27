@@ -10,7 +10,6 @@ function renderMarkdown(text: string): string {
 }
 
 type AssistantWorkbenchProps = {
-  tenantId: string;
   onBack: () => void;
 };
 
@@ -21,7 +20,7 @@ const SUGGESTIONS = [
   "把自动提取的置信度阈值调到 80",
 ];
 
-export function AssistantWorkbench({ tenantId, onBack }: AssistantWorkbenchProps) {
+export function AssistantWorkbench({ onBack }: AssistantWorkbenchProps) {
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -29,11 +28,11 @@ export function AssistantWorkbench({ tenantId, onBack }: AssistantWorkbenchProps
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchAssistantMessages(tenantId).then((msgs) => {
+    fetchAssistantMessages().then((msgs) => {
       setMessages(msgs);
       setLoaded(true);
     }).catch(() => setLoaded(true));
-  }, [tenantId]);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -49,7 +48,7 @@ export function AssistantWorkbench({ tenantId, onBack }: AssistantWorkbenchProps
 
     const optimistic: AssistantMessage = {
       id: Date.now(),
-      tenantId,
+      tenantId: "",
       role: "user",
       content: text,
       metadata: {},
@@ -58,12 +57,12 @@ export function AssistantWorkbench({ tenantId, onBack }: AssistantWorkbenchProps
     setMessages((prev) => [...prev, optimistic]);
 
     try {
-      const resp = await sendAssistantMessage(tenantId, text);
+      const resp = await sendAssistantMessage(text);
       setMessages(resp.messages);
     } catch {
       setMessages((prev) => [...prev, {
         id: Date.now() + 1,
-        tenantId,
+        tenantId: "",
         role: "assistant",
         content: "网络异常，请稍后重试。",
         metadata: {},
@@ -82,7 +81,7 @@ export function AssistantWorkbench({ tenantId, onBack }: AssistantWorkbenchProps
   };
 
   const handleClear = async () => {
-    await clearAssistantMessages(tenantId);
+    await clearAssistantMessages();
     setMessages([]);
   };
 
