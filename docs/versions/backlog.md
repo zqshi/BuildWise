@@ -48,6 +48,8 @@
 
 | 债务 | 优先级 | 现状/计划 |
 |------|--------|----------|
-| 前端 Props Drilling（ProjectsWorkspace 50+ props） | P2 | 待评估，3-22 诊断遗留 |
-| 持久化 JSON 文件无版本号、多租户字符串约定隔离 | P1 | 待评估，3-22 诊断遗留；SQLite 已有迁移框架未全面切换 |
-| 19 个 per-prefix 超限文件（321-635 行，<800 硬限） | P3 | check-boundaries per-prefix 已降级为警告非阻断；各文件改动时拆分消警告 |
+| 前端 Props Drilling（ProjectsWorkspace 55 props） | P2 | v0.17.0 T5 处理（迁已有 7 个 Context 承载，不引入新状态库） |
+| 多租户数据串（assistant/experience 路由 tenantId 从 query/body 取） | P0 | v0.17.0 T1 修复（改从 authTenantId 取）；owner 分支收敛 + DB 层硬隔离留 v0.18.0 |
+| 持久化 JSON 无版本号 | — | **已过时**：JSON backend 已废弃（runtimeConfig.ts:111 强制 sqlite），迁移框架完备（schema_migrations + 001-008），版本号问题不存在 |
+| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P1 | 留 v0.18.0（需处理 workspace_collections JSON blob 双写 + 系统巡检 tenant-agnostic 旁路） |
+| per-prefix 超限文件（22 个，321-636 行，<800 硬限） | P3 | v0.17.0 T3 主动拆 8 个高风险（normalizeHelpers/stageOrchestrator/fullCycleOps/artifactSynthesisAgentOps/agentRunnerFactory/AnalysisReportSections/codeRewriteOps + layout.css）；6 个顺手拆；7 个伪超限不拆 |
