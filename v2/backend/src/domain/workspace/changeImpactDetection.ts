@@ -123,3 +123,23 @@ export function detectChangeImpactOp(input: {
     summary,
   };
 }
+
+/**
+ * T7b: 路径 → 受影响代码 artifactId 精确映射。
+ * 规则：路径含 "backend" → backend-code（后端模块）；否则 → frontend-code（前端组件/hook/样式）。
+ * 返回去重后的 artifactId 列表；空路径返回空数组（由调用方决定保守策略）。
+ * 消除旧实现"硬编码双标 frontend+backend"导致的改前端误阻断后端问题。
+ */
+export function resolveAffectedCodeArtifactIds(paths: string[]): Array<"frontend-code" | "backend-code"> {
+  const ids = new Set<"frontend-code" | "backend-code">();
+  for (const raw of paths) {
+    const p = (raw || "").toLowerCase().trim();
+    if (!p) continue;
+    if (p.includes("backend")) {
+      ids.add("backend-code");
+    } else {
+      ids.add("frontend-code");
+    }
+  }
+  return Array.from(ids);
+}
