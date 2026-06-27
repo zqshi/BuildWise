@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
-import { ensureProjectAccess, parsePositiveInt, currentUserId } from "./workspaceRouteUtils";
+import { ensureProjectAccess, parsePositiveInt, currentUserId, resolveAuthTenantId } from "./workspaceRouteUtils";
 import { buildDefaultExperiencePolicy } from "../../../domain/workspace/experiencePolicyTypes";
 
 const ID_PARAM = { type: "object" as const, properties: { id: { type: "string" as const, pattern: "^\\d+$" } }, required: ["id"] as const };
@@ -104,13 +104,13 @@ async function handleTriggerScan(service: WorkspaceService, request: FastifyRequ
 
 async function handleSearchAcrossProjects(service: WorkspaceService, request: FastifyRequest, _reply: FastifyReply) {
   const query = (request.query as Record<string, string>).q || "";
-  const tenantId = (request.query as Record<string, string>).tenantId || "";
+  const tenantId = resolveAuthTenantId(request, "");
   const limit = Number.parseInt((request.query as Record<string, string>).limit || "20", 10);
   return service.experience.searchAcrossProjects(query, tenantId, Math.min(limit, 50));
 }
 
 async function handleCrossProjectInsights(service: WorkspaceService, request: FastifyRequest, _reply: FastifyReply) {
-  const tenantId = (request.query as Record<string, string>).tenantId || "";
+  const tenantId = resolveAuthTenantId(request, "");
   return service.experience.getCrossProjectInsights(tenantId);
 }
 
