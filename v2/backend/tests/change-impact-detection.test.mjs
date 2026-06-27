@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { detectChangeImpactOp } from "../dist/domain/workspace/changeImpactDetection.js";
+import { detectChangeImpactOp, resolveAffectedCodeArtifactIds } from "../dist/domain/workspace/changeImpactDetection.js";
 
 function kb(overrides = {}) {
   return {
@@ -132,6 +132,16 @@ describe("detectChangeImpactOp — 需求影响范围前置检测", () => {
     });
     assert.equal(result.hasImpact, true);
     assert.deepEqual(result.affectedTerms, ["订单"]);
+  });
+
+  test("T7b: resolveAffectedCodeArtifactIds 按路径含 backend 区分前后端", () => {
+    assert.deepEqual(resolveAffectedCodeArtifactIds(["src/pages/x.tsx"]), ["frontend-code"]);
+    assert.deepEqual(resolveAffectedCodeArtifactIds(["backend/src/app.ts"]), ["backend-code"]);
+    assert.deepEqual(resolveAffectedCodeArtifactIds(["v2/backend/src/x.ts"]), ["backend-code"]);
+    assert.deepEqual(resolveAffectedCodeArtifactIds(["src/a.tsx", "backend/b.ts"]), ["frontend-code", "backend-code"]);
+    assert.deepEqual(resolveAffectedCodeArtifactIds(["src/a.tsx", "src/b.css"]), ["frontend-code"], "同侧去重");
+    assert.deepEqual(resolveAffectedCodeArtifactIds([]), []);
+    assert.deepEqual(resolveAffectedCodeArtifactIds(["", "  "]), []);
   });
 
   test("T7b: 短词 n-gram 不误命中无关术语（减误报）", () => {

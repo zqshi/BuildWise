@@ -72,6 +72,7 @@ export function createInMemoryWorkspaceRepo() {
     analysisJobs: [],
     reportIndexes: [],
     reportSections: [],
+    assistantMessages: [],
   };
 
   let nextIdCounter = 1;
@@ -136,6 +137,20 @@ export function createInMemoryWorkspaceRepo() {
       const msg = { id: nextIdCounter++, iterationId, role, content, createdAt: now };
       store.messages.push(msg);
       return msg;
+    },
+
+    // ── AssistantMessageRepository ──
+    listAssistantMessages(tenantId, limit) {
+      const items = store.assistantMessages.filter((m) => m.tenantId === tenantId);
+      return limit ? items.slice(-limit) : items;
+    },
+    appendAssistantMessage(msg) {
+      const record = { id: nextIdCounter++, ...msg };
+      store.assistantMessages.push(record);
+      return record;
+    },
+    clearAssistantMessages(tenantId) {
+      store.assistantMessages = store.assistantMessages.filter((m) => m.tenantId !== tenantId);
     },
 
     // ── GovernanceRepository ──

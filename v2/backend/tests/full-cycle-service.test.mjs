@@ -325,14 +325,24 @@ test("fullCycle 推进遇 artifact gateStatus blocked → 反向互查阻断该�
 
 // ─── T7b: changeImpact 集成（改写后检测→标 stale 联动 T5 阻断）───
 
-test("markCodeArtifactsStaleOp: 标记已产出的代码 artifact stale（联动 T5 阻断下游）", () => {
+test("markCodeArtifactsStaleOp: 按路径精确标记受影响 artifact（T7b 精确映射，改前端不误伤后端）", () => {
   const { repo, iteration } = setup();
   syncArtifactForFullCycleStepOp(repo, iteration.id, ["frontend-code", "backend-code"]);
   const marked = markCodeArtifactsStaleOp(repo, iteration.id, ["src/x.ts"]);
-  assert.equal(marked, 2);
+  assert.equal(marked, 1, "src/x.ts 不含 backend → 只标 frontend-code");
   const items = repo.findIteration(iteration.id).changeControl.artifactWorkflow.items;
   assert.equal(items.find((i) => i.id === "frontend-code").stale, true);
+  assert.equal(items.find((i) => i.id === "backend-code").stale, false, "backend-code 不受前端改动影响（精确映射消除误伤）");
+});
+
+test("markCodeArtifactsStaleOp: 后端路径只标 backend-code", () => {
+  const { repo, iteration } = setup();
+  syncArtifactForFullCycleStepOp(repo, iteration.id, ["frontend-code", "backend-code"]);
+  const marked = markCodeArtifactsStaleOp(repo, iteration.id, ["backend/src/app.ts"]);
+  assert.equal(marked, 1, "含 backend → 只标 backend-code");
+  const items = repo.findIteration(iteration.id).changeControl.artifactWorkflow.items;
   assert.equal(items.find((i) => i.id === "backend-code").stale, true);
+  assert.equal(items.find((i) => i.id === "frontend-code").stale, false);
 });
 
 test("markCodeArtifactsStaleOp: 未产出的不标（outputVersion=0 跳过）", () => {
