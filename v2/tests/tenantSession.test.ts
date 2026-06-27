@@ -4,7 +4,7 @@ import {
   resolveCurrentTenant,
   resolveCurrentTenantId,
   type AuthTenantSummary
-} from "../src/app/authTenantSession.ts";
+} from "../src/infrastructure/auth/tenantSession.ts";
 
 const tenants: AuthTenantSummary[] = [
   { tenantId: "tenant-a", label: "Tenant A", role: "admin", workspaceRole: "owner", isOwner: true },

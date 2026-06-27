@@ -1,3 +1,10 @@
+/**
+ * 租户会话的本地持久化与解析（infrastructure 层）。
+ *
+ * v0.18.0 从 app/ 迁入 infrastructure/auth/：本模块只做 localStorage 读写与纯解析，
+ * 属持久化/运行时范畴；fetchJSON（同层）需复用 resolveCurrentTenantId 过滤脏 tenantId，
+ * 迁入后避免 infrastructure→app 反向依赖（DDD 分层合规）。
+ */
 export type AuthTenantSummary = {
   tenantId: string;
   label: string;

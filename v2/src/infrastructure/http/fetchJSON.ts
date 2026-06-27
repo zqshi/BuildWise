@@ -1,5 +1,6 @@
 import { getAccessToken } from "../auth/tokenStore";
 import { ensureFreshToken } from "../auth/tokenRefresh";
+import { readStoredAuthTenants, readStoredCurrentTenantId, resolveCurrentTenantId } from "../auth/tenantSession";
 
 type RuntimeConfig = {
   apiRequestTimeoutMs: number;
@@ -79,8 +80,10 @@ function getAuthUserId() {
 }
 
 function getAuthTenantId() {
+  // v0.18.0 缺陷B治本: 注入 x-tenant-id 前过滤——tenantId 须在当前可访问租户列表内,
+  // 否则 fallback 首个可访问租户或空(让后端按 userId 取自己租户),不发脏值。
   try {
-    return localStorage.getItem("buildwise:auth-tenant-id") || "";
+    return resolveCurrentTenantId(readStoredAuthTenants(), readStoredCurrentTenantId());
   } catch {
     return "";
   }
@@ -206,6 +209,11 @@ export async function fetchJSON<T>(url: string, options?: RequestInit, timeoutMs
     const retryRes = await handleRetry429(url, mergedOptions, res, timeoutMs);
     if (retryRes.ok) return parseJsonResponse<T>(retryRes);
     res = retryRes;
+  }
+
+  if (res.status === 403 && !isAuthRoute) {
+    // v0.18.0 缺陷B治本: 403 可能因 tenantId 与后端租户状态不同步,触发会话刷新拉最新 tenants 修正。
+    window.dispatchEvent(new CustomEvent("buildwise:tenant-stale"));
   }
 
   await throwIfNotOk(res);
