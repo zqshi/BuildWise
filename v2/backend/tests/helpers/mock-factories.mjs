@@ -86,8 +86,14 @@ export function createInMemoryWorkspaceRepo() {
     nextId() { return nextIdCounter++; },
 
     // ── ProjectRepository ──
-    listProjects() { return store.projects; },
-    findProject(projectId) { return store.projects.find((p) => p.id === projectId) || null; },
+    listProjects(tenantId) {
+      return tenantId ? store.projects.filter((p) => p.tenantId === tenantId) : store.projects;
+    },
+    findProject(projectId, tenantId) {
+      const found = store.projects.find((p) => p.id === projectId) || null;
+      if (!found || !tenantId) return found;
+      return found.tenantId === tenantId ? found : null;
+    },
     createProject(input) {
       const now = new Date().toISOString();
       const project = { id: nextIdCounter++, ...input, status: "active", createdAt: now, updatedAt: now };
