@@ -49,9 +49,11 @@ export class WorkspaceService {
     repo: WorkspaceRepository,
     agentRunner: AgentRunner | null = null,
     modelingRepo: ContinuousModelingRepository | null = null,
-    codingAgentRegistry: AgentRegistry | null = null,
+    private readonly codingAgentRegistry: AgentRegistry | null = null,
     codeRewriteJobStore: CodeRewriteJobStore | null = null,
-    fullCycleJobStore: FullCycleJobStore | null = null
+    fullCycleJobStore: FullCycleJobStore | null = null,
+    /** T3: fullCycle rewrite 步骤用的 codingAgent adapterType（生产 openhands/claude-code-cli，测试可注入 mock） */
+    private readonly codingAgentType: string | null = null
   ) {
     this.repo = repo;
     this.agentRunner = agentRunner;
@@ -74,7 +76,17 @@ export class WorkspaceService {
     this.fullCycle = new FullCycleService(repo, {
       analyzeAttachment: (id, input) => this.analysis.analyzeAttachment(id, input),
       confirmIterationAnalysis: (id, input) => this.changeControl.confirmIterationAnalysis(id, input),
-      rewriteCodeInBoundary: (id, input) => this.quality.rewriteCodeInBoundary(id, input),
+      // T3: fullCycle rewrite 步骤接真实 codingAgent——有 registry 且非 dryRun 走 agent（真实改代码+git diff 回流+边界校验），
+      // 否则降级 LLM（rewriteCodeInBoundaryOp，含 dryRun 预演场景，codingAgent 无法 dryRun）
+      rewriteCodeInBoundary: async (id, input) => {
+        if (this.codingAgentRegistry && this.codingAgentType && input.dryRun !== true) {
+          const agentResult = await this.quality.rewriteCodeInBoundaryViaAgent(id, {
+            instruction: input.instruction, maxFiles: input.maxFiles, role: input.role,
+          }, this.codingAgentType);
+          if (agentResult) return agentResult;
+        }
+        return this.quality.rewriteCodeInBoundary(id, input);
+      },
       generateIterationTestArtifacts: (id, input) => this.quality.generateIterationTestArtifacts(id, input),
       getIterationReleaseReview: (id) => this.quality.getIterationReleaseReview(id),
       generateIterationDeliveryPackage: (id, input) => this.quality.generateIterationDeliveryPackage(id, input),
