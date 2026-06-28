@@ -40,8 +40,10 @@ interface StoreAccess {
 }
 
 export interface ProjectRepository {
-  listProjects(): Project[];
-  findProject(projectId: number): Project | null;
+  /** 不传 tenantId 返回全表（向后兼容，真超管/系统巡检）；传 tenantId 则 SQL 层 WHERE 过滤作 DB 兜底 */
+  listProjects(tenantId?: string): Project[];
+  /** 不传 tenantId 向后兼容；传 tenantId 则跨租户访问返回 null（DB 层兜底，应用层漏判时拦截） */
+  findProject(projectId: number, tenantId?: string): Project | null;
   createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">): Project;
   updateProject(project: Project): void;
 }
