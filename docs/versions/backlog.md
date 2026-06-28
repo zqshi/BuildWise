@@ -26,13 +26,13 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.22.0 待立项（v0.21.0 已归档，无活跃 current）
+### P0 — v0.23.0 待立项（v0.22.0 已归档，无活跃 current）
 - **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
 - **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测遗留转后续**——需 @testing-library/react 基础设施升级，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
+- **v0.22.0 已归档**（2026-06-28，owner 分支收敛重新设计：保留 owner 块 + resolveTenantRole 加 isPlatformOwner 旁路，区分真超管 platformRoleBinding / dev owner AUTH_MODE=off / 租户 owner 三类语义，修正 v0.18.0 方案B 删块覆辙，详见 [v0.22.0-snapshot.md](v0.22.0-snapshot.md)）
 
 后续版本规划（依次推进）：
-- **v0.22.0** — T3 owner 分支收敛重新设计（区分真超管 platformRoleBinding vs dev 默认 owner）
-- **v0.23.0** — 多租户 DB 层 16 表 tenant_id 硬隔离（架构重版本，owner 语义清楚后落地）
+- **v0.23.0** — 多租户 DB 层 16 表 tenant_id 硬隔离（架构重版本，owner 语义 v0.22.0 已清楚后落地）
 - **后续专项** — useAuthController hook 副作用单测（引入 @testing-library/react，v0.21.0 T3 遗留）
 
 ### P1 — dryRun 实跑验证（编码 agent 端到端）✅ 已完成（v0.11.0）
@@ -58,7 +58,7 @@
 | 债务 | 优先级 | 现状/计划 |
 |------|--------|----------|
 | 前端 Props Drilling（ProjectsWorkspace 55 props） | P2 | v0.17.0 T5 处理（迁已有 7 个 Context 承载，不引入新状态库） |
-| 多租户数据串（assistant/experience 路由 tenantId 从 query/body 取） | P0 | v0.17.0 T1 修复（改从 authTenantId 取）；owner 分支收敛 v0.18.0 T3 方案B revert（platformRoleBinding 旁路与 AUTH_MODE=off authRole=owner 语义不等价,破坏 dev/契约场景）,待重新设计（区分真超管 vs dev 默认 owner）;DB 层硬隔离转 v0.19.0 之后 |
+| 多租户数据串（assistant/experience 路由 tenantId 从 query/body 取） | P0 | v0.17.0 T1 修复（改从 authTenantId 取）；owner 分支收敛 v0.22.0 已完成（保留 owner 块 + isPlatformOwner 旁路,区分真超管/dev owner/租户 owner）；DB 层硬隔离转 v0.23.0 |
 | 持久化 JSON 无版本号 | — | **已过时**：JSON backend 已废弃（runtimeConfig.ts:111 强制 sqlite），迁移框架完备（schema_migrations + 001-008），版本号问题不存在 |
-| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P1 | 留 v0.19.0 之后（v0.19.0 做编排意图识别+fullCycle 接真实 codingAgent；需处理 workspace_collections JSON blob 双写 + 系统巡检 tenant-agnostic 旁路） |
+| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P0 | v0.23.0 推进（owner 语义 v0.22.0 已清楚；需处理 workspace_collections JSON blob 双写 + 系统巡检 tenant-agnostic 旁路） |
 | per-prefix 超限文件（22 个，321-636 行，<800 硬限） | P3 | v0.17.0 T3 主动拆 8 个高风险（normalizeHelpers/stageOrchestrator/fullCycleOps/artifactSynthesisAgentOps/agentRunnerFactory/AnalysisReportSections/codeRewriteOps + layout.css）；6 个顺手拆；7 个伪超限不拆 |
