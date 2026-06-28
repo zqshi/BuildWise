@@ -18,6 +18,7 @@ import { coachIterationConversationOp } from '../coach/coachOps';
 import { QualityService } from '../quality/qualityService';
 import { FullCycleService } from '../quality/fullCycleService';
 import { ChangeImpactService } from '../changeControl/changeImpactService';
+import { OntologyGateService } from '../../continuousModeling/ontologyReleaseGateService';
 import { BacklogService } from '../backlog/backlogService';
 import { KnowledgeService } from '../knowledge/knowledgeService';
 import { ExperienceService } from '../experience/experienceService';
@@ -41,6 +42,7 @@ export class WorkspaceService {
   readonly quality: QualityService;
   readonly fullCycle: FullCycleService;
   readonly changeImpact: ChangeImpactService;
+  readonly ontologyGate: OntologyGateService;
   readonly backlog: BacklogService;
   readonly knowledge: KnowledgeService;
   readonly experience: ExperienceService;
@@ -91,10 +93,12 @@ export class WorkspaceService {
       getIterationReleaseReview: (id) => this.quality.getIterationReleaseReview(id),
       generateIterationDeliveryPackage: (id, input) => this.quality.generateIterationDeliveryPackage(id, input),
       publishIterationToRemote: (id, input) => this.project.publishIterationToRemote(id, input),
-      detectChangeImpact: (id, msg) => this.changeImpact.detectChangeImpact(id, msg)
+      detectChangeImpact: (id, msg) => this.changeImpact.detectChangeImpact(id, msg),
+      evaluateOntologyGate: (id) => this.ontologyGate.evaluateOntologyGate(id)
     }, agentRunner, fullCycleJobStore);
     this.fullCycle.restoreInterruptedFullCycles();
     this.changeImpact = new ChangeImpactService(repo);
+    this.ontologyGate = new OntologyGateService(repo, modelingRepo);
     this.backlog = new BacklogService(repo);
   }
 
