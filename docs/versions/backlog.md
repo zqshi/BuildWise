@@ -26,14 +26,20 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.23.0 待立项（v0.22.0 已归档，无活跃 current）
+### P0 — v0.24.0 已归档（核心价值主线夯实完成，2026-06-28）；v0.23.0 暂停待续；无活跃 current 待规划 next
 - **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
 - **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测遗留转后续**——需 @testing-library/react 基础设施升级，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
 - **v0.22.0 已归档**（2026-06-28，owner 分支收敛重新设计：保留 owner 块 + resolveTenantRole 加 isPlatformOwner 旁路，区分真超管 platformRoleBinding / dev owner AUTH_MODE=off / 租户 owner 三类语义，修正 v0.18.0 方案B 删块覆辙，详见 [v0.22.0-snapshot.md](v0.22.0-snapshot.md)）
 
+当前无活跃 current（v0.24.0 已归档，待规划 next）。
+
 后续版本规划（依次推进）：
-- **v0.23.0** — 多租户 DB 层 16 表 tenant_id 硬隔离（架构重版本，owner 语义 v0.22.0 已清楚后落地）
-- **后续专项** — useAuthController hook 副作用单测（引入 @testing-library/react，v0.21.0 T3 遗留）
+- **v0.24.0（已归档，2026-06-28）** — 突出核心价值（活的知识链条），A套元能力门禁激活：状态机门禁+评审门禁接入 fullCycle delivery-package（evaluateOntologyReleaseGate 纯函数 + OntologyGateService 桥接 + delegate 注入），温和策略（无快照放行）+ 发布即认可语义（published 不查历史 blocking，因 ReviewTask 无解决路径）。详见 [v0.24.0-snapshot.md](v0.24.0-snapshot.md)
+- **v0.23.0（已暂停，待续）** — 多租户 DB 硬隔离；T1 探路 done（实际~23表非16/核心bug projects.tenant_id 列存在但 syncTypedTables 从不写入致跨租户知识搜索失效/方案=修bug+JOIN过滤非加列），T2/T3/T4 待续；完整探路结论见 git commit 1935257
+- **后续专项** — useAuthController hook 副作用单测（引入 @testing-library/react，v0.21.0 T3 遗留）；本体评审解决流程（用户确认术语/规则后清除 blocking 评审，使 candidate→publish 前须解决，v0.24.0 评审门禁独立阻断的前置条件）
+
+> v0.23.0 暂停说明：tenant 硬隔离是真安全债（projects.tenant_id 不写入导致全仓唯一 SQL 层 tenant 过滤 searchKnowledgeAcrossProjects 失效），但与核心价值主线无直接交集。按优先级让位 v0.24.0，待主线夯实后恢复。
+> v0.24.0 评审门禁语义说明：当前为"候选态阻断+发布即认可"，真正独立评审解决流程留后续增量。
 
 ### P1 — dryRun 实跑验证（编码 agent 端到端）✅ 已完成（v0.11.0）
 **结果**：实跑真实 claude CLI（2.1.177/glm-5.2）暴露并修复 ClaudeCodeCliAdapter 三缺陷——buildArgs 缺 `--verbose`（-p+stream-json 必需）/ `--permission-mode bypassPermissions`（headless 自动执行工具）；mapStreamEvent 缺 `type:"user"` 分支（真实 tool_result 内嵌在 user 消息）。真实 stream-json 样本补契约测试（TDD）。路径B 执行器集成验证（`scripts/dryrun-executor-integration.mjs`）跑通 V2.2 范式完整集成：改 button.tsx 合法保留 + 改 README.md 越界 git checkout 回滚。后端 431/431 + verify:all 全绿。详见 v0.11.0-snapshot.md。
@@ -60,5 +66,5 @@
 | 前端 Props Drilling（ProjectsWorkspace 55 props） | P2 | v0.17.0 T5 处理（迁已有 7 个 Context 承载，不引入新状态库） |
 | 多租户数据串（assistant/experience 路由 tenantId 从 query/body 取） | P0 | v0.17.0 T1 修复（改从 authTenantId 取）；owner 分支收敛 v0.22.0 已完成（保留 owner 块 + isPlatformOwner 旁路,区分真超管/dev owner/租户 owner）；DB 层硬隔离转 v0.23.0 |
 | 持久化 JSON 无版本号 | — | **已过时**：JSON backend 已废弃（runtimeConfig.ts:111 强制 sqlite），迁移框架完备（schema_migrations + 001-008），版本号问题不存在 |
-| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P0 | v0.23.0 推进（owner 语义 v0.22.0 已清楚；需处理 workspace_collections JSON blob 双写 + 系统巡检 tenant-agnostic 旁路） |
+| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P0 | v0.23.0 暂停（2026-06-28 让位核心价值主线 v0.24.0）；T1 探路 done，T2/T3/T4 待续；详见 backlog v0.23.0 段 + commit 1935257 |
 | per-prefix 超限文件（22 个，321-636 行，<800 硬限） | P3 | v0.17.0 T3 主动拆 8 个高风险（normalizeHelpers/stageOrchestrator/fullCycleOps/artifactSynthesisAgentOps/agentRunnerFactory/AnalysisReportSections/codeRewriteOps + layout.css）；6 个顺手拆；7 个伪超限不拆 |
