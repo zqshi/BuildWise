@@ -49,9 +49,23 @@ function resolveProjectTenantId(project: Project) {
   return (project.tenantId || project.ownerUserId || "").trim();
 }
 
+function isPlatformOwner(repo: WorkspaceRepository, userId: string): boolean {
+  const binding = repo.listPlatformRoleBindings().find((item) => item.userId === userId);
+  if (!binding) {
+    return false;
+  }
+  const role = binding.role.trim().toLowerCase();
+  // admin 与 owner 在 LEGACY_ROLE_MAP 语义下等价于平台超管（admin→owner）
+  return role === "owner" || role === "admin";
+}
+
 function resolveTenantRole(repo: WorkspaceRepository, tenantId: string, projectId: number, userId: string): TenantMemberRole | null {
   if (!tenantId || !userId) {
     return null;
+  }
+  // 真超管（platformRoleBinding）跨租户放行为 admin，不破坏租户 owner / 租户成员 / 项目级绑定原有判定
+  if (isPlatformOwner(repo, userId)) {
+    return "admin";
   }
   if (tenantId === userId) {
     return "admin";
