@@ -23,6 +23,7 @@ import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type { Iteration, IterationCoachChatResponse } from '../../../domain/workspace/types';
 import type { Project } from '../../../domain/workspace/projectTypes';
 import type { AgentRunner } from '../shared/agentRunner';
+import type { ContinuationResult } from '../shared/agentContinuation';
 import { runWithContinuation } from '../shared/agentContinuation';
 import { normalizeIteration } from '../shared/workspaceSupport';
 import { normalizeIterationMessageContent, sanitizeDisplayItem } from './messageSanitizer';
@@ -114,7 +115,7 @@ async function routeToStageAgent(params: {
     sessionContext: { projectId: normalized.projectId, iterationId: normalized.id }
   }, { maxContinuations: 2 });
 
-  let continuationResult;
+  let continuationResult: ContinuationResult;
   try {
     continuationResult = await runLlm();
   } catch (firstError) {

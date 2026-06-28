@@ -16,7 +16,7 @@ type ContinuationConfig = {
   minChunkLength: number;
 };
 
-type ContinuationResult = {
+export type ContinuationResult = {
   content: string;
   continuations: number;
   complete: boolean;
