@@ -15,6 +15,7 @@ import { evaluatePolicyGateForFullCycleOp, appendPolicyExecutionLogOp } from '..
 import { markCodeArtifactsStaleOp } from '../changeControl/artifactOps';
 import type { ProjectPolicyRecord } from '../../../domain/workspace/types';
 import type { ChangeImpactResult } from '../../../domain/workspace/changeImpactDetection';
+import type { OntologyReleaseGateResult } from '../../../domain/continuousModeling/ontologyReleaseGate';
 import { executeStep } from './fullCycleSteps';
 import { STEP_ORDER, STEP_LABELS } from './fullCycleStepConfig';
 import {
@@ -77,6 +78,8 @@ export type FullCycleRunParams = {
   activePolicy?: ProjectPolicyRecord | null;
   /** T7b: changeImpact 检测 delegate（改写步骤后检测对本体的实时影响）；缺省则不检测 */
   detectChangeImpact?: (iterationId: number, message: string) => ChangeImpactResult;
+  /** T2b: 本体发布门禁 delegate（delivery-package 步骤前检查本体快照已发布且无阻断评审；温和：无快照放行，缺 delegate 不阻断） */
+  evaluateOntologyGate?: (iterationId: number) => OntologyReleaseGateResult;
 };
 
 function resolveFullCycleFlags(input: IterationFullCycleRunInput): FullCycleFlags {
@@ -173,6 +176,24 @@ async function executeStepLoop(
       });
       blockers.push(`制品门禁阻断：${blockedArtifactReason}`);
       return handleBlockedStep(stepId, stepState, [blockedArtifactReason], checkpoint, repo, iterationId, blockers, warnings, results, "制品门禁阻断");
+    }
+
+    // T2b 本体发布门禁：delivery-package 步骤前检查本体快照已发布且无阻断评审（温和：无快照放行，缺 delegate 不阻断）
+    if (stepId === "delivery-package" && params.evaluateOntologyGate) {
+      const gate = params.evaluateOntologyGate(iterationId);
+      if (!gate.passed) {
+        appendPolicyExecutionLogOp(repo, {
+          projectId: freshIteration.projectId,
+          iterationId,
+          policyVersion: params.activePolicy?.version ?? 0,
+          stage: freshIteration.changeControl?.artifactWorkflow?.activeStage || "release",
+          action: "fullcycle_ontology_gate_check",
+          result: "blocked",
+          evidence: gate.reasons
+        });
+        blockers.push(`本体门禁阻断：${gate.reasons.join("；")}`);
+        return handleBlockedStep(stepId, stepState, gate.reasons, checkpoint, repo, iterationId, blockers, warnings, results, "本体门禁阻断");
+      }
     }
 
     checkpoint.currentStep = stepId;

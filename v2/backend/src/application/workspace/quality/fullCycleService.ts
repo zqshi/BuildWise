@@ -14,6 +14,7 @@ import type { AgentRunner } from '../shared/agentRunner';
 import { runIterationFullCycleOp } from './fullCycleOps';
 import { getEffectiveOrchestrationPolicyForProjectOp } from '../governance/policyOps';
 import type { ChangeImpactResult } from '../../../domain/workspace/changeImpactDetection';
+import type { OntologyReleaseGateResult } from '../../../domain/continuousModeling/ontologyReleaseGate';
 import {
   createFullCycleJob,
   markFullCycleCompleted,
@@ -81,6 +82,8 @@ export type FullCycleDelegates = {
   ) => Promise<{ ok: boolean; reason?: string; message?: string; blockers?: string[] }>;
   /** T7b: changeImpact 检测（改写步骤后检测对本体的实时影响）；缺省则 fullCycle 不检测 */
   detectChangeImpact?: (iterationId: number, message: string) => ChangeImpactResult;
+  /** T2b: 本体发布门禁（delivery-package 步骤前检查本体快照已发布且无阻断评审；缺省则不检查） */
+  evaluateOntologyGate?: (iterationId: number) => OntologyReleaseGateResult;
 };
 
 export class FullCycleService {
@@ -103,6 +106,9 @@ export class FullCycleService {
       activePolicy,
       detectChangeImpact: this.delegates.detectChangeImpact
         ? (id, msg) => this.delegates.detectChangeImpact!(id, msg)
+        : undefined,
+      evaluateOntologyGate: this.delegates.evaluateOntologyGate
+        ? (id) => this.delegates.evaluateOntologyGate!(id)
         : undefined,
       analyzeAttachment: (targetIterationId, analysisInput) => this.delegates.analyzeAttachment(targetIterationId, analysisInput),
       confirmIterationAnalysis: (targetIterationId, confirmInput) => this.delegates.confirmIterationAnalysis(targetIterationId, confirmInput),
