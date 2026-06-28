@@ -92,3 +92,34 @@ test("platform-only member does not gain synthetic owner tenant access", () => {
 
   assert.deepEqual(tenants, []);
 });
+
+test("平台超管可跨租户读写非自己租户的项目", () => {
+  const { service } = buildServiceWithProjects();
+
+  service.governance.upsertPlatformRoleBinding({
+    userId: "super-admin",
+    role: "admin"
+  });
+
+  const projectAccess = service.project.getProjectAccess("super-admin", 1);
+  const iterationAccess = service.iteration.getIterationAccess("super-admin", 11);
+
+  assert.equal(projectAccess.canRead, true);
+  assert.equal(projectAccess.canWrite, true);
+  assert.equal(projectAccess.canManageTenant, true);
+  assert.equal(iterationAccess.projectAccess.canRead, true);
+});
+
+test("平台级成员(role=member)不获得跨租户超管权限", () => {
+  const { service } = buildServiceWithProjects();
+
+  service.governance.upsertPlatformRoleBinding({
+    userId: "platform-member-2",
+    role: "member"
+  });
+
+  const access = service.project.getProjectAccess("platform-member-2", 1);
+
+  assert.equal(access.canRead, false);
+  assert.equal(access.canManageTenant, false);
+});
