@@ -183,15 +183,15 @@ export function getIterationAccessContext(repo: WorkspaceRepository, iterationId
 
 export function listProjectsForUser(repo: WorkspaceRepository, userId: string, tenantId?: string) {
   const selectedTenantId = tenantId?.trim() || "";
+  // T3 DB 层兜底：传 tenantId 时让 SQL WHERE 先过滤，应用层漏判时 DB 拦截跨租户项目
   return repo
-    .listProjects()
+    .listProjects(selectedTenantId || undefined)
     .map((project) => getProjectAccessContext(repo, project.id, userId))
     .filter(
       (item) =>
         item.canRead &&
         item.project &&
-        !item.project.deletedAt &&
-        (!selectedTenantId || item.tenantId === selectedTenantId)
+        !item.project.deletedAt
     )
     .map((item) => item.project as Project);
 }
