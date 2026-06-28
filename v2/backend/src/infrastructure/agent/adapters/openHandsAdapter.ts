@@ -2,12 +2,20 @@
  * OpenHandsAdapter — 调用 OpenHands agent-server（HTTP REST）的编码 Agent 适配器
  *
  * 实现 CodingAgentAdapter 端口，对称 ClaudeCodeCliAdapter（后者调 claude CLI 子进程，本适配器调常驻 agent-server REST）。
- * 通过 POST /conversations 启动会话（workspace.working_dir=repoPath，initial_message 含 instruction + 边界声明），
- * POST /conversations/{id}/run 触发执行，GET /conversations/{id} 轮询状态，GET /events/search 拉取事件，
- * POST /interrupt 取消。agent 在 repoPath 内真实改代码，BuildWise 事后用 git diff + 边界校验（executor 层）。
+ *
+ * REST 契约（对照 agent-server openapi，2026-06-28 实测确认，非接续点旧调研）：
+ * - 鉴权 header：X-Session-API-Key（非 Authorization: Bearer）
+ * - 创建会话：POST /api/conversations（StartConversationRequest：workspace.working_dir + initial_message + agent.llm）
+ * - 触发执行：POST /api/conversations/{id}/run
+ * - 查询状态：GET /api/conversations/{id} → execution_status 映射（ConversationExecutionStatus）
+ * - 拉取事件：GET /api/conversations/{id}/events/search?timestamp__gte= → EventPage.items[]
+ * - 取消会话：POST /api/conversations/{id}/interrupt
+ *
+ * LLM 配置在创建会话时随 agent.llm 传入（base_url/api_key/model），无需额外 switch_llm。
+ * agent 在 repoPath 内真实改代码，BuildWise 事后用 git diff + 边界校验（executor 层 gitOps.listChangedPaths）。
  *
  * 声明+运行时分离：业务层通过 AgentRegistry.create("openhands") 获取实例，不直接 import 本类。
- * 依赖注入 httpFn：生产用 fetch wrapper（闭包持有 baseUrl），测试用 mock 注入伪响应。
+ * 依赖注入 httpFn：生产用 fetch wrapper（闭包持有 baseUrl + apiKey），测试用 mock 注入伪响应。
  */
 
 import type {
@@ -35,11 +43,16 @@ type SessionState = {
 
 const AGENT_TYPE = "openhands";
 
+// agent-server ConversationExecutionStatus → CodingSessionStatus.status
 const EXECUTION_STATUS_MAP: Record<string, CodingSessionStatus["status"]> = {
-  RUNNING: "running",
-  FINISHED: "completed",
-  ERROR: "failed",
-  STUCK: "failed",
+  idle: "running",
+  running: "running",
+  paused: "running",
+  waiting_for_confirmation: "running",
+  finished: "completed",
+  error: "failed",
+  stuck: "failed",
+  deleting: "failed",
 };
 
 export class OpenHandsAdapter implements CodingAgentAdapter {
@@ -66,24 +79,27 @@ export class OpenHandsAdapter implements CodingAgentAdapter {
 
   async start(context: CodingTaskContext): Promise<{ sessionId: string }> {
     const body = {
-      initial_message: this.buildInitialMessage(context),
+      workspace: { working_dir: context.repoPath, kind: "LocalWorkspace" },
+      initial_message: { content: [{ text: this.buildInitialMessage(context) }] },
       agent: {
+        kind: "Agent",
         llm: {
-          base_url: this.llm.baseUrl,
-          api_key: this.llm.apiKey,
           model: this.llm.model,
+          api_key: this.llm.apiKey,
+          base_url: this.llm.baseUrl || undefined,
         },
+        tools: [{ name: "terminal" }, { name: "file_editor" }],
+        system_prompt_kwargs: { llm_security_analyzer: false },
       },
-      runtime: "remote",
-      workspace: { working_dir: context.repoPath },
+      confirmation_policy: { kind: "NeverConfirm" },
     };
-    const res = await this.httpFn("POST", "/conversations", body);
-    const conversationId = String((res.data as Record<string, unknown> | null)?.conversation_id ?? "");
+    const res = await this.httpFn("POST", "/api/conversations", body);
+    const conversationId = String((res.data as Record<string, unknown> | null)?.id ?? "");
     if (!conversationId) {
-      throw new Error("OpenHands start failed: missing conversation_id");
+      throw new Error("OpenHands start failed: missing conversation id");
     }
     this.sessions.set(conversationId, { conversationId, cancelled: false });
-    await this.httpFn("POST", `/conversations/${conversationId}/run`, {});
+    await this.httpFn("POST", `/api/conversations/${conversationId}/run`, {});
     return { sessionId: conversationId };
   }
 
@@ -107,8 +123,8 @@ export class OpenHandsAdapter implements CodingAgentAdapter {
     if (state.cancelled) {
       return { status: "cancelled", finishedAt: new Date().toISOString() };
     }
-    const res = await this.httpFn("GET", `/conversations/${sessionId}`);
-    const rawStatus = String((res.data as Record<string, unknown> | null)?.execution_status ?? "").toUpperCase();
+    const res = await this.httpFn("GET", `/api/conversations/${sessionId}`);
+    const rawStatus = String((res.data as Record<string, unknown> | null)?.execution_status ?? "").toLowerCase();
     const mapped = EXECUTION_STATUS_MAP[rawStatus] ?? "running";
     if (mapped === "completed") {
       return { status: "completed", finishedAt: new Date().toISOString(), exitCode: 0 };
@@ -120,10 +136,11 @@ export class OpenHandsAdapter implements CodingAgentAdapter {
   }
 
   async getEvents(sessionId: string, since?: string): Promise<CodingAgentEvent[]> {
-    const body: Record<string, unknown> = { conversation_id: sessionId };
-    if (since) body.timestamp__gte = since;
-    const res = await this.httpFn("GET", "/events/search", body);
-    const items = Array.isArray(res.data) ? res.data : [];
+    const query: Record<string, unknown> = {};
+    if (since) query.timestamp__gte = since;
+    const res = await this.httpFn("GET", `/api/conversations/${sessionId}/events/search`, query);
+    const page = (res.data as Record<string, unknown> | null) ?? {};
+    const items = Array.isArray(page.items) ? page.items : [];
     const events: CodingAgentEvent[] = [];
     for (const item of items) {
       const ev = this.mapEvent(item as Record<string, unknown>);
@@ -137,27 +154,46 @@ export class OpenHandsAdapter implements CodingAgentAdapter {
     const timestamp = String(item.timestamp ?? new Date().toISOString());
     if (type === "ActionEvent") {
       const changedPaths = this.extractChangedPaths(item);
-      const ev: CodingAgentEvent = { type: "tool_use", content: String(item.action ?? ""), timestamp };
+      const ev: CodingAgentEvent = { type: "tool_use", content: String(item.action ?? item.kind ?? ""), timestamp };
       if (changedPaths.length > 0) ev.changedPaths = changedPaths;
       return ev;
     }
     if (type === "ObservationEvent") {
-      return { type: "tool_result", content: String(item.message ?? ""), timestamp };
+      return { type: "tool_result", content: this.extractObservationText(item), timestamp };
     }
     if (type === "MessageEvent") {
-      return { type: "text", content: String(item.message ?? ""), timestamp };
+      return { type: "text", content: this.extractMessageText(item), timestamp };
     }
-    if (type === "AgentErrorEvent") {
-      return { type: "error", content: String(item.error ?? ""), timestamp };
+    if (type === "ConversationErrorEvent") {
+      return { type: "error", content: String(item.detail ?? item.code ?? ""), timestamp };
     }
     return null;
   }
 
   private extractChangedPaths(item: Record<string, unknown>): string[] {
-    const args = item.args as Record<string, unknown> | undefined;
-    const raw = args?.path ?? args?.file_path;
+    // ActionEvent.args 可能含 file_editor 的 path / create_file 的 path
+    const args = (item.args ?? item.arguments) as Record<string, unknown> | undefined;
+    const raw = args?.path ?? args?.file_path ?? args?.filename;
     if (typeof raw === "string" && raw.trim()) return [raw.trim()];
     return [];
+  }
+
+  private extractObservationText(item: Record<string, unknown>): string {
+    const content = item.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((c) => (typeof c?.text === "string" ? c.text : "")).filter(Boolean).join("\n");
+    }
+    return String(item.message ?? "");
+  }
+
+  private extractMessageText(item: Record<string, unknown>): string {
+    const content = item.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((c) => (typeof c?.text === "string" ? c.text : "")).filter(Boolean).join("\n");
+    }
+    return String(item.message ?? "");
   }
 
   async cancel(sessionId: string): Promise<void> {
@@ -165,7 +201,7 @@ export class OpenHandsAdapter implements CodingAgentAdapter {
     if (!state) return;
     state.cancelled = true;
     try {
-      await this.httpFn("POST", "/interrupt", { conversation_id: sessionId });
+      await this.httpFn("POST", `/api/conversations/${sessionId}/interrupt`, {});
     } catch {
       // agent-server 不可达时仅本地标记 cancelled（executor 仍可凭本地状态判定）
     }
@@ -180,7 +216,7 @@ export class OpenHandsAdapter implements CodingAgentAdapter {
     const apiKey = this.apiKey;
     return async (method, path, body) => {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+      if (apiKey) headers["X-Session-API-Key"] = apiKey;
       let url = `${baseUrl}${path}`;
       let res: Response;
       if (method === "GET") {
