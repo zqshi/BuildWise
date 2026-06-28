@@ -26,7 +26,7 @@
 
 **归档入库强制要求：** 版本完成 = snapshot 归档 + `verify:all` 全绿 + 代码 `git commit` 入库三者齐备，缺一不算版本完成。归档前若工作树有未提交改动，必须按 DDD 分层（domain→infrastructure→application→interfaces→tests→前端）逐批提交并每批 `tsc --noEmit` 验证可编译，禁止"snapshot 归档了但代码从未入库"的版本管理脱节。
 
-**周期性质量巡检：** 每次会话开始跑 `npm run check:boundaries && npm run check:version-discipline`（<10s），发现违规先修复再开始任务。每版本归档前跑完整 `npm run verify:all`。
+**周期性质量巡检：** 每次会话开始跑 `cd v2 && npm run check:boundaries && npm run check:version-discipline`（<10s；package.json 与 scripts 在 v2/，根目录无 package.json 故须 cd v2），发现违规先修复再开始任务。每版本归档前跑完整 `cd v2 && npm run verify:all`（verify:all 内部含 `npm --prefix backend` 嵌套前缀，须 cd v2 在 v2/ 下跑，不可用 `npm --prefix v2` 否则前缀解析出错）。
 
 ---
 
