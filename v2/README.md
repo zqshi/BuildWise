@@ -208,7 +208,7 @@ cp .env.production.example .env
 - `AUTH_MODE=off | token | jwt`
 - `AUTH_TOKENS_JSON`
 - `JWT_SECRET`
-- `STORAGE_BACKEND=json | sqlite`
+- `STORAGE_BACKEND=sqlite`（JSON backend 已废弃，传 `json` 会被静默降级为 sqlite）
 - `WORKSPACE_DB_FILE`
 - `WORKSPACE_DATA_FILE`
 - `LLM_PROVIDER`

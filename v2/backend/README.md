@@ -47,7 +47,7 @@ cp .env.example .env
 - `JWT_ACCESS_TTL_SEC`
 - `JWT_REFRESH_TTL_SEC`
 - `AUTH_PUBLIC_PATH_PREFIXES`
-- `STORAGE_BACKEND=json | sqlite`
+- `STORAGE_BACKEND=sqlite`（JSON backend 已废弃，传 `json` 会被静默降级为 sqlite）
 - `WORKSPACE_DB_FILE`
 - `WORKSPACE_DATA_FILE`
 - `LLM_PROVIDER`

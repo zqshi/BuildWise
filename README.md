@@ -209,7 +209,7 @@ npm run verify:prod-readiness
 
 ## 当前状态
 
-当前 `codex/prod-governance-rc` 分支可以视为**可受控投产候选**：
+当前 `main` 分支可以视为**可受控投产候选**：
 
 - 核心边界门禁、构建、类型检查和 contract 已通过
 - 项目级 workspace 隔离、项目知识目录和 OpenClaw 非侵入式适配已经落地
