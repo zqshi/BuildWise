@@ -26,6 +26,16 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
+### P0 — v0.20.0 立项规划（v0.19.0 归档后，无活跃 current）
+v0.19.0 已归档（2026-06-28，snapshot d59580c），**无活跃 current**，新会话需先立项。候选主题（从 v0.19.0-snapshot 遗留 + 本 backlog 选）：
+- **多租户 DB 层 16 表 tenant_id 硬隔离**（v0.19.0 遗留，v0.18.0 owner 收敛重新设计的配套）
+- **T3 owner 分支收敛重新设计**（v0.18.0 revert 转 backlog，区分「真超管 platformRoleBinding」与「dev 默认 owner」）
+- **规范漂移校正**：`check-version-discipline.mjs` 缺失（CLAUDE.md/TEMPLATE 引用但不存在）+ `BUILDWISE_EXPERIENCE_SCAN_*` 未在 .env.example
+- **代码清理**：`stageOrchestrator.ts:117` noImplicitAnyLet（既有）+ in-memory mock repo 缺 `findActiveExperiencePolicy`
+- **前端副作用单测**：fetchJSON/useAuthController（node --test 不解析无扩展名值 import 限制，待解法）
+
+立项流程：新建 `v0.20.0-current.md`（复制 TEMPLATE.md）→ 明确版本目标/范围/任务依赖图 → 首任务进依赖表。新会话起步先读本项 + v0.19.0-snapshot.md 遗留段。
+
 ### P1 — dryRun 实跑验证（编码 agent 端到端）✅ 已完成（v0.11.0）
 **结果**：实跑真实 claude CLI（2.1.177/glm-5.2）暴露并修复 ClaudeCodeCliAdapter 三缺陷——buildArgs 缺 `--verbose`（-p+stream-json 必需）/ `--permission-mode bypassPermissions`（headless 自动执行工具）；mapStreamEvent 缺 `type:"user"` 分支（真实 tool_result 内嵌在 user 消息）。真实 stream-json 样本补契约测试（TDD）。路径B 执行器集成验证（`scripts/dryrun-executor-integration.mjs`）跑通 V2.2 范式完整集成：改 button.tsx 合法保留 + 改 README.md 越界 git checkout 回滚。后端 431/431 + verify:all 全绿。详见 v0.11.0-snapshot.md。
 **遗留**：路径A 完整 dryrun-code-rewrite.mjs（走后端 + 项目/迭代/scaffold/boundary 业务链路）未跑，V2.2 范式集成已由路径B 验证，路径A 留后续手动。
