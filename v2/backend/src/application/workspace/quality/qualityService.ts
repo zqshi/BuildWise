@@ -3,7 +3,8 @@ import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type {
   IterationReleaseReviewResponse,
   IterationDeliveryPackageResult,
-  IterationTestArtifactsGenerationResponse
+  IterationTestArtifactsGenerationResponse,
+  IterationCodeRewriteResponse,
 } from '../../../domain/workspace/types';
 import type { AgentRunner } from '../shared/agentRunner';
 import { normalizeIteration, normalizeProject } from '../shared/workspaceSupport';
@@ -13,6 +14,7 @@ import {
   executeCodeRewriteViaAgent,
   realCodeRewriteGitOps,
   type CodeRewriteAgentContext,
+  type CodeRewriteGitOps,
 } from './codeRewriteOps';
 import {
   createCodeRewriteJob,
@@ -33,7 +35,9 @@ export class QualityService {
     private readonly agentRunner: AgentRunner | null = null,
     private readonly modelingRepo: ContinuousModelingRepository | null = null,
     private readonly codingAgentRegistry: AgentRegistry | null = null,
-    private readonly codeRewriteJobStore: CodeRewriteJobStore | null = null
+    private readonly codeRewriteJobStore: CodeRewriteJobStore | null = null,
+    // T3: fullCycle rewrite 步骤走真实 codingAgent 时的 gitOps；生产用 realCodeRewriteGitOps，测试注入 mock
+    private readonly codeRewriteGitOps: CodeRewriteGitOps = realCodeRewriteGitOps
   ) {}
 
   async generateIterationTestArtifacts(
@@ -82,6 +86,44 @@ export class QualityService {
     }
   ) {
     return rewriteCodeInBoundaryOp(this.repo, this.agentRunner, iterationId, input, this.modelingRepo);
+  }
+
+  /**
+   * T3: fullCycle rewrite 步骤走真实 codingAgent（同步 await，在 fullCycle 后台 job 上下文里不阻塞 HTTP）。
+   * registry.create → start → 轮询 → git diff → 边界校验 → 回滚越界，适配返回 IterationCodeRewriteResponse
+   * 供 fullCycleSteps.executeStepRewrite 消费；本体回流复用 syncCodeRewriteIntoOntology。
+   * 无 registry 返回 null（调用方降级到 LLM rewriteCodeInBoundary）。
+   */
+  async rewriteCodeInBoundaryViaAgent(
+    iterationId: number,
+    input: {
+      instruction: string;
+      maxFiles?: number;
+      role?: "delivery-engineer" | "frontend-developer" | "backend-developer";
+    },
+    adapterType?: string
+  ): Promise<IterationCodeRewriteResponse | null> {
+    if (!this.codingAgentRegistry) return null;
+    const context = this.resolveAgentContext(iterationId, input);
+    if (!context) return null;
+    const result = await executeCodeRewriteViaAgent({
+      registry: this.codingAgentRegistry,
+      gitOps: this.codeRewriteGitOps,
+      context,
+      adapterType,
+    });
+    this.syncCodeRewriteIntoOntology(iterationId, result.edits);
+    return {
+      iterationId,
+      dryRun: false,
+      summary: `编码 agent 改写完成，修改 ${result.edits.length} 处${result.violations.length > 0 ? `，回滚越界 ${result.violations.length} 处` : ""}`,
+      warnings: result.violations.length > 0 ? [`以下文件越界已回滚：${result.violations.map((v) => v.path).join("、")}`] : [],
+      appliedFiles: Array.from(new Set(result.edits.map((e) => e.path))),
+      skippedFiles: [],
+      outOfBoundaryFiles: Array.from(new Set(result.violations.map((v) => v.path))),
+      rolledBackFiles: Array.from(new Set(result.violations.map((v) => v.path))),
+      edits: result.edits,
+    };
   }
 
   /**

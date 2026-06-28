@@ -1,6 +1,9 @@
 /**
  * LLM 改写路径 —— 通过 AgentRunner 生成边界内增量改写，原子化写盘+回滚。
  * 流程：resolveRewriteContext（收集候选文件+片段）→ buildRewritePrompt → LLM → applyRewriteEditsAtomic（两遍：校验收集/写盘回滚）。
+ *
+ * T3 起：本路径为 fullCycle rewrite 步骤的**降级 fallback**——当无 codingAgentRegistry（或指定 adapterType 未注册、
+ * 或 dryRun 预演）时，delegates.rewriteCodeInBoundary 回退到此 LLM 同步路径。主路径见 agentCodeRewriteOps.executeCodeRewriteViaAgent。
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
