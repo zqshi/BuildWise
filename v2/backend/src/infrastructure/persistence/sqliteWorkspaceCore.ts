@@ -326,14 +326,14 @@ export class SqliteWorkspaceCore {
 
   insertProject(project: Project) {
     this.db
-      .prepare("INSERT INTO projects (id, name, description, status, last_updated, payload) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(project.id, project.name, project.description, project.status, project.lastUpdated || null, JSON.stringify(project));
+      .prepare("INSERT INTO projects (id, name, description, status, last_updated, tenant_id, payload) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(project.id, project.name, project.description, project.status, project.lastUpdated || null, project.tenantId ?? "default", JSON.stringify(project));
   }
 
   updateProject(project: Project) {
     this.db
-      .prepare("UPDATE projects SET name = ?, description = ?, status = ?, last_updated = ?, payload = ? WHERE id = ?")
-      .run(project.name, project.description, project.status, project.lastUpdated || null, JSON.stringify(project), project.id);
+      .prepare("UPDATE projects SET name = ?, description = ?, status = ?, last_updated = ?, tenant_id = ?, payload = ? WHERE id = ?")
+      .run(project.name, project.description, project.status, project.lastUpdated || null, project.tenantId ?? "default", JSON.stringify(project), project.id);
   }
 
   insertIteration(iteration: Iteration) {
@@ -404,9 +404,9 @@ export class SqliteWorkspaceCore {
 
   private syncTypedTables(data: WorkspaceStore) {
     this.syncEntityTable("projects",
-      `INSERT INTO projects (id, name, description, status, last_updated, payload) VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, status=excluded.status, last_updated=excluded.last_updated, payload=excluded.payload`,
-      (item) => [item.id, item.name, item.description, item.status, item.lastUpdated || null, JSON.stringify(item)],
+      `INSERT INTO projects (id, name, description, status, last_updated, tenant_id, payload) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, status=excluded.status, last_updated=excluded.last_updated, tenant_id=excluded.tenant_id, payload=excluded.payload`,
+      (item) => [item.id, item.name, item.description, item.status, item.lastUpdated || null, item.tenantId ?? "default", JSON.stringify(item)],
       data.projects
     );
     this.syncEntityTable("iterations",
