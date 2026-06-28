@@ -294,7 +294,19 @@ export async function createBuildwiseApp(options: CreateBuildwiseAppOptions): Pr
   }
   const codeRewriteJobStore: CodeRewriteJobStore = { jobs: new Map() };
   const fullCycleJobStore: FullCycleJobStore = { jobs: new Map() };
-  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo, codingAgentRegistry, codeRewriteJobStore, fullCycleJobStore);
+  // T3: fullCycle rewrite 步骤的 codingAgent adapterType。env 可指定（默认 openhands），
+  // 但须 registry 已注册该 type 才生效，否则降级 LLM（delegates 内 isAvailable 兜底）
+  const codingAgentType = (() => {
+    if (!codingAgentRegistry) return null;
+    const preferred = (options.env?.BUILDWISE_CODING_AGENT_TYPE || "openhands").trim();
+    return codingAgentRegistry.isAvailable(preferred) ? preferred : null;
+  })();
+  if (codingAgentType) {
+    log.info("fullCycle rewrite will use coding agent", { type: codingAgentType });
+  } else if (codingAgentRegistry) {
+    log.info("fullCycle rewrite will fall back to LLM (preferred coding agent not registered)");
+  }
+  const workspaceService = new WorkspaceService(workspaceRepo, agentRunner, continuousModelingRepo, codingAgentRegistry, codeRewriteJobStore, fullCycleJobStore, codingAgentType);
 
   const bootstrapAdminPhone = (options.env?.BOOTSTRAP_ADMIN_PHONE || "").trim();
   if (bootstrapAdminPhone && /^1\d{10}$/.test(bootstrapAdminPhone)) {
