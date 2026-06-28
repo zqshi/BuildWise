@@ -264,19 +264,27 @@ export class SqliteWorkspaceCore {
     }
   }
 
-  listProjects() {
-    const rows = this.db
-      .prepare("SELECT payload FROM projects ORDER BY id ASC")
-      .all() as Array<{ payload?: string }>;
+  listProjects(tenantId?: string) {
+    const rows = tenantId
+      ? (this.db
+          .prepare("SELECT payload FROM projects WHERE tenant_id = ? ORDER BY id ASC")
+          .all(tenantId) as Array<{ payload?: string }>)
+      : (this.db
+          .prepare("SELECT payload FROM projects ORDER BY id ASC")
+          .all() as Array<{ payload?: string }>);
     return rows
       .map((row) => this.parsePayload<Project>(row.payload))
       .filter((item): item is Project => Boolean(item));
   }
 
-  findProject(projectId: number) {
-    const row = this.db
-      .prepare("SELECT payload FROM projects WHERE id = ? LIMIT 1")
-      .get(projectId) as { payload?: string } | undefined;
+  findProject(projectId: number, tenantId?: string) {
+    const row = tenantId
+      ? (this.db
+          .prepare("SELECT payload FROM projects WHERE id = ? AND tenant_id = ? LIMIT 1")
+          .get(projectId, tenantId) as { payload?: string } | undefined)
+      : (this.db
+          .prepare("SELECT payload FROM projects WHERE id = ? LIMIT 1")
+          .get(projectId) as { payload?: string } | undefined);
     return this.parsePayload<Project>(row?.payload) ?? null;
   }
 

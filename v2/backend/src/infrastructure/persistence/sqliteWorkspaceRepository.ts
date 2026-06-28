@@ -72,12 +72,12 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     return items.length === 0 ? 1 : Math.max(...items.map((item) => item.id)) + 1;
   }
 
-  listProjects() {
-    return this.core.listProjects();
+  listProjects(tenantId?: string) {
+    return this.core.listProjects(tenantId);
   }
 
-  findProject(projectId: number) {
-    return this.core.findProject(projectId);
+  findProject(projectId: number, tenantId?: string) {
+    return this.core.findProject(projectId, tenantId);
   }
 
   createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">) {
