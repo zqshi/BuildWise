@@ -118,9 +118,18 @@ export async function createContractHarness(options = {}) {
       };
 
       if (!llmConfigured) {
+        // 未显式启用真实 LLM（CONTRACT_ENABLE_LLM !== "1"）时，置空全部 LLM 配置。
+        // serverEnv = {...process.env} 会继承父 shell 的 ANTHROPIC_BASE_URL/AUTH_TOKEN/MODEL，
+        // 而 agentRunnerConfig 在 provider=anthropic-compatible 时优先读 ANTHROPIC_*，
+        // 若不置空会穿透到契约子进程走真实 LLM（glm-5.2），触发 TPM 限流使 verify:all 不稳定。
+        // 置空键集须与 src/index.ts 的 llmOverrideKeys 全集一致。
+        serverEnv.LLM_PROVIDER = "";
         serverEnv.LLM_API_BASE = "";
         serverEnv.LLM_API_KEY = "";
         serverEnv.LLM_MODEL = "";
+        serverEnv.ANTHROPIC_BASE_URL = "";
+        serverEnv.ANTHROPIC_AUTH_TOKEN = "";
+        serverEnv.ANTHROPIC_MODEL = "";
       }
 
       server = spawn("node", ["dist/index.js"], {
