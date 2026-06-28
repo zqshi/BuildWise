@@ -14,17 +14,20 @@ services:
       # T2.3: 项目 repo 与 OpenHands agent 共享 repo-data 卷（/buildwise-repos），
       # agent 在此路径改代码，BuildWise 后端 git diff 同路径访问
       - PROJECT_REPO_ROOT=/buildwise-repos
-      - OPENHANDS_BASE_URL=http://openhands:8000
+      # T2.3-修:adapter 调 agent-server(18000)，非前端/automation(8000)；容器间网络直连，无需对外暴露 18000
+      - OPENHANDS_BASE_URL=http://openhands:18000
       - OPENHANDS_API_KEY=${OPENHANDS_API_KEY}
     volumes:
       - backend-data:/app/data
       - repo-data:/buildwise-repos
     depends_on:
+      repo-init:
+        condition: service_completed_successfully
       openhands:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5055/ready"]
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://127.0.0.1:5055/ready"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -41,10 +44,23 @@ services:
           memory: 1g
           cpus: "1.0"
 
+  # T2.3-修:repo-data 卷权限初始化。named volume 默认 owner=root，
+  # backend(uid 100)与 openhands(uid 10001)均需读写，init 容器 chmod 0777 后退出。
+  # 生产若需严格多 uid 隔离，后续版本改为统一 uid 或 ACL 策略。
+  repo-init:
+    image: alpine:latest
+    command: ["sh", "-c", "chown -R 10001:10001 /buildwise-repos && chmod -R 0777 /buildwise-repos"]
+    volumes:
+      - repo-data:/buildwise-repos
+    restart: "no"
+    networks:
+      - internal
+
   # T2.3: OpenHands agent-server（常驻 REST，编码 agent 后端）
-  # 镜像含 backend+frontend 全栈，adapter 调 http://openhands:8000 REST API。
-  # LLM 配置通过 adapter 请求体 agent.llm 传（非 env），见 openHandsAdapter.ts。
-  # 健康检查 /api/alive（接续点调研；若镜像无此端点，启动时调整）。
+  # 镜像含 agent-server(18000)+automation(8000 的 /api/automation)+frontend(8000) 全栈。
+  # adapter 调 agent-server REST：http://openhands:18000/api/conversations/*（容器间网络，18000 不对外暴露）。
+  # LLM 配置通过 adapter 创建会话时 agent.llm 传（非 env），见 openHandsAdapter.ts。
+  # 健康检查 GET /alive（实测端点，非接续点旧记的 /api/alive；用 curl GET 因 wget --spider 发 HEAD 触发 405）。
   openhands:
     image: ghcr.io/openhands/agent-canvas:latest
     ports:
@@ -55,8 +71,11 @@ services:
     volumes:
       - openhands-state:/home/openhands/.openhands
       - repo-data:/buildwise-repos
+    depends_on:
+      repo-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/api/alive"]
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://127.0.0.1:8000/alive"]
       interval: 30s
       timeout: 5s
       retries: 3
