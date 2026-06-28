@@ -26,13 +26,14 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.20.0 已立项（规范漂移校正 + 代码清理，2026-06-28）
-v0.19.0 归档后立项前逐条核实遗留段，发现 4 条遗留中 **2 条不实**（check-version-discipline.mjs 实际存在于 `v2/scripts/`、已挂 v2/package.json 并纳入 verify:all；in-memory mock repo 缺方法不存在——全仓无 mock repo、maybeExtractExperience 无测试、sqlite 有实现）。v0.20.0 真实范围：补 `v2/backend/.env.example` 的 EXPERIENCE_SCAN 配置 + 修正 CLAUDE.md:29 巡检命令路径（根目录无 package.json，改 `npm --prefix v2`）+ 清 stageOrchestrator:117 noImplicitAnyLet（导出 ContinuationResult 类型）+ 校正 v0.19.0-snapshot/backlog 不实记录。详见 [v0.20.0-current.md](v0.20.0-current.md)。
+### P0 — v0.22.0 待立项（v0.21.0 已归档，无活跃 current）
+- **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
+- **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测遗留转后续**——需 @testing-library/react 基础设施升级，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
 
 后续版本规划（依次推进）：
-- **v0.21.0** — 前端副作用单测（fetchJSON/useAuthController，解 node --test 无扩展名值 import 限制）
 - **v0.22.0** — T3 owner 分支收敛重新设计（区分真超管 platformRoleBinding vs dev 默认 owner）
 - **v0.23.0** — 多租户 DB 层 16 表 tenant_id 硬隔离（架构重版本，owner 语义清楚后落地）
+- **后续专项** — useAuthController hook 副作用单测（引入 @testing-library/react，v0.21.0 T3 遗留）
 
 ### P1 — dryRun 实跑验证（编码 agent 端到端）✅ 已完成（v0.11.0）
 **结果**：实跑真实 claude CLI（2.1.177/glm-5.2）暴露并修复 ClaudeCodeCliAdapter 三缺陷——buildArgs 缺 `--verbose`（-p+stream-json 必需）/ `--permission-mode bypassPermissions`（headless 自动执行工具）；mapStreamEvent 缺 `type:"user"` 分支（真实 tool_result 内嵌在 user 消息）。真实 stream-json 样本补契约测试（TDD）。路径B 执行器集成验证（`scripts/dryrun-executor-integration.mjs`）跑通 V2.2 范式完整集成：改 button.tsx 合法保留 + 改 README.md 越界 git checkout 回滚。后端 431/431 + verify:all 全绿。详见 v0.11.0-snapshot.md。
