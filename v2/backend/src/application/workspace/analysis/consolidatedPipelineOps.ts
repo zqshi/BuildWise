@@ -25,6 +25,7 @@ import { runPreflightAgent } from './preflightAgentOps';
 import { runCoreAnalysisAgent, type CoreAnalysisParams } from './coreAnalysisAgentOps';
 import { runBizConfirmAgent, type BizConfirmParams } from './bizConfirmAgentOps';
 import { runQualityAuditAgent } from './qualityAuditAgentOps';
+import type { ReleaseReviewPlatformContext } from './releaseReviewOps';
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
 import { isLowSignalText } from './extractors';
 
@@ -216,6 +217,7 @@ export async function consolidatedQualityPhase(
   exec: Awaited<ReturnType<typeof consolidatedAgentPhase>>,
   syn: Awaited<ReturnType<typeof consolidatedSynthesisPhase>>,
   clarificationQuestions: string[],
+  platformContext: ReleaseReviewPlatformContext,
   markStage: (s: string) => void
 ) {
   const { excerptPayload } = pre;
@@ -245,7 +247,8 @@ export async function consolidatedQualityPhase(
     blockers: resolvedPrioritizedFindings.filter((i) => i.priority === "P0").map((i) => i.content),
     releaseGates: traceabilityMap.unmappedRequirements.slice(0, 8),
     rollbackPlan: versionDiffDetailed.riskPoints.slice(0, 5),
-    recommendations: finalNextActions.slice(0, 8)
+    recommendations: finalNextActions.slice(0, 8),
+    platformContext
   });
 
   const { quality: reportQuality, release } = qualityAuditResult;

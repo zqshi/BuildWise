@@ -18,6 +18,8 @@ import {
 } from './extractors';
 import { synthesizeTestMatrixOp } from './testMatrixGenerationOps';
 import { synthesizeCodePathsByPlatformOp } from './codePathPlatformLabelingOps';
+import { summarizeTestMatrixByPlatform } from '../changeControl/testMatrixSummaryOps';
+import type { ReleaseReviewPlatformContext } from './releaseReviewOps';
 import { buildClarificationQuestionsOp } from './synthesisOps';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { CONTEXT_GUARDRAILS, runAnalysisPrompt, USE_CONSOLIDATED_AGENTS } from './configOps';
@@ -173,11 +175,12 @@ export async function analyzeAttachmentOp(
     : await runAgentExecutionPhase(agentRunner, repo, input, normalized, normalizedPrevious, pre, markStage);
 
   // Extract artifacts from agent outputs
+  const targetPlatforms = repo.findProject(normalized.projectId)?.targetPlatforms ?? ["web"];
   const generatedTestMatrix = await synthesizeTestMatrixOp(agentRunner, {
     iterationName: normalized.name,
     sourceType: input.sourceType === "folder" ? "folder" : "single-file",
     excerpt: pre.excerptPayload.text,
-    targetPlatforms: repo.findProject(normalized.projectId)?.targetPlatforms ?? ["web"]
+    targetPlatforms
   }, { runAnalysisPrompt });
   const qualityArtifactsRaw = extractGeneratedQualityArtifacts(exec.agentOutputs);
   const uxArtifacts = extractUxArtifacts(exec.agentOutputs);
@@ -198,7 +201,7 @@ export async function analyzeAttachmentOp(
   // T2: 为代码路径标注归属端（LLM），产出 codePathsByPlatform 供端级门禁 assessPlatformCodeChangeReadiness
   const effectiveCodePaths = boundarySuggestion && boundaryIsEmpty ? boundarySuggestion.codePaths : currentBoundary.codePaths;
   const labeledCodePathsByPlatform = effectiveCodePaths.length > 0
-    ? await synthesizeCodePathsByPlatformOp(agentRunner, { iterationName: normalized.name, codePaths: effectiveCodePaths, targetPlatforms: repo.findProject(normalized.projectId)?.targetPlatforms ?? ["web"] }, { runAnalysisPrompt })
+    ? await synthesizeCodePathsByPlatformOp(agentRunner, { iterationName: normalized.name, codePaths: effectiveCodePaths, targetPlatforms }, { runAnalysisPrompt })
     : undefined;
   const resolvedBoundary = boundarySuggestion && boundaryIsEmpty
     ? { requirementRefs: boundarySuggestion.requirementRefs, componentRefs: boundarySuggestion.componentRefs, codePaths: boundarySuggestion.codePaths, codePathsByPlatform: labeledCodePathsByPlatform, note: boundarySuggestion.note || "由 boundary-guardian 自动建议，待人工确认。", updatedAt: new Date().toISOString() }
@@ -227,10 +230,17 @@ export async function analyzeAttachmentOp(
     ? await consolidatedSynthesisPhase(agentRunner, input, normalized, normalizedPrevious, pre, exec, clarificationQuestions, uxArtifacts, releaseOpsActions, markStage)
     : await runSynthesisPipeline(agentRunner, input, normalized, normalizedPrevious, pre, exec, clarificationQuestions, uxArtifacts, releaseOpsActions, markStage);
 
+  // T3: 装配按端评审上下文（声明端 + 测试矩阵按端聚合 + 代码白名单按端归属），供 LLM 按端评审真实依据
+  const releaseReviewPlatformContext: ReleaseReviewPlatformContext = {
+    targetPlatforms,
+    testMatrixByPlatform: summarizeTestMatrixByPlatform(generatedTestMatrix, targetPlatforms),
+    codePathsByPlatform: resolvedBoundary.codePathsByPlatform
+  };
+
   // Phase 4: 质量门 + 发布评审
   const qg = USE_CONSOLIDATED_AGENTS
-    ? await consolidatedQualityPhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, markStage)
-    : await runQualityGatePhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, markStage);
+    ? await consolidatedQualityPhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, releaseReviewPlatformContext, markStage)
+    : await runQualityGatePhase(agentRunner, input, normalized, pre, exec, syn, clarificationQuestions, releaseReviewPlatformContext, markStage);
 
   // Phase 5: 知识回写 + 本体
   await writebackKnowledgeState(repo, iteration, normalized, pre, syn, qg, generatedAt, uxArtifacts, generatedTestMatrix, markStage, agentRunner);

@@ -29,6 +29,7 @@ import {
   synthesizeReleaseReviewOp,
   synthesizeReportQualityGateOp
 } from './governanceRunnerOps';
+import type { ReleaseReviewPlatformContext } from './releaseReviewOps';
 import { synthesizeProjectProfileOp } from './projectProfileRunnerOps';
 import { CONTEXT_GUARDRAILS, SYNTHESIS_LLM_CONFIG, runAnalysisPrompt } from './configOps';
 import { ensureArtifactWorkflow } from '../changeControl/artifactWorkflow';
@@ -207,7 +208,7 @@ export async function runSynthesisPipeline(agentRunner: AgentRunner | null, inpu
 
 // ── Phase 4: 质量门 + 发布评审 ──
 
-export async function runQualityGatePhase(agentRunner: AgentRunner | null, input: AttachmentUploadInput, normalized: ReturnType<typeof normalizeIteration>, pre: Awaited<ReturnType<typeof runPreflightPhase>>, exec: Awaited<ReturnType<typeof runAgentExecutionPhase>>, syn: Awaited<ReturnType<typeof runSynthesisPipeline>>, clarificationQuestions: string[], markStage: (s: string) => void) {
+export async function runQualityGatePhase(agentRunner: AgentRunner | null, input: AttachmentUploadInput, normalized: ReturnType<typeof normalizeIteration>, pre: Awaited<ReturnType<typeof runPreflightPhase>>, exec: Awaited<ReturnType<typeof runAgentExecutionPhase>>, syn: Awaited<ReturnType<typeof runSynthesisPipeline>>, clarificationQuestions: string[], platformContext: ReleaseReviewPlatformContext, markStage: (s: string) => void) {
   const { excerptPayload } = pre;
   const { agentOutputs, unknownSignalCount } = exec;
   const { resolvedPrioritizedFindings, finalNextActions, businessConfirmationWithUx, governanceInsights, deepInsights } = syn;
@@ -239,7 +240,10 @@ export async function runQualityGatePhase(agentRunner: AgentRunner | null, input
       p0FindingCount: resolvedPrioritizedFindings.filter((i) => i.priority === "P0").length,
       unknownSignalCount, boundaryCoverage: traceabilityMap.coverageScore,
       ontologyTermCount: domainKnowledge?.terms?.length ?? 0, ontologyRuleCount: domainKnowledge?.rules?.length ?? 0
-    }
+    },
+    targetPlatforms: platformContext.targetPlatforms,
+    testMatrixByPlatform: platformContext.testMatrixByPlatform,
+    codePathsByPlatform: platformContext.codePathsByPlatform
   }, { runAnalysisPrompt });
 
   const opsRollbackReason = releaseOpsStructured.rollbackDecision.reason;

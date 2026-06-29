@@ -2,6 +2,7 @@ import { parseJsonObjectFromText, pickString, pickStringList } from './extractor
 import type { TargetPlatform } from '../../../domain/workspace/projectTypes';
 import type { IterationArtifactWorkflowItem } from '../../../domain/workspace/iterationTypes';
 import { summarizeCodeChangesByPlatform } from '../changeControl/codePathByPlatformOps';
+import type { TestMatrixByPlatformResult } from '../changeControl/testMatrixSummaryOps';
 
 export function parseReleaseReviewCandidate(
   content: string,
@@ -17,6 +18,20 @@ export function parseReleaseReviewCandidate(
   const signalsRaw = (parsed?.qualitySignals ?? {}) as Record<string, unknown>;
   const decisionRaw = pickString((parsed?.decision as string) || "");
   const decision: "go" | "caution" | "block" = decisionRaw === "go" || decisionRaw === "caution" || decisionRaw === "block" ? decisionRaw : "caution";
+  const perPlatformRaw = Array.isArray(parsed?.perPlatform) ? (parsed.perPlatform as Array<Record<string, unknown>>) : [];
+  const perPlatform = perPlatformRaw
+    .map((item) => {
+      const r = (item ?? {}) as Record<string, unknown>;
+      const decisionRaw = pickString(r.decision || "");
+      const perDecision: "go" | "caution" | "block" = decisionRaw === "go" || decisionRaw === "caution" || decisionRaw === "block" ? decisionRaw : "caution";
+      return {
+        platform: typeof r.platform === "string" ? r.platform.trim() : "",
+        decision: perDecision,
+        reason: pickString(r.reason),
+        blockers: pickStringList(r.blockers, 16)
+      };
+    })
+    .filter((item) => item.platform);
   return {
     decision,
     reason: pickString(parsed?.reason),
@@ -39,19 +54,47 @@ export function parseReleaseReviewCandidate(
       boundaryCoverage: Number.isFinite(Number(signalsRaw.boundaryCoverage))
         ? Math.max(0, Math.min(100, Math.round(Number(signalsRaw.boundaryCoverage))))
         : fallbackSignals.boundaryCoverage
-    }
+    },
+    perPlatform
   };
 }
 
-export function listReleaseReviewMissingReasons(candidate: ReturnType<typeof parseReleaseReviewCandidate>) {
+export function listReleaseReviewMissingReasons(candidate: ReturnType<typeof parseReleaseReviewCandidate>, targetPlatforms?: string[]) {
   const reasons: string[] = [];
   if (!candidate.reason) reasons.push("发布评审原因缺失");
   if (candidate.blockers.length === 0 && candidate.decision === "block") reasons.push("阻断决策缺少阻断项");
   if (candidate.recommendations.length === 0) reasons.push("发布建议为空");
+  if (targetPlatforms && targetPlatforms.length > 0) {
+    const reviewed = new Set((candidate.perPlatform ?? []).map((p) => p.platform));
+    for (const platform of targetPlatforms) {
+      if (!reviewed.has(platform)) reasons.push(`目标端「${platform}」未给出按端评审结论`);
+    }
+  }
   return reasons;
 }
 
 // ── 目标端维度：按端聚合发布评审（v0.29.0 堵死「虚假 go」的核心规则）──
+
+/**
+ * T3: 按端评审上下文——管道阶段间传递的声明端 + 按端质量数据。
+ * 含测试矩阵按端聚合（每端 coverage/passRate）+ 代码白名单按端归属（每端 ruleCount），
+ * 作为 LLM 按端评审的真实依据（非编造）。由 analyzeAttachmentOp 装配，透传至评审阶段。
+ */
+export type ReleaseReviewPlatformContext = {
+  targetPlatforms: TargetPlatform[];
+  testMatrixByPlatform: TestMatrixByPlatformResult;
+  codePathsByPlatform?: Record<TargetPlatform, string[]>;
+};
+
+/**
+ * T3: 编造防控用按端上下文（全可选）—— synthesizeReleaseReviewOp 与 qualityAudit 两条链复用。
+ * caller 装配为 ReleaseReviewPlatformContext（必填），评审函数按可选读取，缺失则不补 perPlatform（向后兼容）。
+ */
+export type ReleaseReviewFinalizeContext = {
+  targetPlatforms?: TargetPlatform[];
+  testMatrixByPlatform?: TestMatrixByPlatformResult;
+  codePathsByPlatform?: Record<TargetPlatform, string[]>;
+};
 
 /** 单个目标端的发布评审结论。 */
 export type ReleaseReviewPerPlatformItem = {
@@ -164,4 +207,38 @@ export function assessPlatformCodeChangeReadiness(
     return { platform: p.platform, decision: "go" as const, reason: "", blockers: [] };
   });
   return aggregateReleaseReviewByPlatform({ targetPlatforms, perPlatform: items });
+}
+
+/**
+ * T3: 某端是否有按端真实数据（测试用例或代码白名单）——编造防控判定。
+ * 有数据端漏评须阻断，不得编造可发布结论；无数据端降级整体结论。
+ */
+export function hasPlatformData(platform: TargetPlatform, context: ReleaseReviewFinalizeContext): boolean {
+  const tm = context.testMatrixByPlatform?.perPlatform.find((p) => p.platform === platform)?.summary;
+  const hasTests = Boolean(tm && tm.total > 0);
+  const codeRules = context.codePathsByPlatform?.[platform];
+  const hasCode = Array.isArray(codeRules) ? codeRules.length > 0 : false;
+  return hasTests || hasCode;
+}
+
+/**
+ * T3: 编造防控后处理——补全 perPlatform 至覆盖所有声明端。
+ * 有数据端漏评 → block；无数据端 → 降级整体 decision（不编造独立结论）。
+ * 无声明端（targetPlatforms 缺失/空）→ 原样返回（向后兼容单端场景）。
+ */
+export function finalizeReleaseReviewPerPlatform(
+  candidate: ReturnType<typeof parseReleaseReviewCandidate>,
+  context: ReleaseReviewFinalizeContext
+): ReturnType<typeof parseReleaseReviewCandidate> {
+  if (!context.targetPlatforms || context.targetPlatforms.length === 0) return candidate;
+  const reviewed = new Map((candidate.perPlatform ?? []).map((p) => [p.platform, p]));
+  const perPlatform = context.targetPlatforms.map((platform) => {
+    const existing = reviewed.get(platform);
+    if (existing) return existing;
+    if (hasPlatformData(platform, context)) {
+      return { platform, decision: "block" as const, reason: `目标端「${platform}」未评审`, blockers: ["该端未评审"] };
+    }
+    return { platform, decision: candidate.decision, reason: "该端无按端数据，降级整体结论", blockers: [] };
+  });
+  return { ...candidate, perPlatform };
 }
