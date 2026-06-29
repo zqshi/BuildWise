@@ -4,6 +4,7 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { ProjectKnowledgeBase } from "../../domain/workspace/projectTypes";
 import type { ContinuousModelingService } from "./continuousModelingService";
 import { getIterationAccessContext, getProjectAccessContext } from '../workspace/shared/tenantAccess';
+import { writeAuditLog } from '../workspace/shared/common';
 import { buildProjectModelView } from "./continuousModelingProjectView";
 
 // ---------------------------------------------------------------------------
@@ -79,48 +80,60 @@ function diffSnapshots(
 function snapshotToKbPatch(
   snapshot: ModelSnapshot,
   existingKb: ProjectKnowledgeBase
-): ProjectKnowledgeBase {
-  const termMap = new Map(existingKb.ontologyTerms.map((t) => [t.term, t]));
+): { updatedKb: ProjectKnowledgeBase; newTerms: number; newRules: number; newComponents: number } {
+  // key 统一 trim 归一：消除 KB 项含前后空白与快照项误判为不同项导致的重复沉淀
+  const termMap = new Map(existingKb.ontologyTerms.map((t) => [t.term.trim(), t]));
+  let newTerms = 0;
   for (const st of snapshot.ontologyTerms) {
-    if (!termMap.has(st.canonicalTerm)) {
-      termMap.set(st.canonicalTerm, {
+    const key = st.canonicalTerm.trim();
+    if (!termMap.has(key)) {
+      termMap.set(key, {
         term: st.canonicalTerm,
         aliases: [...st.aliases, ...st.technicalAliases],
         definition: st.definition,
         evidence: st.evidence.join("; "),
       });
+      newTerms += 1;
     }
   }
-
-  const ruleMap = new Map(existingKb.stableRules.map((r) => [r.rule, r]));
+  const ruleMap = new Map(existingKb.stableRules.map((r) => [r.rule.trim(), r]));
+  let newRules = 0;
   for (const sr of snapshot.rules) {
-    if (!ruleMap.has(sr.statement)) {
-      ruleMap.set(sr.statement, {
+    const key = sr.statement.trim();
+    if (!ruleMap.has(key)) {
+      ruleMap.set(key, {
         rule: sr.statement,
         rationale: `from model snapshot ${snapshot.id}`,
         source: "continuous-modeling",
       });
+      newRules += 1;
     }
   }
-
-  const compMap = new Map(existingKb.componentInventory.map((c) => [c.component, c]));
+  const compMap = new Map(existingKb.componentInventory.map((c) => [c.component.trim(), c]));
+  let newComponents = 0;
   for (const se of snapshot.entities) {
-    if (!compMap.has(se.name)) {
-      compMap.set(se.name, {
+    const key = se.name.trim();
+    if (!compMap.has(key)) {
+      compMap.set(key, {
         component: se.name,
         responsibility: se.businessName,
         relatedRequirements: [],
         relatedCodePaths: [],
       });
+      newComponents += 1;
     }
   }
-
   return {
-    ...existingKb,
-    ontologyTerms: Array.from(termMap.values()),
-    stableRules: Array.from(ruleMap.values()),
-    componentInventory: Array.from(compMap.values()),
-    updatedAt: new Date().toISOString(),
+    updatedKb: {
+      ...existingKb,
+      ontologyTerms: Array.from(termMap.values()),
+      stableRules: Array.from(ruleMap.values()),
+      componentInventory: Array.from(compMap.values()),
+      updatedAt: new Date().toISOString(),
+    },
+    newTerms,
+    newRules,
+    newComponents,
   };
 }
 
@@ -177,7 +190,7 @@ export class ContinuousModelingWorkspaceService {
     const result = this.modelingService.publishSnapshot(snapshotId, projectId);
     if (!result.ok) return result;
 
-    // Bi-directional KB sync: write snapshot data back to project KB
+    // 正名规范回写：将快照本体沉淀回 KB 并记录增量统计审计日志（归正数据流，与正名链一致）
     const snapshots = this.modelingRepo.listSnapshots(projectId);
     const published = snapshots.find((s) => s.id === snapshotId);
     if (published) {
@@ -191,8 +204,14 @@ export class ContinuousModelingWorkspaceService {
         changePatterns: [],
         updatedAt: "",
       };
-      const patchedKb = snapshotToKbPatch(published, existingKb);
-      this.workspaceRepo.updateProject({ ...project, knowledgeBase: patchedKb });
+      const { updatedKb, newTerms, newRules, newComponents } = snapshotToKbPatch(published, existingKb);
+      this.workspaceRepo.updateProject({ ...project, knowledgeBase: updatedKb });
+      writeAuditLog(
+        this.workspaceRepo,
+        "ontology.snapshot-merged",
+        `project:${projectId}`,
+        `terms=${newTerms};rules=${newRules};components=${newComponents}`
+      );
     }
 
     return result;
