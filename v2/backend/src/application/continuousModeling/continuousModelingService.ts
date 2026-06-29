@@ -5,6 +5,7 @@ import {
   detectChangedEntityNames,
   detectChangedRuleNames,
   detectChangedTerms,
+  nextCandidateVersionNumber,
   normalizeOntologyTerms,
   nowIso
 } from "./continuousModelingSupport";
@@ -28,11 +29,14 @@ export class ContinuousModelingService {
     const changedEntities = detectChangedEntityNames(input.entities, baseline);
     const changedRules = detectChangedRuleNames(input.rules, baseline);
     const reviewTasks = buildReviewTasks({ ...input, ontologyTerms: normalizedTerms }, changedTerms);
+    // v0.26.0 T1 方案 B：候选 id 含版本序号，使同迭代多次建模生成多版本候选，
+    // 发布后再次建模不覆盖已发布快照（消除 publish 后 saveCandidate 覆盖 published 的 bug）。
+    const versionNumber = nextCandidateVersionNumber(this.repository.listSnapshots(input.projectId), input.iterationId);
     const candidateSnapshot: ModelSnapshot = {
-      id: `snapshot-${input.projectId}-${input.iterationId}-candidate`,
+      id: `snapshot-${input.projectId}-${input.iterationId}-v${versionNumber}-candidate`,
       projectId: input.projectId,
       iterationId: input.iterationId,
-      version: `${input.projectId}.${input.iterationId}.candidate`,
+      version: `${input.projectId}.${input.iterationId}.v${versionNumber}.candidate`,
       status: "candidate",
       ontologyTerms: normalizedTerms,
       entities: input.entities,

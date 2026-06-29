@@ -78,3 +78,31 @@ export function buildReviewTasks(input: IterationModelingInput, changedTerms: st
   }
   return tasks;
 }
+
+/**
+ * 计算候选快照的下一个版本序号（v0.26.0 T1 方案 B）。
+ *
+ * 候选 id 含版本序号 snapshot-${projectId}-${iterationId}-v${n}-candidate，
+ * 使同迭代多次建模生成多版本候选，发布后再次建模不覆盖已发布快照。
+ * 旧快照 id 无版本序号视为 v0，新候选从 v1 起，旧 published 不被覆盖（向后兼容）。
+ *
+ * 仅计同 iterationId 的快照，取已有版本序号最大值 +1；无版本序号的旧快照不增序号。
+ */
+const VERSIONED_CANDIDATE_ID_PATTERN = /-v(\d+)-candidate$/;
+
+export function nextCandidateVersionNumber(snapshots: ModelSnapshot[], iterationId: number): number {
+  let max = 0;
+  for (const snapshot of snapshots) {
+    if (snapshot.iterationId !== iterationId) {
+      continue;
+    }
+    const match = VERSIONED_CANDIDATE_ID_PATTERN.exec(snapshot.id);
+    if (match) {
+      const n = Number.parseInt(match[1], 10);
+      if (Number.isFinite(n) && n > max) {
+        max = n;
+      }
+    }
+  }
+  return max + 1;
+}
