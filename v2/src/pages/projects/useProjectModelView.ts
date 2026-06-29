@@ -14,6 +14,7 @@ import { buildModelEntityCards, buildModelRelationNarratives, buildModelRuleMapp
 import { toModelRelationsFromView } from "./projectModelViewAdapter";
 import { normalizeProjectModelViewPayload } from "../../app/projectModelViewNormalization.ts";
 import type { RepoHealthState } from "./useRepositoryConfig";
+import { computeRelationFocusEntities } from "./useProjectModelViewHelpers";
 import type { StatusPayload } from "../../domain/workspace/types";
 import { useKnowledgeGraph } from "../../hooks/useKnowledgeGraph";
 import { mergeToUnifiedGraph } from "./unifiedGraphModel";
@@ -220,18 +221,6 @@ type ModelStatsInput = {
   status: StatusPayload | null;
   recentIterations: Iteration[];
 };
-
-function computeRelationFocusEntities(relations: ModelRelationPayload[]): string[] {
-  const entityCounter = new Map<string, number>();
-  for (const relation of relations) {
-    entityCounter.set(relation.fromEntityId, (entityCounter.get(relation.fromEntityId) ?? 0) + 1);
-    entityCounter.set(relation.toEntityId, (entityCounter.get(relation.toEntityId) ?? 0) + 1);
-  }
-  return Array.from(entityCounter.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([entityId, count]) => `${toFriendlyName(entityId)}(${count})`);
-}
 
 function useModelStats(p: ModelStatsInput) {
   const healthScore = useMemo(
