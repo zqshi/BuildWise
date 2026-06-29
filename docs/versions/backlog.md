@@ -26,20 +26,21 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.23.0 已归档（多租户 DB 硬隔离完成，2026-06-28）；v0.25.0 进行中（本体评审解决流程）；无其他活跃 current
+### P0 — v0.25.0 已归档（本体评审解决流程完成，2026-06-29）；v0.26.0 进行中（遗留项统一收口）；无其他活跃 current
 - **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
 - **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测遗留转后续**——需 @testing-library/react 基础设施升级，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
 - **v0.22.0 已归档**（2026-06-28，owner 分支收敛重新设计：保留 owner 块 + resolveTenantRole 加 isPlatformOwner 旁路，区分真超管 platformRoleBinding / dev owner AUTH_MODE=off / 租户 owner 三类语义，修正 v0.18.0 方案B 删块覆辙，详见 [v0.22.0-snapshot.md](v0.22.0-snapshot.md)）
 
-当前活跃版本：**v0.25.0**（本体评审解决流程，详见 v0.25.0-current.md）
+当前活跃版本：**v0.26.0**（遗留项统一收口：本体链+多租户+前端测试债，详见 v0.26.0-current.md）
 
 后续版本规划（依次推进）：
-- **v0.25.0（进行中）** — 本体评审解决流程：用户确认术语/规则后清除 blocking 评审，使 candidate→publish 前须解决；让 v0.24.0 评审门禁从"发布即认可"升级为"发布前须解决阻断评审"，真正独立阻断，夯实核心价值
+- **v0.26.0（进行中）** — 遗留项统一收口：v0.25.0 发现的本体链 3 项（mock/真实不一致+publish覆盖bug+集成测试）+ v0.23.0 多租户遗留（typed table tenant scope+assistant_messages核实）+ v0.21.0 前端测试债（useAuthController hook 单测），P0/P1 分批，无新功能
+- **v0.25.0（已归档，2026-06-29）** — 本体评审解决流程：建 resolveReviewTaskOp 标评审已解决 + publishSnapshot 前置检查未解决阻断评审，评审门禁从"发布即认可"升级为"发布前须解决阻断评审"，真正独立阻断。详见 [v0.25.0-snapshot.md](v0.25.0-snapshot.md)
 - **v0.24.0（已归档，2026-06-28）** — 突出核心价值（活的知识链条），A套元能力门禁激活。详见 [v0.24.0-snapshot.md](v0.24.0-snapshot.md)
 - **v0.23.0（已归档，2026-06-28）** — 多租户 DB 硬隔离：T2 修 syncTypedTables 写 projects.tenant_id + T3 查询层 listProjects/findProject 加 tenant scope。详见 [v0.23.0-snapshot.md](v0.23.0-snapshot.md)
-- **后续专项** — useAuthController hook 副作用单测（引入 @testing-library/react，v0.21.0 T3 遗留）；listIterations/findIteration/listMessages/listAuditLogs 按需加 tenant scope（v0.23.0 T3 遗留，若发现跨租户串调用方）；assistant_messages tenant_id 生效核实（v0.23.0 T1 待验证项）
+- **后续专项** — 已立项 v0.26.0 统一收口（T4 typed table tenant scope / T5 assistant_messages 核实 / T6 useAuthController hook 单测），详见 v0.26.0-current.md
 
-> v0.24.0 评审门禁语义说明：当前为"候选态阻断+发布即认可"（因 ReviewTask 无解决路径）。v0.25.0 建评审解决流程后可升级为"发布前须解决阻断评审"。
+> v0.24.0 评审门禁语义说明：v0.25.0 已建评审解决流程，门禁已升级为"发布前须解决阻断评审"（candidate 有未解决 blocking 阻断 publish，全部解决后放行；published 后发布即认可保留不误阻）。
 > v0.23.0 查询层说明：T3 聚焦 projects 表（租户边界根），其余 typed table 靠 project_id 链式关联 + 应用层覆盖，留后续按需扩展。
 
 ### P1 — dryRun 实跑验证（编码 agent 端到端）✅ 已完成（v0.11.0）
@@ -67,5 +68,8 @@
 | 前端 Props Drilling（ProjectsWorkspace 55 props） | P2 | v0.17.0 T5 处理（迁已有 7 个 Context 承载，不引入新状态库） |
 | 多租户数据串（assistant/experience 路由 tenantId 从 query/body 取） | P0 | v0.17.0 T1 修复（改从 authTenantId 取）；owner 分支收敛 v0.22.0 已完成（保留 owner 块 + isPlatformOwner 旁路,区分真超管/dev owner/租户 owner）；DB 层硬隔离转 v0.23.0 |
 | 持久化 JSON 无版本号 | — | **已过时**：JSON backend 已废弃（runtimeConfig.ts:111 强制 sqlite），迁移框架完备（schema_migrations + 001-008），版本号问题不存在 |
-| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P0 | v0.23.0 暂停（2026-06-28 让位核心价值主线 v0.24.0）；T1 探路 done，T2/T3/T4 待续；详见 backlog v0.23.0 段 + commit 1935257 |
+| 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P0 | v0.23.0 已归档（T2 写入层+T3 查询层 done，commit 21bb1e8+a330416）；listIterations 等 typed table tenant scope + assistant_messages 核实转 v0.26.0 T4/T5 |
 | per-prefix 超限文件（22 个，321-636 行，<800 硬限） | P3 | v0.17.0 T3 主动拆 8 个高风险（normalizeHelpers/stageOrchestrator/fullCycleOps/artifactSynthesisAgentOps/agentRunnerFactory/AnalysisReportSections/codeRewriteOps + layout.css）；6 个顺手拆；7 个伪超限不拆 |
+| mock modelingRepo saveCandidateSnapshot push vs 真实 upsert 不一致 | P2 | v0.25.0 T1 发现：`createInMemoryModelingRepo.saveCandidateSnapshot` 是 push，真实 `JsonContinuousModelingRepository` 是 upsert（同 id 覆盖）；既有测试「saveCandidate diff detects changes against published baseline」依赖 mock push 掩盖、真实 repo 下本会失败。T2 门禁集成测试若用 mock 会踩坑——建议用真实 Json repo，或修 mock 为 upsert（须同步修既有 diff 测试场景使其符合真实 repo 行为，如第二次 saveCandidate 用不同 iterationId 不覆盖 published） → **v0.26.0 T2 立项收口** |
+| 同 iteration publish 后 saveCandidate 同 id 覆盖 published 快照 | P2 | v0.25.0 T1 发现：candidate id 固定为 `snapshot-${projectId}-${iterationId}-candidate`，publish 后再 saveCandidate（同 iteration）会 upsert 覆盖 published 快照；潜在行为问题需产品判断——禁止 publish 后同 iteration 再 save，或 candidate id 含版本序号区分多版本 → **v0.26.0 T1 立项收口** |
+| onAnalysisConfirmed 自动 publish 集成链无测试守护 | P2 | v0.25.0 T2 发现：`confirmIterationAnalysis → app.ts 回调 → saveCandidate → 自动 publishSnapshot → T2 blocking 阻断停 candidate` 这条 app.ts 装配链无集成测试（现有 confirmIterationAnalysis 测试用孤立 ChangeControlService 未注册回调；契约不涉本体 publish）。T2 核心门禁已 8 例单测覆盖，但完整链需 e2e 或 app.ts 装配层测试补齐，防 onAnalysisConfirmed 语义回归无感知 → **v0.26.0 T3 立项收口** |
