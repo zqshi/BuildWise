@@ -8,6 +8,8 @@ import {
   normalizeOntologyTerms,
   nowIso
 } from "./continuousModelingSupport";
+import { resolveReviewTaskOp } from "../../domain/continuousModeling/resolveReviewTask";
+import { getUnresolvedBlockingReviews } from "../../domain/continuousModeling/reviewTaskStatus";
 
 export class ContinuousModelingService {
   private readonly repository: ContinuousModelingRepository;
@@ -68,6 +70,12 @@ export class ContinuousModelingService {
     if (target.status !== "candidate") {
       return { ok: false as const, reason: "snapshot_not_candidate" };
     }
+    // T2: 候选快照有未解决阻断评审 → 阻断发布（须先解决再发布）。
+    // 已解决（resolved=true）的评审不再阻断；无阻断评审则放行（维持原有行为）。
+    const unresolved = getUnresolvedBlockingReviews(target.reviewTasks);
+    if (unresolved.length > 0) {
+      return { ok: false as const, reason: "unresolved_blocking_reviews" };
+    }
     // supersede any existing published snapshots
     const currentPublished = snapshots.filter((item) => item.status === "published");
     for (const old of currentPublished) {
@@ -75,5 +83,20 @@ export class ContinuousModelingService {
     }
     this.repository.updateSnapshotStatus(snapshotId, "published");
     return { ok: true as const, snapshotId };
+  }
+
+  resolveReviewTask(snapshotId: string, projectId: number, reviewTaskId: string) {
+    const snapshots = this.repository.listSnapshots(projectId);
+    const target = snapshots.find((item) => item.id === snapshotId);
+    if (!target) {
+      return { ok: false as const, reason: "snapshot_not_found" };
+    }
+    const result = resolveReviewTaskOp({ snapshot: target, reviewTaskId });
+    if (!result.ok) {
+      return result;
+    }
+    // 复用 saveCandidateSnapshot 的 upsert 语义写回（同 id 覆盖，保留其余快照字段）
+    this.repository.saveCandidateSnapshot(result.snapshot);
+    return { ok: true as const, snapshot: result.snapshot };
   }
 }

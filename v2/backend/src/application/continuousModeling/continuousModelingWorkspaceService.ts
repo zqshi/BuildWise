@@ -198,6 +198,14 @@ export class ContinuousModelingWorkspaceService {
     return result;
   }
 
+  resolveReviewTask(snapshotId: string, projectId: number, reviewTaskId: string) {
+    const project = this.workspaceRepo.findProject(projectId);
+    if (!project) {
+      return { ok: false as const, reason: "project_not_found" };
+    }
+    return this.modelingService.resolveReviewTask(snapshotId, projectId, reviewTaskId);
+  }
+
   getProjectModelView(projectId: number, iterationId?: number) {
     const view = buildProjectModelView(this.workspaceRepo, this.modelingRepo, projectId, iterationId);
     return view;

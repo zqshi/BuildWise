@@ -11,6 +11,7 @@ import type { WorkspaceRepository } from "../../domain/workspace/repository";
 import type { ContinuousModelingRepository } from "../../domain/continuousModeling/repository";
 import { buildProjectModelView } from "./continuousModelingProjectView";
 import { evaluateOntologyReleaseGate, type OntologyReleaseGateResult } from "../../domain/continuousModeling/ontologyReleaseGate";
+import { getUnresolvedBlockingReviews } from "../../domain/continuousModeling/reviewTaskStatus";
 
 export class OntologyGateService {
   constructor(
@@ -27,7 +28,7 @@ export class OntologyGateService {
     const view = buildProjectModelView(this.repo, this.modelingRepo, iteration.projectId, iterationId);
     return evaluateOntologyReleaseGate({
       latestSnapshotStatus: view?.latestSnapshotStatus ?? "none",
-      blockingReviewTasks: (view?.reviewTasks ?? []).filter((task) => task.blocking)
+      blockingReviewTasks: getUnresolvedBlockingReviews(view?.reviewTasks ?? [])
     });
   }
 }
