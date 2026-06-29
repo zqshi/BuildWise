@@ -38,7 +38,7 @@
 - **v0.25.0（已归档，2026-06-29）** — 本体评审解决流程：建 resolveReviewTaskOp 标评审已解决 + publishSnapshot 前置检查未解决阻断评审，评审门禁从"发布即认可"升级为"发布前须解决阻断评审"，真正独立阻断。详见 [v0.25.0-snapshot.md](v0.25.0-snapshot.md)
 - **v0.24.0（已归档，2026-06-28）** — 突出核心价值（活的知识链条），A套元能力门禁激活。详见 [v0.24.0-snapshot.md](v0.24.0-snapshot.md)
 - **v0.23.0（已归档，2026-06-28）** — 多租户 DB 硬隔离：T2 修 syncTypedTables 写 projects.tenant_id + T3 查询层 listProjects/findProject 加 tenant scope。详见 [v0.23.0-snapshot.md](v0.23.0-snapshot.md)
-- **后续专项** — 已立项 v0.26.0 统一收口（T4 typed table tenant scope / T5 assistant_messages 核实 / T6 useAuthController hook 单测），详见 v0.26.0-current.md
+- **后续专项** — 已立项 v0.26.0 统一收口（T4 typed table tenant scope 已核实无风险 / T5 assistant_messages 核实已生效 / T6 useAuthController hook 单测 done 引入 @testing-library/react），详见 v0.26.0-current.md
 
 > v0.24.0 评审门禁语义说明：v0.25.0 已建评审解决流程，门禁已升级为"发布前须解决阻断评审"（candidate 有未解决 blocking 阻断 publish，全部解决后放行；published 后发布即认可保留不误阻）。
 > v0.23.0 查询层说明：T3 聚焦 projects 表（租户边界根），其余 typed table 靠 project_id 链式关联 + 应用层覆盖，留后续按需扩展。
