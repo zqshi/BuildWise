@@ -52,6 +52,7 @@ export type IterationChangeBoundary = {
   requirementRefs: string[];
   componentRefs: string[];
   codePaths: string[];
+  codePathsByPlatform?: Record<TargetPlatform, string[]>;
   note: string;
   updatedAt: string;
 };
