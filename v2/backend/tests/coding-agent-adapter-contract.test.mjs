@@ -61,8 +61,8 @@ test("availableAgents 列出已注册类型（不创建实例）", () => {
   const registry = new AgentRegistry();
   assert.deepEqual(registry.availableAgents(), []);
   registry.register("claude-code-cli", () => createMockAdapter({ agentType: "claude-code-cli" }));
-  registry.register("openclaw-gateway", () => createMockAdapter({ agentType: "openclaw-gateway" }));
-  assert.deepEqual(registry.availableAgents().sort(), ["claude-code-cli", "openclaw-gateway"]);
+  registry.register("custom-gateway", () => createMockAdapter({ agentType: "custom-gateway" }));
+  assert.deepEqual(registry.availableAgents().sort(), ["claude-code-cli", "custom-gateway"]);
 });
 
 test("isAvailable 判断是否注册（不校验 implemented）", () => {

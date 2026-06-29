@@ -6,7 +6,7 @@
  * agent 在 repoPath 内真实改代码（file edit tool），BuildWise 事后用 git diff + 边界校验。
  *
  * 声明+运行时分离：业务层通过 AgentRegistry.create("claude-code-cli") 获取实例，
- * 不直接 import 本类。更换为 OpenClaw 等其他框架只需新写一个 adapter 注册到 registry。
+ * 不直接 import 本类。更换为其他 Agent 框架只需新写一个 adapter 注册到 registry。
  *
  * 依赖注入 spawnFn：生产用 child_process.spawn，测试用 mock 注入伪子进程。
  */
