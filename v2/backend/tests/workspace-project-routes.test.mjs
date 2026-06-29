@@ -87,6 +87,104 @@ test("GET /projects/:id/iterations on non-existent project returns 404", async (
   await app.close();
 });
 
+// ─── 1b. 目标端声明（targetPlatforms）───
+
+test("创建项目时声明多端，返回的目标端集合按声明顺序去重保留合法端", async () => {
+  const { app } = await createApp();
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/v1/projects",
+    headers: headers(),
+    payload: JSON.stringify({ name: "多端项目", description: "web+ios", targetPlatforms: ["web", "ios"] })
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.deepEqual(body.targetPlatforms, ["web", "ios"]);
+  await app.close();
+});
+
+test("创建项目不声明目标端时，默认按 web 单端项目处理（向后兼容）", async () => {
+  const { app } = await createApp();
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/v1/projects",
+    headers: headers(),
+    payload: JSON.stringify({ name: "默认端项目", description: "no platforms" })
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.deepEqual(body.targetPlatforms, ["web"]);
+  await app.close();
+});
+
+test("创建项目声明的目标端含非法值时，被过滤后仅保留合法端", async () => {
+  const { app } = await createApp();
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/v1/projects",
+    headers: headers(),
+    payload: JSON.stringify({ name: "脏端项目", description: "x", targetPlatforms: ["web", "ios", "fake", "ios"] })
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.deepEqual(body.targetPlatforms, ["web", "ios"]);
+  await app.close();
+});
+
+test("编辑已有项目的目标端，更新后按新声明端生效", async () => {
+  const { app } = await createApp();
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/v1/projects",
+    headers: headers(),
+    payload: JSON.stringify({ name: "改端项目", description: "x", targetPlatforms: ["web"] })
+  });
+  const projectId = created.json().id;
+  const res = await app.inject({
+    method: "POST",
+    url: `/api/v1/projects/${projectId}/target-platforms`,
+    headers: headers(),
+    payload: JSON.stringify({ targetPlatforms: ["web", "harmony"] })
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.deepEqual(body.targetPlatforms, ["web", "harmony"]);
+  await app.close();
+});
+
+test("编辑目标端传空数组时，兜底为 web 单端（不允许零端项目）", async () => {
+  const { app } = await createApp();
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/v1/projects",
+    headers: headers(),
+    payload: JSON.stringify({ name: "空端项目", description: "x" })
+  });
+  const projectId = created.json().id;
+  const res = await app.inject({
+    method: "POST",
+    url: `/api/v1/projects/${projectId}/target-platforms`,
+    headers: headers(),
+    payload: JSON.stringify({ targetPlatforms: [] })
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.deepEqual(body.targetPlatforms, ["web"]);
+  await app.close();
+});
+
+test("编辑不存在的项目的目标端返回 404", async () => {
+  const { app } = await createApp();
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/v1/projects/999/target-platforms",
+    headers: headers(),
+    payload: JSON.stringify({ targetPlatforms: ["web"] })
+  });
+  assert.equal(res.statusCode, 404);
+  await app.close();
+});
+
 // ─── 2. Project Iterations (create & list) ───
 
 test("POST /projects/:id/iterations creates iteration on existing project", async () => {
