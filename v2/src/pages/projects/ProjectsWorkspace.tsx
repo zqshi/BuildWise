@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DeploymentRecord, OpsMetricsPayload, TemplateRunHistory, VersionSnapshot } from "../../domain/workspace/platformTypes";
+import type { OpsMetricsPayload } from "../../domain/workspace/platformTypes";
 import type { ModelRelationPayload } from "../../domain/workspace/modelOpsTypes";
 import { useAppControllerContext } from "../../contexts/AppControllerContext";
 import { IterationWorkspacePanel } from "./IterationWorkspacePanel";
@@ -12,19 +12,13 @@ import { ProjectOverviewPanel } from "./ProjectOverviewPanel";
  * 其余状态/回调全部从 AppControllerContext 获取（见 useAppControllerContext）。
  * modelPageCount/modelRuleCount/modelEntityCount/modelRelations 来自本体元数据视图，
  * 当前上层未传入（使用默认值），保留可选以备后续接入。
- * onCreateDeployment/onTransitionDeployment 同理保留可选。
  */
 type ProjectsWorkspaceProps = {
   modelPageCount?: number;
   modelRuleCount?: number;
   modelEntityCount?: number;
   modelRelations?: ModelRelationPayload[];
-  versionSnapshots?: VersionSnapshot[];
-  templateRuns?: TemplateRunHistory[];
-  deployments?: DeploymentRecord[];
   opsMetrics?: OpsMetricsPayload | null;
-  onCreateDeployment?: (environment: "staging" | "production") => Promise<void>;
-  onTransitionDeployment?: (deploymentId: number, toStatus: "running" | "success" | "failed") => Promise<void>;
 };
 
 export function ProjectsWorkspace({
@@ -32,12 +26,7 @@ export function ProjectsWorkspace({
   modelRuleCount = 0,
   modelEntityCount = 0,
   modelRelations = [],
-  versionSnapshots: _versionSnapshots = [],
-  templateRuns: _templateRuns = [],
-  deployments: _deployments = [],
   opsMetrics = null,
-  onCreateDeployment: _onCreateDeployment,
-  onTransitionDeployment: _onTransitionDeployment,
 }: ProjectsWorkspaceProps) {
   const c = useAppControllerContext();
 
