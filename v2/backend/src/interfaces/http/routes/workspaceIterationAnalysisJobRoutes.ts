@@ -102,17 +102,16 @@ function handleRetryLatest(service: WorkspaceService) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const iterationId = resolveWritableIteration(service, request, reply);
     if (iterationId === null) return errorMessageForWriteGuard(reply);
-    let created;
     try {
-      created = service.analysis.retryLatestFailedAttachmentAnalysisJob(iterationId);
+      const created = service.analysis.retryLatestFailedAttachmentAnalysisJob(iterationId);
+      if (!created) { reply.code(404); return { message: "未找到失败的分析任务" }; }
+      reply.code(202);
+      return created;
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) { reply.code(handled.code); return { message: handled.message }; }
       throw error;
     }
-    if (!created) { reply.code(404); return { message: "未找到失败的分析任务" }; }
-    reply.code(202);
-    return created;
   };
 }
 
@@ -122,20 +121,19 @@ function handleRetrySpecific(service: WorkspaceService) {
     if (iterationId === null) return errorMessageForWriteGuard(reply);
     const params = request.params as { id: string; jobId: string };
     const body = request.body as { scope?: "job" | "batch" } | null;
-    let created;
     try {
-      created = service.analysis.retryAttachmentAnalysisJob(iterationId, {
+      const created = service.analysis.retryAttachmentAnalysisJob(iterationId, {
         jobId: params.jobId,
         scope: body?.scope === "batch" ? "batch" : "job"
       });
+      if (!created) { reply.code(404); return { message: "分析任务不存在" }; }
+      reply.code(202);
+      return created;
     } catch (error) {
       const handled = handleRouteError(error);
       if (handled) { reply.code(handled.code); return { message: handled.message }; }
       throw error;
     }
-    if (!created) { reply.code(404); return { message: "分析任务不存在" }; }
-    reply.code(202);
-    return created;
   };
 }
 
