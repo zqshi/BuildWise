@@ -74,12 +74,13 @@ type IterationChangeSource = {
   updatedAt: string;
 };
 
-type IterationGeneratedTestCase = {
+export type IterationGeneratedTestCase = {
   type: string;
   caseId: string;
   focus: string;
   expected: string;
   evidence: string;
+  targetPlatform: TargetPlatform;
   executionStatus: "pending" | "passed" | "failed" | "blocked" | "skipped";
   executionUpdatedAt: string;
   executionBy: string;
