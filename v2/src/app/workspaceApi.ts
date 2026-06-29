@@ -23,12 +23,29 @@ export async function fetchProjects() {
   return ensureArray<Project>(projectDataRaw).filter((item) => !item.deletedAt);
 }
 
-export async function createProject(payload: { name: string; description: string }) {
+export async function createProject(payload: {
+  name: string;
+  description: string;
+  /** 声明的目标端集合；未传时后端默认兜底为 ["web"]。 */
+  targetPlatforms?: string[];
+}) {
   return fetchJSON<Project>(`${API_BASE}${API_PREFIX}/projects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
+}
+
+/** 更新项目目标端集合（admin 子资源路由，后端去重+过滤非法+空兜底）。 */
+export async function updateProjectTargetPlatforms(projectId: number, targetPlatforms: string[]) {
+  return fetchJSON<{ ok: boolean; targetPlatforms: string[] }>(
+    `${API_BASE}${API_PREFIX}/projects/${projectId}/target-platforms`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetPlatforms })
+    }
+  );
 }
 
 export async function deleteProject(projectId: number) {

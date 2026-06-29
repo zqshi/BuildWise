@@ -28,6 +28,9 @@ type ProjectContextValue = {
   setProjectName: React.Dispatch<React.SetStateAction<string>>;
   projectDesc: string;
   setProjectDesc: React.Dispatch<React.SetStateAction<string>>;
+  /** 创建项目表单中声明的目标端集合（默认 ["web"]）。 */
+  targetPlatforms: string[];
+  setTargetPlatforms: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -41,6 +44,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDesc, setProjectDesc] = useState("");
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["web"]);
 
   const currentProject = useMemo(
     () => ensureArray<Project>(projects).find((item) => item.id === currentProjectId) ?? null,
@@ -74,8 +78,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setProjectName,
       projectDesc,
       setProjectDesc,
+      targetPlatforms,
+      setTargetPlatforms,
     }),
-    [projects, projectsHydrated, currentProjectId, currentProject, showCreateProject, projectName, projectDesc]
+    [projects, projectsHydrated, currentProjectId, currentProject, showCreateProject, projectName, projectDesc, targetPlatforms]
   );
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

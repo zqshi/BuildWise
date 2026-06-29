@@ -2,7 +2,7 @@ import type { Dispatch, FormEvent, SetStateAction } from "react";
 import type { IterationVersionType } from "../domain/workspace/iterationTypes";
 import type { Project } from "../domain/workspace/types";
 import type { UploadedAttachmentMeta } from "../domain/workspace/analysisTypes";
-import { createIteration, createProject, deleteProject, deleteIteration } from "./workspaceApi";
+import { createIteration, createProject, deleteProject, deleteIteration, updateProjectTargetPlatforms } from "./workspaceApi";
 import { splitLines } from "./workspaceHelpers";
 import { resolveErrorMessage } from "../shared/resolveErrorMessage";
 
@@ -27,6 +27,9 @@ type UseProjectActionsParams = {
   setUploadedFile: Dispatch<SetStateAction<UploadedAttachmentMeta | null>>;
   setProjectName: Dispatch<SetStateAction<string>>;
   setProjectDesc: Dispatch<SetStateAction<string>>;
+  /** 创建项目表单中声明的目标端集合（默认 ["web"]）。 */
+  targetPlatforms: string[];
+  setTargetPlatforms: Dispatch<SetStateAction<string[]>>;
   setIterName: Dispatch<SetStateAction<string>>;
   setIterDesc: Dispatch<SetStateAction<string>>;
   setIterGoals: Dispatch<SetStateAction<string>>;
@@ -63,6 +66,7 @@ type CreationParams = Pick<
   | "setUploadedFile" | "setProjectName" | "setProjectDesc"
   | "setIterName" | "setIterDesc" | "setIterGoals" | "setIterInScope"
   | "setIterOutScope" | "setIterAcceptance" | "setIterVersionType"
+  | "targetPlatforms" | "setTargetPlatforms"
   | "loadProjects" | "loadIterations"
 >;
 
@@ -99,7 +103,8 @@ function useProjectCreation(p: CreationParams) {
       p.setBusy(true);
       const created = await createProject({
         name: p.projectName.trim(),
-        description: p.projectDesc.trim() || "暂无描述"
+        description: p.projectDesc.trim() || "暂无描述",
+        targetPlatforms: p.targetPlatforms
       });
       await p.loadProjects();
       p.setCurrentProjectId(created.id);
@@ -107,6 +112,7 @@ function useProjectCreation(p: CreationParams) {
       p.setShowCreateProject(false);
       p.setProjectName("");
       p.setProjectDesc("");
+      p.setTargetPlatforms(["web"]);
     } catch (err) {
       p.setError(resolveProjectApiError(err));
     } finally {
@@ -216,12 +222,27 @@ export function useProjectActions(params: UseProjectActionsParams) {
     params.setProjectPanelMode("project");
   };
 
+  /** 更新当前项目声明的目标端集合（项目设置区编辑入口）。 */
+  const handleUpdateTargetPlatforms = async (targetPlatforms: string[]) => {
+    if (!params.currentProject) return;
+    try {
+      params.setBusy(true);
+      await updateProjectTargetPlatforms(params.currentProject.id, targetPlatforms);
+      await params.loadProjects();
+    } catch (err) {
+      params.setError(resolveProjectApiError(err));
+    } finally {
+      params.setBusy(false);
+    }
+  };
+
   return {
     handleCreateProject,
     handleCreateIteration,
     handleEnterIteration,
     handleSelectProject,
     handleDeleteProject,
-    handleDeleteIteration
+    handleDeleteIteration,
+    handleUpdateTargetPlatforms
   };
 }
