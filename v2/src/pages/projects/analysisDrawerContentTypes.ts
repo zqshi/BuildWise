@@ -57,6 +57,7 @@ export type AnalysisDrawerContentProps = {
     skipped: number;
     coverage: number;
     passRate: number;
+    perPlatform: Array<{ platform: string; summary: { total: number; executed: number; passed: number; failed: number; blocked: number; skipped: number; coverage: number; passRate: number } }>;
   };
 
   /* ── prioritised findings ── */
