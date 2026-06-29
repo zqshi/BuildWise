@@ -701,7 +701,7 @@ const data = {
           updatedAt: time.t6
         },
         executableConstraints: {
-          componentWhitelist: ["OpenclawWorkspacePanel", "IterationWorkspacePanel"],
+          componentWhitelist: ["IterationWorkspacePanel"],
           codePathWhitelist: ["v2/src/pages/layout", "v2/src/pages/projects"],
           acceptanceChecks: ["v1 baseline must be archived", "first iteration must not reference inherited history"],
           generatedAt: time.t3
@@ -887,7 +887,7 @@ const data = {
           updatedAt: time.t16
         },
         executableConstraints: {
-          componentWhitelist: ["OpenclawWorkspacePanel", "IterationWorkspacePanel"],
+          componentWhitelist: ["IterationWorkspacePanel"],
           codePathWhitelist: ["apps/web/src/leads", "apps/api/src/export", "apps/api/src/notifications"],
           acceptanceChecks: ["follow-up iteration must start from inherited baseline", "release cannot bypass failed delta tests"],
           generatedAt: time.t12

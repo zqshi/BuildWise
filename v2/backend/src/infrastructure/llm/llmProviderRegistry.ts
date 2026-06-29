@@ -3,7 +3,7 @@
  *
  * 与 CodingAgentAdapter 的 AgentRegistry 对称：编码 agent 可声明式切换，
  * LLM provider 同样可声明式扩展。当前注册 OpenAI/Anthropic 两协议，
- * 未来若 OpenClaw Gateway 需非标准 API，只需 registerLlmProvider 注册专用 factory，
+ * 未来若某 LLM Gateway 需非标准 API，只需 registerLlmProvider 注册专用 factory，
  * 不改 createAgentRunnerFromEnv 逻辑。
  *
  * 声明+运行时分离：provider 类型与 factory 在 agentRunnerFactory.ts 注册，
@@ -15,7 +15,7 @@ import type { LlmEnv } from "./agentRunnerConfig";
 
 export type LlmProviderFactory = (env: LlmEnv) => AgentRunner | null;
 
-// key 用 string 而非 LlmProvider 联合类型：支持未来注册任意 provider（如 openclaw-gateway），
+// key 用 string 而非 LlmProvider 联合类型：支持未来注册任意 provider（如 custom-gateway），
 // LlmProvider 联合类型保留在 agentRunnerConfig 作已知默认，不限制注册表扩展。
 const providers = new Map<string, LlmProviderFactory>();
 

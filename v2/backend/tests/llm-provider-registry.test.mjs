@@ -27,16 +27,16 @@ test("resolveLlmRunner 未注册的 provider 返回 null", () => {
 
 // ─── 声明+运行时分离：可声明式扩展新 provider ───
 
-test("registerLlmProvider 可扩展新 provider（如 openclaw-gateway），不改 createAgentRunnerFromEnv", () => {
+test("registerLlmProvider 可扩展新 provider（如 custom-gateway），不改 createAgentRunnerFromEnv", () => {
   let factoryCalled = false;
   const fakeRunner = { run: async () => ({ content: "ok" }), runWithHistory: async () => ({ content: "ok" }) };
-  registerLlmProvider("openclaw-gateway", (env) => {
+  registerLlmProvider("custom-gateway", (env) => {
     factoryCalled = true;
     return fakeRunner;
   });
-  assert.ok(registeredLlmProviders().includes("openclaw-gateway"));
+  assert.ok(registeredLlmProviders().includes("custom-gateway"));
 
-  const runner = resolveLlmRunner("openclaw-gateway", { LLM_API_BASE: "http://x" });
+  const runner = resolveLlmRunner("custom-gateway", { LLM_API_BASE: "http://x" });
   assert.equal(factoryCalled, true);
   assert.equal(runner, fakeRunner);
 });

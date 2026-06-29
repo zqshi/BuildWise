@@ -7,7 +7,7 @@
  * - AgentRunner：同步单次 LLM 调用，用于对话教练、交付物文本合成
  * - CodingAgentAdapter：异步会话式编码执行，用于代码改写（start → 轮询 → 拉取事件 → 事后校验）
  *
- * 声明+运行时分离：domain 定义端口，infrastructure 实现具体适配器（OpenClaw/Claude Code/Cursor 等），
+ * 声明+运行时分离：domain 定义端口，infrastructure 实现具体适配器（Claude Code CLI 等，可插拔扩展），
  * 业务层只依赖此端口，通过 AgentRegistry.create(type) 获取实例，更换框架不影响业务。
  *
  * domain 层零外部依赖，仅定义接口与类型。
@@ -55,7 +55,7 @@ export type CodingAgentEvent = {
 // ── 端口接口 ──
 
 export interface CodingAgentAdapter {
-  /** 适配器类型标识（如 "claude-code-cli"、"openclaw-gateway"） */
+  /** 适配器类型标识（如 "claude-code-cli"、"custom-gateway"） */
   readonly agentType: string;
   /** 是否已实现且可用（未实现的不注册到 registry） */
   readonly implemented: boolean;
