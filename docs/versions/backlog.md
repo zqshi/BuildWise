@@ -26,20 +26,20 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.26.0 已归档（遗留项统一收口完成，2026-06-29）；v0.27.0 进行中（剩余技术债统一收口）；无其他活跃 current
+### P0 — v0.26.0 已归档（遗留项统一收口完成）；v0.27.0 已归档（剩余技术债统一收口完成，2026-06-29）；无活跃 current，待规划新版本
 - **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
 - **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测已由 v0.26.0 T6 收口**——引入 @testing-library/react，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
 - **v0.22.0 已归档**（2026-06-28，owner 分支收敛重新设计：保留 owner 块 + resolveTenantRole 加 isPlatformOwner 旁路，区分真超管 platformRoleBinding / dev owner AUTH_MODE=off / 租户 owner 三类语义，修正 v0.18.0 方案B 删块覆辙，详见 [v0.22.0-snapshot.md](v0.22.0-snapshot.md)）
 
-当前活跃版本：**v0.27.0**（剩余技术债统一收口：A→B 回写+超限文件+Props Drilling，详见 v0.27.0-current.md）
+当前无活跃 current：v0.27.0 已归档（2026-06-29，剩余技术债统一收口，详见 [v0.27.0-snapshot.md](v0.27.0-snapshot.md)）；待规划新版本
 
 后续版本规划（依次推进）：
-- **v0.27.0（进行中）** — 剩余技术债统一收口：v0.24.0 遗留的 A→B 回写冗余评估（核心价值主线数据源单一性）+ per-prefix 超限文件拆分（代码卫生）+ 前端 Props Drilling 残留评估，按 P 排序分批，无新功能
+- **v0.27.0（已归档，2026-06-29）** — 剩余技术债统一收口：T1 A→B 回写改造为正名规范 + T2 4 核心超限文件拆分（coreOps/ontologyService/analysisOps/synthesisTaskOps）+ T3 Props Drilling 评估（55→10 全可选），详见 [v0.27.0-snapshot.md](v0.27.0-snapshot.md)
 - **v0.26.0（已归档，2026-06-29）** — 遗留项统一收口：本体链 3 项（候选版本化+mock 一致+集成测试）+ 多租户遗留核实（typed table/assistant_messages 已生效无风险）+ 前端测试债（useAuthController hook 单测）。详见 [v0.26.0-snapshot.md](v0.26.0-snapshot.md)
 - **v0.25.0（已归档，2026-06-29）** — 本体评审解决流程：建 resolveReviewTaskOp 标评审已解决 + publishSnapshot 前置检查未解决阻断评审，评审门禁从"发布即认可"升级为"发布前须解决阻断评审"。详见 [v0.25.0-snapshot.md](v0.25.0-snapshot.md)
 - **v0.24.0（已归档，2026-06-28）** — 突出核心价值（活的知识链条），A套元能力门禁激活。详见 [v0.24.0-snapshot.md](v0.24.0-snapshot.md)
 - **v0.23.0（已归档，2026-06-28）** — 多租户 DB 硬隔离：T2 修 syncTypedTables 写 projects.tenant_id + T3 查询层 listProjects/findProject 加 tenant scope。详见 [v0.23.0-snapshot.md](v0.23.0-snapshot.md)
-- **后续专项** — 已立项 v0.27.0 统一收口（T1 A→B 回写 / T2 超限文件拆分 / T3 Props Drilling 评估），详见 v0.27.0-current.md
+- **后续专项（待立项）** — v0.27.0 遗留转后续：analysisService.ts 473 行专项拆分 / T2 拆分引入的 5 处 biome-ignore（useImportType 对 typeof 误报）重构消除 / T3 残留 10 个 ProjectsWorkspace 预留占位评估接入或 YAGNI 删除
 
 > v0.24.0 评审门禁语义说明：v0.25.0 已建评审解决流程，门禁已升级为"发布前须解决阻断评审"（candidate 有未解决 blocking 阻断 publish，全部解决后放行；published 后发布即认可保留不误阻）。
 > v0.23.0 查询层说明：T3 聚焦 projects 表（租户边界根），其余 typed table 靠 project_id 链式关联 + 应用层覆盖，留后续按需扩展。
@@ -66,12 +66,12 @@
 
 | 债务 | 优先级 | 现状/计划 |
 |------|--------|----------|
-| 前端 Props Drilling（ProjectsWorkspace 55 props） | P2 | v0.17.0 T5 处理（迁已有 7 个 Context 承载，不引入新状态库）→ **v0.27.0 T3 立项评估残留** |
+| 前端 Props Drilling（ProjectsWorkspace 55→10 全可选） | P3 | v0.17.0 T5 迁 7 Context 承载 → **v0.27.0 T3 已评估**：55 props（24 状态+31 回调）→ 10 全可选展示字段，状态/回调全迁 AppControllerContext，ProjectsWorkspaceConnector 零透传。残留 10 个 Connector 不传的预留占位（5 传子组件走默认值 + 5 `_` 完全不用）转后续评估接入/YAGNI 删除 |
 | 多租户数据串（assistant/experience 路由 tenantId 从 query/body 取） | P0 | v0.17.0 T1 修复（改从 authTenantId 取）；owner 分支收敛 v0.22.0 已完成（保留 owner 块 + isPlatformOwner 旁路,区分真超管/dev owner/租户 owner）；DB 层硬隔离转 v0.23.0 |
 | 持久化 JSON 无版本号 | — | **已过时**：JSON backend 已废弃（runtimeConfig.ts:111 强制 sqlite），迁移框架完备（schema_migrations + 001-008），版本号问题不存在 |
 | 多租户 DB 层硬隔离（16 表加 tenant_id + 双写一致性） | P0 | v0.23.0 已归档（T2 写入层+T3 查询层 done，commit 21bb1e8+a330416）；listIterations 等 typed table tenant scope + assistant_messages 核实转 v0.26.0 T4/T5。**T4 已核实无风险**（v0.26.0）：listIterations/findIteration/listMessages 入口经 ensureIterationAccess/ensureProjectAccess 校验，listAuditLogs 是平台超管全局审计视图，无需强加 DB scope |
-| per-prefix 超限文件（22 个，321-636 行，<800 硬限） | P3 | v0.17.0 T3 主动拆 8 个高风险（normalizeHelpers/stageOrchestrator/fullCycleOps/artifactSynthesisAgentOps/agentRunnerFactory/AnalysisReportSections/codeRewriteOps + layout.css）；6 个顺手拆；7 个伪超限不拆 → **v0.27.0 T2 立项拆核心高风险**（coreOps 431/ontologyService 455/analysisOps 530/synthesisTaskOps 400 等） |
+| per-prefix 超限文件 | P3 | v0.17.0 T3 拆 8 高风险+6 顺手 → **v0.27.0 T2 已拆 4 核心**（synthesisTaskOps 399→256/coreOps 431→199/analysisOps 530→228/ontologyService 455→141，拆非导出辅助零桥接零回归）。剩 11：前端 6（fetchJSON/DashboardView/AnalysisDrawerPanels/useIterationWorkspaceState/useProjectModelView/iterationWorkspacePanelUtils）+ 后端伪超限 4（platformOpsService/governanceRunnerOps/artifactOps/artifactWorkflow 职责单一不拆）+ analysisService 473（超软限 153，值得专项拆）+ analysisPipelineOps 321（超软限 1 临界）。另 T2 引入 5 处 biome-ignore（useImportType 对 typeof 误报）待重构显式类型消除 |
 | mock modelingRepo saveCandidateSnapshot push vs 真实 upsert 不一致 | P2 | v0.25.0 T1 发现 → **v0.26.0 T2 已修复**：createInMemoryModelingRepo.saveCandidateSnapshot 改 upsert（同 id 覆盖）。修复 mock 掩盖的真实行为 bug——resolveReviewTask 写回同 id 时 mock push 下第二次 resolve 读旧快照致 resolved 未累积、publish 误阻断。T1 版本化 id 已让 saveCandidate 路径一致，T2 仅 resolve 写回路径受益 |
 | 同 iteration publish 后 saveCandidate 同 id 覆盖 published 快照 | P2 | v0.25.0 T1 发现 → **v0.26.0 T1 已修复（方案 B）**：candidate id 含版本序号 `snapshot-X-Y-v${n}-candidate`（nextCandidateVersionNumber 纯函数 + planIterationModeling 接入），publish 后再 saveCandidate 生成新版本不覆盖 published；旧 id 无序号视为 v0 向后兼容 |
 | onAnalysisConfirmed 自动 publish 集成链无测试守护 | P2 | v0.25.0 T2 发现 → **v0.26.0 T3 已补**：tests/ontology-onanalysis-confirmed.test.mjs 装配层测试 3 例覆盖 confirmIterationAnalysis→回调→saveCandidate→自动 publishSnapshot→门禁阻断停 candidate 全链 |
-| A→B 回写冗余（snapshotToKbPatch 双写绕圈） | P2 | v0.24.0 遗留评估项：publishSnapshot 把快照内容回写 ProjectKnowledgeBase（A 套快照与 B 套 KB 双写），是否收敛为 KB 视图层未定 → **v0.27.0 T1 立项评估+处置** |
+| A→B 回写（snapshotToKbPatch 正名规范） | — | v0.24.0 遗留 → **v0.27.0 T1 已处置**：调研推翻「回写空转」初判（回写有真实功能：HTTP saveCandidate 让前端直传本体项，publish 沉淀回 KB），但绕过正名链是数据源单一性真问题。落地为正名规范：snapshotToKbPatch 增强 key trim 归一（修 KB 项含空白重复沉淀 bug）+ 增量统计 + 审计日志 ontology.snapshot-merged。保留回写走正名链，非收敛为视图层（直接复用 extractKnowledgeBaseUpdateOp 不可行，强耦合分析报告追溯结构） |
