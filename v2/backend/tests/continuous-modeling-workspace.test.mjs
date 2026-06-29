@@ -308,10 +308,19 @@ test("saveCandidate returns diff summary against empty baseline", () => {
 });
 
 test("saveCandidate diff detects changes against published baseline", () => {
-  const { service } = setupInMemory();
-  const first = service.saveCandidate(buildTestInput());
-  assert.ok(first.ok);
-  service.publishSnapshot(first.data.snapshotId, 1);
+  const { service, modelingRepo } = setupInMemory();
+  // 已发布基线（无阻断评审，聚焦 saveCandidate 的 diff 检测，不涉发布门禁）
+  modelingRepo.saveCandidateSnapshot({
+    id: "baseline-1-10", projectId: 1, iterationId: 10,
+    version: "1.0", status: "published",
+    ontologyTerms: [
+      { canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] },
+      { canonicalTerm: "订单", aliases: [], technicalAliases: ["Order"], definition: "交易实体", evidence: ["v2"] }
+    ],
+    entities: [{ id: "e1", name: "User", businessName: "用户", fields: [{ name: "id", type: "string", required: true }] }],
+    relations: [], rules: [],
+    reviewTasks: [], derivedFromSnapshotId: null, createdAt: "2026-01-01T00:00:00.000Z"
+  });
 
   const second = service.saveCandidate(buildTestInput({
     ontologyTerms: [
@@ -327,8 +336,11 @@ test("saveCandidate diff detects changes against published baseline", () => {
 });
 
 test("publishSnapshot syncs snapshot data back to project KB", () => {
-  const { service, workspaceRepo } = setupInMemory();
-  const result = service.saveCandidate(buildTestInput({
+  const { service, workspaceRepo, modelingRepo } = setupInMemory();
+  // 候选快照无阻断评审（聚焦 publish 的 KB 回写，不涉发布门禁）
+  modelingRepo.saveCandidateSnapshot({
+    id: "snap-kb-1-10", projectId: 1, iterationId: 10,
+    version: "1.0", status: "candidate",
     ontologyTerms: [
       { canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] },
       { canonicalTerm: "订单", aliases: [], technicalAliases: ["Order"], definition: "交易实体", evidence: ["v2"] }
@@ -337,14 +349,15 @@ test("publishSnapshot syncs snapshot data back to project KB", () => {
       { id: "e1", name: "User", businessName: "用户", fields: [] },
       { id: "e2", name: "Order", businessName: "订单", fields: [] }
     ],
+    relations: [],
     rules: [
       { id: "r1", name: "密码规则", statement: "密码至少8位", linkedEntityIds: ["e1"], linkedSurfaceIds: [], linkedApiIds: [] },
       { id: "r2", name: "订单规则", statement: "订单30分钟取消", linkedEntityIds: ["e2"], linkedSurfaceIds: [], linkedApiIds: [] }
-    ]
-  }));
-  assert.ok(result.ok);
+    ],
+    reviewTasks: [], derivedFromSnapshotId: null, createdAt: "2026-01-01T00:00:00.000Z"
+  });
 
-  const pubResult = service.publishSnapshot(result.data.snapshotId, 1);
+  const pubResult = service.publishSnapshot("snap-kb-1-10", 1);
   assert.ok(pubResult.ok);
 
   const project = workspaceRepo.findProject(1);
@@ -355,10 +368,19 @@ test("publishSnapshot syncs snapshot data back to project KB", () => {
 });
 
 test("publishSnapshot does not duplicate existing KB entries", () => {
-  const { service, workspaceRepo } = setupInMemory();
-  const result = service.saveCandidate(buildTestInput());
-  assert.ok(result.ok);
-  service.publishSnapshot(result.data.snapshotId, 1);
+  const { service, workspaceRepo, modelingRepo } = setupInMemory();
+  // 候选快照含 KB 已有条目且无阻断评审（聚焦 publish 回写去重，不涉发布门禁）
+  modelingRepo.saveCandidateSnapshot({
+    id: "snap-dedup-1-10", projectId: 1, iterationId: 10,
+    version: "1.0", status: "candidate",
+    ontologyTerms: [{ canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] }],
+    entities: [{ id: "e1", name: "User", businessName: "用户", fields: [] }],
+    relations: [],
+    rules: [{ id: "r1", name: "密码规则", statement: "密码至少8位", linkedEntityIds: ["e1"], linkedSurfaceIds: [], linkedApiIds: [] }],
+    reviewTasks: [], derivedFromSnapshotId: null, createdAt: "2026-01-01T00:00:00.000Z"
+  });
+
+  service.publishSnapshot("snap-dedup-1-10", 1);
 
   const project = workspaceRepo.findProject(1);
   const kb = project.knowledgeBase;
