@@ -33,11 +33,12 @@ import {
   persistRetryableAnalysisInputOp,
   recordAttachmentInputFingerprintOp
 } from './stateOps';
+import { restoreAnalysisStateFromDb } from './analysisServiceRestore';
+import { selectLatestAnalysisJob, selectLatestFailedAnalysisJob, resolveRetryableAnalysisInput } from './analysisServiceRetry';
 import { readNonNegativeInt, readPositiveInt, readPositiveMs } from '../shared/envParsers';
 import {
   buildAttachmentInputFingerprint,
   nowIso,
-  parseAttachmentInputSnapshot,
   shortId,
   summarizeInput
 } from '../upload/attachmentUtils';
@@ -105,36 +106,12 @@ export class AnalysisService {
 
   private restoreFromDb() {
     try {
-      const allJobs = this.repo.listAnalysisJobs
-        ? (() => {
-            const jobs: Array<AttachmentAnalysisJobRuntime> = [];
-            for (const project of this.repo.listProjects()) {
-              for (const iter of this.repo.listIterations(project.id)) {
-                for (const row of this.repo.listAnalysisJobs(iter.id)) {
-                  jobs.push({
-                    ...row,
-                    input: (row.input ?? {}) as AttachmentUploadInput,
-                    inputFingerprint: row.inputFingerprint ?? ""
-                  } as AttachmentAnalysisJobRuntime);
-                }
-              }
-            }
-            return jobs;
-          })()
-        : [];
-      for (const job of allJobs) {
-        if (!this.analysisJobs.has(job.jobId)) {
-          this.analysisJobs.set(job.jobId, job);
-        }
-        const reportIndex = this.repo.findReportIndexByJob?.(job.jobId);
-        if (reportIndex && !this.reportIndexesByJobId.has(job.jobId)) {
-          this.reportIndexesByJobId.set(job.jobId, reportIndex);
-          const sections = this.repo.listReportSections?.(reportIndex.reportId) ?? [];
-          if (sections.length > 0 && !this.reportSectionsByReportId.has(reportIndex.reportId)) {
-            this.reportSectionsByReportId.set(reportIndex.reportId, sections);
-          }
-        }
-      }
+      restoreAnalysisStateFromDb(
+        this.repo,
+        this.analysisJobs,
+        this.reportIndexesByJobId,
+        this.reportSectionsByReportId
+      );
     } catch (err) {
       log.error("failed to restore from DB, starting fresh", { error: err instanceof Error ? err.message : String(err) });
     }
@@ -226,24 +203,13 @@ export class AnalysisService {
     if (!iteration) {
       return null;
     }
-    const latestFailedJob = Array.from(this.analysisJobs.values())
-      .filter((job) => job.iterationId === iterationId && job.status === "failed")
-      .sort((a, b) => {
-        const at = new Date(a.finishedAt || a.createdAt).getTime();
-        const bt = new Date(b.finishedAt || b.createdAt).getTime();
-        return bt - at;
-      })[0];
-    const latestAnyJob = Array.from(this.analysisJobs.values())
-      .filter((job) => job.iterationId === iterationId)
-      .sort((a, b) => {
-        const at = new Date(a.finishedAt || a.createdAt).getTime();
-        const bt = new Date(b.finishedAt || b.createdAt).getTime();
-        return bt - at;
-      })[0];
-    const persistedInput =
-      parseAttachmentInputSnapshot(iteration.changeControl?.lastFailedAnalysisInput || "") ||
-      (latestFailedJob ? latestFailedJob.input : null) ||
-      (latestAnyJob ? latestAnyJob.input : null);
+    const latestFailedJob = selectLatestFailedAnalysisJob(this.analysisJobs.values(), iterationId);
+    const latestAnyJob = selectLatestAnalysisJob(this.analysisJobs.values(), iterationId);
+    const persistedInput = resolveRetryableAnalysisInput(
+      iteration.changeControl?.lastFailedAnalysisInput || "",
+      latestFailedJob,
+      latestAnyJob
+    );
     if (!persistedInput) {
       return null;
     }
