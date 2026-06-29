@@ -26,12 +26,12 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.26.0 已归档（遗留项统一收口完成）；v0.27.0 已归档（剩余技术债统一收口完成，2026-06-29）；无活跃 current，待规划新版本
+### P0 — v0.27.0 已归档；v0.28.0 已归档（剩余技术债清扫完成，2026-06-29）；无活跃 current，待规划新版本
 - **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
 - **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测已由 v0.26.0 T6 收口**——引入 @testing-library/react，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
 - **v0.22.0 已归档**（2026-06-28，owner 分支收敛重新设计：保留 owner 块 + resolveTenantRole 加 isPlatformOwner 旁路，区分真超管 platformRoleBinding / dev owner AUTH_MODE=off / 租户 owner 三类语义，修正 v0.18.0 方案B 删块覆辙，详见 [v0.22.0-snapshot.md](v0.22.0-snapshot.md)）
 
-当前无活跃 current：v0.27.0 已归档（2026-06-29，剩余技术债统一收口，详见 [v0.27.0-snapshot.md](v0.27.0-snapshot.md)）；待规划新版本
+当前无活跃 current：v0.28.0 已归档（2026-06-29，剩余技术债清扫，详见 [v0.28.0-snapshot.md](v0.28.0-snapshot.md)）；待规划新版本
 
 后续版本规划（依次推进）：
 - **v0.27.0（已归档，2026-06-29）** — 剩余技术债统一收口：T1 A→B 回写改造为正名规范 + T2 4 核心超限文件拆分（coreOps/ontologyService/analysisOps/synthesisTaskOps）+ T3 Props Drilling 评估（55→10 全可选），详见 [v0.27.0-snapshot.md](v0.27.0-snapshot.md)
@@ -39,7 +39,8 @@
 - **v0.25.0（已归档，2026-06-29）** — 本体评审解决流程：建 resolveReviewTaskOp 标评审已解决 + publishSnapshot 前置检查未解决阻断评审，评审门禁从"发布即认可"升级为"发布前须解决阻断评审"。详见 [v0.25.0-snapshot.md](v0.25.0-snapshot.md)
 - **v0.24.0（已归档，2026-06-28）** — 突出核心价值（活的知识链条），A套元能力门禁激活。详见 [v0.24.0-snapshot.md](v0.24.0-snapshot.md)
 - **v0.23.0（已归档，2026-06-28）** — 多租户 DB 硬隔离：T2 修 syncTypedTables 写 projects.tenant_id + T3 查询层 listProjects/findProject 加 tenant scope。详见 [v0.23.0-snapshot.md](v0.23.0-snapshot.md)
-- **后续专项（待立项）** — v0.27.0 遗留转后续：analysisService.ts 473 行专项拆分 / T2 拆分引入的 5 处 biome-ignore（useImportType 对 typeof 误报）重构消除 / T3 残留 10 个 ProjectsWorkspace 预留占位评估接入或 YAGNI 删除
+- **v0.28.0 已归档（2026-06-29）** — 剩余技术债清扫：T1 analysisService 拆纯逻辑+接受聚合根内聚(438) / T2 biome-ignore 评估保留合理例外 / T3 删 ProjectsWorkspace 5 死代码占位 / T4 前端 hook 拆纯逻辑(2hook拆+2组件接受) / T5 dryRun 路径A 评估转后续手动。详见 [v0.28.0-snapshot.md](v0.28.0-snapshot.md)
+- **后续专项（待立项）** — T5 dryRun 路径A 完整业务链路实跑（环境就绪需手动造数据+临时仓库+10min，路径B+fullCycle 已验证范式）/ 聚合根+hook 内聚超限文件(analysisService 438/useProjectModelView 405/useIterationWorkspaceState 369/AnalysisDrawerPanels 530/DashboardView 447)接受不强拆 / 5 处 biome-ignore 合理例外保留
 
 > v0.24.0 评审门禁语义说明：v0.25.0 已建评审解决流程，门禁已升级为"发布前须解决阻断评审"（candidate 有未解决 blocking 阻断 publish，全部解决后放行；published 后发布即认可保留不误阻）。
 > v0.23.0 查询层说明：T3 聚焦 projects 表（租户边界根），其余 typed table 靠 project_id 链式关联 + 应用层覆盖，留后续按需扩展。
