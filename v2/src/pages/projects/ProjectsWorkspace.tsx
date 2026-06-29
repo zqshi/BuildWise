@@ -65,6 +65,7 @@ export function ProjectsWorkspace({
     c.setShowCreateIteration(true);
   };
   const onDeleteProject = c.handleDeleteProject;
+  const onUpdateTargetPlatforms = c.handleUpdateTargetPlatforms;
   const onDeleteIteration = c.handleDeleteIteration;
   const onUploadClick = c.handleUploadClick;
   const onOpenAnalysisPanel = () => c.setShowAnalysisPanel(true);
@@ -196,6 +197,7 @@ export function ProjectsWorkspace({
               onEnterIteration={onEnterIteration}
               onDeleteIteration={onDeleteIteration}
               onDeleteProject={onDeleteProject}
+              onUpdateTargetPlatforms={onUpdateTargetPlatforms}
             />
           </section>
         ) : (

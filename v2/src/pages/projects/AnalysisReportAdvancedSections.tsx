@@ -4,6 +4,8 @@
  */
 
 import type { AttachmentAnalysisReport } from "./iterationWorkspacePanelTypes";
+import { describeReleaseReviewPerPlatform } from "./releaseReviewPerPlatformPresenter";
+import { TARGET_PLATFORM_LABELS } from "./TargetPlatformsPicker";
 
 export type AnalysisReportAdvancedSectionsProps = {
   analysisReport: AttachmentAnalysisReport;
@@ -26,6 +28,7 @@ export function AnalysisReportAdvancedSections({
   qualityArtifacts,
   versionDiffDetailed,
 }: AnalysisReportAdvancedSectionsProps) {
+  const perPlatformRows = describeReleaseReviewPerPlatform(releaseReview?.perPlatform);
   return (
     <>
       {/* ── 8+ 高级段落（技术详情，默认折叠）── */}
@@ -142,6 +145,19 @@ export function AnalysisReportAdvancedSections({
         <div className="info-box">
           <h3>发布前质量评审</h3>
           <p>结论：{{ go: "通过", caution: "有条件通过", block: "阻断" }[releaseReview.decision] || releaseReview.decision}</p>
+          {perPlatformRows.length > 0 ? (
+            <div className="release-review-per-platform">
+              <p className="hint">按目标端评审：</p>
+              <ul className="history-list">
+                {perPlatformRows.map((row) => (
+                  <li key={row.platform} className="history-item">
+                    <strong>{TARGET_PLATFORM_LABELS[row.platform] ?? row.platform}：{row.decisionLabel}</strong>
+                    <p className="hint">{row.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <p>原因：{releaseReview.reason || "-"}</p>
           <p>
             信号：用例 {releaseReview.qualitySignals.testCaseCount}，高优发现 {releaseReview.qualitySignals.p0FindingCount}，待确定信号{" "}
