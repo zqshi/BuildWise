@@ -12,6 +12,8 @@ import { useProjectModelView } from "./useProjectModelView";
 import { usePolicyManagement } from "./usePolicyManagement";
 import { useAssistantChat } from "./useAssistantChat";
 import { useGovernanceEntry } from "./useGovernanceEntry";
+import { ProjectTargetPlatformsEditor } from "./ProjectTargetPlatformsEditor";
+import { TARGET_PLATFORM_LABELS } from "./TargetPlatformsPicker";
 
 type ProjectOverviewPanelProps = {
   currentProject: Project | null;
@@ -31,6 +33,8 @@ type ProjectOverviewPanelProps = {
   onEnterIteration: (iterationId: number) => void;
   onDeleteIteration: (iterationId: number) => Promise<void>;
   onDeleteProject: (projectId: number) => Promise<void>;
+  /** 更新当前项目声明的目标端集合（项目设置区编辑入口，admin 可见）。 */
+  onUpdateTargetPlatforms?: (targetPlatforms: string[]) => void | Promise<void>;
 };
 
 
@@ -51,7 +55,8 @@ export function ProjectOverviewPanel({
   onShowCreateIteration,
   onEnterIteration,
   onDeleteIteration,
-  onDeleteProject
+  onDeleteProject,
+  onUpdateTargetPlatforms
 }: ProjectOverviewPanelProps) {
   const sortedIterations = useMemo(() => [...iterations].sort((a, b) => a.id - b.id), [iterations]);
   const recentIterations = useMemo(() => sortedIterations.slice(-5), [sortedIterations]);
@@ -65,6 +70,7 @@ export function ProjectOverviewPanel({
   const [showPolicyDrawer, setShowPolicyDrawer] = useState(false);
   const [showAssistantDrawer, setShowAssistantDrawer] = useState(false);
   const [panelView, setPanelView] = useState<"overview" | "knowledge">("overview");
+  const [showTargetPlatformsEditor, setShowTargetPlatformsEditor] = useState(false);
 
   // Hook 1: Repository config
   const repo = useRepositoryConfig(currentProject);
@@ -287,6 +293,36 @@ export function ProjectOverviewPanel({
           knowledgeGenerating={model.knowledgeGraph.generating}
           onGenerateKnowledgeGraph={model.knowledgeGraph.generate}
         />
+        <div className="info-box">
+          <div className="panel-head tight">
+            <h3>目标端</h3>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn ghost mini"
+                disabled={!currentProject}
+                onClick={() => setShowTargetPlatformsEditor((v) => !v)}
+              >
+                {showTargetPlatformsEditor ? "收起" : "编辑"}
+              </button>
+            ) : null}
+          </div>
+          <p className="hint">
+            本项目交付物面向：{(currentProject?.targetPlatforms ?? ["web"])
+              .map((p) => TARGET_PLATFORM_LABELS[p] ?? p)
+              .join("、") || "网页"}
+          </p>
+          {isAdmin && showTargetPlatformsEditor && currentProject ? (
+            <ProjectTargetPlatformsEditor
+              value={currentProject.targetPlatforms ?? ["web"]}
+              onSave={async (next) => {
+                await onUpdateTargetPlatforms?.(next);
+                setShowTargetPlatformsEditor(false);
+              }}
+              onCancel={() => setShowTargetPlatformsEditor(false)}
+            />
+          ) : null}
+        </div>
         <div className="info-box">
           <div className="panel-head tight">
             <h3>代码仓设置</h3>
