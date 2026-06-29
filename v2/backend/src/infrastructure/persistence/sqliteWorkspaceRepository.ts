@@ -80,7 +80,7 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
     return this.core.findProject(projectId, tenantId);
   }
 
-  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">) {
+  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId" | "targetPlatforms">) {
     const id = this.core.nextIdFromTable("projects");
     const now = new Date().toISOString();
     const created: Project = {
@@ -89,6 +89,7 @@ export class SqliteWorkspaceRepository implements WorkspaceRepository {
       ownerUserId: input.ownerUserId,
       name: input.name,
       description: input.description,
+      targetPlatforms: input.targetPlatforms,
       status: "in-progress",
       lastUpdated: now.slice(0, 10),
       repository: {
