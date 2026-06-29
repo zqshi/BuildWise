@@ -11,11 +11,13 @@
  * 阶段间以 ReturnType 链式传递中间态，由 analyzeAttachmentOp 总调度。
  */
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
-import { type AgentRunner } from '../shared/agentRunner';
+import type { AgentRunner } from '../shared/agentRunner';
 import { createLogger } from '../../../infrastructure/runtime/logger';
 import type { AttachmentUploadInput, IterationAgentOutput, VisionPayload } from '../../../domain/workspace/types';
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
+// biome-ignore lint/style/useImportType: normalizeIteration 仅 ReturnType<typeof> 用，需 value import
 import { buildDiffLocations, buildIterationAgentPlan, normalizeIteration, shouldUseCompactSingleFileAnalysis } from '../shared/workspaceSupport';
+// biome-ignore lint/style/useImportType: extractGeneratedTestMatrix/extractUxArtifacts 仅 ReturnType<typeof> 用，需 value import
 import { extractGeneratedTestMatrix, extractReleaseOpsStructured, extractReleaseReview, extractUxArtifacts, isLowSignalText } from './extractors';
 import { mergeSynthesisResultsOp } from './synthesisOps';
 import { defaultIterationChangeControl } from '../shared/common';

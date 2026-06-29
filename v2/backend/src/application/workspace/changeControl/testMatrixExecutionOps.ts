@@ -7,7 +7,8 @@
  *
  * 纯函数，无 IO 依赖。
  */
-import { type TestMatrixExecutionUpdate } from './artifactWorkflow';
+import type { TestMatrixExecutionUpdate } from './artifactWorkflow';
+// biome-ignore lint/style/useImportType: ReturnType<typeof> 需 value import，biome useImportType 对 typeof 误报
 import { defaultIterationChangeControl } from '../shared/common';
 
 export function normalizeExecutionUpdates(updates: TestMatrixExecutionUpdate[]) {
