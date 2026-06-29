@@ -329,7 +329,12 @@ export function createInMemoryModelingRepo() {
       return published.length > 0 ? published[published.length - 1] : null;
     },
     saveCandidateSnapshot(snapshot) {
-      snapshots.push(snapshot);
+      // upsert 语义，对齐 JsonContinuousModelingRepository（同 id 覆盖）。
+      // v0.26.0 T2：resolveReviewTask 写回同 id 快照须覆盖而非重复 push，
+      // 否则多次解决累积 resolved 被掩盖（第二次读到第一次 push 的旧快照）。
+      const idx = snapshots.findIndex((s) => s.id === snapshot.id);
+      if (idx >= 0) snapshots[idx] = snapshot;
+      else snapshots.push(snapshot);
     },
     updateSnapshotStatus(snapshotId, status) {
       const s = snapshots.find((item) => item.id === snapshotId);
