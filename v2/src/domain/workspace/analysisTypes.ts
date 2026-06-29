@@ -180,6 +180,13 @@ export type AttachmentAnalysisReport = {
       unknownSignalCount: number;
       boundaryCoverage: number;
     };
+    /** 各声明目标端的发布评审结论（按端）；后端 LLM 按端评审（T3）产出，前端按端分组展示。未产出时缺省降级为整体结论展示。 */
+    perPlatform?: Array<{
+      platform: string;
+      decision: "go" | "caution" | "block";
+      reason: string;
+      blockers: string[];
+    }>;
   };
   qualityArtifacts: {
     unitTests: string[];

@@ -3,6 +3,27 @@ export type StatusPayload = {
   service: string;
 };
 
+/**
+ * 目标端类型 — 项目交付物所面向的运行端。固定枚举保类型安全，端集合有限稳定。
+ * 与多租户角色无关，这是「交付目标端」轴。前端多选 UI 用 TARGET_PLATFORMS 渲染选项；
+ * 去重/过滤非法由后端 normalizeTargetPlatforms 兜底，UI 只管传数组。
+ */
+export type TargetPlatform =
+  | "web"
+  | "ios"
+  | "android"
+  | "harmony"
+  | "linux"
+  | "windows"
+  | "macos"
+  | "server"
+  | "other";
+
+/** 合法的目标端取值集合（UI 多选选项来源，与后端 TARGET_PLATFORMS 对齐）。 */
+export const TARGET_PLATFORMS: readonly TargetPlatform[] = [
+  "web", "ios", "android", "harmony", "linux", "windows", "macos", "server", "other"
+];
+
 export type RepositoryLayoutNode = {
   path: string;
   purpose: string;
@@ -73,6 +94,8 @@ export type Project = {
   iconColor?: string;
   lastUpdated?: string;
   currentUserRole?: "owner" | "pm" | "developer" | "qa" | "viewer";
+  /** 项目交付物面向的目标端集合，默认 ["web"] 向后兼容（未声明时视为纯 web 项目）。 */
+  targetPlatforms?: TargetPlatform[];
   repository?: ProjectRepository;
   knowledgeBase?: ProjectKnowledgeBase;
 };
