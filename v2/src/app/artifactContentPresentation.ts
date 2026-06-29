@@ -52,17 +52,17 @@ function extractQuotedJsonField(text: string, key: string) {
     return "";
   }
   let cursor = colonIndex + 1;
-  while (cursor < text.length && /\s/.test(text[cursor]!)) {
+  while (cursor < text.length && /\s/.test(text.charAt(cursor))) {
     cursor += 1;
   }
-  if (text[cursor] !== '"') {
+  if (text.charAt(cursor) !== '"') {
     return "";
   }
   cursor += 1;
   let raw = "";
   let escaped = false;
   for (; cursor < text.length; cursor += 1) {
-    const char = text[cursor]!;
+    const char = text.charAt(cursor);
     if (escaped) {
       raw += `\\${char}`;
       escaped = false;
