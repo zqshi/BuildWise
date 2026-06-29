@@ -263,7 +263,14 @@ export function formatPerPlatformData(context: ReleaseReviewFinalizeContext): st
   return context.targetPlatforms.map((platform) => {
     const tm = context.testMatrixByPlatform?.perPlatform.find((p) => p.platform === platform)?.summary;
     const ruleCount = Array.isArray(context.codePathsByPlatform?.[platform]) ? (context.codePathsByPlatform as Record<string, string[]>)[platform].length : 0;
-    return `${platform}端：测试用例 ${tm?.total ?? 0} 条（覆盖率 ${tm?.coverage ?? 0}%、通过率 ${tm?.passRate ?? 0}%）、代码白名单 ${ruleCount} 条`;
+    // total=0 时该端无测试数据（未生成或真无测试）—— LLM 数据段标注「无测试数据」，
+    // 不用 summarizeMatrixExecution 的 coverage=100 展示兜底语义（那是给前端看的「无用例=无遗漏」，
+    // 传给 LLM 会与「0 条用例」自相矛盾，误导按端评审）。有数据端才报真实 coverage/passRate。
+    const testInfo = tm && tm.total > 0
+      ? `测试用例 ${tm.total} 条（覆盖率 ${tm.coverage}%、通过率 ${tm.passRate}%）`
+      : "无测试数据";
+    const codeInfo = ruleCount > 0 ? `代码白名单 ${ruleCount} 条` : "无代码白名单";
+    return `${platform}端：${testInfo}、${codeInfo}`;
   }).join("；");
 }
 
