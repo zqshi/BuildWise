@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, currentTenantId, currentUserId, ensureProjectAccess, parsePositiveInt } from "./workspaceRouteUtils";
+import { normalizeTargetPlatforms } from "../../../domain/workspace/projectTypes";
 
 const VALID_VERSION_TYPES = new Set(["major", "minor", "patch"]);
 
@@ -29,7 +30,7 @@ async function handleListProjects(service: WorkspaceService, request: FastifyReq
 async function handleCreateProject(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
   const role = currentRole(request.authRole);
   if (role === "viewer") { reply.code(403); return { message: "没有权限" }; }
-  const body = request.body as { name?: string; description?: string } | null;
+  const body = request.body as { name?: string; description?: string; targetPlatforms?: unknown[] } | null;
   const name = body?.name?.trim();
   if (!name) { reply.code(400); return { message: "名称不能为空" }; }
   const actor = currentUserId(request);
@@ -37,7 +38,19 @@ async function handleCreateProject(service: WorkspaceService, request: FastifyRe
   const tenantId = currentTenantId(request) || actor;
   const tenantAccess = service.project.getTenantAccess(actor, tenantId);
   if (!tenantAccess.canWrite) { reply.code(403); return { message: "没有权限" }; }
-  return service.project.createProject({ name, description: body?.description?.trim() || "暂无描述", tenantId, ownerUserId: tenantId });
+  const targetPlatforms = normalizeTargetPlatforms(Array.isArray(body?.targetPlatforms) ? body.targetPlatforms : []);
+  return service.project.createProject({ name, description: body?.description?.trim() || "暂无描述", tenantId, ownerUserId: tenantId, targetPlatforms });
+}
+
+async function handleUpdateTargetPlatforms(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
+  const projectId = parsePositiveInt((request.params as { id: string }).id);
+  if (projectId === null) { reply.code(400); return { message: "无效的项目 ID" }; }
+  const access = ensureProjectAccess(service, request, reply, projectId, "admin");
+  if (!access) return { message: reply.statusCode === 404 ? "项目不存在" : "没有权限" };
+  const body = request.body as { targetPlatforms?: unknown[] } | null;
+  const updated = service.project.updateProjectTargetPlatforms(projectId, Array.isArray(body?.targetPlatforms) ? body.targetPlatforms : []);
+  if (!updated) { reply.code(404); return { message: "项目不存在" }; }
+  return { targetPlatforms: updated.targetPlatforms };
 }
 
 async function handleDeleteProject(service: WorkspaceService, request: FastifyRequest, reply: FastifyReply) {
@@ -106,8 +119,12 @@ export function registerWorkspaceProjectCoreRoutes(app: FastifyInstance, service
   app.get("/projects", (req, rep) => handleListProjects(service, req, rep));
 
   app.post("/projects", {
-    schema: { body: { type: "object", properties: { name: { type: "string" }, description: { type: "string" } }, required: ["name"], additionalProperties: false } }
+    schema: { body: { type: "object", properties: { name: { type: "string" }, description: { type: "string" }, targetPlatforms: { type: "array", items: { type: "string" } } }, required: ["name"], additionalProperties: false } }
   }, (req, rep) => handleCreateProject(service, req, rep));
+
+  app.post("/projects/:id/target-platforms", {
+    schema: { params: ID_PARAM_SCHEMA, body: { type: "object", properties: { targetPlatforms: { type: "array", items: { type: "string" } } }, required: ["targetPlatforms"], additionalProperties: false } }
+  }, (req, rep) => handleUpdateTargetPlatforms(service, req, rep));
 
   app.delete("/projects/:id", { schema: { params: ID_PARAM_SCHEMA } },
     (req, rep) => handleDeleteProject(service, req, rep));
