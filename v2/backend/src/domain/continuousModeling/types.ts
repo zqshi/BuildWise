@@ -42,6 +42,8 @@ export type ReviewTask = {
   title: string;
   description: string;
   blocking: boolean;
+  /** 是否已解决（用户确认术语/规则后标记）。缺省视为未解决；v0.25.0 评审解决流程引入 */
+  resolved?: boolean;
 };
 
 export type ModelSnapshot = {
