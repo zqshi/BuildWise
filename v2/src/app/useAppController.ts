@@ -129,6 +129,7 @@ function buildProjectActionParams(
   return {
     currentProject: derived.currentProject,
     projectName: state.projectName, projectDesc: state.projectDesc,
+    targetPlatforms: state.targetPlatforms, setTargetPlatforms: state.setTargetPlatforms,
     iterName: state.iterName, iterDesc: state.iterDesc,
     iterGoals: state.iterGoals, iterInScope: state.iterInScope,
     iterOutScope: state.iterOutScope, iterAcceptance: state.iterAcceptance,

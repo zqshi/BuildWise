@@ -130,6 +130,8 @@ function ProjectModals({
         backendUnavailable={backendOffline}
         projectName={controller.projectName}
         projectDesc={controller.projectDesc}
+        targetPlatforms={controller.targetPlatforms}
+        onTargetPlatformsChange={controller.setTargetPlatforms}
         errorMessage={controller.error}
         onClose={() => controller.setShowCreateProject(false)}
         onNameChange={controller.setProjectName}
