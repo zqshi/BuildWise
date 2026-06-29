@@ -12,6 +12,9 @@ const { parseReleaseReviewCandidate, listReleaseReviewMissingReasons } = await i
 const { synthesizeReleaseReviewOp } = await import(
   "../dist/application/workspace/analysis/governanceRunnerOps.js"
 );
+const { buildQualityAuditPrompt } = await import(
+  "../dist/application/workspace/analysis/qualityAuditAgentOps.js"
+);
 const { summarizeTestMatrixByPlatform } = await import(
   "../dist/application/workspace/changeControl/testMatrixSummaryOps.js"
 );
@@ -182,4 +185,42 @@ test("编造防控：未声明目标端 → 不补按端结论（向后兼容）
     { runAnalysisPrompt: mockPromptReturning(llmContent) }
   );
   assert.deepEqual(result.perPlatform, [], "未声明目标端时不产出按端结论");
+});
+
+// ── qualityAudit 链 prompt 装配（buildQualityAuditPrompt 纯函数，不触 LLM）──
+// 验证按端数据段注入 + expectedOutput 含 perPlatform schema（qualityAudit 链对齐主路径同款编造防控）。
+
+const qualityAuditParams = (platformContext) => ({
+  iterationName: "迭代1",
+  analyzedTarget: "目标",
+  sourceType: "single-file",
+  excerpt: "节选",
+  deepInsights: { coverage: { coveragePercent: 80 }, crossFileInsights: { rootCauses: [], decisionSuggestions: [] } },
+  prioritizedFindings: [],
+  traceabilityMap: { coverageScore: 80, unmappedRequirements: [] },
+  businessConfirmation: { coreIntent: "意图", successCriteria: [], necessityAssessment: { mustDo: [], rationale: "" }, evidenceRefs: [] },
+  clarificationQuestions: [],
+  qualitySignals: { testCaseCount: 5, p0FindingCount: 0, unknownSignalCount: 0, boundaryCoverage: 80 },
+  blockers: [], releaseGates: [], rollbackPlan: [], recommendations: ["建议1"],
+  ...(platformContext ? { platformContext } : {})
+});
+
+test("qualityAudit prompt：声明目标端时注入按端数据段 + expectedOutput 含 perPlatform schema", () => {
+  const targetPlatforms = ["web", "ios"];
+  const platformContext = {
+    targetPlatforms,
+    testMatrixByPlatform: summarizeTestMatrixByPlatform([mk("ios", "passed")], targetPlatforms),
+    codePathsByPlatform: { web: ["src/web/login.ts"] }
+  };
+  const prompt = buildQualityAuditPrompt(qualityAuditParams(platformContext));
+  assert.ok(prompt.expectedOutput.includes("perPlatform"), "expectedOutput 须含 perPlatform schema");
+  assert.ok(prompt.userPrompt.includes("按端质量数据"), "userPrompt 须含按端数据段");
+  assert.ok(prompt.userPrompt.includes("逐端评审"), "userPrompt 须含逐端评审要求");
+  assert.ok(prompt.userPrompt.includes("ios端"), "按端数据段须含各端覆盖信息");
+});
+
+test("qualityAudit prompt：未声明目标端时不含 perPlatform schema（向后兼容）", () => {
+  const prompt = buildQualityAuditPrompt(qualityAuditParams(undefined));
+  assert.ok(!prompt.expectedOutput.includes("perPlatform"), "无声明端时 expectedOutput 不含 perPlatform");
+  assert.ok(!prompt.userPrompt.includes("按端质量数据"), "无声明端时不注入按端数据段");
 });

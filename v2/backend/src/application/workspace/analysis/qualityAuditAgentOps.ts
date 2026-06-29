@@ -23,7 +23,7 @@ export type QualityAuditResult = {
   release: AttachmentAnalysisReport["releaseReview"];
 };
 
-function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>[1]): IterationAgentPrompt {
+export function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>[1]): IterationAgentPrompt {
   const compact = params.sourceType === "single-file";
   const perPlatformData = formatPerPlatformData(params.platformContext ?? {});
   const hasPerPlatform = Boolean(params.platformContext?.targetPlatforms && params.platformContext.targetPlatforms.length > 0);
