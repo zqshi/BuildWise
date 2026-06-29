@@ -5,6 +5,7 @@ const { ContinuousModelingService } = await import("../dist/application/continuo
 test("ContinuousModelingService builds candidate snapshot from baseline and flags new terms", () => {
   const saved = [];
   const repository = {
+    listSnapshots() { return []; },
     getLatestPublishedSnapshot(projectId) {
       assert.equal(projectId, 9);
       return {
@@ -102,6 +103,7 @@ test("ContinuousModelingService builds candidate snapshot from baseline and flag
 
 test("ContinuousModelingService creates blocking rule review when no rules are present", () => {
   const service = new ContinuousModelingService({
+    listSnapshots() { return []; },
     getLatestPublishedSnapshot() {
       return null;
     },
