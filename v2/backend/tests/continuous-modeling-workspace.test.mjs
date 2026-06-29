@@ -387,3 +387,67 @@ test("publishSnapshot does not duplicate existing KB entries", () => {
   assert.equal(kb.ontologyTerms.filter(t => t.term === "用户").length, 1);
   assert.equal(kb.stableRules.filter(r => r.rule === "密码至少8位").length, 1);
 });
+
+// ─── v0.27.0 T1: 回写改造为正名规范（增量统计 + 审计日志 + trim 归一）───
+
+test("发布快照沉淀知识库时应记录审计日志与增量统计", () => {
+  const { service, workspaceRepo, modelingRepo } = setupInMemory();
+  // 候选快照含 KB 已有项(用户/密码至少8位)与新增项(订单/订单30分钟取消/Order)
+  modelingRepo.saveCandidateSnapshot({
+    id: "snap-audit-1-10", projectId: 1, iterationId: 10,
+    version: "1.0", status: "candidate",
+    ontologyTerms: [
+      { canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] },
+      { canonicalTerm: "订单", aliases: [], technicalAliases: ["Order"], definition: "交易实体", evidence: ["v2"] }
+    ],
+    entities: [{ id: "e2", name: "Order", businessName: "订单", fields: [] }],
+    relations: [],
+    rules: [
+      { id: "r1", name: "密码规则", statement: "密码至少8位", linkedEntityIds: [], linkedSurfaceIds: [], linkedApiIds: [] },
+      { id: "r2", name: "订单规则", statement: "订单30分钟取消", linkedEntityIds: ["e2"], linkedSurfaceIds: [], linkedApiIds: [] }
+    ],
+    reviewTasks: [], derivedFromSnapshotId: null, createdAt: "2026-01-01T00:00:00.000Z"
+  });
+
+  service.publishSnapshot("snap-audit-1-10", 1);
+
+  const mergeLog = workspaceRepo.listAuditLogs().find((l) => l.action === "ontology.snapshot-merged");
+  assert.ok(mergeLog, "发布快照沉淀知识库应写审计日志");
+  assert.equal(mergeLog.resource, "project:1");
+  // 仅新增项计数：用户已有(0)、订单新增(1)；密码至少8位已有(0)、订单30分钟取消新增(1)；Order 新增(1)
+  assert.equal(mergeLog.detail, "terms=1;rules=1;components=1");
+});
+
+test("知识库术语含前后空白时发布快照不应产生重复沉淀", () => {
+  const { service, workspaceRepo, modelingRepo } = setupInMemory();
+  // KB 术语/规则带前后空白，快照 canonicalTerm/statement 为 trim 后值 → 不应误判为新增而重复
+  workspaceRepo._store.projects[0].knowledgeBase.ontologyTerms = [
+    { term: " 用户 ", aliases: [], definition: "平台用户", evidence: "v1" }
+  ];
+  workspaceRepo._store.projects[0].knowledgeBase.stableRules = [
+    { rule: " 密码至少8位 ", rationale: "安全", source: "v1" }
+  ];
+  modelingRepo.saveCandidateSnapshot({
+    id: "snap-trim-1-10", projectId: 1, iterationId: 10,
+    version: "1.0", status: "candidate",
+    ontologyTerms: [{ canonicalTerm: "用户", aliases: [], technicalAliases: ["User"], definition: "平台用户", evidence: ["v1"] }],
+    entities: [],
+    relations: [],
+    rules: [{ id: "r1", name: "密码规则", statement: "密码至少8位", linkedEntityIds: [], linkedSurfaceIds: [], linkedApiIds: [] }],
+    reviewTasks: [], derivedFromSnapshotId: null, createdAt: "2026-01-01T00:00:00.000Z"
+  });
+
+  service.publishSnapshot("snap-trim-1-10", 1);
+
+  const kb = workspaceRepo.findProject(1).knowledgeBase;
+  assert.equal(
+    kb.ontologyTerms.filter((t) => t.term === "用户" || t.term === " 用户 ").length,
+    1,
+    "术语含空白时发布不应产生重复沉淀"
+  );
+  assert.equal(
+    kb.stableRules.filter((r) => r.rule === "密码至少8位" || r.rule === " 密码至少8位 ").length,
+    1,
+    "规则含空白时发布不应产生重复沉淀"
+  );
+});
