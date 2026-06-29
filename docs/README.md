@@ -74,9 +74,9 @@
 
 - [agentic-flow-mock-dataset.md](../v2/docs/agentic-flow-mock-dataset.md)
   作用：演示数据、mock 数据集和样例链路说明。
-- [openclaw-agentic-flow-governance.md](../v2/docs/openclaw-agentic-flow-governance.md)
-  作用：OpenClaw 动态编排边界、平台职责与 Agent 职责说明。
-- [openclaw-real-llm-demo.md](../v2/docs/openclaw-real-llm-demo.md)
+- [Agent 动态编排治理说明](../v2/docs/openclaw-agentic-flow-governance.md)
+  作用：Agent 动态编排边界、平台职责与 Agent 职责说明。
+- [真实 LLM 演示链路说明](../v2/docs/openclaw-real-llm-demo.md)
   作用：真实 LLM 演示链路与验证步骤说明。
 - [iteration-ontology-impact-contract.md](../v2/docs/iteration-ontology-impact-contract.md)
   作用：迭代内本体映射、影响分析与边界约束契约。

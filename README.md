@@ -119,7 +119,7 @@ AI 完成分析、澄清、边界收敛
 ### 双模式交付引擎
 
 - **阶段化交付管道**：需求分析 → 澄清 → 边界收敛 → 交付物 → 测试矩阵 → 发布评审；
-- **OpenClaw 协作台**：单 Agent + 多项目 workspace + 项目知识上下文注入；
+- **Agent 协作台**：单 Agent + 多项目 workspace + 项目知识上下文注入；
 - 发布判断给出 `go / caution / block` 三态决策，证据可追溯。
 
 ### 领域建模
@@ -136,7 +136,7 @@ AI 完成分析、澄清、边界收敛
 
 ### Agent 编排
 
-- OpenClaw 非侵入式集成：通过 Gateway / CLI 调用，不修改 OpenClaw 源码；
+- 可插拔 Agent 执行后端：通过适配器端口 + 注册表接入，主实现 ClaudeCodeCliAdapter，业务层不依赖具体框架；
 - Agent 框架可切换：声明与运行时分离（适配器端口 + 注册表），更换框架不影响业务层；
 - 真实 Claude CLI 适配已端到端验证（dryRun 实跑 + 契约测试）。
 
@@ -155,7 +155,7 @@ AI 完成分析、澄清、边界收敛
 | 数据 | SQLite（JSON backend 已废弃，传 `json` 静默降级为 sqlite）· 文件式 workspace 持久化 |
 | 前端 | React 18 · TypeScript 5 · Vite 8 · Biome · Tiptap 富文本 |
 | AI | 智谱 GLM 系列（与后端 `.env` 同源，分层调度） |
-| Agent | OpenClaw 非侵入式集成（Gateway / CLI）· ClaudeCodeCliAdapter · 适配器 + 注册表 |
+| Agent | 可插拔执行后端（适配器端口 + 注册表）· 主实现 ClaudeCodeCliAdapter |
 | 治理 | `policyGate` 硬阻断 + 统一后验 + 绕过审计 · 6 项质检协议 · `verify:all` 聚合门禁 |
 | 部署 | Docker Compose · Nginx · 非 root 运行 |
 
@@ -176,7 +176,7 @@ BuildWise/
 │   ├── backend/src/              # 后端：Fastify + TypeScript
 │   │   ├── domain/               #   纯业务模型（零外部依赖，聚合根边界）
 │   │   ├── application/          #   用例编排（调用 domain + infrastructure）
-│   │   ├── infrastructure/       #   技术实现（DB / LLM / OpenClaw 适配）
+│   │   ├── infrastructure/       #   技术实现（DB / LLM / Agent 适配）
 │   │   ├── interfaces/          #   入口适配（路由 / 契约校验）
 │   │   └── shared/               #   共享工具
 │   ├── scripts/                  # 质检、播种、运维脚本
@@ -268,7 +268,6 @@ cd backend && npm run test:contract  # 契约测试（in-process + 子进程双�
 npm run seed:agentic:flow            # 重建演示数据
 npm run reset:business-env           # 恢复干净可投产初始业务环境
 npm run clean:workspace              # 清空 workspace 运行时产物
-npm run demo:openclaw:real           # 真实 OpenClaw + LLM 演示
 ```
 
 ## 质量门禁
@@ -292,7 +291,7 @@ npm run verify:prod-readiness   # 后端投产门禁
 当前 `main` 分支可以视为**可受控投产候选**：
 
 - 核心边界门禁、构建、类型检查和 contract 已通过；
-- 项目级 workspace 隔离、项目知识目录和 OpenClaw 非侵入式适配已经落地；
+- 项目级 workspace 隔离、项目知识目录和可插拔 Agent 执行后端已经落地；
 - 运行时语义、健康检查、就绪检查、鉴权默认行为和文档口径已经收口。
 
 这并不意味着「可以跳过上线流程」。真正放生产前，仍需按后端生产文档确认 `AUTH_MODE=jwt`、`JWT_SECRET`、`CORS_ORIGINS`、`VITE_API_BASE`、独立 `workspacePath` 与 `.buildwise/` 备份策略。

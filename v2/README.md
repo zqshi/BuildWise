@@ -1,7 +1,7 @@
 # BuildWise v2
 
 BuildWise v2 是当前主实现版本。  
-它把官网入口、登录、仪表盘、项目工作台、项目建模/领域建模、交付物抽屉、OpenClaw 协作台、真实 LLM 分析链路和项目级 workspace 隔离收敛到同一套前后端工程里。
+它把官网入口、登录、仪表盘、项目工作台、项目建模/领域建模、交付物抽屉、Agent 协作台、真实 LLM 分析链路和项目级 workspace 隔离收敛到同一套前后端工程里。
 
 ## 1. 当前能力
 
@@ -10,7 +10,7 @@ BuildWise v2 是当前主实现版本。
 - 项目工作台：项目/迭代管理、需求上传、分析、边界、交付物、测试、发布评审
 - 项目建模与领域建模：支持结构化摘要、节点关系图、业务实体卡片、规则映射与关系叙事
 - 代码类交付物抽屉：按文件结构查看而不是整块堆叠
-- OpenClaw 协作台：单 Agent、多项目 workspace、项目知识上下文注入
+- Agent 协作台：单 Agent、多项目 workspace、项目知识上下文注入
 - 项目知识目录：每项目写入 `workspacePath/.buildwise/`
 
 ## 2. 环境要求
@@ -99,7 +99,6 @@ CI 额外固定执行：
 
 - `npm test`
 - `npm run seed:agentic:flow`
-- `npm run demo:openclaw:real`
 - `npm run e2e:creative-generator:rc`
 - `npm run reset:business-env`
 - `npm run clean:workspace`
@@ -130,7 +129,6 @@ npm run reset:business-env
 
 - 重建 `v2/backend/data.json` 与 `v2/backend/data.runtime.json` 为初始 seed store
 - 清空 `v2/backend/continuous-modeling.runtime.json`
-- 清空 `v2/backend/openclaw-global.runtime.json`
 - 删除 `.artifacts/`、`memory/`、`index/`、`shards/`、`workspace.json`、`.buildwise/`、`tmp/e2e-reports/`
 
 演示项目当前包含：
@@ -141,18 +139,11 @@ npm run reset:business-env
 - continuous-modeling 快照
 - 业务友好的实体、规则、关系和 review task
 
-真实 OpenClaw + LLM 演示：
-
-```bash
-cd v2
-npm run demo:openclaw:real
-```
-
 相关文档：
 
 - [agentic-flow-mock-dataset.md](./docs/agentic-flow-mock-dataset.md)
-- [openclaw-real-llm-demo.md](./docs/openclaw-real-llm-demo.md)
-- [openclaw-agentic-flow-governance.md](./docs/openclaw-agentic-flow-governance.md)
+- [真实 LLM 演示链路说明](./docs/openclaw-real-llm-demo.md)
+- [Agent 动态编排治理说明](./docs/openclaw-agentic-flow-governance.md)
 - [creative-generator-demo-requirement.md](./docs/creative-generator-demo-requirement.md)
 
 ## 7. 构建与生产运行
@@ -216,9 +207,6 @@ cp .env.production.example .env
 - `LLM_API_KEY`
 - `LLM_MODEL`
 - `LLM_REQUIRED`
-- `OPENCLAW_GATEWAY_URL`
-- `OPENCLAW_AGENT_ID`
-- `BUILDWISE_OPENCLAW_SKILLS_ENABLED`
 - `GITHUB_TOKEN`
 - `PROJECT_REPO_ROOT`
 
@@ -229,7 +217,7 @@ cd v2/backend
 npm run verify:prod-release
 ```
 
-OpenClaw 项目绑定约束：
+项目 workspace 绑定约束：
 
 - 接口：`POST /api/v1/projects/:id/workspace/bind`
 - `workspacePath` 建议使用绝对路径
