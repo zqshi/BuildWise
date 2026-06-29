@@ -171,6 +171,13 @@ export type AttachmentAnalysisReport = {
       unknownSignalCount: number;
       boundaryCoverage: number;
     };
+    /** 各声明目标端的发布评审结论（按端）；LLM 按端评审产出，前端按端展示，未产出降级整体。对齐前端 analysisTypes:184。 */
+    perPlatform?: Array<{
+      platform: string;
+      decision: "go" | "caution" | "block";
+      reason: string;
+      blockers: string[];
+    }>;
   };
   qualityArtifacts: {
     unitTests: string[];
