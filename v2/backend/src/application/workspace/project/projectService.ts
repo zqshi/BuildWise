@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
+import type { TargetPlatform } from '../../../domain/workspace/projectTypes';
 import {
   archiveProjectOp,
   bootstrapProjectRepositoryOp,
@@ -10,7 +11,8 @@ import {
   validateProjectRepositoryRemoteOp,
   provisionProjectRepositoryOp,
   publishIterationToRemoteOp,
-  scaffoldProjectRepositoryOp
+  scaffoldProjectRepositoryOp,
+  updateProjectTargetPlatformsOp
 } from './projectOps';
 import { hasProject, listProjectsNormalized } from '../shared/common';
 import { getProjectAccessContext, getTenantAccessContext, listAccessibleTenants, listProjectsForUser } from '../shared/tenantAccess';
@@ -37,8 +39,12 @@ export class ProjectService {
     return listProjectsForUser(this.repo, userId, tenantId);
   }
 
-  createProject(input: { name: string; description: string; tenantId: string; ownerUserId: string }) {
+  createProject(input: { name: string; description: string; tenantId: string; ownerUserId: string; targetPlatforms?: TargetPlatform[] }) {
     return createProjectOp(this.repo, input);
+  }
+
+  updateProjectTargetPlatforms(projectId: number, platforms: readonly unknown[]) {
+    return updateProjectTargetPlatformsOp(this.repo, projectId, platforms);
   }
 
   getProjectAccess(userId: string, projectId: number) {

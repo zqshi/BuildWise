@@ -3,14 +3,36 @@ import type { Project } from '../../../domain/workspace/types';
 import { normalizeProject } from '../shared/workspaceSupport';
 import { writeAuditLog } from '../shared/common';
 import { collectRepositoryHealth, looksLikeRemoteRepositoryUrl, validateRepositoryRemoteUrl } from './repoHealthOps';
+import { normalizeTargetPlatforms, type TargetPlatform } from '../../../domain/workspace/projectTypes';
 
 export { provisionProjectRepositoryOp, scaffoldProjectRepositoryOp } from './provisionOps';
 export { publishIterationToRemoteOp } from './publishOps';
 
-export function createProjectOp(repo: WorkspaceRepository, input: { name: string; description: string; tenantId: string; ownerUserId: string }) {
+export function createProjectOp(repo: WorkspaceRepository, input: { name: string; description: string; tenantId: string; ownerUserId: string; targetPlatforms?: TargetPlatform[] }) {
   const created = normalizeProject(repo.createProject(input));
   writeAuditLog(repo, "project_repo_initialized", `project:${created.id}`, `repo=${created.repository?.url}`);
   return created;
+}
+
+export function updateProjectTargetPlatformsOp(
+  repo: WorkspaceRepository,
+  projectId: number,
+  platforms: readonly unknown[]
+): Project | null {
+  const project = repo.findProject(projectId);
+  if (!project) {
+    return null;
+  }
+  const normalized = normalizeTargetPlatforms(platforms);
+  const now = new Date().toISOString();
+  const updated: Project = {
+    ...normalizeProject(project),
+    targetPlatforms: normalized,
+    lastUpdated: now.slice(0, 10)
+  };
+  repo.updateProject(updated);
+  writeAuditLog(repo, "project_target_platforms_updated", `project:${projectId}`, `platforms=${normalized.join(",")}`);
+  return updated;
 }
 
 export function archiveProjectOp(repo: WorkspaceRepository, projectId: number) {
