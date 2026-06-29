@@ -296,9 +296,7 @@ export type TestMatrixExecutionUpdate = {
   note?: string;
 };
 
-export function summarizeMatrixExecution(
-  matrix: Array<{ executionStatus?: string }>
-): {
+export type MatrixSummary = {
   total: number;
   executed: number;
   passed: number;
@@ -307,7 +305,9 @@ export function summarizeMatrixExecution(
   skipped: number;
   coverage: number;
   passRate: number;
-} {
+};
+
+export function summarizeMatrixExecution(matrix: Array<{ executionStatus?: string }>): MatrixSummary {
   const total = matrix.length;
   const passed = matrix.filter((item) => item.executionStatus === "passed").length;
   const failed = matrix.filter((item) => item.executionStatus === "failed").length;

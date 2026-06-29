@@ -1,4 +1,5 @@
 import type { IterationChangeControl } from '../../../domain/workspace/types';
+import { normalizeTargetPlatforms } from '../../../domain/workspace/projectTypes';
 
 export function normalizeExecutionStatus(value: unknown): "pending" | "passed" | "failed" | "blocked" | "skipped" {
   const status = typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -119,6 +120,7 @@ export function normalizeTestQualityUx(control: IterationChangeControl | undefin
             focus: typeof item?.focus === "string" ? item.focus : "",
             expected: typeof item?.expected === "string" ? item.expected : "",
             evidence: typeof item?.evidence === "string" ? item.evidence : "",
+            targetPlatform: normalizeTargetPlatforms([item?.targetPlatform])[0],
             executionStatus: normalizeExecutionStatus(item?.executionStatus),
             executionUpdatedAt: typeof item?.executionUpdatedAt === "string" ? item.executionUpdatedAt : "",
             executionBy: typeof item?.executionBy === "string" ? item.executionBy : "",

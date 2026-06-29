@@ -6,19 +6,20 @@ import type {
   IterationStatus,
   IterationTransitionSource,
 } from '../../../domain/workspace/types';
+import type { IterationGeneratedTestCase } from '../../../domain/workspace/iterationTypes';
 import { inferCyclePhase, normalizeIteration } from '../shared/workspaceSupport';
 import {
   collectLlmBackedReportPayloadIssues,
   extractBoundarySuggestion,
   extractGeneratedQualityArtifacts,
-  extractGeneratedTestMatrix,
   extractReleaseOpsActions,
   extractUxArtifacts,
   isLowSignalText
 } from './extractors';
+import { synthesizeTestMatrixOp } from './testMatrixGenerationOps';
 import { buildClarificationQuestionsOp } from './synthesisOps';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
-import { CONTEXT_GUARDRAILS, USE_CONSOLIDATED_AGENTS } from './configOps';
+import { CONTEXT_GUARDRAILS, runAnalysisPrompt, USE_CONSOLIDATED_AGENTS } from './configOps';
 import {
   consolidatedPreflightPhase,
   consolidatedAgentPhase,
@@ -119,7 +120,7 @@ function buildPreAnalysisChangeControl(
   pre: { executionPolicy: { degraded: boolean; reason: string; promptBudgetRisk: string }; added: string[]; removed: string[]; diffLocations: Array<unknown>; excerptPayload: { strategy: string } },
   input: AttachmentUploadInput,
   clarificationQuestions: string[],
-  generatedTestMatrix: ReturnType<typeof extractGeneratedTestMatrix>,
+  generatedTestMatrix: IterationGeneratedTestCase[],
   qualityArtifacts: ReturnType<typeof extractGeneratedQualityArtifacts> & { materializedFiles: string[] },
   uxArtifacts: ReturnType<typeof extractUxArtifacts>,
   executableConstraints: { componentWhitelist: string[]; codePathWhitelist: string[]; acceptanceChecks: string[]; generatedAt: string }
@@ -171,7 +172,12 @@ export async function analyzeAttachmentOp(
     : await runAgentExecutionPhase(agentRunner, repo, input, normalized, normalizedPrevious, pre, markStage);
 
   // Extract artifacts from agent outputs
-  const generatedTestMatrix = extractGeneratedTestMatrix(exec.agentOutputs);
+  const generatedTestMatrix = await synthesizeTestMatrixOp(agentRunner, {
+    iterationName: normalized.name,
+    sourceType: input.sourceType === "folder" ? "folder" : "single-file",
+    excerpt: pre.excerptPayload.text,
+    targetPlatforms: repo.findProject(normalized.projectId)?.targetPlatforms ?? ["web"]
+  }, { runAnalysisPrompt });
   const qualityArtifactsRaw = extractGeneratedQualityArtifacts(exec.agentOutputs);
   const uxArtifacts = extractUxArtifacts(exec.agentOutputs);
   const boundarySuggestion = extractBoundarySuggestion(exec.agentOutputs);
