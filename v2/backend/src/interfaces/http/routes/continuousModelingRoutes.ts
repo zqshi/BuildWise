@@ -95,12 +95,28 @@ async function handlePublishSnapshot(service: ContinuousModelingWorkspaceService
   if (!snapshotId) { reply.code(400); return { message: "无效的快照 ID" }; }
   const result = service.publishSnapshot(snapshotId, projectId);
   if (!result.ok) {
-    const status = result.reason === "snapshot_not_candidate" ? 409 : 404;
+    const { status, message } = resolvePublishFailureHttp(result.reason);
     reply.code(status);
-    const reasonMap: Record<string, string> = { project_not_found: "项目不存在", snapshot_not_found: "快照不存在", snapshot_not_candidate: "该快照不符合发布条件" };
-    return { message: reasonMap[result.reason] || "操作失败" };
+    return { message };
   }
   return result;
+}
+
+/**
+ * 发布失败原因到 HTTP 状态与中文提示的映射（v0.26.0 T1，抽纯函数可测）。
+ * snapshot_not_found → 404（快照不存在）；其余发布条件不满足 → 409（快照存在但不满足发布条件）。
+ */
+export function resolvePublishFailureHttp(reason: string): { status: number; message: string } {
+  const messageMap: Record<string, string> = {
+    project_not_found: "项目不存在",
+    snapshot_not_found: "快照不存在",
+    snapshot_not_candidate: "该快照不符合发布条件",
+    unresolved_blocking_reviews: "存在未解决阻断评审，须先解决再发布"
+  };
+  return {
+    status: reason === "snapshot_not_found" || reason === "project_not_found" ? 404 : 409,
+    message: messageMap[reason] || "操作失败"
+  };
 }
 
 async function handleGetModelView(service: ContinuousModelingWorkspaceService, request: FastifyRequest, reply: FastifyReply) {
