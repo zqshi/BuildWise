@@ -4,22 +4,34 @@ import type { Iteration, IterationMessage } from "../domain/workspace/types";
 import { getMsgKind } from "../pages/projects/ChatMessageList";
 import { buildCoachGuidance } from "../app/coachGuidanceBuilder";
 
-type MatrixSummary = { total: number; executed: number; passed: number; failed: number; blocked: number; skipped: number; coverage: number; passRate: number };
+type MatrixSummaryBase = { total: number; executed: number; passed: number; failed: number; blocked: number; skipped: number; coverage: number; passRate: number };
+export type MatrixPlatformSummary = { platform: string; summary: MatrixSummaryBase };
+export type MatrixSummary = MatrixSummaryBase & { perPlatform: MatrixPlatformSummary[] };
 
-function computeMatrixSummary(
-  generatedTestMatrix: { caseId: string; executionStatus: string }[],
-  testMatrixStatusMap: Record<string, string>
+export function computeMatrixSummary(
+  generatedTestMatrix: { caseId: string; executionStatus: string; targetPlatform?: string }[],
+  testMatrixStatusMap: Record<string, string>,
+  targetPlatforms: string[]
 ): MatrixSummary {
-  const total = generatedTestMatrix.length;
-  const statuses = generatedTestMatrix.map((item) => testMatrixStatusMap[item.caseId] || item.executionStatus);
-  const passed = statuses.filter((s) => s === "passed").length;
-  const failed = statuses.filter((s) => s === "failed").length;
-  const blocked = statuses.filter((s) => s === "blocked").length;
-  const skipped = statuses.filter((s) => s === "skipped").length;
-  const executed = passed + failed + blocked + skipped;
-  const coverage = total === 0 ? 100 : Math.round((executed / total) * 100);
-  const passRate = executed === 0 ? (total === 0 ? 100 : 0) : Math.round((passed / executed) * 100);
-  return { total, executed, passed, failed, blocked, skipped, coverage, passRate };
+  const statusOf = (item: { caseId: string; executionStatus: string }) => testMatrixStatusMap[item.caseId] || item.executionStatus;
+  const summarizeBase = (items: { caseId: string; executionStatus: string }[]): MatrixSummaryBase => {
+    const total = items.length;
+    const statuses = items.map(statusOf);
+    const passed = statuses.filter((s) => s === "passed").length;
+    const failed = statuses.filter((s) => s === "failed").length;
+    const blocked = statuses.filter((s) => s === "blocked").length;
+    const skipped = statuses.filter((s) => s === "skipped").length;
+    const executed = passed + failed + blocked + skipped;
+    const coverage = total === 0 ? 100 : Math.round((executed / total) * 100);
+    const passRate = executed === 0 ? (total === 0 ? 100 : 0) : Math.round((passed / executed) * 100);
+    return { total, executed, passed, failed, blocked, skipped, coverage, passRate };
+  };
+  const overall = summarizeBase(generatedTestMatrix);
+  const perPlatform = targetPlatforms.map((platform) => ({
+    platform,
+    summary: summarizeBase(generatedTestMatrix.filter((item) => (item.targetPlatform ?? "web") === platform))
+  }));
+  return { ...overall, perPlatform };
 }
 
 export function useAnalysisReportDerived(
@@ -28,7 +40,8 @@ export function useAnalysisReportDerived(
   chatMessages: IterationMessage[],
   isAnalyzingAttachment: boolean,
   testMatrixStatusMap: Record<string, string>,
-  onlyHighValue: boolean
+  onlyHighValue: boolean,
+  targetPlatforms: string[]
 ) {
   return useMemo(() => {
     const diffLocations = analysisReport?.diffLocations ?? [];
@@ -59,7 +72,7 @@ export function useAnalysisReportDerived(
       : prioritizedFindings;
     const clarificationQuestions = currentIteration?.changeControl?.clarificationQuestions ?? analysisReport?.clarificationQuestions ?? [];
     const generatedTestMatrix = currentIteration?.changeControl?.generatedTestMatrix ?? [];
-    const matrixSummary = computeMatrixSummary(generatedTestMatrix, testMatrixStatusMap);
+    const matrixSummary = computeMatrixSummary(generatedTestMatrix, testMatrixStatusMap, targetPlatforms);
     const reportPendingConfirmation = Boolean(currentIteration?.changeControl?.pendingHumanConfirmation);
     const reportConfirmedAt = currentIteration?.changeControl?.confirmedAt || "";
     const confirmedUnderstanding = (currentIteration?.changeControl?.lastClarificationNote || "").trim();
@@ -78,5 +91,5 @@ export function useAnalysisReportDerived(
       reportPendingConfirmation, reportConfirmedAt, confirmedUnderstanding,
       businessConfirmation, coachGuidance
     };
-  }, [analysisReport, currentIteration, chatMessages, isAnalyzingAttachment, testMatrixStatusMap, onlyHighValue]);
+  }, [analysisReport, currentIteration, chatMessages, isAnalyzingAttachment, testMatrixStatusMap, onlyHighValue, targetPlatforms]);
 }

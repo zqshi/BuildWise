@@ -8,6 +8,7 @@ import { useOpsTemplateForm } from "../../hooks/useOpsTemplateForm";
 import { useArtifactEditorState } from "../../hooks/useArtifactEditorState";
 import { useHtmlPreviewInteraction } from "../../hooks/useHtmlPreviewInteraction";
 import { useAnalysisReportDerived } from "../../hooks/useAnalysisReportDerived";
+import { useProjectContext } from "../../contexts/ProjectContext";
 import { useArtifactEditorActions } from "../../hooks/useArtifactEditorActions";
 import { useInteractionInstruction } from "./useInteractionInstruction";
 import type { UploadFileEntry } from "./UploadFileCard";
@@ -124,7 +125,8 @@ function useDerivedData(props: IterationWorkspacePanelProps, ext: ExternalHooks,
   const selectedPrototypeElement = prototypeElements.find((i) => i.id === selectedPrototypeElementId) || null;
   const prototypeTree = useMemo(() => buildPrototypeTree(prototypeElements), [prototypeElements]);
   const showInteractionEntry = Boolean(uploadedFile?.hasPrototypeAssets);
-  const reportDerived = useAnalysisReportDerived(analysisReport, props.currentIteration, chatMessages, isAnalyzingAttachment, ext.tmForm.testMatrixStatusMap, local.onlyHighValue);
+  const projectCtx = useProjectContext();
+  const reportDerived = useAnalysisReportDerived(analysisReport, props.currentIteration, chatMessages, isAnalyzingAttachment, ext.tmForm.testMatrixStatusMap, local.onlyHighValue, projectCtx?.currentProject?.targetPlatforms ?? ["web"]);
 
   usePrototypeMappingEffect(uploadedFile, local.setPrototypeElements, local.setSelectedPrototypeElementId, DEFAULT_PROTOTYPE_ELEMENTS);
   useImagePreviewPathEffect(uploadedFile, local.setSelectedImagePreviewPath, protoInteraction.setSelectedImagePoint, protoInteraction.setSelectedImageRegion);

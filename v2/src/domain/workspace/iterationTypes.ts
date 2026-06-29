@@ -1,3 +1,5 @@
+import type { TargetPlatform } from './projectTypes';
+
 export type IterationScope = {
   inScope: string[];
   outOfScope: string[];
@@ -75,6 +77,7 @@ export type IterationGeneratedTestCase = {
   focus: string;
   expected: string;
   evidence: string;
+  targetPlatform: TargetPlatform;
   executionStatus: "pending" | "passed" | "failed" | "blocked" | "skipped";
   executionUpdatedAt: string;
   executionBy: string;

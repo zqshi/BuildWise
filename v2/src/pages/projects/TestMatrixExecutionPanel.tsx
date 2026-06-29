@@ -13,6 +13,7 @@ export type TestMatrixExecutionPanelProps = {
     skipped: number;
     coverage: number;
     passRate: number;
+    perPlatform: Array<{ platform: string; summary: { total: number; executed: number; passed: number; failed: number; blocked: number; skipped: number; coverage: number; passRate: number } }>;
   };
   changeControlBusy: boolean;
   setTestMatrixStatusMap: React.Dispatch<React.SetStateAction<Record<string, "pending" | "passed" | "failed" | "blocked" | "skipped">>>;
@@ -79,46 +80,62 @@ export function TestMatrixExecutionPanel({
           全部重置为待执行
         </button>
       </div>
-      <ul className="history-list">
-        {generatedTestMatrix.map((item) => (
-          <li key={item.caseId} className="history-item">
-            <strong>
-              [{item.type}] {item.caseId}
-            </strong>
-            <p>测试焦点：{item.focus || "-"}</p>
-            <p>预期结果：{item.expected || "-"}</p>
-            <p className="hint">依据：{item.evidence || "-"}</p>
-            <div className="chat-tools">
-              <select
-                value={testMatrixStatusMap[item.caseId] || "pending"}
-                onChange={(event) => {
-                  const next = event.target.value as "pending" | "passed" | "failed" | "blocked" | "skipped";
-                  setTestMatrixStatusMap((prev) => ({ ...prev, [item.caseId]: next }));
-                }}
-              >
-                <option value="pending">待执行</option>
-                <option value="passed">已通过</option>
-                <option value="failed">未通过</option>
-                <option value="blocked">阻塞</option>
-                <option value="skipped">已跳过</option>
-              </select>
+      {matrixSummary.perPlatform.map((p) => {
+        const platformCases = generatedTestMatrix.filter((item) => (item.targetPlatform ?? "web") === p.platform);
+        if (platformCases.length === 0) {
+          return (
+            <div key={p.platform} className="platform-group">
+              <h4>目标端：{p.platform}（总数 0，覆盖率 100%，通过率 100%）</h4>
+              <p className="hint">该端暂无测试用例。</p>
             </div>
-            <label className="hint">
-              执行备注
-              <textarea
-                rows={2}
-                value={testMatrixNoteMap[item.caseId] || ""}
-                onChange={(event) =>
-                  setTestMatrixNoteMap((prev) => ({
-                    ...prev,
-                    [item.caseId]: event.target.value
-                  }))
-                }
-              />
-            </label>
-          </li>
-        ))}
-      </ul>
+          );
+        }
+        return (
+          <div key={p.platform} className="platform-group">
+            <h4>目标端：{p.platform}（总数 {p.summary.total}，覆盖率 {p.summary.coverage}%，通过率 {p.summary.passRate}%）</h4>
+            <ul className="history-list">
+              {platformCases.map((item) => (
+                <li key={item.caseId} className="history-item">
+                  <strong>
+                    [{item.type}] {item.caseId}
+                  </strong>
+                  <p>测试焦点：{item.focus || "-"}</p>
+                  <p>预期结果：{item.expected || "-"}</p>
+                  <p className="hint">依据：{item.evidence || "-"}</p>
+                  <div className="chat-tools">
+                    <select
+                      value={testMatrixStatusMap[item.caseId] || "pending"}
+                      onChange={(event) => {
+                        const next = event.target.value as "pending" | "passed" | "failed" | "blocked" | "skipped";
+                        setTestMatrixStatusMap((prev) => ({ ...prev, [item.caseId]: next }));
+                      }}
+                    >
+                      <option value="pending">待执行</option>
+                      <option value="passed">已通过</option>
+                      <option value="failed">未通过</option>
+                      <option value="blocked">阻塞</option>
+                      <option value="skipped">已跳过</option>
+                    </select>
+                  </div>
+                  <label className="hint">
+                    执行备注
+                    <textarea
+                      rows={2}
+                      value={testMatrixNoteMap[item.caseId] || ""}
+                      onChange={(event) =>
+                        setTestMatrixNoteMap((prev) => ({
+                          ...prev,
+                          [item.caseId]: event.target.value
+                        }))
+                      }
+                    />
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
       <div className="chat-tools">
         <button
           type="button"
