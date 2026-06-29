@@ -3,7 +3,9 @@ import type { AttachmentAnalysisReport, IterationAgentPrompt, VisionPayload } fr
 import { listBusinessConfirmationMissingReasons, parseBusinessConfirmationCandidate } from './businessConfirmationOps';
 import { listGovernanceInsightsMissingReasons, parseGovernanceInsightsCandidate } from './governanceOps';
 import { buildGovernanceInsightsPrompt, buildGovernanceInsightsRepairPrompt } from './governancePromptOps';
-import { listReleaseReviewMissingReasons, parseReleaseReviewCandidate } from './releaseReviewOps';
+import { finalizeReleaseReviewPerPlatform, listReleaseReviewMissingReasons, parseReleaseReviewCandidate, type ReleaseReviewFinalizeContext } from './releaseReviewOps';
+import type { TestMatrixByPlatformResult } from '../changeControl/testMatrixSummaryOps';
+import type { TargetPlatform } from '../../../domain/workspace/projectTypes';
 import { listReportQualityMissingReasons, parseReportQualityCandidate } from './governanceOps';
 import { hydrateGovernanceInsightsCandidate, hydrateReleaseReviewCandidate, hydrateReportQualityCandidate } from './governanceHydrationOps';
 import { formatDiffLocations, formatPrioritizedFindings, formatSourceType, formatVersionDiff } from './extractors';
@@ -256,17 +258,30 @@ export async function synthesizeGovernanceInsightsOp(
   }
   return candidate;
 }
+export function formatPerPlatformData(context: ReleaseReviewFinalizeContext): string {
+  if (!context.targetPlatforms || context.targetPlatforms.length === 0) return "";
+  return context.targetPlatforms.map((platform) => {
+    const tm = context.testMatrixByPlatform?.perPlatform.find((p) => p.platform === platform)?.summary;
+    const ruleCount = Array.isArray(context.codePathsByPlatform?.[platform]) ? (context.codePathsByPlatform as Record<string, string[]>)[platform].length : 0;
+    return `${platform}端：测试用例 ${tm?.total ?? 0} 条（覆盖率 ${tm?.coverage ?? 0}%、通过率 ${tm?.passRate ?? 0}%）、代码白名单 ${ruleCount} 条`;
+  }).join("；");
+}
+
 function buildReleaseReviewPrompt(
   params: Parameters<typeof synthesizeReleaseReviewOp>[1],
   compactSingleFile: boolean
 ): IterationAgentPrompt {
   const releaseRole: "requirements-analyst" | "orchestrator" = compactSingleFile ? "requirements-analyst" : "orchestrator";
+  const perPlatformData = formatPerPlatformData(params);
+  const hasPerPlatform = Boolean(params.targetPlatforms && params.targetPlatforms.length > 0);
   return {
     agentId: compactSingleFile ? "agent-release-review-compact-1" : "agent-release-review-1",
     role: releaseRole,
     scope: "release" as const,
     goal: "输出发布评审结论",
-    expectedOutput: "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}",
+    expectedOutput: hasPerPlatform
+      ? "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage},perPlatform:[{platform,decision,reason,blockers}]}"
+      : "JSON: {decision,reason,score,blockers,releaseGates,recommendations,rollback:{shouldRollback,reason,trigger,actions},qualitySignals:{testCaseCount,p0FindingCount,unknownSignalCount,boundaryCoverage}}",
     systemPrompt:
       "你是发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。decision 只能是 go/caution/block。",
     userPrompt: [
@@ -278,8 +293,10 @@ function buildReleaseReviewPrompt(
       `回滚方案：${params.rollbackPlan.join("；") || "无"}`,
       `改进建议：${params.recommendations.join("；") || "无"}`,
       `附件节选：${params.excerpt.slice(0, compactSingleFile ? 1600 : 2200) || "无"}`,
+      perPlatformData ? `按端质量数据：${perPlatformData}` : "",
+      hasPerPlatform ? "要求：按声明目标端逐端评审，输出 perPlatform 数组（每端 platform/decision/reason/blockers）。有按端数据的端须基于数据给出 decision；无数据端（无测试用例且无代码白名单）的 decision 取整体 decision，不得编造独立结论。" : "",
       compactSingleFile ? "要求：给出最小可执行的 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。" : "要求：给出可执行 decision/reason/score/blockers/releaseGates/recommendations 与 rollback 方案。"
-    ].join("\n\n")
+    ].filter(Boolean).join("\n\n")
   };
 }
 
@@ -302,6 +319,12 @@ export async function synthesizeReleaseReviewOp(
       ontologyTermCount?: number;
       ontologyRuleCount?: number;
     };
+    /** T3: 声明目标端（按端评审 + 编造防控用） */
+    targetPlatforms?: TargetPlatform[];
+    /** T3: 按端测试数据（summarizeTestMatrixByPlatform 结果，每端 coverage/passRate/total） */
+    testMatrixByPlatform?: TestMatrixByPlatformResult;
+    /** T3: 按端代码白名单（codePathsByPlatform，每端 ruleCount=数组长度） */
+    codePathsByPlatform?: Record<TargetPlatform, string[]>;
   },
   deps: {
     runAnalysisPrompt: RunAnalysisPrompt;
@@ -314,7 +337,7 @@ export async function synthesizeReleaseReviewOp(
   const prompt = buildReleaseReviewPrompt(params, compactSingleFile);
   let selected = await deps.runAnalysisPrompt(agentRunner, prompt);
   let candidate = hydrateReleaseReviewCandidate(parseReleaseReviewCandidate(selected.content, params.qualitySignals), params);
-  let missing = listReleaseReviewMissingReasons(candidate);
+  let missing = listReleaseReviewMissingReasons(candidate, params.targetPlatforms);
   for (let attempt = 1; attempt <= 2 && missing.length > 0; attempt += 1) {
     const repairPrompt = {
       ...prompt,
@@ -328,11 +351,11 @@ export async function synthesizeReleaseReviewOp(
     };
     selected = await deps.runAnalysisPrompt(agentRunner, repairPrompt);
     candidate = hydrateReleaseReviewCandidate(parseReleaseReviewCandidate(selected.content, params.qualitySignals), params);
-    missing = listReleaseReviewMissingReasons(candidate);
+    missing = listReleaseReviewMissingReasons(candidate, params.targetPlatforms);
   }
   if (missing.length > 0) {
     const log = (await import("../../../infrastructure/runtime/logger")).createLogger("release-review");
     log.warn("release review incomplete after repair", { missing: missing.join(", ") });
   }
-  return candidate;
+  return finalizeReleaseReviewPerPlatform(candidate, params);
 }

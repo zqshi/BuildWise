@@ -11,8 +11,9 @@
 import { LlmUnavailableError, type AgentRunner } from '../shared/agentRunner';
 import type { AttachmentAnalysisReport, IterationAgentPrompt } from '../../../domain/workspace/types';
 import { parseReportQualityCandidate, listReportQualityMissingReasons } from './governanceOps';
-import { parseReleaseReviewCandidate, listReleaseReviewMissingReasons } from './releaseReviewOps';
+import { finalizeReleaseReviewPerPlatform, listReleaseReviewMissingReasons, parseReleaseReviewCandidate, type ReleaseReviewPlatformContext } from './releaseReviewOps';
 import { hydrateReportQualityCandidate, hydrateReleaseReviewCandidate } from './governanceHydrationOps';
+import { formatPerPlatformData } from './governanceRunnerOps';
 import { runAnalysisPrompt } from './configOps';
 import { formatPrioritizedFindings, formatQualitySignals, formatSourceType, parseJsonObjectFromText } from './extractors';
 import { sanitizeDisplayItem } from '../coach/messageSanitizer';
@@ -24,12 +25,17 @@ export type QualityAuditResult = {
 
 function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>[1]): IterationAgentPrompt {
   const compact = params.sourceType === "single-file";
+  const perPlatformData = formatPerPlatformData(params.platformContext ?? {});
+  const hasPerPlatform = Boolean(params.platformContext?.targetPlatforms && params.platformContext.targetPlatforms.length > 0);
+  const releaseSchema = hasPerPlatform
+    ? "release:{decision(go/caution/block),reason,score(0-100),blockers[],releaseGates[],recommendations[],rollback:{shouldRollback,reason,trigger,actions[]},qualitySignals,perPlatform:[{platform,decision,reason,blockers[]}]}"
+    : "release:{decision(go/caution/block),reason,score(0-100),blockers[],releaseGates[],recommendations[],rollback:{shouldRollback,reason,trigger,actions[]},qualitySignals}";
   return {
     agentId: compact ? "agent-quality-audit-compact-1" : "agent-quality-audit-1",
     role: compact ? "requirements-analyst" : "orchestrator",
     scope: "release",
     goal: "同时评审报告质量和发布就绪度",
-    expectedOutput: "JSON: {quality:{publishable(bool),score(0-100),summary,missingItems[],actionRequired[]}, release:{decision(go/caution/block),reason,score(0-100),blockers[],releaseGates[],recommendations[],rollback:{shouldRollback,reason,trigger,actions[]},qualitySignals}}",
+    expectedOutput: `JSON: {quality:{publishable(bool),score(0-100),summary,missingItems[],actionRequired[]}, ${releaseSchema}}`,
     systemPrompt: [
       "你同时担任报告质量审计官和发布治理负责人。你必须只输出严格 JSON（不要用 ```json 包裹），所有key必须英文，不得输出解释文字。",
       "quality.summary 必须用业务决策者可理解的语言，说明当前报告能支撑做出什么层面的决策。",
@@ -58,6 +64,8 @@ function buildQualityAuditPrompt(params: Parameters<typeof runQualityAuditAgent>
       `回滚方案：${params.rollbackPlan.join("；") || "无"}`,
       `建议：${params.recommendations.join("；") || "无"}`,
       `附件节选：${params.excerpt.slice(0, compact ? 1200 : 1800) || "无"}`,
+      perPlatformData ? `按端质量数据：${perPlatformData}` : "",
+      hasPerPlatform ? "要求：按声明目标端逐端评审，release.perPlatform 输出每端 platform/decision/reason/blockers。有按端数据的端须基于数据给出 decision；无数据端（无测试用例且无代码白名单）的 decision 取整体 decision，不得编造独立结论。" : "",
       "",
       "输出要求：",
       "quality 部分：给出是否可发布、质量评分（0-100）、摘要、缺失项与所需动作。",
@@ -92,6 +100,8 @@ export async function runQualityAuditAgent(
     releaseGates: string[];
     rollbackPlan: string[];
     recommendations: string[];
+    /** T3: 按端评审上下文（声明端 + 按端质量数据），供按端评审 + 编造防控 */
+    platformContext?: ReleaseReviewPlatformContext;
   }
 ): Promise<QualityAuditResult> {
   if (!agentRunner) {
@@ -107,7 +117,7 @@ export async function runQualityAuditAgent(
 
   // 检查 quality 和 release 各自的缺失项
   const qualityMissing = listReportQualityMissingReasons(quality);
-  const releaseMissing = listReleaseReviewMissingReasons(release);
+  const releaseMissing = listReleaseReviewMissingReasons(release, params.platformContext?.targetPlatforms);
   const allMissing = [...qualityMissing.map((m) => `quality:${m}`), ...releaseMissing.map((m) => `release:${m}`)];
 
   for (let attempt = 1; attempt <= 2 && allMissing.length > 0; attempt++) {
@@ -128,7 +138,7 @@ export async function runQualityAuditAgent(
     release = hydrateReleaseReviewCandidate(repaired.release, params);
 
     const newQualityMissing = listReportQualityMissingReasons(quality);
-    const newReleaseMissing = listReleaseReviewMissingReasons(release);
+    const newReleaseMissing = listReleaseReviewMissingReasons(release, params.platformContext?.targetPlatforms);
     allMissing.length = 0;
     allMissing.push(...newQualityMissing.map((m) => `quality:${m}`), ...newReleaseMissing.map((m) => `release:${m}`));
   }
@@ -137,6 +147,9 @@ export async function runQualityAuditAgent(
     const log = (await import("../../../infrastructure/runtime/logger")).createLogger("quality-audit");
     log.warn("quality audit incomplete after repair", { missing: allMissing.join(", ") });
   }
+
+  // T3: 编造防控——补全 perPlatform 至覆盖所有声明端（有数据端漏评→block，无数据端降级整体结论）
+  release = finalizeReleaseReviewPerPlatform(release, params.platformContext ?? {});
 
   return { quality, release };
 }
