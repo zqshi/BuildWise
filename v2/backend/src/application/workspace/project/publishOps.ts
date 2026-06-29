@@ -4,8 +4,10 @@ import { publishIterationBranch } from "./repositoryPublishing";
 import { buildDefaultIterationCodeLink, listUncoveredAcceptanceCriteria, writeAuditLog } from '../shared/common';
 import { assertBoundaryWhitelist, listWorkingTreeChangedPaths } from '../shared/boundaryGuard';
 import { inferRemoteConfigured } from './repoHealthOps';
+import { normalizeTargetPlatforms, type TargetPlatform } from '../../../domain/workspace/projectTypes';
+import { assessPlatformDeliveryReadiness } from '../analysis/releaseReviewOps';
 
-function checkIterationPublishGates(ni: ReturnType<typeof normalizeIteration>) {
+function checkIterationPublishGates(ni: ReturnType<typeof normalizeIteration>, declaredPlatforms: readonly TargetPlatform[] | undefined) {
   if (ni.changeControl?.pendingHumanConfirmation) {
     return { ok: false as const, reason: "analysis_confirmation_required" };
   }
@@ -35,6 +37,15 @@ function checkIterationPublishGates(ni: ReturnType<typeof normalizeIteration>) {
     ];
     return { ok: false as const, reason: "release_review_blocked", message: blockers.join("；"), blockers };
   }
+  // 仅当项目显式声明了目标端时启用端级门禁（无声明的历史项目向后兼容，跳过）
+  if (declaredPlatforms && declaredPlatforms.length > 0) {
+    const targetPlatforms = normalizeTargetPlatforms(declaredPlatforms);
+    const items = ni.changeControl?.artifactWorkflow?.items ?? [];
+    const agg = assessPlatformDeliveryReadiness(targetPlatforms, items);
+    if (agg.decision !== "go") {
+      return { ok: false as const, reason: "release_review_blocked", message: `目标端未全部就绪：${agg.blockers.join("；")}`, blockers: agg.blockers };
+    }
+  }
   return null;
 }
 
@@ -52,7 +63,7 @@ export async function publishIterationToRemoteOp(
   if (!projectRepo.workspace?.repoPath) return { ok: false as const, reason: "repository_not_scaffolded" };
   const ni = normalizeIteration(iteration);
   const dryRun = input.dryRun === true;
-  const gateResult = checkIterationPublishGates(ni);
+  const gateResult = checkIterationPublishGates(ni, project.targetPlatforms);
   if (gateResult) return gateResult;
   const codeLink = ni.codeLink ?? buildDefaultIterationCodeLink(repo, ni);
   if (!codeLink) return { ok: false as const, reason: "code_link_unavailable" };
