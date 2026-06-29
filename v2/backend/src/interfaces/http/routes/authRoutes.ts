@@ -133,7 +133,7 @@ async function handleRefreshToken(service: WorkspaceService, config: RuntimeConf
   const refreshToken = parseRefreshTokenCookie(request);
   if (!refreshToken) { reply.code(400); return { message: "缺少刷新令牌" }; }
   if (isTokenRevoked(refreshToken)) { clearRefreshTokenCookie(reply); reply.code(401); return { message: "刷新令牌已被撤销" }; }
-  let payload;
+  let payload: ReturnType<typeof verifyJwt>;
   try { payload = verifyJwt(refreshToken, config.jwtSecret); }
   catch { clearRefreshTokenCookie(reply); reply.code(401); return { message: "刷新令牌无效或已过期" }; }
   if (payload.type !== "refresh") { clearRefreshTokenCookie(reply); reply.code(401); return { message: "无效的令牌类型" }; }

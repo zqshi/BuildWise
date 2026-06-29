@@ -7,7 +7,7 @@
  *
  * 纯函数（parse/build）+ 一次 LLM 调用（synthesize），零持久化。
  */
-import { type AgentRunner, type AgentRunOptions, type AgentRunResult } from '../shared/agentRunner';
+import type { AgentRunner, AgentRunOptions, AgentRunResult } from '../shared/agentRunner';
 import type { IterationAgentPrompt } from '../../../domain/workspace/types';
 import type { TargetPlatform } from '../../../domain/workspace/projectTypes';
 import { safeJsonParse } from '../upload/attachmentUtils';
