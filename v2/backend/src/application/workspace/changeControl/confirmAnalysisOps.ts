@@ -11,7 +11,9 @@
  */
 import type { WorkspaceRepository } from '../../../domain/workspace/repository';
 import type { IterationChangeBoundary } from '../../../domain/workspace/types';
+// biome-ignore lint/style/useImportType: ReturnType<typeof> 需 value import，biome useImportType 对 typeof 误报
 import { normalizeIteration } from '../shared/workspaceSupport';
+// biome-ignore lint/style/useImportType: defaultIterationChangeControl/resolveClarificationSelection 仅 ReturnType<typeof> 用，需 value import
 import { defaultIterationChangeControl, resolveClarificationSelection, writeAuditLog } from '../shared/common';
 import { extractKnowledgeBaseUpdateOp, detectOntologyCollisionsOp } from '../project/ontologyService';
 import { syncProjectWorkspaceKnowledge } from '../project/projectWorkspaceKnowledgeService';
