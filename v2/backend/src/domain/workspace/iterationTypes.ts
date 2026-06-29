@@ -1,3 +1,5 @@
+import type { TargetPlatform } from './projectTypes';
+
 export type ExecutionStatus = "pending" | "passed" | "failed" | "blocked" | "skipped";
 export const ALLOWED_EXECUTION_STATUSES: ReadonlySet<string> = new Set<ExecutionStatus>(["pending", "passed", "failed", "blocked", "skipped"]);
 
@@ -136,6 +138,7 @@ export type IterationArtifactWorkflowItem = {
     updatedAt: string;
     updatedBy: string;
   };
+  targetPlatform?: TargetPlatform;
   lastConfirmedBy: string;
   lastConfirmedAt: string;
   updatedAt: string;
