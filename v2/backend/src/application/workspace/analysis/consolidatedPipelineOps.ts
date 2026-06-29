@@ -259,6 +259,7 @@ export async function consolidatedQualityPhase(
     blockers: release.blockers,
     releaseGates: release.releaseGates,
     recommendations: release.recommendations,
+    perPlatform: release.perPlatform ?? [],
     rollback: release.rollback,
     qualitySignals: release.qualitySignals
   };
