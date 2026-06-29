@@ -1,6 +1,7 @@
 import { parseJsonObjectFromText, pickString, pickStringList } from './extractors';
 import type { TargetPlatform } from '../../../domain/workspace/projectTypes';
 import type { IterationArtifactWorkflowItem } from '../../../domain/workspace/iterationTypes';
+import { summarizeCodeChangesByPlatform } from '../changeControl/codePathByPlatformOps';
 
 export function parseReleaseReviewCandidate(
   content: string,
@@ -134,4 +135,33 @@ export function assessPlatformDeliveryReadiness(
       : { platform, decision: "block", reason: `目标端「${platform}」尚无就绪交付物`, blockers: ["该端未产出就绪交付物"] }
   );
   return aggregateReleaseReviewByPlatform({ targetPlatforms, perPlatform });
+}
+
+/**
+ * 评估各声明目标端的代码改动就绪度并聚合为顶层决策（v0.30.0 T2）。
+ *
+ * 某端 codePathsByPlatform 有白名单 rule（ruleCount>0）但无改动（hasChange=false）→ 该端 block
+ * （声明多端但只改了部分端代码就标可发布 = 虚假推进）。ruleCount=0（该端不涉及代码）不阻断。
+ * 与 assessPlatformDeliveryReadiness（交付物维度）正交，二者均过才可发布。
+ *
+ * 纯函数，零 IO，可单测。
+ */
+export function assessPlatformCodeChangeReadiness(
+  changedPaths: string[],
+  codePathsByPlatform: Record<TargetPlatform, string[]> | undefined,
+  targetPlatforms: TargetPlatform[]
+): ReleaseReviewAggregateResult {
+  const { perPlatform } = summarizeCodeChangesByPlatform(changedPaths, codePathsByPlatform, targetPlatforms);
+  const items: ReleaseReviewPerPlatformItem[] = perPlatform.map((p) => {
+    if (p.ruleCount > 0 && !p.hasChange) {
+      return {
+        platform: p.platform,
+        decision: "block" as const,
+        reason: `目标端「${p.platform}」有 ${p.ruleCount} 条代码白名单但无改动`,
+        blockers: ["该端代码路径未改动"]
+      };
+    }
+    return { platform: p.platform, decision: "go" as const, reason: "", blockers: [] };
+  });
+  return aggregateReleaseReviewByPlatform({ targetPlatforms, perPlatform: items });
 }
