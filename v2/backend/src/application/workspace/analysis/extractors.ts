@@ -29,45 +29,6 @@ function listParsedRoleOutputs(agentOutputs: IterationAgentOutput[], role: Itera
     .filter((item): item is Record<string, unknown> => Boolean(item));
 }
 
-export function extractGeneratedTestMatrix(agentOutputs: IterationAgentOutput[]) {
-  for (const output of agentOutputs) {
-    if (output.role !== "qa-reviewer" || output.status !== "success") {
-      continue;
-    }
-    const parsed = parseJsonObjectFromText(output.content);
-    const matrix = parsed?.testMatrix;
-    if (!Array.isArray(matrix)) {
-      continue;
-    }
-    const normalized = matrix
-      .map((item, index) => {
-        const row = item as Record<string, unknown>;
-        const type = typeof row.type === "string" ? row.type.trim() : "";
-        const caseId = typeof row.caseId === "string" ? row.caseId.trim() : `auto-case-${index + 1}`;
-        const focus = typeof row.focus === "string" ? row.focus.trim() : "";
-        const expected = typeof row.expected === "string" ? row.expected.trim() : "";
-        const evidence = typeof row.evidence === "string" ? row.evidence.trim() : "";
-        return {
-          type,
-          caseId,
-          focus,
-          expected,
-          evidence,
-          executionStatus: "pending" as const,
-          executionUpdatedAt: "",
-          executionBy: "",
-          executionNote: ""
-        };
-      })
-      .filter((item) => item.type || item.caseId || item.focus || item.expected || item.evidence)
-      .slice(0, 50);
-    if (normalized.length > 0) {
-      return normalized;
-    }
-  }
-  return [];
-}
-
 export function extractBoundarySuggestion(agentOutputs: IterationAgentOutput[]) {
   for (const output of agentOutputs) {
     if (output.role !== "boundary-guardian" || output.status !== "success") {

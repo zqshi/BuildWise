@@ -17,8 +17,9 @@ import type { AttachmentUploadInput, IterationAgentOutput, VisionPayload } from 
 import { buildKnowledgeSyncContext } from '../project/knowledgeSyncService';
 // biome-ignore lint/style/useImportType: normalizeIteration 仅 ReturnType<typeof> 用，需 value import
 import { buildDiffLocations, buildIterationAgentPlan, normalizeIteration, shouldUseCompactSingleFileAnalysis } from '../shared/workspaceSupport';
-// biome-ignore lint/style/useImportType: extractGeneratedTestMatrix/extractUxArtifacts 仅 ReturnType<typeof> 用，需 value import
-import { extractGeneratedTestMatrix, extractReleaseOpsStructured, extractReleaseReview, extractUxArtifacts, isLowSignalText } from './extractors';
+// biome-ignore lint/style/useImportType: extractUxArtifacts 仅 ReturnType<typeof> 用，需 value import
+import { extractReleaseOpsStructured, extractReleaseReview, extractUxArtifacts, isLowSignalText } from './extractors';
+import type { IterationGeneratedTestCase } from '../../../domain/workspace/iterationTypes';
 import { mergeSynthesisResultsOp } from './synthesisOps';
 import { defaultIterationChangeControl } from '../shared/common';
 import { composeAttachmentExcerpt, resolveVisionPayloads } from './inputOps';
@@ -269,7 +270,7 @@ export async function runQualityGatePhase(agentRunner: AgentRunner | null, input
 
 // ── Phase 5: 知识回写 + 本体提取 ──
 
-export async function writebackKnowledgeState(repo: WorkspaceRepository, iteration: { projectId: number }, normalized: ReturnType<typeof normalizeIteration>, pre: Awaited<ReturnType<typeof runPreflightPhase>>, syn: Awaited<ReturnType<typeof runSynthesisPipeline>>, qg: Awaited<ReturnType<typeof runQualityGatePhase>>, generatedAt: string, uxArtifacts: ReturnType<typeof extractUxArtifacts>, _generatedTestMatrix: ReturnType<typeof extractGeneratedTestMatrix>, markStage: (s: string) => void, agentRunner: AgentRunner | null) {
+export async function writebackKnowledgeState(repo: WorkspaceRepository, iteration: { projectId: number }, normalized: ReturnType<typeof normalizeIteration>, pre: Awaited<ReturnType<typeof runPreflightPhase>>, syn: Awaited<ReturnType<typeof runSynthesisPipeline>>, qg: Awaited<ReturnType<typeof runQualityGatePhase>>, generatedAt: string, uxArtifacts: ReturnType<typeof extractUxArtifacts>, _generatedTestMatrix: IterationGeneratedTestCase[], markStage: (s: string) => void, agentRunner: AgentRunner | null) {
   const { excerptPayload } = pre;
   const { resolvedPrioritizedFindings, resolvedMeaningfulFindings, businessConfirmationWithUx, deepInsights } = syn;
   const { reportQuality, releaseReview, releaseReviewScore, traceabilityMap, domainKnowledge, versionDiffDetailed, executableConstraints } = qg;
