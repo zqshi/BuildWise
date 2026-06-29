@@ -6,7 +6,7 @@ BuildWise 后端负责：
 - 项目建模与领域建模统一视图
 - 交付物、测试矩阵与发布评审
 - 项目级 workspace 绑定与知识物化
-- OpenClaw 非侵入式接入
+- 可插拔 Agent 执行后端接入
 - 仓库治理、发布与回滚链路
 
 ## 1. 快速开始
@@ -56,10 +56,6 @@ cp .env.example .env
 - `LLM_MODEL`
 - `LLM_REQUIRED`
 - `DEPENDENCY_REQUIRED`
-- `OPENCLAW_GATEWAY_URL`
-- `OPENCLAW_AGENT_ID`
-- `OPENCLAW_HOME`
-- `BUILDWISE_OPENCLAW_SKILLS_ENABLED`
 - `GITHUB_TOKEN`
 - `PROJECT_REPO_ROOT`
 
@@ -118,7 +114,7 @@ npm run verify:prod-readiness:sqlite
 - `GET /api/v1/projects/:id/model-view`
 - `GET /api/v1/projects/:id/model/business-summary`
 
-OpenClaw / workspace：
+workspace 绑定：
 
 - `POST /api/v1/projects/:id/workspace/bind`
 - `POST /api/v1/projects/:id/policies/restore-initial`
@@ -163,14 +159,14 @@ OpenClaw / workspace：
 - `runtime.llmRequired` 表示是否启用 LLM 强依赖门禁
 - `runtime.dependencyRequired` 表示是否启用依赖探针强门禁
 
-## 6. OpenClaw 与项目 workspace
+## 6. Agent 执行后端与项目 workspace
 
 当前设计是：
 
 1. 单 Agent
 2. 每个项目一个独立 workspace
 3. 所有迭代持续沉淀到同一个项目 workspace
-4. BuildWise 只做知识物化、检索和上下文注入，不改 OpenClaw 内核
+4. BuildWise 只做知识物化、检索和上下文注入，不依赖具体 Agent 框架内核
 
 约束：
 

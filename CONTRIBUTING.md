@@ -28,7 +28,7 @@ interfaces/    → HTTP 路由，薄层转发
 - **每文件 < 1000 行**，单一职责
 - **TDD**：先写测试（`node:test` + `assert/strict`），再写实现
 - **函数式优先**：Ops 函数接受 repo + input，返回结果，无副作用
-- **不修改 OpenClaw 源码**——只改 BuildWise 侧的适配层
+- **不依赖特定 Agent 框架**——通过适配器端口抽象，只维护 BuildWise 侧适配层
 
 ### 测试
 
