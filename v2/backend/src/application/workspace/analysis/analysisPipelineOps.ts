@@ -254,6 +254,7 @@ export async function runQualityGatePhase(agentRunner: AgentRunner | null, input
     blockers: releaseReviewSynthesized.blockers,
     releaseGates: releaseReviewSynthesized.releaseGates,
     recommendations: releaseReviewSynthesized.recommendations,
+    perPlatform: releaseReviewSynthesized.perPlatform ?? [],
     rollback: {
       shouldRollback: releaseReviewSynthesized.rollback.shouldRollback,
       reason: releaseReviewSynthesized.rollback.reason || opsRollbackReason,
