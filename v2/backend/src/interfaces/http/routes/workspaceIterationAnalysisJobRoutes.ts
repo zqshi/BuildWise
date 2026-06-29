@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { AttachmentReportSection } from "../../../domain/workspace/types";
+import type { AttachmentAnalysisJob, AttachmentReportSection } from "../../../domain/workspace/types";
 import type { WorkspaceService } from '../../../application/workspace/shared/workspaceService';
 import { currentRole, ensureIterationAccess, handleRouteError, parsePositiveInt } from "./workspaceRouteUtils";
 import { parseAttachmentUploadInput } from "./workspaceIterationCoreRoutes";
@@ -63,7 +63,7 @@ function handleSubmitJob(service: WorkspaceService) {
       reply.code(400);
       return { message: parsed.error };
     }
-    let created;
+    let created: AttachmentAnalysisJob | null;
     try {
       created = service.analysis.submitAttachmentAnalysisJob(iterationId, parsed.input);
     } catch (error) {
@@ -84,7 +84,7 @@ function handleSubmitJobByUpload(service: WorkspaceService) {
     const body = request.body as { uploadId?: string; schemaVersion?: string } | null;
     const uploadId = body?.uploadId?.trim() || "";
     if (!uploadId) { reply.code(400); return { message: "请提供上传 ID" }; }
-    let created;
+    let created: AttachmentAnalysisJob | null;
     try {
       created = service.upload.submitAttachmentAnalysisJobFromUpload(iterationId, uploadId, body?.schemaVersion || "v2");
     } catch (error) {

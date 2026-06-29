@@ -156,7 +156,7 @@ export class SqliteWorkspaceAnalysisStore {
 
   listUploads(iterationId: number): AttachmentUploadRecord[] {
     const rows = this.db.prepare("SELECT * FROM attachment_uploads WHERE iteration_id = ? ORDER BY created_at ASC").all(iterationId) as Record<string, unknown>[];
-    return rows.map((row) => this.findUpload(String(row.upload_id))!).filter(Boolean);
+    return rows.map((row) => this.findUpload(String(row.upload_id))).filter((r): r is AttachmentUploadRecord => r !== null);
   }
 
   saveIngestJob(job: AttachmentIngestJob) {
