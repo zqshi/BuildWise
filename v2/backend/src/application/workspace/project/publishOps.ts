@@ -5,7 +5,7 @@ import { buildDefaultIterationCodeLink, listUncoveredAcceptanceCriteria, writeAu
 import { assertBoundaryWhitelist, listWorkingTreeChangedPaths } from '../shared/boundaryGuard';
 import { inferRemoteConfigured } from './repoHealthOps';
 import { normalizeTargetPlatforms, type TargetPlatform } from '../../../domain/workspace/projectTypes';
-import { assessPlatformDeliveryReadiness } from '../analysis/releaseReviewOps';
+import { assessPlatformCodeChangeReadiness, assessPlatformDeliveryReadiness } from '../analysis/releaseReviewOps';
 
 function checkIterationPublishGates(ni: ReturnType<typeof normalizeIteration>, declaredPlatforms: readonly TargetPlatform[] | undefined) {
   if (ni.changeControl?.pendingHumanConfirmation) {
@@ -87,6 +87,15 @@ export async function publishIterationToRemoteOp(
     const boundaryCheck = assertBoundaryWhitelist({ repoPath: projectRepo.workspace.repoPath, whitelist: boundaryCodePaths, changedPaths });
     if (!boundaryCheck.ok) {
       return { ok: false as const, reason: "boundary_violation", message: "变更文件超出边界白名单", blockers: boundaryCheck.violations };
+    }
+    // T2: 端级代码改动就绪门禁——声明端中某端有代码白名单但无改动 → block（堵「声明多端只改部分端代码就标可发布」的虚假推进）
+    if (project.targetPlatforms && project.targetPlatforms.length > 0) {
+      const targetPlatforms = normalizeTargetPlatforms(project.targetPlatforms);
+      const codePathsByPlatform = ni.changeControl?.boundary?.codePathsByPlatform;
+      const codeChangeAgg = assessPlatformCodeChangeReadiness(changedPaths, codePathsByPlatform, targetPlatforms);
+      if (codeChangeAgg.decision !== "go") {
+        return { ok: false as const, reason: "release_review_blocked", message: `目标端代码改动未就绪：${codeChangeAgg.blockers.join("；")}`, blockers: codeChangeAgg.blockers };
+      }
     }
     const published = await publishIterationBranch({
       repoPath: projectRepo.workspace.repoPath, branch: codeLink.branch, baseBranch: projectRepo.defaultBranch,

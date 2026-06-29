@@ -17,6 +17,7 @@ import {
   isLowSignalText
 } from './extractors';
 import { synthesizeTestMatrixOp } from './testMatrixGenerationOps';
+import { synthesizeCodePathsByPlatformOp } from './codePathPlatformLabelingOps';
 import { buildClarificationQuestionsOp } from './synthesisOps';
 import { defaultIterationChangeControl, writeAuditLog } from '../shared/common';
 import { CONTEXT_GUARDRAILS, runAnalysisPrompt, USE_CONSOLIDATED_AGENTS } from './configOps';
@@ -194,9 +195,14 @@ export async function analyzeAttachmentOp(
   const currentChangeControl = normalized.changeControl ?? defaultIterationChangeControl();
   const currentBoundary = currentChangeControl.boundary ?? defaultIterationChangeControl().boundary;
   const boundaryIsEmpty = currentBoundary.requirementRefs.length === 0 && currentBoundary.componentRefs.length === 0 && currentBoundary.codePaths.length === 0 && !currentBoundary.note;
+  // T2: 为代码路径标注归属端（LLM），产出 codePathsByPlatform 供端级门禁 assessPlatformCodeChangeReadiness
+  const effectiveCodePaths = boundarySuggestion && boundaryIsEmpty ? boundarySuggestion.codePaths : currentBoundary.codePaths;
+  const labeledCodePathsByPlatform = effectiveCodePaths.length > 0
+    ? await synthesizeCodePathsByPlatformOp(agentRunner, { iterationName: normalized.name, codePaths: effectiveCodePaths, targetPlatforms: repo.findProject(normalized.projectId)?.targetPlatforms ?? ["web"] }, { runAnalysisPrompt })
+    : undefined;
   const resolvedBoundary = boundarySuggestion && boundaryIsEmpty
-    ? { requirementRefs: boundarySuggestion.requirementRefs, componentRefs: boundarySuggestion.componentRefs, codePaths: boundarySuggestion.codePaths, note: boundarySuggestion.note || "由 boundary-guardian 自动建议，待人工确认。", updatedAt: new Date().toISOString() }
-    : currentBoundary;
+    ? { requirementRefs: boundarySuggestion.requirementRefs, componentRefs: boundarySuggestion.componentRefs, codePaths: boundarySuggestion.codePaths, codePathsByPlatform: labeledCodePathsByPlatform, note: boundarySuggestion.note || "由 boundary-guardian 自动建议，待人工确认。", updatedAt: new Date().toISOString() }
+    : { ...currentBoundary, codePathsByPlatform: currentBoundary.codePathsByPlatform ?? labeledCodePathsByPlatform };
   const generatedAt = new Date().toISOString();
   const existingMaterializedFiles = Array.isArray(currentChangeControl.qualityArtifacts?.materializedFiles) ? currentChangeControl.qualityArtifacts.materializedFiles : [];
   const qualityArtifacts = { ...qualityArtifactsRaw, materializedFiles: existingMaterializedFiles };
