@@ -44,7 +44,7 @@ export interface ProjectRepository {
   listProjects(tenantId?: string): Project[];
   /** 不传 tenantId 向后兼容；传 tenantId 则跨租户访问返回 null（DB 层兜底，应用层漏判时拦截） */
   findProject(projectId: number, tenantId?: string): Project | null;
-  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId">): Project;
+  createProject(input: Pick<Project, "name" | "description" | "tenantId" | "ownerUserId" | "targetPlatforms">): Project;
   updateProject(project: Project): void;
 }
 
