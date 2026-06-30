@@ -26,12 +26,12 @@
 
 ## 待处理遗留项（任务化，供新会话接续）
 
-### P0 — v0.27.0 已归档；v0.28.0 已归档；v0.29.0 已归档；v0.30.0 已归档（剩余技术债清扫完成，2026-06-29）；无活跃 current，待规划新版本
+### P0 — v0.27.0→v0.31.0 已归档；v0.32.0 活跃（投产前卫生收口：lint 清理 + DEPLOY.md）
 - **v0.20.0 已归档**（2026-06-28，snapshot c0149d5，规范漂移校正 T1-T6，详见 [v0.20.0-snapshot.md](v0.20.0-snapshot.md)）
 - **v0.21.0 已归档**（2026-06-28，前端副作用单测，T1 解 node --test 无扩展名 import 限制[tsx]+T2 fetchJSON 403 dispatch 副作用单测[jsdom] done，**T3 useAuthController hook 副作用单测已由 v0.26.0 T6 收口**——引入 @testing-library/react，详见 [v0.21.0-snapshot.md](v0.21.0-snapshot.md)）
 - **v0.22.0 已归档**（2026-06-28，owner 分支收敛重新设计：保留 owner 块 + resolveTenantRole 加 isPlatformOwner 旁路，区分真超管 platformRoleBinding / dev owner AUTH_MODE=off / 租户 owner 三类语义，修正 v0.18.0 方案B 删块覆辙，详见 [v0.22.0-snapshot.md](v0.22.0-snapshot.md)）
 
-当前无活跃 current：v0.30.0 已归档（2026-06-29，按端质量数据 + LLM 按端评审，详见 [v0.30.0-snapshot.md](v0.30.0-snapshot.md)）；待规划新版本
+当前活跃 current：v0.32.0（投产前卫生收口：T1 后端 12 处 lint warnings 清理[类型守卫替代 !] + T2 DEPLOY.md 部署 runbook）。v0.31.0 已归档（2026-06-30，按端展示端到端实跑验证：T2 重跑确认 perPlatform 真实产出 + T3 前端按端渲染 DOM 验证[@testing-library/react 真实数据]，详见 [v0.31.0-snapshot.md](v0.31.0-snapshot.md)）
 
 后续版本规划（依次推进）：
 - **v0.30.0（已归档，2026-06-29）** — 按端质量数据 + LLM 按端评审：T1 测试矩阵按端分组（synthesizeTestMatrixOp 独立 LLM 生成每条标 targetPlatform + summarizeTestMatrixByPlatform 按端聚合 + 前端按端展示）+ T2 代码路径按端白名单（codePathsByPlatform 平行字段 + summarizeCodeChangesByPlatform 按端统计 + assessPlatformCodeChangeReadiness 端级门禁 + synthesizeCodePathsByPlatformOp LLM 标注，不改 assertBoundaryWhitelist）+ T3 LLM 按端评审（synthesizeReleaseReviewOp params 加按端数据 + buildReleaseReviewPrompt 按端数据段/expectedOutput perPlatform + finalizeReleaseReviewPerPlatform 编造防控：有数据端漏评→block/无数据端降级整体 + qualityAudit 链对齐）。验证标准 3 条全达成 + verify:all 全绿（后端 670+前端 242 0 fail + 契约 passed）。详见 [v0.30.0-snapshot.md](v0.30.0-snapshot.md)
