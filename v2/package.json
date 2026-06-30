@@ -2,6 +2,8 @@
   "name": "buildwise-v2-frontend",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "author": "zqshi <labixiaoxin-why@outlook.com>",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
