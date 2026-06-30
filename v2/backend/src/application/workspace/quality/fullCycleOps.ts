@@ -103,7 +103,8 @@ async function executeStepLoop(
 ): Promise<IterationFullCycleRunResponse | null> {
   const { repo, iterationId, input } = params;
   for (let i = 0; i < STEP_ORDER.length; i++) {
-    const stepId = STEP_ORDER[i]!;
+    const stepId = STEP_ORDER[i];
+    if (!stepId) continue;
     const stepState = checkpoint.steps[stepId];
     if (stepState.status === "completed") continue;
 

@@ -38,7 +38,8 @@ export async function runExperienceScan(
     const activeIdx = stages.indexOf(activeStage);
 
     for (let i = 0; i <= activeIdx; i++) {
-      const stage = stages[i]!;
+      const stage = stages[i];
+      if (!stage) continue;
       const key = `${iteration.id}:stage-gate-passed:${stage}`;
       if (extractedSet.has(key)) continue;
 
