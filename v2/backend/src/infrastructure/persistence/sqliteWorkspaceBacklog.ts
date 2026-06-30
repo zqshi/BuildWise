@@ -42,7 +42,9 @@ export class SqliteWorkspaceBacklog {
       now
     );
     const id = (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
-    return this.findBacklogItem(id)!;
+    const item = this.findBacklogItem(id);
+    if (!item) throw new Error(`backlog item ${id} not found after insert`);
+    return item;
   }
 
   updateBacklogItem(item: BacklogItem): void {

@@ -42,7 +42,9 @@ export class SqliteWorkspaceKnowledge {
       now
     );
     const id = (this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number }).id;
-    return this.findKnowledgeEntry(id)!;
+    const entry = this.findKnowledgeEntry(id);
+    if (!entry) throw new Error(`knowledge entry ${id} not found after insert`);
+    return entry;
   }
 
   updateKnowledgeEntry(entry: KnowledgeEntry): void {
