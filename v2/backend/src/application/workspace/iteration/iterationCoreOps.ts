@@ -51,7 +51,8 @@ export function createIterationOp(repo: WorkspaceRepository, projectId: number, 
   };
   repo.appendSnapshot(snapshot);
   if (!previous && project?.repository && hasGitRequirementIntakeTarget(normalizeProject(project).repository)) {
-    const projectRepo = normalizeProject(project).repository!;
+    const projectRepo = normalizeProject(project).repository;
+    if (!projectRepo) throw new Error("repository required for git requirement intake");
     const now = new Date().toISOString();
     normalized = normalizeIteration({
       ...normalized,

@@ -170,7 +170,7 @@ export async function extractRequirementsFromConversation(
     userPrompt: buildExtractionUserPrompt(conversationText)
   };
 
-  let result;
+  let result: Awaited<ReturnType<typeof runWithContinuation>> | undefined;
   try {
     result = await runWithContinuation(agentRunner, prompt, {
       sessionContext: { projectId: iteration.projectId, iterationId }
@@ -178,6 +178,7 @@ export async function extractRequirementsFromConversation(
   } catch {
     return false;
   }
+  if (!result) return false;
 
   const p = parseExtractionResult(result.content);
   if (!p) return false;

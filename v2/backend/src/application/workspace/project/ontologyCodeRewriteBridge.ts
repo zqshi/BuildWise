@@ -36,7 +36,8 @@ export function mergeCodeRewriteIntoOntology(
     if (!path) continue;
     const matchedIndex = findMatchingCodeMapIndex(codeMap, path);
     if (matchedIndex >= 0) {
-      const target = codeMap[matchedIndex]!;
+      const target = codeMap[matchedIndex];
+      if (!target) continue;
       if (!target.codePaths.includes(path)) {
         target.codePaths.push(path);
         mergedPaths.push(path);
@@ -63,7 +64,8 @@ function findMatchingCodeMapIndex(
 ): number {
   // 路径前缀匹配：若已有 codePaths 中某项是 path 的前缀目录，或 path 以已有项为前缀，视为同一 capability
   for (let i = 0; i < codeMap.length; i++) {
-    const item = codeMap[i]!;
+    const item = codeMap[i];
+    if (!item) continue;
     for (const existing of item.codePaths) {
       if (path === existing) return i;
       if (path.startsWith(`${existing.replace(/\/$/, "")}/`)) return i;

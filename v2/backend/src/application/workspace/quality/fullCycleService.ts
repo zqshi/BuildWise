@@ -97,6 +97,7 @@ export class FullCycleService {
   async runIterationFullCycle(iterationId: number, input: IterationFullCycleRunInput, shouldCancel?: () => boolean): Promise<IterationFullCycleRunResponse | null> {
     const iteration = this.repo.findIteration(iterationId);
     const activePolicy = iteration ? getEffectiveOrchestrationPolicyForProjectOp(this.repo, iteration.projectId) : null;
+    const { detectChangeImpact, evaluateOntologyGate } = this.delegates;
     return runIterationFullCycleOp({
       repo: this.repo,
       agentRunner: this.agentRunner,
@@ -104,11 +105,11 @@ export class FullCycleService {
       input,
       shouldCancel,
       activePolicy,
-      detectChangeImpact: this.delegates.detectChangeImpact
-        ? (id, msg) => this.delegates.detectChangeImpact!(id, msg)
+      detectChangeImpact: detectChangeImpact
+        ? (id, msg) => detectChangeImpact(id, msg)
         : undefined,
-      evaluateOntologyGate: this.delegates.evaluateOntologyGate
-        ? (id) => this.delegates.evaluateOntologyGate!(id)
+      evaluateOntologyGate: evaluateOntologyGate
+        ? (id) => evaluateOntologyGate(id)
         : undefined,
       analyzeAttachment: (targetIterationId, analysisInput) => this.delegates.analyzeAttachment(targetIterationId, analysisInput),
       confirmIterationAnalysis: (targetIterationId, confirmInput) => this.delegates.confirmIterationAnalysis(targetIterationId, confirmInput),

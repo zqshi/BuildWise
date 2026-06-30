@@ -228,5 +228,5 @@ export function getNextStage(currentStage: IterationArtifactStage): IterationArt
   if (index < 0 || index >= artifactStageOrder.length - 1) {
     return null;
   }
-  return artifactStageOrder[index + 1]!;
+  return artifactStageOrder[index + 1] ?? null;
 }
