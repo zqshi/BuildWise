@@ -298,7 +298,7 @@ npm run verify:prod-readiness   # 后端投产门禁
 
 ## 版本历程
 
-版本以 `docs/versions/` 快照制归档，每版本归档前过 6 项质检协议且 `verify:all` 全绿。当前已归档至 v0.28.0，无活跃 current，待规划新版本。
+版本以 `docs/versions/` 快照制归档，每版本归档前过 6 项质检协议且 `verify:all` 全绿。当前已归档至 v0.32.0，已激活 v0.33.0 占位（待立项）。
 
 | 版本 | 里程碑 | 状态 |
 |------|--------|------|
@@ -319,7 +319,11 @@ npm run verify:prod-readiness   # 后端投产门禁
 | v0.26.0 | 遗留项统一收口（本体链 + 多租户 + 前端测试债） | done |
 | v0.27.0 | 剩余技术债统一收口（回写正名 + 超限文件拆分 + Props Drilling 评估） | done |
 | v0.28.0 | 剩余技术债清扫（analysisService 拆分 + biome-ignore 评估 + 前端超限 + 占位删除） | done |
-| 后续专项 | dryRun 路径 A 完整链路实跑 + 聚合根 / hook 内聚超限文件治理 | planned |
+| v0.29.0 | 目标端维度 MVP 闭环（发布评审按端聚合，门禁堵死「虚假 go」） | done |
+| v0.30.0 | 按端质量数据 + LLM 按端评审（测试矩阵按端分组 + 代码路径按端白名单） | done |
+| v0.31.0 | 按端展示端到端实跑验证（真实分析产出 perPlatform + 前端 DOM 测试） | done |
+| v0.32.0 | 投产前卫生收口（后端 lint warnings 12→0 类型守卫替代 ! + DEPLOY.md 部署 runbook） | done |
+| 后续专项 | v0.33.0 待立项（候选：前端 181 lint 清理 / synthesizeTestMatrixOp repair 循环 / 异步 full-cycle job） | planned |
 
 ## 文档导航
 
