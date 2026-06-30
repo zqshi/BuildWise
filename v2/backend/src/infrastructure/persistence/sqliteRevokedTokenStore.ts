@@ -34,7 +34,7 @@ export class SqliteRevokedTokenStore implements RevokedTokenStore {
       .prepare("SELECT expires_at FROM revoked_tokens WHERE token_hash = ?")
       .get(this.hash(token)) as { expires_at?: number } | undefined;
     if (!row) return false;
-    if (row.expires_at! <= now) {
+    if ((row.expires_at ?? 0) <= now) {
       this.db.prepare("DELETE FROM revoked_tokens WHERE token_hash = ?").run(this.hash(token));
       return false;
     }
