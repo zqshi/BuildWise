@@ -43,7 +43,7 @@
     "@tiptap/extension-typography": "^3.23.1",
     "@tiptap/react": "^3.20.1",
     "@tiptap/starter-kit": "^3.20.1",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.4.11",
     "jszip": "^3.10.1",
     "lowlight": "^3.3.0",
     "markdown-it": "^14.1.1",
