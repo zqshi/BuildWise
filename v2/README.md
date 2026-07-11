@@ -1,6 +1,8 @@
 # BuildWise v2
 
 BuildWise v2 是当前主实现版本。  
+
+**语言 / Language:** [中文](README.md) | [English](README.en.md)  
 它把官网入口、登录、仪表盘、项目工作台、项目建模/领域建模、交付物抽屉、Agent 协作台、真实 LLM 分析链路和项目级 workspace 隔离收敛到同一套前后端工程里。
 
 ## 1. 当前能力
