@@ -1,17 +1,17 @@
 # BuildWise v2 Backend
 
-BuildWise 后端负责：
+BuildWise backend is responsible for:
 
 **语言 / Language:** [中文](README.md) | [English](README.en.md)
 
-- 项目 / 迭代数据管理
-- 项目建模与领域建模统一视图
-- 交付物、测试矩阵与发布评审
-- 项目级 workspace 绑定与知识物化
-- 可插拔 Agent 执行后端接入
-- 仓库治理、发布与回滚链路
+- Project / iteration data management
+- Unified view for project modeling & domain modeling
+- Deliverables, test matrices & release review
+- Project-level workspace binding & knowledge materialization
+- Pluggable Agent execution backend integration
+- Repository governance, release & rollback pipeline
 
-## 1. 快速开始
+## 1. Quick Start
 
 ```bash
 cd v2/backend
@@ -20,25 +20,25 @@ npm run build
 npm run start
 ```
 
-开发模式：
+Development mode:
 
 ```bash
 npm run dev
 ```
 
-## 2. 环境变量
+## 2. Environment Variables
 
-启动时自动读取：
+Automatically read at startup:
 
 - `v2/backend/.env`
 
-可从模板复制：
+Copy from template:
 
 ```bash
 cp .env.example .env
 ```
 
-关键变量：
+Key variables:
 
 - `HOST` / `PORT`
 - `NODE_ENV`
@@ -49,7 +49,7 @@ cp .env.example .env
 - `JWT_ACCESS_TTL_SEC`
 - `JWT_REFRESH_TTL_SEC`
 - `AUTH_PUBLIC_PATH_PREFIXES`
-- `STORAGE_BACKEND=sqlite`（JSON backend 已废弃，传 `json` 会被静默降级为 sqlite）
+- `STORAGE_BACKEND=sqlite` (JSON backend deprecated, passing `json` silently downgrades to sqlite)
 - `WORKSPACE_DB_FILE`
 - `WORKSPACE_DATA_FILE`
 - `LLM_PROVIDER`
@@ -61,14 +61,14 @@ cp .env.example .env
 - `GITHUB_TOKEN`
 - `PROJECT_REPO_ROOT`
 
-说明：
+Notes:
 
-- 生产环境建议 `AUTH_MODE=jwt`
-- 生产环境建议 `STORAGE_BACKEND=sqlite`
-- 每个项目必须使用独立 `workspacePath`
-- 项目知识目录写入 `workspacePath/.buildwise/`
+- Production environment recommends `AUTH_MODE=jwt`
+- Production environment recommends `STORAGE_BACKEND=sqlite`
+- Each project must use independent `workspacePath`
+- Project knowledge directory written to `workspacePath/.buildwise/`
 
-## 3. 质量门禁
+## 3. Quality Gates
 
 ```bash
 npm run check:hygiene
@@ -85,7 +85,7 @@ npm run verify:prod-readiness
 npm run verify:prod-readiness:sqlite
 ```
 
-补充：
+Additional:
 
 - `npm run ops:preflight`
 - `npm run ops:llm-check`
@@ -93,36 +93,36 @@ npm run verify:prod-readiness:sqlite
 - `PROJECT_ID=1 npm run ops:rollback`
 - `STORAGE_BACKEND=sqlite npm run ops:backup-drill`
 
-## 4. 关键接口
+## 4. Key APIs
 
-后端当前统一使用 `/api/v1` 前缀。
+Backend currently uses unified `/api/v1` prefix.
 
-核心运行接口：
+Core runtime APIs:
 
 - `GET /health`
 - `GET /ready`
 - `GET /api/v1/status`
 - `GET /api/v1/ops/runtime`
 
-项目与迭代：
+Projects & iterations:
 
 - `GET /api/v1/projects`
 - `POST /api/v1/projects`
 - `GET /api/v1/projects/:id/iterations`
 - `POST /api/v1/projects/:id/iterations`
 
-项目建模：
+Project modeling:
 
 - `GET /api/v1/projects/:id/model-view`
 - `GET /api/v1/projects/:id/model/business-summary`
 
-workspace 绑定：
+Workspace binding:
 
 - `POST /api/v1/projects/:id/workspace/bind`
 - `POST /api/v1/projects/:id/policies/restore-initial`
 - `POST /api/v1/governance/orchestration/policies/restore-initial`
 
-仓库治理与发布：
+Repository governance & release:
 
 - `GET /api/v1/projects/:id/repository`
 - `POST /api/v1/projects/:id/repository/bootstrap`
@@ -134,7 +134,7 @@ workspace 绑定：
 - `POST /api/v1/iterations/:id/publish`
 - `GET /api/v1/projects/:id/code-trace?ref=<branch|tag|commit|path>`
 
-变更控制：
+Change control:
 
 - `GET /api/v1/iterations/:id/change-control`
 - `POST /api/v1/iterations/:id/change-control/confirm`
@@ -143,53 +143,53 @@ workspace 绑定：
 - `POST /api/v1/iterations/:id/change-control/test-artifacts/generate`
 - `GET /api/v1/iterations/:id/release-review`
 
-## 5. 运行语义
+## 5. Runtime Semantics
 
 - `/health`
   - liveness
-  - 仅表示进程是否存活
-  - 优雅停机期间返回 `503`
+  - Only indicates if process is alive
+  - Returns `503` during graceful shutdown
 - `/ready`
   - readiness
-  - 反映存储探针、模型文件和 LLM 连通性
+  - Reflects storage probes, model files, and LLM connectivity
 - `/api/v1/status`
-  - 查看运行时摘要
+  - View runtime summary
 
-说明：
+Notes:
 
-- 启动阶段会异步探测一次 LLM，不再阻塞监听
-- `runtime.llmRequired` 表示是否启用 LLM 强依赖门禁
-- `runtime.dependencyRequired` 表示是否启用依赖探针强门禁
+- LLM is probed asynchronously once during startup, no longer blocks listening
+- `runtime.llmRequired` indicates whether LLM hard dependency gate is enabled
+- `runtime.dependencyRequired` indicates whether dependency probe hard gate is enabled
 
-## 6. Agent 执行后端与项目 workspace
+## 6. Agent Execution Backend & Project Workspace
 
-当前设计是：
+Current design:
 
-1. 单 Agent
-2. 每个项目一个独立 workspace
-3. 所有迭代持续沉淀到同一个项目 workspace
-4. BuildWise 只做知识物化、检索和上下文注入，不依赖具体 Agent 框架内核
+1. Single Agent
+2. One independent workspace per project
+3. All iterations continuously accumulate into the same project workspace
+4. BuildWise only handles knowledge materialization, retrieval, and context injection, doesn't depend on specific Agent framework kernel
 
-约束：
+Constraints:
 
-- `workspacePath` 建议使用绝对路径
-- 同一路径不可绑定多个项目
-- 绑定冲突返回 `409 workspace_path_already_bound`
-- 项目知识目录位于：
+- `workspacePath` recommends absolute path
+- Same path cannot bind multiple projects
+- Binding conflict returns `409 workspace_path_already_bound`
+- Project knowledge directory located at:
   - `workspacePath/.buildwise/workspace.json`
   - `workspacePath/.buildwise/memory/`
   - `workspacePath/.buildwise/shards/`
   - `workspacePath/.buildwise/index/`
 
-## 7. 投产说明
+## 7. Production Notes
 
-当前投产与运维主文档：
+Current production & operations main documents:
 
 - [production-operations.md](./docs/production-operations.md)
 - [production-readiness.md](./docs/production-readiness.md)
 - [release-candidate-checklist.md](./docs/release-candidate-checklist.md)
 
-注意：
+Notes:
 
-- 当前分支已经通过本地 `check:boundaries` 与 `verify:prod-readiness`
-- 最终是否放生产，仍应以真实环境的 `verify:prod-release`（含契约验证）、密钥配置、域名配置与运维检查为准
+- Current branch has passed local `check:boundaries` and `verify:prod-readiness`
+- Final production release still depends on real environment's `verify:prod-release` (including contract verification), key configuration, domain configuration, and operations checks
